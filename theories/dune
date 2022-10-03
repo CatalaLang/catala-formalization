@@ -1,0 +1,5 @@
+(coq.theory
+ (name Catala)
+)
+
+(include_subdirs qualified)
