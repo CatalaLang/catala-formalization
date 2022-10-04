@@ -97,7 +97,7 @@ Proof.
     reflexivity. }
 Qed.
 
-Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq fv_Let_eq fv_Default_eq : fv.
+Global Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq fv_Let_eq fv_Default_eq : fv.
 
 (* -------------------------------------------------------------------------- *)
 

@@ -6,7 +6,6 @@ Require Export Autosubst.Autosubst.
 Require Export AutosubstExtra.
 Require Export Autosubst_IsRen.
 
-Require Import ListFacts.
 (* Require Export Autosubst_EOS. *)
 Require Export Autosubst_FreeVars.
 
@@ -60,11 +59,11 @@ Definition term_eq_OK t1 t2: reflect (t1 = t2) (term eq t1 t2).
 
 *)
 
-Instance Ids_term : Ids term. derive. Defined.
-Instance Rename_term : Rename term. derive. Defined.
-Instance Subst_term : Subst term. derive. Defined.
-Instance SubstLemmas_term : SubstLemmas term. derive. Qed.
-Instance IdsLemmas_term : IdsLemmas term.
+Global Instance Ids_term : Ids term. derive. Defined.
+Global Instance Rename_term : Rename term. derive. Defined.
+Global Instance Subst_term : Subst term. derive. Defined.
+Global Instance SubstLemmas_term : SubstLemmas term. derive. Qed.
+Global Instance IdsLemmas_term : IdsLemmas term.
 Proof. econstructor. intros. injections. eauto. Qed.
 
 (* If the image of [t] through a substitution is a variable, then [t] must
@@ -107,6 +106,12 @@ Global Hint Resolve ids_implies_is_ren : is_ren obvious.
 
 (* The size of a term. *)
 
+Definition list_size size := fix list_size (ts: list term) :=
+  match ts with
+  | nil => 1
+  | cons h ts => size h + list_size ts
+  end
+.
 
 Fixpoint size (t : term) : nat :=
   match t with

@@ -1,6 +1,5 @@
 Require Import List.
 Require Import MyTactics.
-Require Export ListFacts.
 
 (* A few random additions to the [List] module, which is woefully incomplete. *)
 
@@ -29,7 +28,7 @@ Proof.
   reflexivity.
 Qed.
 
-Hint Rewrite length_nil length_cons app_length map_length : length.
+Global Hint Rewrite length_nil length_cons app_length map_length : length.
 
 Ltac length :=
   autorewrite with length in *;
@@ -135,3 +134,105 @@ Proof.
   * remember (P a) as b.
     induction b; [econstructor|]; auto.
 Qed.
+
+(*
+This lemma state that if we have two different ways to express a list t = as1 ++ a :: as2 = bs1 ++ b :: bs2, then there is three possibilities: 
+* a is before b, hence there is a l such that bs1 = as1 ++ a :: l, and as2 = l ++ b :: bs2
+* a is after b, hence there is a l such that as1 = bs1 ++ b :: l, and bs2 = l ++ a :: as2
+* a is exactly at b, hence a = b /\ as1 = bs1 /\ as2 = bs2
+*)
+
+
+
+
+Lemma app_inj2: forall A (l1 l2 l2': list A), 
+  l1 ++ l2 = l1 ++ l2' -> l2 = l2'.
+Proof.
+  induction l1; simpl; intros; injections; eauto.
+Qed.
+
+Lemma rev_same: forall A (l1 l2: list A),
+  rev l1 = rev l2 -> l1 = l2.
+Proof.
+  intros.
+  rewrite <- rev_involutive at 1.
+  rewrite <- rev_involutive.
+  f_equal; eauto.
+Qed.
+
+
+Lemma app_inj1: forall A (l1 l1' l2: list A), 
+  l1 ++ l2 = l1' ++ l2 -> l1 = l1'.
+Proof.
+  intros.
+  (* same as before, but with reversed lists *)
+  forwards: app_inj2 (rev l2) (rev l1) (rev l1').
+  { repeat rewrite <- rev_app_distr. now rewrite H. }
+  now eapply rev_same.
+Qed. 
+
+Lemma split_list:
+  forall (A: Type) (a b : A) (as1 as2 bs1 bs2: list A),
+  as1 ++ a :: as2 = bs1 ++ b :: bs2 ->
+  {l | bs1 = as1 ++ a :: l /\ as2 = l ++ b :: bs2 } +
+  {l | as1 = bs1 ++ b :: l /\ bs2 = l ++ a :: as2 } +
+  {a = b /\ as1 = bs1 /\ as2 = bs2}
+.
+Proof.
+  intros.
+  (* remember (as1 ++ a :: as2) as t. *)
+  remember (length as1) as i.
+  remember (length bs1) as j.
+  forwards [[Hij|Hij]|Hij]: lt_eq_lt_dec i j.
+  * (* first case: a is before b *)
+    left; left.
+    remember (firstn ((j-1) - i) as2) as l.
+    assert (Hbs1: bs1 = as1 ++ a :: l).
+    {
+      rewrite Heql.
+      rewrite <- firstn_cons.
+      replace (S (j-1-i)) with (j - i) by lia.
+      rewrite <- firstn_all2 with A j as1 by lia.
+      rewrite Heqi.
+      rewrite <- firstn_app.
+      rewrite H.
+      rewrite firstn_app.
+      rewrite <- Heqj.
+      replace (j - j) with 0 by lia.
+      rewrite -> firstn_O, app_nil_r, Heqj, firstn_all.
+      reflexivity.
+    }
+    exists l; split.
+    - apply Hbs1.
+    - (* bs1 ++ b :: bs2 = as1 ++ a :: l ++ b :: bs2 *)
+      (* as1 ++ a :: as2 = as1 ++ a :: l ++ b :: bs2 *)
+      assert (Hfinal: bs1 ++ b :: bs2 = as1 ++ a :: l ++ b :: bs2).
+      { rewrite Hbs1.
+        repeat rewrite <- app_assoc, <- app_comm_cons.
+        f_equal. }
+      rewrite <- H in Hfinal.
+      forward app_inj2.
+      now injections.
+  * right. (* we only need to show that as1 = bs1. The rest will follow from H. *)
+    assert (H1: as1 = bs1).
+    { 
+      (* this simply follows from the fact that as1 and bs1 are of the same length *)
+      remember (firstn i (as1 ++ a :: as2)) as l.
+      apply eq_trans with l.
+      { rewrite Heql, Heqi.
+        rewrite firstn_app.
+        replace (_ - _) with 0 by lia.
+        now rewrite firstn_O, firstn_all, app_nil_r.
+      }
+      {
+        rewrite Heql, Hij, Heqj, H.
+        rewrite firstn_app.
+        replace (_ - _) with 0 by lia.
+        now rewrite firstn_O, firstn_all, app_nil_r.
+      }
+    }
+    rewrite H1 in H; forwards: app_inj2 H; injections.
+    eauto.  
+  * left; right. (* same as the first case. *)
+    admit.
+Admitted.

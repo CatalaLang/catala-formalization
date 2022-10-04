@@ -8,7 +8,6 @@ Require Import MyList.
 
 Require Import AutosubstExtra.
 Require Import LibTactics.
-Require Import ListFacts.
 
 (* We give a symbolic name to each reduction rule. *)
 
@@ -559,7 +558,7 @@ Global Hint Resolve
   subst_empty_list
   subst_is_value_list: subst.
 
-Hint Rewrite subst_app subst_cons: subst.
+Global Hint Rewrite subst_app subst_cons: subst.
 
 
 Global Hint Resolve subst_is_value_list : is_value_res obvious.
@@ -871,7 +870,7 @@ Proof.
      [        |a|     ]
      [        |b|     ]
   *)
-  destruct (split_list_2 Heq).
+  destruct (split_list Heq).
   * unpack; subst;
     apply Hti; symmetry; eapply Forall_elt; eassumption.
   * unpack; subst;
@@ -941,8 +940,8 @@ Proof.
       | eauto with is_value
       | tryfalse
     ].
-    - false;
-      forwards: split_list_2 H5; unzip; inverts_Forall; tryfalse.
+    - false.
+      forwards: split_list H5; unzip; inverts_Forall; tryfalse.
     - false. rewrite <- H5 in H0.
       inverts_Forall; eauto with is_value.
   * intros; invert_cbv; repeat f_equal;
@@ -952,13 +951,13 @@ Proof.
     ].
     - false;
       match goal with [ h: _ ++ _ :: _ = _ ++ _ :: _ |- _] =>
-        forwards: split_list_2 h
+        forwards: split_list h
       end; unzip; inverts_Forall; tryfalse.
     - match goal with [ h: _ ++ _ :: _ = _ ++ _ :: _ |- _] =>
-        forwards: split_list_2 h
+        forwards: split_list h
       end; unzip; inverts_Forall; tryfalse.
     - match goal with [ h: _ ++ _ :: _ = _ ++ _ :: _ |- _] =>
-        forwards: split_list_2 h
+        forwards: split_list h
       end; unzip; inverts_Forall; tryfalse.
       + invert_cbv.
       + invert_cbv.
@@ -966,10 +965,10 @@ Proof.
   * intros; invert_cbv.
     - false; inverts_Forall; eauto with is_value_res.
     - match goal with [ h: _ ++ _ :: _ = _ ++ _ :: _ |- _] =>
-        forwards: split_list_2 h
+        forwards: split_list h
       end; unzip; inverts_Forall; invert_cbv.
     - match goal with [ h: _ ++ _ :: _ = _ ++ _ :: _ |- _] =>
-        forwards: split_list_2 h
+        forwards: split_list h
       end; unzip; inverts_Forall; try solve [false; eauto with is_value_res ].
       now erewrite IHred by eauto.
     - inverts_Forall; invert_cbv.
