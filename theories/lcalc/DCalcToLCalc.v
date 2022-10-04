@@ -117,7 +117,7 @@ Fixpoint normalize t :=
     Let (normalize t1) (normalize t2)
   | Default ts tj tc =>
     let ts' := List.map normalize ts in
-    let ts'' := (List.filter )
+    let ts'' := List.filter
     (fun ti => match ti with | Empty => false | _ => true end) ts' in
     Default ts'' (normalize tj) (normalize tc)
   end
@@ -622,31 +622,158 @@ Proof.
     }
 Qed.
 
+Lemma inv''subst_is_empty_same:
+  forall t t',
+    inv'' t t' ->
+    forall sigma,
+      t.[sigma] = Empty <-> t'.[sigma] = Empty
+.
+Proof.
+  induction 1 using inv''_ind'; try solve[intros; subst; asimpl; try reflexivity; try solve [split; intros; congruence]].
+Qed.
+
+Lemma subset:
+  forall t sigma,
+    t = Empty -> t.[sigma] = Empty.
+Proof. intros; subst; now asimpl. Qed.
+
+Lemma reverse:
+  forall t sigma,
+    t.[sigma] = Empty -> {x | t = Var x /\ sigma x = Empty} + {t = Empty}.
+Proof.
+  intros.
+  revert H; case t; intros; try solve [simpl in H; congruence].
+  * left; exists x. asimpl in H; eauto.
+  * right; eauto.
+Qed.
+
+Lemma inv''_same: forall x y, inv'' x y -> x = Empty <-> y = Empty.
+Proof.
+  intros.
+  induction H; split; intros; try congruence.
+Qed.
+
+Lemma inv''_same': forall x y, inv'' x y -> x <> Empty <-> y <> Empty.
+Proof.
+  intros.
+  induction H; split; intros; try congruence.
+Qed.
+
+
+Lemma is_empty_dec: forall t, {t = Empty} + {t <> Empty}.
+Proof. intros; case t; try solve [left; eauto]; try solve [right; intro; congruence].
+Qed.
+
+Lemma inv''_aux1: forall ts ts' sigma, 
+List.Forall2
+       [set t | [set t' | (forall sigma : var -> dterm,
+                           inv'' t.[sigma] t'.[sigma])]] ts ts'
+-> List.Forall2 inv''
+  (List.filter [set ti | (if ti is Empty then false else true)]
+     ts..[sigma])
+  (List.filter [set ti | (if ti is Empty then false else true)]
+     ts'..[sigma]).
+Proof.
+  intros.
+  induction H.
+  * asimpl. econstructor.
+  * asimpl.
+    destruct (is_empty_dec x.[sigma]) as [Hx|Hx].
+    - assert (Hy: y.[sigma] = Empty).
+      { eapply inv''_same. eapply inv''_sym. eapply H. eauto. }
+      now rewrite Hx, Hy.
+    - assert (Hy: y.[sigma] <> Empty).
+      { eapply inv''_same'. eapply inv''_sym. eapply H. eauto. }
+      replace (if x.[sigma] is Empty then false else true) with true.
+      replace (if y.[sigma] is Empty then false else true) with true.
+      econstructor; eauto.
+
+      revert Hy; case y.[sigma]; intros; simpl; eauto; congruence.
+      revert Hx; case x.[sigma]; intros; simpl; eauto; congruence.
+Qed.
+
+
+Lemma inv''_aux2: forall ts ts' sigma, List.Forall2 inv''
+(List.filter [set ti | (if ti is Empty then false else true)]
+(List.filter [set ti | (if ti is Empty then false else true)] ts)..[sigma])
+(List.filter [set ti | (if ti is Empty then false else true)]
+   (List.filter [set ti | (if ti is Empty then false else true)] ts')..[sigma]) -> 
+   List.Forall2 inv''
+  (List.filter [set ti | (if ti is Empty then false else true)]
+     ts..[sigma])
+  (List.filter [set ti | (if ti is Empty then false else true)]
+     ts'..[sigma]).
+Proof.
+Admitted.
+
+
 Lemma inv''_subst':
   forall t t',
     inv'' t t' ->
     forall sigma,
       inv'' t.[sigma] t'.[sigma].
+(* most general substitution for the most genral inv'' *)
 Proof.
-  induction 1 using inv''_ind'; intros; subst; asimpl; try econstructor; eauto.
-  * eapply inv''_refl.
-  * eapply IHinv''2.
-    induction x; asimpl; intro; tryfalse.
-    apply H1 with x; revert H2; clear; set (t := sigma x); case t; asimpl; intros; tryfalse; eauto.
-  * repeat rewrite smart_filter'.
-    {
-      induction H; asimpl; econstructor; inverts_Forall; eauto.
-    }
-    { clear -H3; intros; case t; asimpl; eauto.
-      intros x; forwards: H3 x; set (t' := sigma x) in *.
-      induction t'; eauto; tryfalse.
-    }
-    { clear -H3; intros; case t; asimpl; eauto.
-      intros x; forwards: H3 x; set (t' := sigma x) in *.
-      induction t'; eauto; tryfalse.
-    }
+  induction 1 using inv''_ind'; try solve [intros; subst; asimpl; try econstructor; eauto].
+  * intros; subst; asimpl. eapply inv''_refl.
+  * intros; subst; asimpl; try econstructor; eauto.
+    eapply inv''_aux2.
+    eapply inv''_aux1.
+    eauto.
 Qed.
 
+
+Lemma inv''_aux1': forall ts ts' sigma sigma', 
+List.Forall2
+       [set t | [set t' | (forall sigma sigma': var -> dterm, (forall x, inv'' (sigma x) (sigma' x)) ->
+                           inv'' t.[sigma] t'.[sigma'])]] ts ts'
+-> (forall x, inv'' (sigma x) (sigma' x)) -> List.Forall2 inv''
+  (List.filter [set ti | (if ti is Empty then false else true)]
+     ts..[sigma])
+  (List.filter [set ti | (if ti is Empty then false else true)]
+     ts'..[sigma']).
+Proof.
+Admitted.
+
+Lemma inv''_aux2': forall ts ts' sigma sigma', List.Forall2 inv''
+(List.filter [set ti | (if ti is Empty then false else true)]
+(List.filter [set ti | (if ti is Empty then false else true)] ts)..[sigma])
+(List.filter [set ti | (if ti is Empty then false else true)]
+   (List.filter [set ti | (if ti is Empty then false else true)] ts')..[sigma']) -> 
+   List.Forall2 inv''
+  (List.filter [set ti | (if ti is Empty then false else true)]
+     ts..[sigma])
+  (List.filter [set ti | (if ti is Empty then false else true)]
+     ts'..[sigma']).
+Proof.
+Admitted.
+
+
+Lemma inv''_subst'':
+  forall t t',
+    inv'' t t' ->
+    forall sigma sigma',
+      (forall x, inv'' (sigma x) (sigma' x)) ->
+      inv'' t.[sigma] t'.[sigma'].
+Proof.
+  induction 1 using inv''_ind'; try solve [intros; subst; asimpl; try econstructor; eauto].
+  * intros. asimpl.
+    econstructor.
+    eapply IHinv''.
+    induction x; asimpl.
+    - eapply inv''_refl.
+    - eapply inv''_ren; eauto.
+  * intros; asimpl; econstructor; eauto.
+    eapply IHinv''2.
+    induction x; asimpl.
+    - eapply inv''_refl.
+    - eapply inv''_ren; eauto. 
+  * intros; subst; asimpl; try econstructor; eauto.
+    eapply inv''_aux2'.
+    eapply inv''_aux1'; eauto.
+Qed.
+
+(*
 Lemma inv'_ren:
   forall v v',
     inv' v v' ->
@@ -813,11 +940,46 @@ Proof.
 
 Admitted.
 
+*)
 
-Theorem simulation_inv':
+Lemma inv''_preserve_is_value: forall t1 t2, inv'' t1 t2 -> is_value t1 -> is_value t2.
+Proof.
+  induction t1; intros; unfold is_value, if_value in *; tryfalse; inverts H; eauto.
+Qed.
+
+Lemma inv''_preserve_is_value': forall t1 t2, inv'' t1 t2 -> is_value t2 -> is_value t1.
+Proof.
+  induction t1; intros; unfold is_value, if_value in *; tryfalse; inverts H; eauto.
+Qed.
+  
+
+Theorem simulation_inv'':
     forall c1 c1', dcbv c1 c1' ->
-    forall c2,  inv' c1  c2 ->
-    exists c2', inv' c1' c2' /\ dcbv c2 c2'
+    forall c2,  inv'' c1  c2 ->
+    exists c2', inv'' c1' c2' /\ dcbv c2 c2'
+.
+Proof.
+  induction c1; intros; inverts H; simpl in *; tryfalse.
+  * invert H0; intros; subst; inverts H2; intros; subst.
+    exists (t'.[t2'/]); split.
+    { eapply inv''_subst''; eauto; induction x; simpl; eauto using inv''_refl. }
+    { econstructor; eauto. eapply inv''_preserve_is_value; eauto. }
+  * invert H0; intros; subst.
+  exists (t'.[t2'/]); split.
+  { eapply inv''_subst''; eauto; induction x; simpl; eauto using inv''_refl. }
+  { econstructor; eauto. eapply inv''_preserve_is_value; eauto. }
+
+  * intros.
+
+  * inverts H.
+  intros c1 c1'.
+  induction 1.
+
+
+Theorem simulation_inv'':
+    forall c1 c1', dcbv c1 c1' ->
+    forall c2,  inv'' c1  c2 ->
+    exists c2', inv'' c1' c2' /\ dcbv c2 c2'
 .
 Proof.
   size_induction c1.
