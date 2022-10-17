@@ -321,12 +321,13 @@ Proof.
   * subst. econstructor; eauto.
 Qed.
 
+(*
 Lemma case_nil:
   forall ts ts',
-  let f := [set ti | match ti with
+  let f := ([set ti | match ti with
   | Empty => false
   | _ => true
-  end] in
+  end]) in
   nil = List.filter f ts' -> List.Forall2 nf ts ts' -> nil = List.filter f ts.
 Proof.
   intros.
@@ -338,6 +339,7 @@ Proof.
     now eapply IHForall2.
 Qed.
 
+*)
 
 
 
@@ -723,6 +725,7 @@ Proof.
 Qed.
 
 
+
 Lemma inv''_aux1': forall ts ts' sigma sigma', 
 List.Forall2
        [set t | [set t' | (forall sigma sigma': var -> dterm, (forall x, inv'' (sigma x) (sigma' x)) ->
@@ -733,9 +736,47 @@ List.Forall2
   (List.filter [set ti | (if ti is Empty then false else true)]
      ts'..[sigma']).
 Proof.
-Admitted.
+  intros.
+  induction H.
+  * asimpl; econstructor.
+  * asimpl.
+    destruct (is_empty_dec x.[sigma]) as [Hx|Hx].
+    - assert (Hy: y.[sigma'] = Empty).
+      { eapply inv''_same. eapply inv''_sym. eapply H. eapply H0. eauto. }
+      now rewrite Hx, Hy.
+    - assert (Hy: y.[sigma'] <> Empty).
+      { eapply inv''_same'. eapply inv''_sym. eapply H. all: eauto. }
+      replace (if x.[sigma] is Empty then false else true) with true.
+      replace (if y.[sigma'] is Empty then false else true) with true.
+      econstructor; eauto.
 
-Lemma inv''_aux2': forall ts ts' sigma sigma', List.Forall2 inv''
+      revert Hy; case y.[sigma']; intros; simpl; eauto; congruence.
+      revert Hx; case x.[sigma]; intros; simpl; eauto; congruence.
+Qed.
+
+Lemma filter_sigma_filter: forall ts sigma, 
+(List.filter [set ti | (if ti is Empty then false else true)]
+     ts..[sigma]) = (List.filter [set ti | (if ti is Empty then false else true)]
+     (List.filter [set ti | (if ti is Empty then false else true)]
+        ts)..[sigma]).
+Proof.
+  intros.
+  induction ts.
+  * asimpl; eauto. 
+  * asimpl.
+    destruct (is_empty_dec a) as [Hx|Hx].
+    - rewrite Hx; asimpl.
+      eauto.
+    - replace (if a is Empty then false else true) with true by (revert Hx; induction a; congruence).
+      asimpl.
+      rewrite IHts.
+      fequal.
+Qed.
+      
+
+Lemma inv''_aux2': forall ts ts' sigma sigma',
+(forall x, inv'' (sigma x) (sigma' x)) ->
+List.Forall2 inv''
 (List.filter [set ti | (if ti is Empty then false else true)]
 (List.filter [set ti | (if ti is Empty then false else true)] ts)..[sigma])
 (List.filter [set ti | (if ti is Empty then false else true)]
@@ -746,8 +787,12 @@ Lemma inv''_aux2': forall ts ts' sigma sigma', List.Forall2 inv''
   (List.filter [set ti | (if ti is Empty then false else true)]
      ts'..[sigma']).
 Proof.
-Admitted.
+  intros.
+  repeat rewrite <- filter_sigma_filter in H0.
+  eauto.
+Qed.
 
+(* *)
 
 Lemma inv''_subst'':
   forall t t',
@@ -769,7 +814,7 @@ Proof.
     - eapply inv''_refl.
     - eapply inv''_ren; eauto. 
   * intros; subst; asimpl; try econstructor; eauto.
-    eapply inv''_aux2'.
+    eapply inv''_aux2'; eauto.
     eapply inv''_aux1'; eauto.
 Qed.
 
@@ -951,7 +996,174 @@ Lemma inv''_preserve_is_value': forall t1 t2, inv'' t1 t2 -> is_value t2 -> is_v
 Proof.
   induction t1; intros; unfold is_value, if_value in *; tryfalse; inverts H; eauto.
 Qed.
+
+Notation "'filter_empty' ts" := (List.filter [set ti | (if ti is Empty then false else true)] ts) (at level 100).
+
+Lemma aux2:
+forall ts1 a ts2
+(Hts1: List.Forall (eq DCSyntax.Empty) ts1),
+(filter_empty ts1 ++ a :: ts2) = filter_empty a :: ts2.
+Proof.
+  intros.
+  induction Hts1.
+  * simpl; eauto.
+  * rewrite <- H.
+    simpl; rewrite IHHts1; simpl.
+    eauto.
+Qed.
+
+Lemma aux3:
+forall ts1 a ts2
+(Hts1: List.Forall (eq DCSyntax.Empty) ts1)
+(Hts2: List.Forall (eq DCSyntax.Empty) ts2)
+(Ha: a <> DCSyntax.Empty),
+(filter_empty ts1 ++ a :: ts2) = a :: nil.
+Proof.
+  intros.
+  rewrite aux2; eauto.
+  simpl.
+  replace (if a is Empty then false else true) with true by (induction a; congruence).
+  induction Hts2.
+  * simpl; eauto.
+  * rewrite <- H.
+    simpl; rewrite IHHts2; eauto.
+Qed.
+
+Lemma aux4:
+  forall a ts',
+  List.Forall2 inv'' (a :: nil) ts' ->
+  exists b, b :: nil = ts' /\ inv'' a b.
+Proof.
+  intros.
+  inverts H.
+  inverts H4.
+  eexists; split; eauto.
+Qed.
+
+Require Import Bool.Bool.
+
+Definition reflect1 {A} (P: A -> _) (p: A -> _) := forall x, reflect (P x) (p x).
+
+
+Definition is_empty := [set ti | (if ti is Empty then false else true)].
+
+Notation "'negb1' p" := (fun x => negb (p x)) (at level 100).
+
+Lemma reflect_filter_ForallEmpty:
+  reflect1 (eq Empty) (negb1 is_empty).
+Proof.
+  intro t; induction t; simpl; econstructor; try intro; tryfalse; eauto.
+Qed.
+
+
+
+
+Lemma filter_and_forall {A} :
+  forall (p: A -> bool) (P: A -> Prop), reflect1 P p -> forall l, nil = List.filter (negb1 p) l <-> List.Forall P l.
+Proof.
+  intros until l.
+  induction l; split; simpl; intros.
+  * econstructor.
+  * reflexivity.
+  * destruct X with a as [Pa|Pa]; simpl in H.
+    - econstructor; eauto. 
+      eapply IHl, H.
+    - tryfalse.
+  * destruct X with a as [Pa|Pa]; simpl; inverts H.
+    - now eapply IHl.
+    - tryfalse.
+Qed.
+
+(* Check neg. *)
+
+
+
+Lemma filter_and_forall_cons {A}:
+  forall (P: A -> _) p (Pp: reflect1 P p) l,
+  forall a t,
+    a::t = List.filter (negb1 p) l ->
+    exists l1 l2, l = l1 ++ a :: l2 /\ t = List.filter (negb1 p) l2 /\ List.Forall P l1.
+Proof.
+  intros.
+  gen l; induction l; simpl; intros.
+  * congruence.
+  * remember (negb (p a0)).
+    induction b.
+    - injections.
+      exists (nil: list A) l.
+      simpl; subst. repeat econstructor.
+    - forwards [l1 [l2 [H1 [H2 H3]]]] : IHl H.
+      exists (a0::l1) l2.
+      subst; simpl.
+      repeat econstructor; eauto.
+      clear -Pp Heqb.
+      induction (Pp a0); simpl in *; congruence.
+Qed.
+
+
+Lemma aux5:
+  forall (l: list term) (y: term), y :: nil = (filter_empty l) -> y <> Empty ->
+  exists ts1 ts2, ts1 ++ y :: ts2 = l /\ List.Forall (eq DCSyntax.Empty) ts1 /\ List.Forall (eq DCSyntax.Empty) ts2.
+Proof.
+  intros.
+  induction l; simpl in H.
+  * congruence.
+  * remember (if a is Empty then false else true).
+    induction b; inverts H.
+    - exists (nil: list term), l; repeat split; eauto.
+      admit.
+    - admit.
+Admitted. 
+
+Lemma aux1:
+forall ts1 a ts2 ts'
+(Ha_nempty: a <> DCSyntax.Empty)
+(Ha_val: DCValuesRes.is_value_res a)
+(Hinv: (List.Forall2 inv'' (filter_empty ts1 ++ a :: ts2)(filter_empty ts')))
+(Hts1: List.Forall (eq DCSyntax.Empty) ts1)
+(Hts2: List.Forall (eq DCSyntax.Empty) ts2),
+
+exists ts1' b ts2',
+  ts' = ts1' ++ b :: ts2'
+  /\ List.Forall (eq DCSyntax.Empty) ts1'
+  /\ List.Forall (eq DCSyntax.Empty) ts2'
+  /\ inv'' a b
+.
+Proof.
+  intros.
+  rewrite aux3 in Hinv; eauto.
+  inversion Hinv; subst.
+  (* exists nil; exists a; exists nil.
+  forward aux3. *)
+Admitted.
+
+Lemma filter_cons:
+  forall A p (h: A) t, List.filter p (h::t) = if p h then h :: List.filter p t else List.filter p t.
+Proof.
+  intros; simpl; reflexivity.
+Qed.
+
+Lemma bli:
+  forall ts1 ts2 ti ts'
+  (Hti: ti <> Empty)
+  (* List.Forall is_value_res ts1 -> *)
+  (Hts: List.Forall2 inv'' (filter_empty ts1 ++ ti :: ts2) (filter_empty ts')),
+  exists ts1' ts2' ti', ts' = ts1' ++ ti' :: ts2' /\
+    List.Forall2 inv'' (filter_empty ts1) (filter_empty ts1') /\
+    List.Forall2 inv'' (filter_empty ts2) (filter_empty ts2') /\
+    inv'' ti ti'.
+Proof.
+  intros.
+  rewrite List.filter_app in Hts; simpl in Hts.
+  replace (if ti is Empty then false else true) with true in Hts.
+  2: { induction ti; tryfalse; eauto. }
+  forwards: List.Forall2_app_inv_l Hts; unpack.
+  inverts H0.
+  repeat eexists.
+
+  (* the current goal is not true, but the theorem is. We need to take ts1' ++ ti' :: ts2' *)
   
+Admitted.
 
 Theorem simulation_inv'':
     forall c1 c1', dcbv c1 c1' ->
@@ -965,18 +1177,73 @@ Proof.
     { eapply inv''_subst''; eauto; induction x; simpl; eauto using inv''_refl. }
     { econstructor; eauto. eapply inv''_preserve_is_value; eauto. }
   * invert H0; intros; subst.
-  exists (t'.[t2'/]); split.
-  { eapply inv''_subst''; eauto; induction x; simpl; eauto using inv''_refl. }
-  { econstructor; eauto. eapply inv''_preserve_is_value; eauto. }
+    forward IHc1_1.
+    eexists; split; econstructor; eauto.
+  * inverts H0; intros; subst.
+    forward IHc1_2.
+    exists (App t1' c2'); split.
+    - econstructor; eauto.
+    - eapply DCR.RedAppVR; eauto.
+      induction t1'; inverts H2; simpl in H4; simpl; eauto.
+  * admit. * admit.
+  * (* default case 1: conflict *)
+    inverts H0; simpl; subst.
+    
+    eexists; split; econstructor; eauto.
+    (* trivially true *)
+    admit. admit.
+  * inverts H0; simpl.
+    rewrite aux3 in H3; eauto.
+    inverts H3.
+    inverts H7.
 
-  * intros.
+    assert (Hy1: y <> Empty).
+    {
+      induction y; inverts H2; simpl in H8; intro; eapply H8; eauto; congruence.
+    }
 
-  * inverts H.
-  intros c1 c1'.
-  induction 1.
+    assert (Hy2: DCValuesRes.is_value_res y).
+    {
+      induction y; inverts H2; simpl in H9; eapply H9; eauto; congruence.
+    }
+
+    forwards: aux5 H1; eauto.
+    
+    destruct H.
+    destruct H.
+    destruct H.
+    destruct H0.
+    subst.
+    exists y.
+    split; eauto.
+    eapply RedDefaultEValue; eauto.
+  * inverts H0; simpl in *.
+    forwards: bli H3.
+    { intro; subst; inverts H6; simpl in H; eauto. }
+    unpack; subst.
+    (* missing induction hypothesis! I didn't used the correct induction principle *)
+    assert ((List.Forall (fun ti => forall c1' : DCSyntax.term,
+    dcbv ti c1' ->
+    forall c2 : dterm,
+    inv'' ti c2 -> exists c2' : dterm, inv'' c1' c2' /\ dcbv c2 c2')) (ts1 ++ ti :: ts2)).
+    { admit. }
+    inverts_Forall.
+    forwards: H12 H6 H2; unpack.
+    exists (Default (ts1' ++ c2' :: ts2') tj' tc'); split.
+    2: {
+      eapply RedDefaultE; simpl; eauto.
+      (* all terms in ts1' are value, since the property is conserved by inv''. *)
+      admit.
+    }
+
+    econstructor; eauto.
+    repeat rewrite List.filter_app, filter_cons in *.
+    eapply List.Forall2_app.
 
 
-Theorem simulation_inv'':
+Admitted.
+
+Theorem simulation'_inv'':
     forall c1 c1', dcbv c1 c1' ->
     forall c2,  inv'' c1  c2 ->
     exists c2', inv'' c1' c2' /\ dcbv c2 c2'
