@@ -169,7 +169,53 @@ Proof.
   forwards: app_inj2 (rev l2) (rev l1) (rev l1').
   { repeat rewrite <- rev_app_distr. now rewrite H. }
   now eapply rev_same.
-Qed. 
+Qed.
+
+Lemma split_list_aux:
+  forall (A: Type)
+  (a b: A)
+  (as1 as2 bs1 bs2: list A)
+  (H: as1 ++ a :: as2 = bs1 ++ b :: bs2)
+  (i: nat)
+  (j: nat)
+  (Heqi: i = length as1)
+  (Heqj: j = length bs1)
+  (Hij: i < j),
+  {l : list A | bs1 = as1 ++ a :: l /\ as2 = l ++ b :: bs2}
+.
+Proof.
+  intros.
+  remember (firstn ((j-1) - i) as2) as l.
+    assert (Hbs1: bs1 = as1 ++ a :: l).
+    {
+      rewrite Heql.
+      rewrite <- firstn_cons.
+      replace (S (j-1-i)) with (j - i) by lia.
+      rewrite <- firstn_all2 with A j as1 by lia.
+      rewrite Heqi.
+      rewrite <- firstn_app.
+      rewrite H.
+      rewrite firstn_app.
+      rewrite <- Heqj.
+      replace (_ - _) with 0 by lia.
+      rewrite -> firstn_O, app_nil_r, Heqj, firstn_all.
+      reflexivity.
+    }
+    exists l; split.
+    - apply Hbs1.
+    - (* bs1 ++ b :: bs2 = as1 ++ a :: l ++ b :: bs2 *)
+      (* as1 ++ a :: as2 = as1 ++ a :: l ++ b :: bs2 *)
+      assert (Hfinal: bs1 ++ b :: bs2 = as1 ++ a :: l ++ b :: bs2).
+      { rewrite Hbs1.
+        repeat rewrite <- app_assoc, <- app_comm_cons.
+        f_equal. }
+      rewrite <- H in Hfinal.
+      forward app_inj2.
+      now injections.
+Qed.
+
+
+(* Lemma Statement From Evelyne Contejean in SQLfs *)
 
 Lemma split_list:
   forall (A: Type) (a b : A) (as1 as2 bs1 bs2: list A),
@@ -186,33 +232,7 @@ Proof.
   forwards [[Hij|Hij]|Hij]: lt_eq_lt_dec i j.
   * (* first case: a is before b *)
     left; left.
-    remember (firstn ((j-1) - i) as2) as l.
-    assert (Hbs1: bs1 = as1 ++ a :: l).
-    {
-      rewrite Heql.
-      rewrite <- firstn_cons.
-      replace (S (j-1-i)) with (j - i) by lia.
-      rewrite <- firstn_all2 with A j as1 by lia.
-      rewrite Heqi.
-      rewrite <- firstn_app.
-      rewrite H.
-      rewrite firstn_app.
-      rewrite <- Heqj.
-      replace (j - j) with 0 by lia.
-      rewrite -> firstn_O, app_nil_r, Heqj, firstn_all.
-      reflexivity.
-    }
-    exists l; split.
-    - apply Hbs1.
-    - (* bs1 ++ b :: bs2 = as1 ++ a :: l ++ b :: bs2 *)
-      (* as1 ++ a :: as2 = as1 ++ a :: l ++ b :: bs2 *)
-      assert (Hfinal: bs1 ++ b :: bs2 = as1 ++ a :: l ++ b :: bs2).
-      { rewrite Hbs1.
-        repeat rewrite <- app_assoc, <- app_comm_cons.
-        f_equal. }
-      rewrite <- H in Hfinal.
-      forward app_inj2.
-      now injections.
+    eapply split_list_aux; eauto.
   * right. (* we only need to show that as1 = bs1. The rest will follow from H. *)
     assert (H1: as1 = bs1).
     { 
@@ -234,5 +254,6 @@ Proof.
     rewrite H1 in H; forwards: app_inj2 H; injections.
     eauto.  
   * left; right. (* same as the first case. *)
-    admit.
-Admitted.
+    symmetry in H.
+    eapply split_list_aux; eauto.
+Qed.
