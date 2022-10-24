@@ -36,6 +36,14 @@ Inductive rule :=
 | RuleDefaultE
 | RuleDefaultEConflict
 | RuleDefaultEValue
+| RuleAppRConflict
+| RuleAppLConflict
+| RuleLetRConflict
+| RuleLetLConflict
+| RuleAppREmpty
+| RuleAppLEmpty
+| RuleLetREmpty
+| RuleLetLEmpty
 .
 
 (* A mask is a set of rules. *)
@@ -45,11 +53,18 @@ Definition mask :=
 
 (* A generic small-step reduction semantics, parameterized with a mask. *)
 
+Notation "'is_nerror' t" :=
+  (match t with
+  | Conflict | Empty => False
+  | _ => True
+  end) (at level 70).
+
 Inductive red (mask : mask) : term -> term -> Prop :=
 | RedBetaV:
     forall t v u,
     mask RuleBetaV ->
     is_value v ->
+    is_nerror v ->
     t.[v/] = u ->
     red mask (App (Lam t) v) u
 | RedLetV:
@@ -106,12 +121,16 @@ Inductive red (mask : mask) : term -> term -> Prop :=
 | RedAppL:
     forall t1 t2 u,
     mask RuleAppL ->
+    is_nerror t1 ->
+    is_nerror u ->
     red mask t1 t2 ->
     red mask (App t1 u) (App t2 u)
 | RedAppVR:
     forall v u1 u2,
     mask RuleAppVR ->
     is_value v ->
+    is_nerror v ->
+    is_nerror u1 ->
     red mask u1 u2 ->
     red mask (App v u1) (App v u2)
 | RedAppLR:
@@ -125,6 +144,38 @@ Inductive red (mask : mask) : term -> term -> Prop :=
     mask RuleAppR ->
     red mask u1 u2 ->
     red mask (App t1 u1) (App t1 u2)
+| RedAppRConflict:
+  forall t,
+  mask RuleAppRConflict ->
+  red mask (App t Conflict) Conflict
+| RedAppLConflict:
+  forall t,
+  mask RuleAppLConflict ->
+  red mask (App Conflict t) Conflict
+| RedLetRConflict:
+  forall t,
+  mask RuleLetRConflict ->
+  red mask (Let t Conflict) Conflict
+| RedLetLConflict:
+  forall t,
+  mask RuleLetLConflict ->
+  red mask (Let Conflict t) Conflict
+| RedAppREmpty:
+  forall t,
+  mask RuleAppREmpty ->
+  red mask (App t Empty) Empty
+| RedAppLEmpty:
+  forall t,
+  mask RuleAppLEmpty ->
+  red mask (App Empty t) Empty
+| RedLetREmpty:
+  forall t,
+  mask RuleLetREmpty ->
+  red mask (Let t Empty) Empty
+| RedLetLEmpty:
+  forall t,
+  mask RuleLetLEmpty ->
+  red mask (Let Empty t) Empty
 | RedLetL:
     forall t1 t2 u,
     mask RuleLetL ->
@@ -181,7 +232,8 @@ Inductive red (mask : mask) : term -> term -> Prop :=
     red mask (Default ts (Const false) tc) Empty
 .
 
-Definition rule_to_red { mask: mask } (r: rule) :=
+
+(* Definition rule_to_red { mask: mask } (r: rule) :=
     match r return
     match r with | RuleBetaV => forall t v u, mask RuleBetaV -> is_value v -> t.[v/] = u -> red mask (App (Lam t) v) u
     | RuleLetV => forall t v u, mask RuleLetV -> is_value v -> t.[v/] = u -> red mask (Let v t) u
@@ -239,7 +291,7 @@ Ltac rconstructor :=
   | [ h : ?mask ?r |- _ ] =>
     eapply (@rule_to_red mask r)
   end
-.
+. *)
 
 
 
@@ -284,13 +336,21 @@ Definition cbv_mask rule :=
   | RuleLetV     (* reduction of a let-v redex:  let x = v in t           *)
   | RuleAppL     (* reduction in [App _ u]                                *)
   | RuleAppVR    (* reduction in [App v _], if [v] is a value             *)
-  | RuleLetL     (* reduction in [Let _ u]                                *)
+  (* | RuleLetL     (* reduction in [Let _ u]                                *) *)
   | RuleDefaultJ
   | RuleDefaultJFalse
   | RuleDefaultJTrue
   | RuleDefaultE
   | RuleDefaultEConflict
   | RuleDefaultEValue
+  | RuleAppRConflict
+  | RuleAppLConflict
+  (* | RuleLetRConflict *)
+  (* | RuleLetLConflict *)
+  | RuleAppREmpty
+  | RuleAppLEmpty
+  (* | RuleLetREmpty *)
+  (* | RuleLetLEmpty *)
     => True
   | _ => False
   end.
@@ -310,6 +370,14 @@ Definition cbn_mask rule :=
   | RuleDefaultE
   | RuleDefaultEConflict
   | RuleDefaultEValue
+  | RuleAppRConflict
+  | RuleAppLConflict
+  | RuleLetRConflict
+  | RuleLetLConflict
+  | RuleAppREmpty
+  | RuleAppLEmpty
+  | RuleLetREmpty
+  | RuleLetLEmpty
   => True
   | _ => False
   end.
@@ -337,6 +405,14 @@ Definition pcbv_mask rule :=
   | RuleDefaultE
   | RuleDefaultEConflict
   | RuleDefaultEValue
+  | RuleAppRConflict
+  | RuleAppLConflict
+  | RuleLetRConflict
+  | RuleLetLConflict
+  | RuleAppREmpty
+  | RuleAppLEmpty
+  | RuleLetREmpty
+  | RuleLetLEmpty
       => True
   | _ => False
   end.
@@ -350,14 +426,14 @@ Global Hint Extern 1 (cbv_mask _)  => (simpl; tauto) : red obvious.
 Global Hint Extern 1 (cbn_mask _)  => (simpl; tauto) : red obvious.
 Global Hint Extern 1 (pcbv_mask _) => (simpl; tauto) : red obvious.
 
-Goal cbv (Let (App (Lam (Var 0)) (Var 0)) (Var 0)) (Let (Var 0) (Var 0)).
+(* Goal cbv (Let (App (Lam (Var 0)) (Var 0)) (Var 0)) (Let (Var 0) (Var 0)).
 Proof. obvious. Qed.
 
 Goal cbv (Let (Var 0) (Var 0)) (Var 0).
 Proof. obvious. Qed.
 
 Goal cbn (Let (Var 0) (Var 0)) (Var 0).
-Proof. obvious. Qed.
+Proof. obvious. Qed. *)
 
 Goal
   let id := Lam (Var 0) in
@@ -449,13 +525,13 @@ Qed.
 
 (* MySequences of reduction, [star cbv], can be carried out under a context. *)
 
-Lemma star_cbv_AppL:
+(* Lemma star_cbv_AppL:
   forall t1 t2 u,
   star cbv t1 t2 ->
   star cbv (App t1 u) (App t2 u).
 Proof.
   induction 1; eauto with sequences obvious.
-Qed.
+Qed. *)
 
 Lemma star_pcbv_AppL:
   forall t1 t2 u,
@@ -475,18 +551,18 @@ Proof.
   eapply RedAppLR; eauto using red_refl with obvious.
 Qed.
 
-Lemma star_cbv_AppR:
+(* Lemma star_cbv_AppR:
   forall t u1 u2,
   is_value t ->
   star cbv u1 u2 ->
   star cbv (App t u1) (App t u2).
 Proof.
   induction 2; eauto with sequences obvious.
-Qed.
+Qed. *)
+(* 
+Global Hint Resolve star_cbv_AppL star_pcbv_AppL plus_pcbv_AppL star_cbv_AppR : red obvious. *)
 
-Global Hint Resolve star_cbv_AppL star_pcbv_AppL plus_pcbv_AppL star_cbv_AppR : red obvious.
-
-Lemma star_cbv_AppLR:
+(* Lemma star_cbv_AppLR:
   forall t1 t2 u1 u2,
   star cbv t1 t2 ->
   star cbv u1 u2 ->
@@ -494,8 +570,8 @@ Lemma star_cbv_AppLR:
   star cbv (App t1 u1) (App t2 u2).
 Proof.
   eauto with sequences obvious.
-Qed.
-
+Qed. *)
+(*
 Lemma star_cbv_LetL:
   forall t1 t2 u,
   star cbv t1 t2 ->
@@ -505,7 +581,7 @@ Proof.
 Qed.
 
 Global Hint Resolve star_cbv_AppLR star_cbv_LetL : red obvious.
-
+*)
 (* Reduction commutes with substitutions of values for variables. (This
    includes renamings.) This is true of every reduction strategy, with
    the proviso that if [RuleVar] is enabled, then [RuleLam], [RuleAppLR]
@@ -564,6 +640,8 @@ Global Hint Rewrite subst_app subst_cons: subst.
 Global Hint Resolve subst_is_value_list : is_value_res obvious.
 
 
+Definition is_nerror_subst (sigma : var -> term) :=
+  forall x, is_nerror (sigma x).
 
 Lemma red_subst:
   forall mask : mask,
@@ -583,6 +661,7 @@ Lemma red_subst:
   red mask t1 t2 ->
   forall sigma,
   is_value_subst sigma ->
+  is_nerror_subst sigma ->
   red mask t1.[sigma] t2.[sigma].
 Proof.
 Local Ltac ok :=
@@ -598,12 +677,16 @@ Local Ltac ok :=
     econstructor;
     ok
   ].
+  { econstructor; eauto with is_value; eauto with autosubst.
+    induction v; simpl in *; eauto.
+    admit.
+  }
   { apply red_refl; eauto. }
   { autorewrite with subst.
     eapply RedDefaultEConflict.
     5: reflexivity.
     - ok.
-    - repeat (rewrite <- subst_cons; rewrite <- subst_app);
+    - repeat (rewrite <- subst_cons; rewrite <- subst_app).
       eauto using subst_is_value_list.
     - inverts_Forall; induction ti; simpl in *; repeat intro; tryfalse.
     - inverts_Forall; induction tj; simpl in *; repeat intro; tryfalse.
@@ -615,7 +698,8 @@ Local Ltac ok :=
       induction ti; simpl in *; repeat intro; tryfalse; eauto with subst
     ].
   }
-Qed.
+Admitted.
+
 
 Lemma star_red_subst:
   forall mask : mask,
@@ -924,6 +1008,13 @@ Lemma cbv_deterministic:
   cbv t t2 ->
   t1 = t2.
 Proof.
+  induction 1; try solve [ tauto ].
+  * intros; subst. invert_cbv; eauto.
+  * intros; subst. invert_cbv; eauto.
+  * intros; subst. invert_cbv; eauto.
+    - f_equal; now eapply IHred.
+    - eapply RedAppRConflict.
+
   (* Induction over [cbv t t1]. *)
   induction 1; try solve [ tauto ];
   match goal with
@@ -949,7 +1040,7 @@ Proof.
       | eauto with is_value
       | tryfalse
     ].
-    - false;
+    - false.
       match goal with [ h: _ ++ _ :: _ = _ ++ _ :: _ |- _] =>
         forwards: split_list h
       end; unzip; inverts_Forall; tryfalse.
