@@ -2,8 +2,6 @@
 , mkCoqDerivation
 , coq
 , autosubst
-, QuickChick
-, mathcomp-analysis
 }:
 
 mkCoqDerivation {
@@ -15,7 +13,6 @@ mkCoqDerivation {
 
   propagatedBuildInputs = [
     autosubst
-    QuickChick
   ];
 
   meta = {
