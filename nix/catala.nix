@@ -5,9 +5,9 @@
 }:
 
 mkCoqDerivation {
-  pname = "catala-formalization";
+  pname = "catala";
   src = ../.;
-  useDune2 = true;
+  useDune = true;
 
   version = "0.1.0";
 

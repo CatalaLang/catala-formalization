@@ -1,5 +1,6 @@
 (coq.theory
  (name Catala)
+ (package coq-catala)
 )
 
 (include_subdirs qualified)

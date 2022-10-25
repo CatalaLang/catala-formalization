@@ -15,13 +15,15 @@
       in
       rec {
         packages = {
-          catala-formalization = coqPackages.catala-formalization;
+          catala = coqPackages.catala;
         };
-        defaultPackage = packages.catala-formalization;
+        defaultPackage = packages.catala;
         devShell = pkgs.mkShell {
-          inputsFrom = [packages.catala-formalization];
+          inputsFrom = [ packages.catala ];
           buildInputs = [
             coqPackages.serapi
+            pkgs.ocamlPackages.dune_2
+            pkgs.ocaml
             python3.pkgs.alectryon
           ];
         };

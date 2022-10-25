@@ -1,4 +1,3 @@
-
 update:
   #!/usr/bin/env bash
   hash="$(gh api /repos/nixos/nixpkgs/commits \
