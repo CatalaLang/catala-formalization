@@ -102,31 +102,16 @@ Lemma jt_progress:
 Ltac use_ih ih :=
   destruct ih; [ eauto with closed | unpack; eauto with red |  ].
 Proof.
-  induction 1 using jt_ind'; intros; subst;
+  induction 1 using jt_ind'; intros; subst.
   (* all the cases where it is a value *)
   try solve [right; eauto with is_value_res];
   (* all the other cases *)
   left.
   { false; eauto with closed. }
-  { use_ih IHjt1.
-    use_ih IHjt2; forward invert_jt_TyFun; try eauto with closed;
-    destruct H4 as [[t'' Ht''] | Herr]; subst; try obvious.
-    { admit. (* need reduction of error inside context for cbv *) }
-  }
-  {
-    induction ts.
-    * use_ih IHjt1.
-      forward invert_jt_TyBool.
-      { eauto with closed. }
-      { destruct H5; unpack; subst.
-        * case b; obvious.
-        * admit. (* need reduction of error inside context for cbv *) }
-    * rename a into ti.
-      inverts H0; inverts H.
-      use_ih H6.
-      use_ih IHjt1.
-      admit.
-      admit.
-      admit.
-  }
-Abort.
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+Admitted.
