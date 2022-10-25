@@ -68,11 +68,10 @@ Lemma invert_jt_TyFun:
   forall Gamma t T1 T2,
   jt Gamma t (TyFun T1 T2) ->
   closed t ->
-  is_value t ->
+  is_value_res t ->
   (exists t', t = Lam t') \/ is_error t.
 Proof.
   induction t; intros; inverts H; subst; try eauto; tryfalse.
-  * false; eauto with closed.
 Qed.
 
 Lemma invert_jt_TyBool:
@@ -93,6 +92,15 @@ or be a value.
 
 |*)
 
+Tactic Notation "check" "[" uconstr_list(hs) "|-" uconstr(g) "]" :=
+  match goal with
+  | [ |- g ] => idtac
+  | _ => fail
+  end.
+
+Ltac look t := induction t; simpl in *; tryfalse; eauto.
+
+
 Lemma jt_progress:
   forall Gamma t T,
   jt Gamma t T ->
@@ -102,12 +110,38 @@ Lemma jt_progress:
 Ltac use_ih ih :=
   destruct ih; [ eauto with closed | unpack; eauto with red |  ].
 Proof.
-  induction 1 using jt_ind'; intros; subst.
+  induction 1 using jt_ind'; intros; subst;
   (* all the cases where it is a value *)
   try solve [right; eauto with is_value_res];
   (* all the other cases *)
   left.
   { false; eauto with closed. }
+  { use_ih IHjt1.
+    1:{ (* either t2 is an error or it is not. *)
+        destruct (is_error_dec t1); eauto with red.
+        - look t1; invert_cbv.
+        - destruct (is_error_dec t2); eauto with red.
+          look t2.
+          + eexists; eapply RedAppREmpty; eauto;
+            look t1.
+          + eexists; eapply RedAppRConflict; eauto.
+      }
+    use_ih IHjt2.
+    1:{
+      destruct (is_error_dec t2); eauto with red.
+      - look t2; invert_cbv.
+      - destruct (is_error_dec t1); eauto with red.
+        + (* todo *)
+
+    }
+    (* Because `t1` is a closed value and has a function type,
+      it must be a lambda-abstraction. *)
+    forward invert_jt_TyFun. { eauto with closed. }
+
+
+    (* Therefore, we have a beta-redex. *)
+    obvious. }
+}
   { admit. }
   { admit. }
   { admit. }
