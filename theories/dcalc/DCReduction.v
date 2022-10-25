@@ -176,7 +176,7 @@ Inductive red (mask : mask) : term -> term -> Prop :=
 | RedAppLEmpty:
   forall t,
   mask RuleAppLEmpty ->
-  match t with | Confict => False end ->
+  match t with Conflict => False | _ => True end ->
   red mask (App Empty t) Empty
 | RedLetREmpty:
   forall t,

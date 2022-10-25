@@ -131,21 +131,43 @@ Proof.
       destruct (is_error_dec t2); eauto with red.
       - look t2; invert_cbv.
       - destruct (is_error_dec t1); eauto with red.
-        + (* todo *)
-
+        + look t1.
+          * eexists. eapply RedAppLEmpty. eauto.
+            look t2.
+          * eexists; eapply RedAppLConflict; eauto.
+        + eexists; eapply RedAppVR; simpl; eauto with is_value.
     }
+
     (* Because `t1` is a closed value and has a function type,
       it must be a lambda-abstraction. *)
     forward invert_jt_TyFun. { eauto with closed. }
 
-
-    (* Therefore, we have a beta-redex. *)
-    obvious. }
-}
-  { admit. }
-  { admit. }
-  { admit. }
-  { admit. }
-  { admit. }
-  { admit. }
+    destruct H4.
+    - destruct (is_error_dec t2).
+      { look t2; eexists;
+        try eapply RedAppREmpty;
+        try eapply RedAppRConflict; simpl; eauto; look t1.
+        { unpack; tryfalse. }
+      }
+      {
+        unpack; subst.
+        obvious.
+      }
+    - destruct (is_error_dec t2).
+      { look t1; look t2; eexists;
+        try eapply RedAppRConflict;
+        try eapply RedAppLConflict;
+        try eapply RedAppLEmpty; eauto.
+      }
+      {
+        look t1; look t2; eexists;
+        try eapply RedAppRConflict;
+        try eapply RedAppLConflict;
+        try eapply RedAppLEmpty;
+        try eapply RedAppREmpty; eauto.
+      }
+  }
+  {
+    (* need an inversion lemma on lists. *)
+  }
 Admitted.
