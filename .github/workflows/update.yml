@@ -1,0 +1,43 @@
+name: "Update"
+on:
+  schedule:
+    - cron: '30 5 * * 5'
+  workflow_dispatch:  
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+    - id: datetime
+      run: |
+        echo "date1=$(date -d 'last Thursday 00:00 UTC' +'%FT%T%Z')" >> $GITHUB_OUTPUT
+        echo "date2=$(date -d 'last Thursday 23:59 UTC' +'%FT%T%Z')" >> $GITHUB_OUTPUT
+    - uses: actions/github-script@v6
+      id: set-result
+      with:
+        script: |
+          const { data: root } = await github.request('GET /repos/{owner}/{repo}/commits', {
+            owner: "nixos",
+            repo: "nixpkgs",
+            sha: "nixos-unstable",
+            since: "${{ steps.datetime.outputs.date1 }}",
+            until: "${{ steps.datetime.outputs.date2 }}",
+          });
+
+          console.log(root);
+          return root[0].sha
+        result-encoding: string
+    - uses: actions/checkout@v3
+    - uses: cachix/install-nix-action@v18
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+    - run: |
+        nix flake update nixpkgs/${{steps.set-result.outputs.result}}
+    - name: check it builds
+      run: |
+        nix build
+    - uses: EndBug/add-and-commit@v9
+      with:
+        author_name: nix updater
+        author_email: updater@nix
+        message: "update lock files"
