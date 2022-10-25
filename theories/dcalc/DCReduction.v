@@ -152,10 +152,6 @@ Inductive red (mask : mask) : term -> term -> Prop :=
   forall t,
   mask RuleAppLConflict ->
   red mask (App Conflict t) Conflict
-| RedLetRConflict:
-  forall t,
-  mask RuleLetRConflict ->
-  red mask (Let t Conflict) Conflict
 | RedLetLConflict:
   forall t,
   mask RuleLetLConflict ->
@@ -163,10 +159,12 @@ Inductive red (mask : mask) : term -> term -> Prop :=
 | RedAppREmpty:
   forall t,
   mask RuleAppREmpty ->
+  match t with Conflict => False | _ => True end ->
   red mask (App t Empty) Empty
 | RedAppLEmpty:
   forall t,
   mask RuleAppLEmpty ->
+  match t with | Confict => False end ->
   red mask (App Empty t) Empty
 | RedLetREmpty:
   forall t,
@@ -177,59 +175,59 @@ Inductive red (mask : mask) : term -> term -> Prop :=
   mask RuleLetLEmpty ->
   red mask (Let Empty t) Empty
 | RedLetL:
-    forall t1 t2 u,
-    mask RuleLetL ->
-    red mask t1 t2 ->
-    red mask (Let t1 u) (Let t2 u)
+  forall t1 t2 u,
+  mask RuleLetL ->
+  red mask t1 t2 ->
+  red mask (Let t1 u) (Let t2 u)
 | RedLetR:
-    forall t u1 u2,
-    mask RuleLetR ->
-    red mask u1 u2 ->
-    red mask (Let t u1) (Let t u2)
+  forall t u1 u2,
+  mask RuleLetR ->
+  red mask u1 u2 ->
+  red mask (Let t u1) (Let t u2)
 | RedLetLR:
-    forall t1 t2 u1 u2,
-    mask RuleLetLR ->
-    red mask t1 t2 ->
-    red mask u1 u2 ->
-    red mask (Let t1 u1) (Let t2 u2)
+  forall t1 t2 u1 u2,
+  mask RuleLetLR ->
+  red mask t1 t2 ->
+  red mask u1 u2 ->
+  red mask (Let t1 u1) (Let t2 u2)
 | RedDefaultEConflict:
-    forall ts ts1 ti ts2 tj ts3 tjust tcons,
-    mask RuleDefaultEConflict ->
-    List.Forall is_value_res ts ->
-    ti <> Empty ->
-    tj <> Empty ->
-    ts = (ts1 ++ ti::ts2++tj::ts3)%list ->
-    red mask (Default ts tjust tcons) Conflict
+  forall ts ts1 ti ts2 tj ts3 tjust tcons,
+  mask RuleDefaultEConflict ->
+  List.Forall is_value_res ts ->
+  ti <> Empty ->
+  tj <> Empty ->
+  ts = (ts1 ++ ti::ts2++tj::ts3)%list ->
+  red mask (Default ts tjust tcons) Conflict
 | RedDefaultEValue:
-    forall ts1 ti ts2 tjust tcons,
-    mask RuleDefaultEValue ->
-    List.Forall (eq Empty) ts1 ->
-    List.Forall (eq Empty) ts2 ->
-    ti <> Empty ->
-    is_value_res ti ->
-    red mask (Default (ts1++ti::ts2) tjust tcons) ti
+  forall ts1 ti ts2 tjust tcons,
+  mask RuleDefaultEValue ->
+  List.Forall (eq Empty) ts1 ->
+  List.Forall (eq Empty) ts2 ->
+  ti <> Empty ->
+  is_value_res ti ->
+  red mask (Default (ts1++ti::ts2) tjust tcons) ti
 | RedDefaultE:
-    forall ts1 ti ti' ts2 tj tc,
-    mask RuleDefaultE ->
-    red mask ti ti' ->
-    (List.Forall is_value_res ts1) ->
-    red mask (Default (ts1++ti::ts2) tj tc) (Default (ts1++ti'::ts2) tj tc)
+  forall ts1 ti ti' ts2 tj tc,
+  mask RuleDefaultE ->
+  red mask ti ti' ->
+  (List.Forall is_value_res ts1) ->
+  red mask (Default (ts1++ti::ts2) tj tc) (Default (ts1++ti'::ts2) tj tc)
 | RedDefaultJ:
-    forall ts tj1 tj2 tc,
-    mask RuleDefaultJ ->
-    List.Forall (eq Empty) ts ->
-    red mask tj1 tj2 ->
-    red mask (Default ts tj1 tc) (Default ts tj2 tc)
+  forall ts tj1 tj2 tc,
+  mask RuleDefaultJ ->
+  List.Forall (eq Empty) ts ->
+  red mask tj1 tj2 ->
+  red mask (Default ts tj1 tc) (Default ts tj2 tc)
 | RedDefaultJTrue:
-    forall ts tc,
-    mask RuleDefaultJTrue ->
-    List.Forall (eq Empty) ts ->
-    red mask (Default ts (Const true) tc) tc
+  forall ts tc,
+  mask RuleDefaultJTrue ->
+  List.Forall (eq Empty) ts ->
+  red mask (Default ts (Const true) tc) tc
 | RedDefaultJFalse:
-    forall ts tc,
-    mask RuleDefaultJFalse ->
-    List.Forall (eq Empty) ts ->
-    red mask (Default ts (Const false) tc) Empty
+  forall ts tc,
+  mask RuleDefaultJFalse ->
+  List.Forall (eq Empty) ts ->
+  red mask (Default ts (Const false) tc) Empty
 .
 
 
@@ -1009,70 +1007,25 @@ Lemma cbv_deterministic:
   t1 = t2.
 Proof.
   induction 1; try solve [ tauto ].
-  * intros; subst. invert_cbv; eauto.
-  * intros; subst. invert_cbv; eauto.
-  * intros; subst. invert_cbv; eauto.
-    - f_equal; now eapply IHred.
-    - eapply RedAppRConflict.
-
-  (* Induction over [cbv t t1]. *)
-  induction 1; try solve [ tauto ];
-  match goal with
-  | [ |- context[Default _ _ _]  ] => idtac
-  | _ => try solve [intros; subst;
-  (* Invert the second hypothesis, [cbv t t2]. The fact that values do not
-     reduce is used to eliminate some cases. *)
-  invert_cbv;
-  (* The result follows for all cases except Default-made. *)
-  repeat f_equal; eauto with obvious; inverts_Forall; tryfalse ]
-  end.
-  * intros; invert_cbv; repeat f_equal;
-    try solve [ idtac
-      | eauto with is_value
-      | tryfalse
-    ].
-    - false.
-      forwards: split_list H5; unzip; inverts_Forall; tryfalse.
-    - false. rewrite <- H5 in H0.
-      inverts_Forall; eauto with is_value.
-  * intros; invert_cbv; repeat f_equal;
-    try solve [ idtac
-      | eauto with is_value
-      | tryfalse
-    ].
-    - false.
-      match goal with [ h: _ ++ _ :: _ = _ ++ _ :: _ |- _] =>
-        forwards: split_list h
-      end; unzip; inverts_Forall; tryfalse.
-    - match goal with [ h: _ ++ _ :: _ = _ ++ _ :: _ |- _] =>
-        forwards: split_list h
-      end; unzip; inverts_Forall; tryfalse.
-    - match goal with [ h: _ ++ _ :: _ = _ ++ _ :: _ |- _] =>
-        forwards: split_list h
-      end; unzip; inverts_Forall; tryfalse.
-      + invert_cbv.
-      + invert_cbv.
-      + false; eauto with is_value_res.
-  * intros; invert_cbv.
-    - false; inverts_Forall; eauto with is_value_res.
-    - match goal with [ h: _ ++ _ :: _ = _ ++ _ :: _ |- _] =>
-        forwards: split_list h
-      end; unzip; inverts_Forall; invert_cbv.
-    - match goal with [ h: _ ++ _ :: _ = _ ++ _ :: _ |- _] =>
-        forwards: split_list h
-      end; unzip; inverts_Forall; try solve [false; eauto with is_value_res ].
-      now erewrite IHred by eauto.
-    - inverts_Forall; invert_cbv.
-    - inverts_Forall; invert_cbv.
-    - inverts_Forall; invert_cbv.
-  * intros; invert_cbv.
-    - inverts_Forall; invert_cbv.
-    - now erewrite IHred by eauto.
-  * intros; invert_cbv; eauto.
-    - inverts_Forall; invert_cbv.
-  * intros; invert_cbv; eauto.
-    - inverts_Forall; invert_cbv.
-Qed.
+  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
+  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
+  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
+  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
+  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
+  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
+  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
+  * 
+    admit. (* intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred). *)
+  * admit. (* intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred). *)
+  * admit. (* intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred). *)
+  * admit. (* intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred). *)
+  * intros; subst. invert_cbv; eauto; f_equal.
+    - (* cbv ti ti' *)
+      admit.
+  * intros; subst; invert_cbv; eauto; f_equal.
+    - (* cbv ti ti' *)
+      admit.
+Admitted.
 
 
 (* Inversion lemmas for [irred]. *)
