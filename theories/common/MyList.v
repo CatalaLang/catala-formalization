@@ -171,7 +171,7 @@ Proof.
   now eapply rev_same.
 Qed.
 
-Lemma split_list_aux:
+Lemma split_list_left_and_right:
   forall (A: Type)
   (a b: A)
   (as1 as2 bs1 bs2: list A)
@@ -217,7 +217,7 @@ Qed.
 
 (* Lemma Statement From Evelyne Contejean in SQLfs *)
 
-Lemma split_list:
+Lemma split_list_aux:
   forall (A: Type) (a b : A) (as1 as2 bs1 bs2: list A),
   as1 ++ a :: as2 = bs1 ++ b :: bs2 ->
   {l | bs1 = as1 ++ a :: l /\ as2 = l ++ b :: bs2 } +
@@ -232,7 +232,7 @@ Proof.
   forwards [[Hij|Hij]|Hij]: lt_eq_lt_dec i j.
   * (* first case: a is before b *)
     left; left.
-    eapply split_list_aux; eauto.
+    eapply split_list_left_and_right; eauto.
   * right. (* we only need to show that as1 = bs1. The rest will follow from H. *)
     assert (H1: as1 = bs1).
     { 
@@ -255,5 +255,14 @@ Proof.
     eauto.  
   * left; right. (* same as the first case. *)
     symmetry in H.
-    eapply split_list_aux; eauto.
+    eapply split_list_left_and_right; eauto.
+Qed.
+
+Lemma split_list {A: Type} {a b : A} {as1 as2 bs1 bs2: list A} (H: as1 ++ a :: as2 = bs1 ++ b :: bs2):
+sum (a = b /\ as1 = bs1 /\ as2 = bs2)
+(sum {l | bs1 = as1 ++ a :: l /\ as2 = l ++ b :: bs2 }
+{l | as1 = bs1 ++ b :: l /\ bs2 = l ++ a :: as2 })
+.
+Proof.
+  destruct split_list_aux with A a b as1 as2 bs1 bs2 as [[Hl | Hl] | Hl]; eauto.
 Qed.
