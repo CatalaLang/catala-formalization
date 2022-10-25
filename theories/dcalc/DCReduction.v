@@ -59,6 +59,18 @@ Notation "'is_nerror' t" :=
   | _ => True
   end) (at level 70).
 
+Notation "'is_error' t" :=
+  (match t with
+  | Conflict | Empty => True
+  | _ => False
+  end) (at level 70).
+
+Lemma is_error_dec: forall t, {is_error t} + {is_nerror t}.
+Proof.
+  induction t; eauto.
+Qed.
+  
+
 Inductive red (mask : mask) : term -> term -> Prop :=
 | RedBetaV:
     forall t v u,
