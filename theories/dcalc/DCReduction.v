@@ -1021,10 +1021,11 @@ Proof.
 Qed.
 
 (* Inversion lemmas for [irred]. *)
-
+(* 
 Lemma invert_irred_cbv_App_1:
   forall t u,
   irred cbv (App t u) ->
+  match u with Conflict => False | _ => True end ->
   irred cbv t.
 Proof.
   intros. eapply irred_irred; obvious.
@@ -1106,6 +1107,5 @@ Global Hint Resolve
   invert_irred_cbv_Let_2
   invert_irred_cbv_DefaultJ_1
   invert_irred_cbv_DefaultJ_2
-: irred.
-
+: irred. *)
 
