@@ -669,6 +669,8 @@ Local Ltac ok :=
     | eauto with subst
   ].
 
+  admit.
+  (* 
   induction 13; simpl; intros; subst;
   try solve [
     autorewrite with subst;
@@ -677,7 +679,11 @@ Local Ltac ok :=
   ].
   { econstructor; eauto with is_value; eauto with autosubst.
     induction v; simpl in *; eauto.
-    admit.
+    unfold is_nerror_subst in *.
+    eapply H16.
+  }
+  { eapply RedParBetaV; try ok.
+    - simpl.
   }
   { apply red_refl; eauto. }
   { autorewrite with subst.
@@ -696,6 +702,8 @@ Local Ltac ok :=
       induction ti; simpl in *; repeat intro; tryfalse; eauto with subst
     ].
   }
+Admitted.
+*)
 Admitted.
 
 
@@ -716,6 +724,7 @@ Lemma star_red_subst:
   forall t1 t2 sigma,
   star (red mask) t1 t2 ->
   is_value_subst sigma ->
+  is_nerror_subst sigma ->
   star (red mask) t1.[sigma] t2.[sigma].
 Proof.
   induction 13; eauto using red_subst with sequences.
@@ -917,48 +926,6 @@ Proof.
   destruct H2; eauto.
 Qed.
 
-(* Lemma congruence5: forall (ts1: list term)
-(ti: term)
-(ts2: list term)
-(tj: term)
-(ts3: list term)
-(tjust tcons: term)
-(Hti: ti <> Empty)
-(Htj: tj <> Empty)
-(tk: term)
-(ts1' ts2': list term)
-(Hts1': Forall (eq Empty) ts1')
-(Hts2': Forall (eq Empty) ts2')
-(Htk: tk <> Empty)
-(Heq: ts1' ++ tk :: ts2' = ts1 ++ ti :: ts2 ++ tj :: ts3),
-False.
-Proof.
-  intros.
-
-  (* awesome lemma:
-    if a is an element of l (exists l1 l2, l = l1 ++ a :: l2)
-    if b is an element of l' (exists l1' l2', l' = l1' ++ b :: l2')
-    then, if l = l' then is three possible cases:
-
-    1) there is some lmiddle such that l = l1 ++ a :: lmiddle ++ b :: l2'
-     [     |a|          ]
-     [             |b|  ]
-
-    2) there is some lmiddle such that l = l1' ++ b :: lmiddle ++ a :: l2
-     [            |a|     ]
-     [   |b|              ]
-    
-    3) l1 = l1' and l2 = l2' and a = b
-     [        |a|     ]
-     [        |b|     ]
-  *)
-  destruct (split_list Heq).
-  * unpack; subst;
-    apply Hti; symmetry; eapply Forall_elt; eassumption.
-  * unpack; subst;
-    apply Htj; symmetry; eapply Forall_elt. admit.
-Admitted. *)
-
 Lemma bli:
   forall ti ts1 ts2 tj ts3,
   Forall (eq Empty) (ts1 ++ ti :: ts2 ++ tj :: ts3) ->
@@ -999,6 +966,31 @@ Global Hint Resolve
 : obvious.
 (* 2022-05-03 TODO: nombre de cas dans une liste en le calculant, ça ira plus vite. *)
 
+Lemma RuleDefaultEConflict_RuleDefaultEValue_incompat:
+  let mask r := match r with
+    | RuleDefaultEConflict
+    | RuleDefaultEValue => True
+    | _ => False
+  end in
+  
+  forall t t1 t2,
+  red mask t t1 ->
+  red mask t t2 ->
+  t1 = t2
+  .
+Proof.
+  induction 1; try solve [ tryfalse ].
+  * intros; pick red invert; try tauto.
+    admit.
+  * (* symetric case *) 
+Admitted.
+
+Ltac split_list :=
+  (* this tactic search for a hypothesis in the form of _ ++ _ :: _ = _ ++ _ :: _  and applies to split_list lemma to it. *)
+  match goal with [h: _ ++ _ :: _ = _ ++ _ :: _ |- _] => destruct (split_list h) as [hl | [hl | hl]] end; unzip;
+  repeat rewrite <- app_assoc, <- app_comm_cons in *
+.
+
 Lemma cbv_deterministic:
   forall t t1,
   cbv t t1 ->
@@ -1006,27 +998,27 @@ Lemma cbv_deterministic:
   cbv t t2 ->
   t1 = t2.
 Proof.
-  induction 1; try solve [ tauto ].
-  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
-  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
-  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
-  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
-  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
-  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
-  * intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
-  * 
-    admit. (* intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred). *)
-  * admit. (* intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred). *)
-  * admit. (* intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred). *)
-  * admit. (* intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred). *)
-  * intros; subst. invert_cbv; eauto; f_equal.
-    - (* cbv ti ti' *)
-      admit.
-  * intros; subst; invert_cbv; eauto; f_equal.
-    - (* cbv ti ti' *)
-      admit.
-Admitted.
-
+  induction 1; try solve [ tauto ];
+  try solve [
+    intros; subst; invert_cbv; eauto; f_equal; try solve
+    [ now eapply IHred 
+    | try split_list;
+      solve
+      [ repeat f_equal; eapply IHred; eauto
+      | false; inverts_Forall; eauto with is_value]
+    ]
+  ].
+  { intros; subst; invert_cbv; eauto; f_equal; try (now eapply IHred).
+    - split_list;
+      try solve
+      [ repeat f_equal; eapply IHred; eauto
+      | false; inverts_Forall; eauto with is_value].
+    - false.
+      rewrite <- H3 in H0.
+      inverts_Forall.
+      eauto with is_value.
+  }
+Qed.
 
 (* Inversion lemmas for [irred]. *)
 
