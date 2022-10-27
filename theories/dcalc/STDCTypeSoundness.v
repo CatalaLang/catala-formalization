@@ -190,6 +190,8 @@ Proof.
       + right; left.
         exists (@nil term) x l; eauto.
 Qed.
+
+
 Lemma jt_progress:
   forall Gamma t T,
   jt Gamma t T ->
@@ -199,13 +201,11 @@ Lemma jt_progress:
 Ltac use_ih ih :=
   destruct ih; [ eauto with closed | unpack; eauto with red |  ].
 Proof.
-  induction 1 using jt_ind'; intros; subst;
-  (* all the cases where it is a value *)
-  try solve [right; eauto with is_value_res];
-  (* all the other cases *)
-  left.
-  { false; eauto with closed. }
-  { use_ih IHjt1.
+  induction 1 using jt_ind';
+  try solve [intros; subst; right; eauto with is_value_res]
+  (* all the other cases *).
+  { left; false; eauto with closed. }
+  { left; use_ih IHjt1.
     1:{ (* either t2 is an error or it is not. *)
         destruct (is_error_dec t1); eauto with red.
         - look t1; invert_cbv.
@@ -257,6 +257,29 @@ Proof.
       }
   }
   {
-    (* need an inversion lemma on lists. *)
+    left.
+    assert (Htsclosed: List.Forall closed ts).
+    { eauto with closed. }
+
+    remember (Forall_modus_ponms H0 Htsclosed) as Hts; simpl in Hts.
+
+
+    destruct (Forall_takewhile (Forall_or_comm Hts)) as [Hts' | Hts'].
+    2: {
+      unzip; eexists; eapply RedDefaultE; simpl; eauto.
+    }
+    clear Hts HeqHts; rename Hts' into Hts.
+
+    destruct (count_nempty Hts) as [Hconflict|[Hvalue|Hempty]]; unzip.
+    { exists Conflict. eapply RedDefaultEConflict with _ x0 _ x2 _; simpl; eauto. }
+    { exists x0; eapply RedDefaultEValue; inverts_Forall; simpl; eauto. }
+    
+    use_ih IHjt1.
+    destruct (invert_jt_TyBool _ _ H1); eauto with closed.
+    - unzip; induction x; eexists; [eapply RedDefaultJTrue|eapply RedDefaultJFalse]; eauto.
+
+    - look tj; eexists; try eapply RedDefaultJConflict; try eapply RedDefaultJEmpty; simpl; eauto.
   }
-Admitted.
+Qed.
+
+
