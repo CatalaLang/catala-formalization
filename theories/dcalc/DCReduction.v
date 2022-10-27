@@ -29,13 +29,16 @@ Inductive rule :=
 | RuleLetLR    (* reduction in both sides of [Let _ _]                    *)
 | RuleConflict (* no reduction of Conflict *)
 | RuleEmpty    (* no reduction of Empty *)
+
+| RuleConst
 | RuleDefaultJ
 | RuleDefaultJFalse
 | RuleDefaultJTrue
-| RuleConst
 | RuleDefaultE
 | RuleDefaultEConflict
 | RuleDefaultEValue
+| RuleDefaultJEmpty
+| RuleDefaultJConflict
 | RuleAppRConflict
 | RuleAppLConflict
 | RuleLetRConflict
@@ -44,6 +47,7 @@ Inductive rule :=
 | RuleAppLEmpty
 | RuleLetREmpty
 | RuleLetLEmpty
+
 .
 
 (* A mask is a set of rules. *)
@@ -240,6 +244,16 @@ Inductive red (mask : mask) : term -> term -> Prop :=
   mask RuleDefaultJFalse ->
   List.Forall (eq Empty) ts ->
   red mask (Default ts (Const false) tc) Empty
+| RedDefaultJEmpty:
+  forall ts tc,
+  mask RuleDefaultJEmpty ->
+  List.Forall (eq Empty) ts ->
+  red mask (Default ts Empty tc) Empty
+| RedDefaultJConflict:
+  forall ts tc,
+  mask RuleDefaultJConflict ->
+  List.Forall (eq Empty) ts ->
+  red mask (Default ts Conflict tc) Empty
 .
 
 
@@ -350,6 +364,8 @@ Definition cbv_mask rule :=
   | RuleDefaultJ
   | RuleDefaultJFalse
   | RuleDefaultJTrue
+  | RuleDefaultJEmpty
+  | RuleDefaultJConflict
   | RuleDefaultE
   | RuleDefaultEConflict
   | RuleDefaultEValue
@@ -744,13 +760,13 @@ Qed.
 
 (* Call-by-value reduction is contained in parallel call-by-value. *)
 
-Lemma cbv_subset_pcbv:
+(* Lemma cbv_subset_pcbv:
   forall t1 t2,
   cbv t1 t2 ->
   pcbv t1 t2.
 Proof.
   induction 1; try solve [ tauto ]; eauto using red_refl with red.
-Qed.
+Qed. *)
 
 (* Under call-by-value, values do not reduce. *)
 
