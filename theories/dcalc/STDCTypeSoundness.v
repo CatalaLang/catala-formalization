@@ -101,6 +101,95 @@ Tactic Notation "check" "[" uconstr_list(hs) "|-" uconstr(g) "]" :=
 Ltac look t := induction t; simpl in *; tryfalse; eauto.
 
 
+Lemma Forall_modus_ponms {A} {P Q: A -> Prop} {l: list A}:
+  List.Forall (fun x => P x -> Q x) l ->
+  List.Forall (fun x => P x) l ->
+  List.Forall (fun x => Q x) l.
+Proof.
+  intros.
+  induction H;
+  inverts_Forall;
+  econstructor;
+  eauto.
+Qed.
+
+
+Lemma Forall_takewhile' {A} (P Q: A -> Prop) ts:
+  (List.Forall (fun x => P x \/ Q x) ts) ->
+  exists ts1 ts2, ts = ts1 ++ ts2 /\ List.Forall P ts1 /\ List.Forall (fun x => P x \/ Q x) ts2 /\ (ts2 = nil \/ exists ti ts22, ts2 = ti :: ts22 /\ Q ti ).
+Proof.
+  intros.
+  induction H.
+  * eexists nil, nil.
+    simpl.
+    repeat split; eauto.
+  * case H.
+    - (* P x, we apply induction hypothesis. *)
+      intros; unpack.
+      exists (x ::ts1), ts2.
+      simpl; subst.
+      repeat split; eauto.
+    - (* Q x, we cut here. *)
+      intros; unpack.
+      eexists nil, (x :: l).
+      simpl; subst.
+      repeat split; simpl; eauto.
+Qed.
+
+Lemma Forall_takewhile {A} {P Q: A -> Prop} {ts}:
+  (List.Forall (fun x => P x \/ Q x) ts) ->
+  (List.Forall P ts) \/ exists ts1 ti ts2, ts1 ++ ti :: ts2 = ts /\ List.Forall P ts1 /\ List.Forall (fun x => P x \/ Q x) ts2 /\ Q ti.
+Proof.
+  intros.
+  destruct (@Forall_takewhile' A P Q ts H); unzip; subst.
+  - autorewrite with list; left; eauto.
+  - right.
+    rename x into ts1, x1 into ti, x2 into ts2.
+    exists ts1 ti ts2; inverts_Forall; repeat split; eauto.
+Qed.
+
+Lemma Forall_or_comm {A} {P Q: A -> Prop} {ts}:
+  List.Forall (fun x => P x \/ Q x) ts ->
+  List.Forall (fun x => Q x \/ P x) ts
+.
+Proof.
+  induction 1; econstructor; unzip; eauto.
+Qed.
+
+Lemma is_empty_dec x:
+  {x = Empty} + {x <> Empty}.
+Proof.
+  look x; try solve [right; intro; congruence| left; eauto].
+Qed.
+
+
+Lemma count_nempty {ts} :
+  List.Forall is_value_res ts ->
+  (exists ts1 ti ts2 tj ts3, 
+    ts = ts1 ++ ti :: ts2 ++ tj :: ts3 
+    /\ ti <> Empty
+    /\ tj <> Empty
+  ) \/
+  (exists ts1 ti ts2,
+    ts = ts1 ++ ti :: ts2
+    /\ ti <> Empty
+    /\ List.Forall (eq Empty) ts1
+    /\ List.Forall (eq Empty) ts2
+  ) \/ List.Forall (eq Empty) ts.
+Proof.
+  induction 1.
+  * right; right; eauto.
+  * unzip.
+    - left. exists (x :: x0) x1 x2 x3 x4; eauto.
+    - destruct (is_empty_dec x).
+      + right; left.
+        exists (x :: x0) x1 x2; eauto.
+      + left. exists (@nil term) x x0 x1 x2; eauto.
+    - destruct (is_empty_dec x).
+      + right; right; eauto.
+      + right; left.
+        exists (@nil term) x l; eauto.
+Qed.
 Lemma jt_progress:
   forall Gamma t T,
   jt Gamma t T ->
