@@ -4,7 +4,7 @@
 	<big>Catala in Coq</big>
   </h3>
   
-  ![CI][ci-link]
+  ![CIlatest][ci-link1] ![CI813][ci-link2]
 
 Catala is a domain-specific language for deriving
 faithful-by-construction algorithms from legislative texts. This is not the main repository of Catala but a formalization of it's semantics in coq.
@@ -57,5 +57,7 @@ Catala is a research project from Inria, the French National
 Research Institute for Computer Science. 
 
 
-[ci-link]: https://github.com/CatalaLang/catala-formalization/actions/workflows/ci.yml/badge.svg
+[ci-link1]: https://github.com/CatalaLang/catala-formalization/actions/workflows/ci.yml/badge.svg
+[ci-link2]: https://github.com/CatalaLang/catala-formalization/actions/workflows/ci-8-13.yml/badge.svg
+
 [chat-link]: https://zulip.catala-lang.org/
