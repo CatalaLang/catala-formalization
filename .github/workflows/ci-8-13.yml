@@ -13,4 +13,4 @@ jobs:
       with:
         nix_path: nixpkgs=channel:nixos-unstable
     - run: nix develop
-    - run: nix build
+    - run: nix build .#catala_8_13
