@@ -1,4 +1,4 @@
-name: "CI"
+name: "Coq latest"
 on:
   pull_request:
   push:

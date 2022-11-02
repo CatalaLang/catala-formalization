@@ -1,4 +1,4 @@
-name: "CI"
+name: "Coq 8.13"
 on:
   pull_request:
   push:
