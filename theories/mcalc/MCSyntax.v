@@ -28,6 +28,89 @@ Inductive term :=
 #[global] Instance SubstLemmas_term : SubstLemmas term. derive. Qed.
 #[global] Instance IdsLemmas_term : IdsLemmas term. Proof. econstructor. intros. injections. eauto. Qed.
 
+
+Lemma lift_inj_Var:
+  forall t x,
+  lift 1 t = Var (S x) <-> t = Var x.
+Proof.
+  split; intros.
+  { eauto using lift_inj. }
+  { subst. eauto. }
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* The predicate [fv] is characterized by the following lemmas. *)
+
+Lemma fv_Var_eq:
+  forall k x,
+  fv k (Var x) <-> x < k.
+Proof.
+  unfold fv. asimpl. induction k; intros.
+  (* Base case. *)
+  { asimpl. split; intros; false.
+    { unfold ids, Ids_term in *. injections.
+      eapply Nat.neq_succ_diag_l. eauto. }
+    { lia. }
+  }
+  (* Step. *)
+  { destruct x; asimpl.
+    { split; intros. { lia. } { reflexivity. } }
+    rewrite lift_inj_Var. rewrite IHk. lia. }
+Qed.
+
+Lemma fv_Lam_eq:
+  forall k t,
+  fv k (Lam t) <-> fv (S k) t.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. eauto. }
+  { unpack. congruence. }
+Qed.
+
+Lemma fv_App_eq:
+  forall k t1 t2,
+  fv k (App t1 t2) <-> fv k t1 /\ fv k t2.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. eauto. }
+  { unpack. congruence. }
+Qed.
+
+Global Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq : fv.
+
+
+Lemma closed_Var:
+  forall x,
+  closed (Var x) ->
+  False.
+Proof.
+  unfold closed; intros; fv. lia.
+Qed.
+
+
+Lemma closed_AppL:
+  forall t1 t2,
+  closed (App t1 t2) ->
+  closed t1.
+Proof.
+  unfold closed; intros; fv. tauto.
+Qed.
+
+Lemma closed_AppR:
+  forall t1 t2,
+  closed (App t1 t2) ->
+  closed t2.
+Proof.
+  unfold closed; intros; fv. tauto.
+Qed.
+
+
+
+Global Hint Resolve
+  closed_Var
+: closed.
+
 Inductive monad :=
 | Fake (x: var)
 | Pure (x: term)
@@ -221,3 +304,165 @@ Proof.
 Qed.
 
 
+
+Inductive ty :=
+| TyVar (x : var)
+| TyFun (A B : ty)
+| TyBool.
+
+Definition tyenv := var -> ty.
+
+Inductive jt : tyenv -> term -> ty -> Prop :=
+| JTVar:
+    forall Gamma x T,
+    Gamma x = T ->
+    jt Gamma (Var x) T
+| JTLam:
+    forall Gamma t T U,
+    jt (T .: Gamma) t U ->
+    jt Gamma (Lam t) (TyFun T U)
+| JTApp:
+    forall Gamma t1 t2 T U,
+    jt Gamma t1 (TyFun T U) ->
+    jt Gamma t2 T ->
+    jt Gamma (App t1 t2) U
+| JTConst:
+  forall Gamma b,
+  jt Gamma (Const b) TyBool
+.
+
+Global Hint Constructors jt : jt.
+
+Ltac pick_jt t k :=
+  match goal with h: jt _ t _ |- _ => k h end.
+
+Lemma jt_te_renaming:
+  forall Gamma t U,
+  jt Gamma t U ->
+  forall Gamma' xi,
+  Gamma = xi >>> Gamma' ->
+  jt Gamma' t.[ren xi] U.
+Proof.
+  induction 1; intros; subst; asimpl;
+  econstructor; eauto with autosubst.
+Qed.
+
+Lemma jt_te_renaming_0:
+  forall Gamma t T U,
+  jt Gamma t U ->
+  jt (T .: Gamma) (lift 1 t) U.
+Proof.
+  intros; eapply jt_te_renaming; eauto; autosubst.
+Qed.
+
+Definition js Gamma sigma Delta :=
+  forall x : var,
+  jt Gamma (sigma x) (Delta x).
+
+Lemma js_ids:
+  forall Gamma,
+  js Gamma ids Gamma.
+Proof.
+  unfold js; eauto with jt.
+Qed.
+
+Lemma js_cons:
+  forall Gamma t sigma T Delta,
+  jt Gamma t T ->
+  js Gamma sigma Delta ->
+  js Gamma (t .: sigma) (T .: Delta).
+Proof.
+  intros. intros [|x]; asimpl; eauto.
+Qed.
+
+Lemma js_up:
+  forall Gamma sigma Delta T,
+  js Gamma sigma Delta ->
+  js (T .: Gamma) (up sigma) (T .: Delta).
+Proof.
+  intros. eapply js_cons.
+  { eauto with jt. }
+  { intro x. asimpl. eauto using jt_te_renaming_0. }
+Qed.
+
+Require Import MyList.
+
+Lemma jt_te_substitution:
+  forall Delta t U,
+  jt Delta t U ->
+  forall Gamma sigma,
+  js Gamma sigma Delta ->
+  jt Gamma t.[sigma] U.
+Proof.
+  induction 1; intros; subst; asimpl; eauto using js_up with jt.
+Qed.
+
+
+Lemma jt_te_substitution_0:
+  forall Gamma t1 t2 T U,
+  jt (T .: Gamma) t1 U ->
+  jt Gamma t2 T ->
+  jt Gamma t1.[t2/] U.
+Proof.
+  eauto using jt_te_substitution, js_ids, js_cons.
+Qed.
+
+Lemma jt_preservation:
+  forall Gamma t T,
+  jt Gamma t T ->
+  forall t',
+  red t t' ->
+  jt Gamma t' T.
+Proof.
+  induction 1; intros; subst; invert_red; try eauto with jt.
+  { pick_jt (Lam t) invert. eauto using jt_te_substitution_0. }
+Qed.
+
+Lemma invert_jt_TyFun:
+  forall Gamma t T1 T2,
+  jt Gamma t (TyFun T1 T2) ->
+  closed t ->
+  is_value t ->
+  (exists t', t = Lam t').
+Proof.
+  induction t; intros; inverts H; subst; try eauto; tryfalse.
+Qed.
+
+Lemma invert_jt_TyBool:
+  forall Gamma t,
+  jt Gamma t TyBool ->
+  closed t ->
+  is_value t ->
+  (exists b, t = Const b).
+Proof.
+induction t; intros; inverts H; subst; try eauto; tryfalse.
+Qed.
+
+
+Lemma jt_progress:
+  forall Gamma t T,
+  jt Gamma t T ->
+  closed t ->
+  (exists t', red t t')
+  \/ is_value t.
+Proof.
+  induction t;
+  try solve [
+    intros; subst; right; eauto with obvious
+  ]; left.
+  * false; eauto with closed.
+  * pick_jt (App t1 t2) invert.
+    match goal with h: jt _ t1 _ |- _ => destruct (IHt1 _ h) end.
+    { eauto using closed_AppL. }
+    { unzip. eexists. eapply RedAppL. all: eauto. }
+
+    match goal with h: jt _ t2 _ |- _ => destruct (IHt2 _ h) end.
+    { eauto using closed_AppR. }
+    { unzip. eexists. eapply RedAppVR. all: eauto. }
+
+
+    match goal with h: jt _ _ (TyFun _ _) |- _ => destruct (invert_jt_TyFun _ _ _ _ h) end.
+    { eauto using closed_AppL. }
+    { eauto with obvious. }
+    { subst. eexists. eapply RedBetaV; eauto.  }
+Qed.
