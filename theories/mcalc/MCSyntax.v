@@ -466,3 +466,128 @@ Proof.
     { eauto with obvious. }
     { subst. eexists. eapply RedBetaV; eauto.  }
 Qed.
+
+(* notation idea: t $(jt _ _ _ ) for match goal with h: jt _ _ _ |- _ => t h end. *)
+
+
+
+Inductive jtm : tyenv -> monad -> ty -> Prop :=
+| JTMPure:
+    forall Gamma t T,
+    jt Gamma t T ->
+    jtm Gamma (Pure t) T
+| JTMEmpty:
+    forall Gamma T,
+    jtm Gamma Empty T
+| JTMConflict:
+  forall Gamma T,
+  jtm Gamma Conflict T
+| JTMBind:
+  forall Gamma t cont T U,
+  jtm (T .: Gamma) cont U ->
+  jtm Gamma t T ->
+  jtm Gamma (Bind t cont) U
+| JTMDefault:
+  forall Gamma ts tj tc T,
+  List.Forall (fun ti => jtm Gamma ti T) ts ->
+  jtm Gamma tj TyBool ->
+  jtm Gamma tc T ->
+  jtm Gamma (Default ts tj tc) T
+.
+
+Global Hint Constructors jtm : jtm.
+
+Ltac pick_jtm t k :=
+  match goal with h: jtm _ t _ |- _ => k h end.
+
+Theorem  jtm_ind'
+  : forall P : tyenv -> monad -> ty -> Prop,
+      (forall (Gamma : tyenv) (t : term) (T : ty),
+       jt Gamma t T -> P Gamma (Pure t) T) ->
+      (forall (Gamma : tyenv) (T : ty), P Gamma Empty T) ->
+      (forall (Gamma : tyenv) (T : ty), P Gamma Conflict T) ->
+      (forall (Gamma : var -> ty) (t cont : monad) (T U : ty),
+       jtm (T .: Gamma) cont U ->
+       P (T .: Gamma) cont U ->
+       jtm Gamma t T -> P Gamma t T -> P Gamma (Bind t cont) U) ->
+      (forall (Gamma : tyenv) (ts : list monad) (tj tc : monad) (T : ty),
+       List.Forall (fun ti : monad => jtm Gamma ti T) ts ->
+       List.Forall (fun ti => P Gamma ti T)  ts ->
+       jtm Gamma tj TyBool ->
+       P Gamma tj TyBool ->
+       jtm Gamma tc T -> P Gamma tc T -> P Gamma (Default ts tj tc) T) ->
+      forall (t : tyenv) (m : monad) (t0 : ty), jtm t m t0 -> P t m t0.
+Proof.
+Admitted.
+
+
+
+Lemma jtm_te_renaming:
+  forall Gamma t U,
+  jtm Gamma t U ->
+  forall Gamma' xi,
+  Gamma = xi >>> Gamma' ->
+  jtm Gamma' t.|[ren xi] U.
+Proof.
+  induction 1 using jtm_ind'; intros; subst; asimpl;
+  econstructor; eauto with autosubst.
+  { eapply jt_te_renaming; eauto. }
+  { match goal with h: List.Forall _ _ |- _ => induction h end; econstructor; inverts_Forall; eauto. }
+Qed.
+
+
+Require Import MyList.
+
+Lemma jtm_te_substitution:
+  forall Delta t U,
+  jtm Delta t U ->
+  forall Gamma sigma,
+  js Gamma sigma Delta ->
+  jtm Gamma t.|[sigma] U.
+Proof.
+  induction 1 using jtm_ind'; intros; subst; asimpl; eauto using js_up with jtm.
+  { econstructor. eapply jt_te_substitution; eauto. }
+  { econstructor; eauto.
+    match goal with h: List.Forall _ _ |- _ => induction h end;
+    econstructor; eauto; inverts_Forall; eauto. }
+Qed.
+
+
+Lemma jtm_te_substitution_0:
+  forall Gamma t1 t2 T U,
+  jtm (T .: Gamma) t1 U ->
+  jt Gamma t2 T ->
+  jtm Gamma t1.|[t2/] U.
+Proof.
+  eauto using jtm_te_substitution, js_ids, js_cons.
+Qed.
+
+Lemma Forall_app_inverts {A} {P: A -> Prop} {l1 l2}:
+  List.Forall P l1 -> List.Forall P l2 -> List.Forall P (l1 ++ l2).
+Proof.
+  intros; eapply List.Forall_app; eauto.
+Qed.
+
+Lemma Forall_cons_inverts {A} {P: A -> Prop} {l1 l2}:
+P l1 -> List.Forall P l2 -> List.Forall P (l1 :: l2)%list .
+Proof.
+  intros H; econstructor; eauto.
+Qed.
+
+Lemma jtm_preservation:
+  forall Gamma t T,
+  jtm Gamma t T ->
+  forall t',
+  redm t t' ->
+  jtm Gamma t' T.
+Proof.
+  induction 1 using jtm_ind'; intros; subst; invert_redm; try eauto with jtm.
+  { econstructor. eapply jt_preservation; eauto. }
+  { pick_jtm (Pure t1) invert.
+    eapply jtm_te_substitution_0; eauto. }
+  { inverts_Forall. eauto. }
+  { econstructor; eauto.
+    inverts_Forall.
+    repeat eapply Forall_app_inverts, Forall_cons_inverts; eauto.
+  }
+Qed.
