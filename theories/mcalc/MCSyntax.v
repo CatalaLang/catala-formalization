@@ -675,3 +675,33 @@ Proof.
     subst.
     eexists; eauto.
 Qed.
+
+Lemma jtm_progress:
+  forall Gamma t T,
+  jtm Gamma t T ->
+  hclosed t ->
+  (exists t', redm t t')
+  \/ is_valuem t.
+Proof.
+  induction 1 using jtm_ind'.
+  * intros.
+    destruct (jt_progress Gamma t T); eauto.
+    - unfold hclosed, closed in *.
+      now eapply hfv_Pure_eq.
+    - unzip.
+      left; eexists; econstructor; eauto.
+  * now right; simpl.
+  * now right; simpl.
+  * intros; left.
+    destruct IHjtm2.
+    { unfold hclosed in *. edestruct hfv_Bind_eq as [[h hhh] hh]; eauto. }
+    { unzip. eexists; eapply RedmBind; eauto. }
+    { unfold is_valuem in *; induction t; simpl in *; tryfalse.
+      - eexists. now eapply RedmBindPureV.
+      - eexists. now eapply RedmBindEmpty.
+      - eexists. now eapply RedmBindConflict.
+    }
+  * (* same proof as before *)
+    
+    admit.
+Admitted.
