@@ -658,3 +658,20 @@ Proof.
     congruence.
   }
 Qed.
+
+Lemma invert_jtm_TyBool:
+  forall Gamma t,
+  jtm Gamma t TyBool ->
+  hclosed t ->
+  is_valuem t ->
+  (exists b, t = Pure (Const b)) \/ (t = Empty \/ t = Conflict).
+Proof.
+  intros.
+  induction t; simpl in *; tryfalse; eauto.
+  - left.
+    inverts H.
+    edestruct invert_jt_TyBool; eauto.
+    { unfold hclosed, closed in *. now eapply hfv_Pure_eq. }
+    subst.
+    eexists; eauto.
+Qed.
