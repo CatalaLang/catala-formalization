@@ -108,34 +108,28 @@ Definition bind2
   bind m1 (fun t1 => bind m2 (fun t2 => cont t1 t2))
 .
 
+
+
 Fixpoint trans (t: dterm) : option monad :=
   match t with
     Empty => Some M.Empty
   | Conflict => Some M.Conflict
   | Lam t =>
-    match trans t with
-      Some m =>
-      bind m (fun t => Lam t)
-    | _ => None
-    end
+    bind (trans t) (fun t => return_ (M.Lam t))
   | App t1 t2 =>
-    match trans t1, trans t2 with
-    | Some m1, Some m2 =>
-      bind2 m1 m2 (fun t1 t2 => App t1 t2)
-    | _, _ => None
-    end
-  | Empty => Some M.Empty
-  | Conflict => Some M.Conflict
+    bind2 (trans t1) (trans t2) (fun t1 t2 => return_ (M.App t1 t2))
   | Const b => Some (Pure (M.Const b))
-  | Var x => Some (Pure (Var x))
+  | Var x => Some (Pure (M.Var x))
   | Default ts tj tc =>
-    let ms := map trans ts in
+    let ms := remove_options (List.map trans ts) in
     let mj := trans tj in
     let mc := trans tc in
 
+    match ms, mj, mc with
+    Some ms, Some mj, Some mc => Some (M.Default ms mj mc)
+    | _, _, _ => None
+    end
 
-    M.Default ms mj mc
-    None
   | _ => None
   end
 .
