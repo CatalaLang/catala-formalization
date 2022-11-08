@@ -591,3 +591,38 @@ Proof.
     repeat eapply Forall_app_inverts, Forall_cons_inverts; eauto.
   }
 Qed.
+
+
+(* in the next lemmas, the main issue is that closed in not the same for term and monad kinds. Indeed, fv is defined as "t.[upn k (ren (+1))] = t". But what we need for monad is t.|[upn k (ren (+1))]. *)
+
+Definition hfv k t :=
+  t.|[upn k (ren (+1))] = t.
+
+Definition hclosed := hfv 0.
+
+
+Lemma hfv_Pure_eq:
+  forall k t,
+  hfv k (Pure t) <-> fv k t.
+Proof.
+  intros.
+  unfold hfv, fv; asimpl. split; intros.
+  { injections; eauto. }
+  { unpack; congruence. }
+Qed.
+
+Lemma hfv_Bind_eq:
+  forall k t1 t2,
+  hfv k (Bind t1 t2) <-> hfv k t1 /\ hfv (S k) t2.
+Proof.
+  unfold hfv. intros. asimpl. split; intros.
+  { injections. eauto. }
+  { unpack. congruence. }
+Qed.
+
+Lemma hfv_Default_eq: (*already proved in DCFreeVars. *)
+  forall k ts tj tc,
+  hfv k (Default ts tj tc) <->
+    (List.Forall (fun ti => hfv k ti) ts) /\ hfv k tj /\ hfv k tc.
+Proof.
+Admitted. 
