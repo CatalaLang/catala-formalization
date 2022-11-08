@@ -620,9 +620,41 @@ Proof.
   { unpack. congruence. }
 Qed.
 
-Lemma hfv_Default_eq: (*already proved in DCFreeVars. *)
+Lemma efe k ts:
+ts..|[upn k (ren (+1))] = ts -> List.Forall (fun ti => ti.|[upn k (ren(+1))] = ti) ts.
+Proof.
+  induction ts.
+  * asimpl.
+    econstructor.
+  * asimpl; intros.
+    injections.
+    econstructor; eauto.
+Qed.
+
+Lemma fef k ts:
+List.Forall (fun ti => ti.|[upn k (ren(+1))] = ti) ts -> ts..|[upn k (ren (+1))] = ts .
+Proof.
+  induction ts.
+  * asimpl.
+    econstructor.
+  * asimpl; intros.
+    inverts_Forall.
+    replace (a.|[upn k (ren (+1))]) with a.
+    rewrite IHts; eauto.
+Qed.
+
+Lemma hfv_Default_eq:
   forall k ts tj tc,
   hfv k (Default ts tj tc) <->
     (List.Forall (fun ti => hfv k ti) ts) /\ hfv k tj /\ hfv k tc.
 Proof.
-Admitted. 
+  unfold hfv. intros. asimpl. split; intros.
+  { injections. eauto.
+    forwards Hts: (efe _ _ H1).
+    induction Hts; repeat split; eauto.
+  }
+  { unpack.
+    forwards Hts: (fef _ _ H).
+    congruence.
+  }
+Qed.
