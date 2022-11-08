@@ -44,3 +44,66 @@ Proof. (* ugly proof *)
       remember (remove_options l) as o.
       induction o; tryfalse. eauto.
 Qed.
+
+
+Definition return_ (t: M.term): option monad :=
+  Some (Pure t).
+
+Fixpoint bind_aux
+  (m: monad)
+  (cont: M.term -> option monad)
+: option monad :=
+  match m with
+    M.Fake x => None
+  | M.Default _ _ _ => None
+  | M.Empty => Some M.Empty
+  | M.Conflict => Some M.Conflict
+  | M.Bind m1 m2 =>
+    match bind_aux m2 cont with
+      Some m2 => Some (Bind m1 m2)
+    | None => None
+    end
+  | M.Pure t => cont t
+  end.
+
+Definition bind
+  (m: option monad)
+  (cont: M.term -> option monad)
+: option monad :=
+  match m with
+  | Some m => bind_aux m cont
+  | None => None
+  end
+.
+
+Lemma left_identity: forall a m, bind (return_ a) m = m a.
+Proof.
+  simpl; eauto.
+Qed.
+
+Lemma right_identity: forall m, bind m return_ = m.
+Proof.
+  induction m; simpl; eauto.
+  induction a; simpl; eauto.
+  - admit.
+  - admit.
+  - replace (bind_aux x return_) with (Some x).
+    eauto.
+Admitted.
+
+
+Lemma associativity: forall m1 m2 m3,
+  bind (bind m1 m2) m3 = bind m1 (fun x => bind (m2 x) m3).
+Proof.
+  induction m1.
+  - intros.
+    induction a; simpl; eauto.
+Admitted.
+
+Definition bind2
+  (m1: option monad)
+  (m2: option monad)
+  (cont: M.term -> M.term -> option monad)
+: option monad :=
+  bind m1 (fun t1 => bind m2 (fun t2 => cont t1 t2))
+.
