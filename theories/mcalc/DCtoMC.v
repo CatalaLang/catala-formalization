@@ -55,15 +55,20 @@ Fixpoint bind_aux
 : option monad :=
   match m with
     M.Fake x => None
-  | M.Default _ _ _ => None
   | M.Empty => Some M.Empty
   | M.Conflict => Some M.Conflict
   | M.Bind m1 m2 =>
     match bind_aux m2 cont with
-      Some m2 => Some (Bind m1 m2)
+      Some m2' => Some (Bind m1 m2')
     | None => None
     end
   | M.Pure t => cont t
+
+  | M.Default ms mj mc =>
+    match cont (M.Var 0) with
+      Some m' => Some (Bind (M.Default ms mj mc) m')
+    | None => None
+    end
   end.
 
 Definition bind
@@ -75,6 +80,13 @@ Definition bind
   | None => None
   end
 .
+
+Lemma bind_ex1: (bind (Some (Bind M.Empty (M.Pure (M.Var 0))))) (fun t => Some (Pure (M.App t t))) = Some (Bind M.Empty
+   (Pure (M.App (M.Var 0) (M.Var 0)))).
+Proof. simpl; eauto. Qed.
+
+
+
 
 Lemma left_identity: forall a m, bind (return_ a) m = m a.
 Proof.
@@ -133,3 +145,54 @@ Fixpoint trans (t: dterm) : option monad :=
   | _ => None
   end
 .
+
+
+(* no induction principle derived from this definition... *)
+Example ex1: trans (App (Lam (Var 0)) (Const true)) = Some (Pure (M.App (M.Lam (M.Var 0)) (M.Const true))).
+Proof.
+  simpl; eauto.
+Qed.
+
+Example ex2: trans (Default nil (Const true) (Const false)) = Some (M.Default nil (Pure (M.Const true)) (Pure (M.Const false))).
+Proof.
+  simpl; eauto.
+Qed.
+
+Compute (trans ((Default nil (Const true) (Lam (Var 0))))).
+
+Compute (bind (Some
+(MCSyntax.Default nil (Pure (MCSyntax.Const true))
+   (Pure (MCSyntax.Lam (MCSyntax.Var 0))))) (fun t => return_ (M.Lam t))).
+
+Example ex3: trans (Lam (Default nil (Const true) (Lam (Var 0)))) =
+  Some (
+    Bind
+      (M.Default nil (Pure (M.Const true)) (Pure (M.Lam (M.Var 0))))
+      (Pure (M.Lam (M.Var 0)))
+    )
+    .
+Proof.
+  simpl. repeat f_equal.
+Qed.
+
+Example ex4: trans (App (Default nil (Const true) (Lam (Var 0))) (Const false)) =
+  Some (
+    Bind
+      (M.Default nil (Pure (M.Const true)) (Pure (M.Lam (M.Var 0))))
+      (Pure (M.App (M.Var 0) (M.Const false)))
+    )
+    .
+Proof.
+  simpl. repeat fequal.
+Qed.
+
+Example ex5: trans (App (Default nil (Const true) (Lam (Var 0))) (Default nil (Const false) (Lam (Var 0)))) =
+  Some (
+    Bind
+      (M.Default nil (Pure (M.Const true)) (Pure (M.Lam (M.Var 0))))
+      (Bind (M.Default nil (Pure (M.Const false)) (Pure (M.Lam (M.Var 0)))) (Pure (M.App (M.Var 0) (M.Var 1))))
+    )
+    .
+Proof.
+  simpl. repeat fequal.
+Qed.
