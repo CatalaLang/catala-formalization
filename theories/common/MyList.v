@@ -190,6 +190,12 @@ Proof.
   induction 1; econstructor; unzip; eauto.
 Qed.
 
+Lemma specialize_Forall {A} {P: A -> Prop} (ts: list A):
+  (forall x, P x) -> List.Forall P ts.
+Proof.
+  induction ts; econstructor; eauto.
+Qed.
+
 (*
 This lemma state that if we have two different ways to express a list t = as1 ++ a :: as2 = bs1 ++ b :: bs2, then there is three possibilities: 
 * a is before b, hence there is a l such that bs1 = as1 ++ a :: l, and as2 = l ++ b :: bs2
