@@ -120,6 +120,36 @@ Inductive monad :=
 | Bind (m: monad) (x: {bind term in monad})
 .
 
+Theorem monad_ind'
+  : forall P : monad -> Prop,
+    (forall x : var, P (Fake x)) ->
+    (forall x : term, P (Pure x)) ->
+    P Empty ->
+    P Conflict ->
+    (forall (ts : list monad),
+    List.Forall P ts ->
+    forall (tj : monad),
+    P tj -> forall tc : monad, P tc -> P (Default ts tj tc)) ->
+    (forall m : monad,
+    P m -> forall x : {bind term in monad}, P x -> P (Bind m x)) ->
+    forall m : monad, P m.
+Proof.
+  introv Hfake Hpure Hempty HConflict Hdefault Hbind.
+  fix IH 1.
+  intros m; case m.
+  * apply Hfake.
+  * eapply Hpure.
+  * eapply Hempty.
+  * eapply HConflict.
+  * intros; eapply Hdefault.
+    - induction ts; econstructor; [eapply IH |eapply IHts].
+    - eapply IH.
+    - eapply IH. 
+  * intros; eapply Hbind; eapply IH.
+Defined.
+
+
+
 #[global] Instance Ids_monad : Ids monad. derive. Defined.  
 #[global] Instance Rename_monad : Rename monad. derive. Defined.
 #[global] Instance Subst_monad : Subst monad. derive. Defined.
@@ -518,8 +548,22 @@ Theorem  jtm_ind'
        jtm Gamma tc T -> P Gamma tc T -> P Gamma (Default ts tj tc) T) ->
       forall (t : tyenv) (m : monad) (t0 : ty), jtm t m t0 -> P t m t0.
 Proof.
-Admitted.
-
+  introv Hpure Hempty Hconflict Hbind Hdefault.
+  fix IH 2.
+  intros Gamma m T; case m.
+  * introv H. inversion H. 
+  * intros; eapply Hpure. inversion H; eauto.
+  * intros; eapply Hempty.
+  * intros; eapply Hconflict.
+  * introv H; inverts H; eapply Hdefault;
+    try solve [eauto | eapply IH; eauto].
+    { induction ts; inverts_Forall; econstructor.
+      + eapply IH; eauto.
+      + eapply IHts; eauto.
+    }
+  * introv H; inverts H. eapply Hbind;
+    try solve [eauto | eapply IH; eauto].
+Defined.
 
 
 Lemma jtm_te_renaming:
