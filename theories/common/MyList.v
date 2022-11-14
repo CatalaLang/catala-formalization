@@ -135,6 +135,61 @@ Proof.
     induction b; [econstructor|]; auto.
 Qed.
 
+Lemma Forall_modus_ponms {A} {P Q: A -> Prop} {l: list A}:
+  List.Forall (fun x => P x -> Q x) l ->
+  List.Forall (fun x => P x) l ->
+  List.Forall (fun x => Q x) l.
+Proof.
+  intros.
+  induction H;
+  inverts_Forall;
+  econstructor;
+  eauto.
+Qed.
+
+
+Lemma Forall_takewhile' {A} (P Q: A -> Prop) ts:
+  (List.Forall (fun x => P x \/ Q x) ts) ->
+  exists ts1 ts2, ts = ts1 ++ ts2 /\ List.Forall P ts1 /\ List.Forall (fun x => P x \/ Q x) ts2 /\ (ts2 = nil \/ exists ti ts22, ts2 = ti :: ts22 /\ Q ti ).
+Proof.
+  intros.
+  induction H.
+  * eexists nil, nil.
+    simpl.
+    repeat split; eauto.
+  * case H.
+    - (* P x, we apply induction hypothesis. *)
+      intros; unpack.
+      exists (x ::ts1), ts2.
+      simpl; subst.
+      repeat split; eauto.
+    - (* Q x, we cut here. *)
+      intros; unpack.
+      eexists nil, (x :: l).
+      simpl; subst.
+      repeat split; simpl; eauto.
+Qed.
+
+Lemma Forall_takewhile {A} {P Q: A -> Prop} {ts}:
+  (List.Forall (fun x => P x \/ Q x) ts) ->
+  (List.Forall P ts) \/ exists ts1 ti ts2, ts1 ++ ti :: ts2 = ts /\ List.Forall P ts1 /\ List.Forall (fun x => P x \/ Q x) ts2 /\ Q ti.
+Proof.
+  intros.
+  destruct (@Forall_takewhile' A P Q ts H); unzip; subst.
+  - autorewrite with list; left; eauto.
+  - right.
+    rename x into ts1, x1 into ti, x2 into ts2.
+    exists ts1 ti ts2; inverts_Forall; repeat split; eauto.
+Qed.
+
+Lemma Forall_or_comm {A} {P Q: A -> Prop} {ts}:
+  List.Forall (fun x => P x \/ Q x) ts ->
+  List.Forall (fun x => Q x \/ P x) ts
+.
+Proof.
+  induction 1; econstructor; unzip; eauto.
+Qed.
+
 (*
 This lemma state that if we have two different ways to express a list t = as1 ++ a :: as2 = bs1 ++ b :: bs2, then there is three possibilities: 
 * a is before b, hence there is a l such that bs1 = as1 ++ a :: l, and as2 = l ++ b :: bs2
@@ -265,4 +320,33 @@ sum (a = b /\ as1 = bs1 /\ as2 = bs2)
 .
 Proof.
   destruct split_list_aux with A a b as1 as2 bs1 bs2 as [[Hl | Hl] | Hl]; eauto.
+Qed.
+
+
+(* Inversion lemma on the number of elements containing either zero, one or two elements without property P. This is used as an inversion lemma to prove  *)
+
+Lemma zero_one_two {X} {P: X -> Prop}  {ts: list X}:
+  (List.Forall (fun ti => P ti \/ ~ P ti) ts) ->
+  List.Forall P ts \/
+  (exists ts1 ti ts2,
+    ts = ts1 ++ ti :: ts2
+    /\ ~ (P ti)
+    /\ List.Forall P ts1
+    /\ List.Forall P ts2
+  ) \/
+  (exists ts1 ti ts2 tj ts3, 
+    ts = ts1 ++ ti :: ts2 ++ tj :: ts3 
+    /\ ~ (P ti)
+    /\ ~ (P tj)
+  ).
+Proof.
+  induction 1.
+  * left; left; eauto.
+  * unzip.
+    + left; eauto.
+    + right; left. exists (@nil X) x l; eauto.
+    + right; left. exists (x::x0); repeat eexists; eauto.
+    + right; right. exists (@nil X); repeat eexists; eauto.
+    + right; right. exists (x::x0); repeat eexists; eauto.
+    + right; right. exists (x::x0); repeat eexists; eauto.
 Qed.
