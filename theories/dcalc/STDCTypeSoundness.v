@@ -5,6 +5,8 @@ Require Import DCReduction.
 Require Import STDCDefinition.
 Require Import STDCLemmas.
 
+Require Import MyList.
+
 Require Import LibTactics.
 Require Import DCValuesRes.
 Require Import DCErrors.
@@ -101,61 +103,6 @@ Tactic Notation "check" "[" uconstr_list(hs) "|-" uconstr(g) "]" :=
 Ltac look t := induction t; simpl in *; tryfalse; eauto.
 
 
-Lemma Forall_modus_ponms {A} {P Q: A -> Prop} {l: list A}:
-  List.Forall (fun x => P x -> Q x) l ->
-  List.Forall (fun x => P x) l ->
-  List.Forall (fun x => Q x) l.
-Proof.
-  intros.
-  induction H;
-  inverts_Forall;
-  econstructor;
-  eauto.
-Qed.
-
-
-Lemma Forall_takewhile' {A} (P Q: A -> Prop) ts:
-  (List.Forall (fun x => P x \/ Q x) ts) ->
-  exists ts1 ts2, ts = ts1 ++ ts2 /\ List.Forall P ts1 /\ List.Forall (fun x => P x \/ Q x) ts2 /\ (ts2 = nil \/ exists ti ts22, ts2 = ti :: ts22 /\ Q ti ).
-Proof.
-  intros.
-  induction H.
-  * eexists nil, nil.
-    simpl.
-    repeat split; eauto.
-  * case H.
-    - (* P x, we apply induction hypothesis. *)
-      intros; unpack.
-      exists (x ::ts1), ts2.
-      simpl; subst.
-      repeat split; eauto.
-    - (* Q x, we cut here. *)
-      intros; unpack.
-      eexists nil, (x :: l).
-      simpl; subst.
-      repeat split; simpl; eauto.
-Qed.
-
-Lemma Forall_takewhile {A} {P Q: A -> Prop} {ts}:
-  (List.Forall (fun x => P x \/ Q x) ts) ->
-  (List.Forall P ts) \/ exists ts1 ti ts2, ts1 ++ ti :: ts2 = ts /\ List.Forall P ts1 /\ List.Forall (fun x => P x \/ Q x) ts2 /\ Q ti.
-Proof.
-  intros.
-  destruct (@Forall_takewhile' A P Q ts H); unzip; subst.
-  - autorewrite with list; left; eauto.
-  - right.
-    rename x into ts1, x1 into ti, x2 into ts2.
-    exists ts1 ti ts2; inverts_Forall; repeat split; eauto.
-Qed.
-
-Lemma Forall_or_comm {A} {P Q: A -> Prop} {ts}:
-  List.Forall (fun x => P x \/ Q x) ts ->
-  List.Forall (fun x => Q x \/ P x) ts
-.
-Proof.
-  induction 1; econstructor; unzip; eauto.
-Qed.
-
 Lemma is_empty_dec x:
   {x = Empty} + {x <> Empty}.
 Proof.
@@ -164,7 +111,6 @@ Qed.
 
 
 Lemma count_nempty {ts} :
-  List.Forall is_value_res ts ->
   (exists ts1 ti ts2 tj ts3, 
     ts = ts1 ++ ti :: ts2 ++ tj :: ts3 
     /\ ti <> Empty
@@ -177,20 +123,16 @@ Lemma count_nempty {ts} :
     /\ List.Forall (eq Empty) ts2
   ) \/ List.Forall (eq Empty) ts.
 Proof.
-  induction 1.
-  * right; right; eauto.
-  * unzip.
-    - left. exists (x :: x0) x1 x2 x3 x4; eauto.
-    - destruct (is_empty_dec x).
-      + right; left.
-        exists (x :: x0) x1 x2; eauto.
-      + left. exists (@nil term) x x0 x1 x2; eauto.
-    - destruct (is_empty_dec x).
-      + right; right; eauto.
-      + right; left.
-        exists (@nil term) x l; eauto.
+  assert (Hdec: List.Forall (fun ti => Empty = ti \/ ~ (Empty = ti)) ts).
+  { induction ts; econstructor; eauto.
+    destruct (is_empty_dec a); eauto.
+  }
+  destruct (zero_one_two Hdec) as [Hts|[Hts|Hts]].
+  * eauto.
+  * right; left.
+    unzip; repeat eexists; eauto.
+  * left; unzip; repeat eexists; eauto.
 Qed.
-
 
 Lemma jt_progress:
   forall Gamma t T,
@@ -258,27 +200,40 @@ Proof.
   }
   {
     left.
+
+    (* Since [Default ts tj tc], all [ti] in [ts] are [closed] too.*)
     assert (Htsclosed: List.Forall closed ts).
     { eauto with closed. }
 
+    (* Hence, we can apply the induction hypothesis: each [ti] n [ts] are either reductible into [ti'] or a [value_res]. *)
     remember (Forall_modus_ponms H0 Htsclosed) as Hts; simpl in Hts.
 
-
+    (* either all elements are [values_res], or there is a first element that is reductible inside [ts] *)
     destruct (Forall_takewhile (Forall_or_comm Hts)) as [Hts' | Hts'].
     2: {
+      (* First case: let [ti] be the first element. Then RedDefaultE applies. *)
       unzip; eexists; eapply RedDefaultE; simpl; eauto.
     }
+
     clear Hts HeqHts; rename Hts' into Hts.
 
-    destruct (count_nempty Hts) as [Hconflict|[Hvalue|Hempty]]; unzip.
-    { exists Conflict. eapply RedDefaultEConflict with _ x0 _ x2 _; simpl; eauto. }
-    { exists x0; eapply RedDefaultEValue; inverts_Forall; simpl; eauto. }
+    (* in the other case, beauce each elements in [ts] is a value, we need to take a closer look by counting the number of non-empty values.. Either there is two or more, either there is exactly one, either there is none. *)
+    destruct (@count_nempty ts) as [Hconflict|[Hvalue|Hempty]]; unzip.
+    { (* first case: there is two or more, hence there is a conflict. *)
+      exists Conflict. eapply RedDefaultEConflict with _ x0 _ x2 _; simpl; eauto. }
+    { (* second case: there is exactly one, hence the exception is valid and the default term reduce to this value. *)
+      exists x0; eapply RedDefaultEValue; inverts_Forall; simpl; eauto. }
     
+    (* either there is more than one. In this case, we need to take a look into [jt]. The case [tj] can reduced is handled by the automatic tactic. *)
     use_ih IHjt1.
-    destruct (invert_jt_TyBool _ _ H1); eauto with closed.
-    - unzip; induction x; eexists; [eapply RedDefaultJTrue|eapply RedDefaultJFalse]; eauto.
 
-    - look tj; eexists; try eapply RedDefaultJConflict; try eapply RedDefaultJEmpty; simpl; eauto.
+    (* Hence jt is a value. By the inversion lemma, since jt Gamma tj TyBool and tj is a value, it must be an boolean or an exception. *)
+    destruct (invert_jt_TyBool _ _ H1); eauto with closed.
+    - (* if it is an boolean, we consider the case true and the case false, and we apply the corresponding rule. *)
+      unzip; induction x; eexists; [eapply RedDefaultJTrue|eapply RedDefaultJFalse]; eauto.
+
+    - (* if it is an exception, we consider the case [Conflict] and the case [Empty], and apply the corresponding rule. *)
+      look tj; eexists; try eapply RedDefaultJConflict; try eapply RedDefaultJEmpty; simpl; eauto.
   }
 Qed.
 
