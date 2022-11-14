@@ -195,9 +195,9 @@ Inductive redm : monad -> monad -> Prop :=
 | RedmDefaultEConflict:
   forall ts ts1 ti ts2 tj ts3 tjust tcons,
   List.Forall is_valuem ts ->
+  ts = (ts1 ++ ti::ts2++tj::ts3)%list ->
   ti <> Empty ->
   tj <> Empty ->
-  ts = (ts1 ++ ti::ts2++tj::ts3)%list ->
   redm (Default ts tjust tcons) Conflict
 | RedmDefaultEValue:
   forall ts1 ti ts2 tjust tcons,
@@ -703,6 +703,33 @@ Proof.
   }
 Qed.
 
+Lemma hclosed_Default_eq:
+  forall ts tj tc,
+  hclosed (Default ts tj tc) <->
+    (List.Forall (fun ti => hclosed ti) ts) /\ hclosed tj /\ hclosed tc.
+Proof.
+  unfold hclosed. eapply hfv_Default_eq.
+Qed.
+
+Lemma hclosed_DefaultC ts tj tc: hclosed (Default ts tj tc) -> (List.Forall (fun ti => hclosed ti)) ts.
+Proof.
+  intros H; destruct (hclosed_Default_eq ts tj tc) as [H' _]; destruct H'; unzip; eauto.
+Qed.
+Lemma hclosed_DefaultJ ts tj tc: hclosed (Default ts tj tc) -> hclosed tj.
+Proof.
+  intros H; destruct (hclosed_Default_eq ts tj tc) as [H' _]; destruct H'; unzip; eauto.
+Qed.
+Lemma hclosed_DefaultE ts tj tc: hclosed (Default ts tj tc) -> hclosed tc.
+Proof.
+  intros H; destruct (hclosed_Default_eq ts tj tc) as [H' _]; destruct H'; unzip; eauto.
+Qed.
+
+Global Hint Resolve
+  hclosed_DefaultC
+  hclosed_DefaultJ
+  hclosed_DefaultE
+: hclosed.
+
 Lemma invert_jtm_TyBool:
   forall Gamma t,
   jtm Gamma t TyBool ->
@@ -718,6 +745,12 @@ Proof.
     { unfold hclosed, closed in *. now eapply hfv_Pure_eq. }
     subst.
     eexists; eauto.
+Qed.
+
+Theorem is_empty_dec:
+  forall m: monad, eq Empty m \/ ~ (eq Empty m).
+Proof.
+  induction m; try solve [eauto|right; repeat intro; congruence].
 Qed.
 
 Lemma jtm_progress:
@@ -746,6 +779,28 @@ Proof.
       - eexists. now eapply RedmBindConflict.
     }
   * (* same proof as before *)
+
+    (* renaming the goals for stability *)
+    match goal with [h: List.Forall (fun ti => hclosed ti -> _) ts |- _] => rename h into IHjtms end.
+    match goal with [h: List.Forall (fun ti => jtm Gamma ti T) ts |- _] => rename h into IHjtmts end.
+
+    intros Hclosed; left.
+    assert (Hhclosedts: List.Forall hclosed ts).
+    { eapply hclosed_Default_eq; eauto. }
+
+    destruct (Forall_takewhile (Forall_or_comm (Forall_modus_ponms IHjtms Hhclosedts))) as [Hvaluem|].
+    2:{ unzip; eexists; eapply RedmDefaultE; eauto. }
+
+    destruct (zero_one_two (specialize_Forall ts is_empty_dec)) as [Hempty|[Hvalue|Hconflict]]; unzip.
+    - destruct IHjtm1.
+      { eauto with hclosed. }
+      { unzip; eexists; eapply RedmDefaultJ; eauto. }
+
+      destruct (invert_jtm_TyBool _ _ H1); eauto.
+      { eauto with hclosed. }
+      { unzip; induction x; eexists; [eapply RedmDefaultJTrue| eapply RedmDefaultJFalse]; eauto. }
+      { unzip; eexists; [eapply RedmDefaultJEmpty|eapply RedmDefaultJConflict]; eauto. }
     
-    admit.
-Admitted.
+    - eexists; eapply RedmDefaultEValue; inverts_Forall; eauto.
+    - eexists; eapply RedmDefaultEConflict; eauto. 
+Qed.
