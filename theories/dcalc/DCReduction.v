@@ -697,7 +697,6 @@ Local Ltac ok :=
     | eauto with subst
   ].
 
-  admit.
   (* 
   induction 13; simpl; intros; subst;
   try solve [
@@ -732,7 +731,7 @@ Local Ltac ok :=
   }
 Admitted.
 *)
-Admitted.
+Abort.
 
 
 Lemma star_red_subst:
@@ -755,8 +754,8 @@ Lemma star_red_subst:
   is_nerror_subst sigma ->
   star (red mask) t1.[sigma] t2.[sigma].
 Proof.
-  induction 13; eauto using red_subst with sequences.
-Qed.
+  (* induction 13; eauto using red_subst with sequences. *)
+Abort.
 
 (* Call-by-value reduction is contained in parallel call-by-value. *)
 
@@ -1009,9 +1008,7 @@ Lemma RuleDefaultEConflict_RuleDefaultEValue_incompat:
 Proof.
   induction 1; try solve [ tryfalse ].
   * intros; pick red invert; try tauto.
-    admit.
-  * (* symetric case *) 
-Admitted.
+Abort.
 
 Ltac split_list :=
   (* this tactic search for a hypothesis in the form of _ ++ _ :: _ = _ ++ _ :: _  and applies to split_list lemma to it. *)
