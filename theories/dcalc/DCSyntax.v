@@ -11,15 +11,17 @@ Require Export Autosubst_FreeVars.
 
 (* The syntax of the lambda-calculus. *)
 
+Inductive operator := OAdd.
+
 Inductive term :=
 | Var (x : var)
 | Lam (t : {bind term})
 | App (t1 t2 : term)
-| Let (t1 : term) (t2 : {bind term})
 | Default (ts: list term) (tj tc: term)
 | Empty
 | Conflict
 | Const (b: bool)
+| BinOp (op: operator) (t1 t2: term)
 .
 
 Lemma term_ind':
@@ -27,12 +29,12 @@ forall P : term -> Prop,
 (forall x : var, P (Var x)) ->
 (forall t : {bind term}, P t -> P (Lam t)) ->
 (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
-(forall t1 : term,
- P t1 -> forall t2 : {bind term}, P t2 -> P (Let t1 t2)) ->
 (forall (ts : list term),
  List.Forall (fun ti => P ti) ts -> forall tj : term, 
  P tj -> forall tc : term, P tc -> P (Default ts tj tc)) ->
-P Empty -> P Conflict -> (forall b, P (Const b)) -> forall t : term, P t.
+P Empty -> P Conflict -> (forall b, P (Const b))
+-> (forall op: operator, forall t1 t2: term, P t1 -> P t2 -> P (BinOp op t1 t2))
+-> forall t : term, P t.
 Proof.
   intros; gen t.
   fix IH 1.
@@ -40,15 +42,15 @@ Proof.
   * apply H.
   * intros; apply H0; apply IH.
   * intros; apply H1; apply IH.
-  * intros; apply H2; apply IH.
-  * intros; apply H3; try apply IH.
+  * intros; apply H2; try apply IH.
     { induction ts; econstructor.
       apply IH.
       apply IHts.
     } 
+  * apply H3.
   * apply H4.
   * apply H5.
-  * apply H6.
+  * intros; apply H6; apply IH. 
 Qed.
 (* 
 (* 2022-05-03 TODO: ajouter des égalités et fonction de comparaison (comme en ocaml) *)
@@ -118,7 +120,7 @@ Fixpoint size (t : term) : nat :=
   | Var _ => 0
   | Lam t => 1 + size t
   | App t1 t2
-  | Let t1 t2 => 1 + size t1 + size t2
+  | BinOp _ t1 t2 => 1 + size t1 + size t2
   | Default ts tj tc =>
       1 + list_size size ts + size tj + size tc
   | Empty => 0
@@ -222,7 +224,7 @@ Lemma smaller_wf_transparent:
 Proof.
   unfold well_founded. size_induction t.
   constructor; intros u Hu.
-  eapply IH. eapply lt_S_n. eapply le_lt_trans; eauto.
+  eapply IH. eapply Nat.succ_lt_mono. eapply Nat.le_lt_trans; eauto.
 Defined.
 
 (* The following lemmas can be useful in situations where the tactic
@@ -249,9 +251,9 @@ Proof.
   autosubst.
 Qed.
 
-Lemma subst_let:
-  forall t1 t2 sigma,
-  (Let t1 t2).[sigma] = Let t1.[sigma] t2.[up sigma].
+Lemma subst_op:
+  forall op t1 t2 sigma,
+  (BinOp op t1 t2).[sigma] = BinOp op t1.[sigma] t2.[sigma].
 Proof.
   autosubst.
 Qed.

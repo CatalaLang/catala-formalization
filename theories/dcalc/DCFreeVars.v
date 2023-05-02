@@ -52,19 +52,13 @@ Proof.
   { unpack. congruence. }
 Qed.
 
-Lemma fv_Let_eq:
-  forall k t1 t2,
-  fv k (Let t1 t2) <-> fv k t1 /\ fv (S k) t2.
+Lemma fv_BinOp_eq:
+  forall k op t1 t2,
+  fv k (BinOp op t1 t2) <-> fv k t1 /\ fv k t2.
 Proof.
   unfold fv. intros. asimpl. split; intros.
   { injections. eauto. }
   { unpack. congruence. }
-Qed.
-
-Lemma bidule {A}: forall (h1 h2: A) t1 t2,
-  h1 = h2 -> t1 = t2 -> (cons h1 t1 = cons h2 t2).
-Proof.
-  intros; rewrite H; rewrite H0; reflexivity.
 Qed.
 
 Lemma thing: forall ts sigma,
@@ -97,7 +91,7 @@ Proof.
     reflexivity. }
 Qed.
 
-Global Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq fv_Let_eq fv_Default_eq : fv.
+Global Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq fv_BinOp_eq fv_Default_eq : fv.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -121,18 +115,26 @@ Proof.
   unfold closed; intros; fv. tauto.
 Qed.
 
-Lemma closed_AppR:
-  forall t1 t2,
-  closed (App t1 t2) ->
+Lemma closed_BinOpR:
+  forall op t1 t2,
+  closed (BinOp op t1 t2) ->
   closed t2.
 Proof.
   unfold closed; intros; fv. tauto.
 Qed.
 
-Lemma closed_LetL:
-  forall t1 t2,
-  closed (Let t1 t2) ->
+Lemma closed_BinOpL:
+  forall op t1 t2,
+  closed (BinOp op t1 t2) ->
   closed t1.
+Proof.
+  unfold closed; intros; fv. tauto.
+Qed.
+
+Lemma closed_AppR:
+  forall t1 t2,
+  closed (App t1 t2) ->
+  closed t2.
 Proof.
   unfold closed; intros; fv. tauto.
 Qed.
@@ -199,13 +201,14 @@ Global Hint Resolve
   closed_Var
   closed_AppL
   closed_AppR
-  closed_LetL
   closed_DefaultC
   closed_DefaultJ
   closed_DefaultE
   closed_DefaultE0
   closed_DefaultEi
   closed_DefaultEin
+  closed_BinOpR
+  closed_BinOpL
 : closed.
 
 (* -------------------------------------------------------------------------- *)

@@ -1,463 +1,220 @@
-Require Import MCSyntax.
+
 Require Import DCSyntax.
+Require Import MCSyntax.
+Require Import DCFreeVars.
+
+Require Import STMCDefinition.
 
 Require Import MyTactics.
 
-Definition dterm := DCSyntax.term.
 
+Module D := DCSyntax.
 Module M := MCSyntax.
 
-Fixpoint remove_options {A} (l: list (option A)): option (list A) :=
-  match l with
-  | nil => Some nil
-  | cons (Some h) t =>
-    match remove_options t with
-    | Some t => Some (cons h t)
-    | None => None
-    end
-  | cons None t => None
-  end
+Import List.ListNotations.
+Open Scope list_scope.
+
+
+(** Some parts of the code could be *)
+
+
+Definition trans_op : D.operator -> M.operator.
+Admitted.
+
+Lemma assert_lift_do_lift : (lift 1 (D.Var 0)) = D.Var 1.
+Proof. autosubst. Qed.
+
+
+Definition thunk: term -> term := fun t => Lam (lift 1 t).
+Definition unthunk: term -> term := fun t => App t (Const true).
+
+
+
+(** Definition of the translation as a coq inductive. 
+
+To handle environements, we use lists.
+
+*)
+
+Definition trans_ctx := list bool.
+Definition trans_ctx := var -> bool.
+
+(* todo : utiliser nouvelle fonction. *)
+Inductive trans : trans_ctx -> DCSyntax.term -> MCSyntax.term -> Prop :=
+  | TVarPure: forall Delta x,
+    List.nth_error Delta x = Some true ->
+    trans Delta (D.Var x) (MReturn (M.Var x))
+  | TVarUnpure: forall Delta x,
+    List.nth_error Delta x = Some false ->
+    trans Delta (D.Var x) (M.Var x)
+  | TLam: forall Delta t t',
+    trans (true .: Delta) t t' ->
+    trans Delta (D.Lam t) (MReturn (M.Lam t'))
+  | TAppLam: forall Delta arg arg' body body',
+    trans Delta arg arg' ->
+    trans (true .: Delta) body body' ->
+    trans Delta (D.App (D.Lam body) arg) (MBind arg' body')
+  | TAppOp: forall Delta t1 t2 t1' t2' op,
+    trans Delta t1 t1' ->
+    trans Delta t2 t2' ->
+    trans Delta
+      (D.BinOp op t1 t2)
+      (MBind t1'
+        (MBind (lift 1 t2')
+          (MReturn (M.BinOp (trans_op op) (M.Var 0) (M.Var 1)))
+        )
+      )
+  | TAppVarPure: forall Delta x arg arg',
+  List.nth_error Delta x = Some true ->
+    trans Delta arg arg' ->
+    trans Delta
+      (D.App (D.Var x) arg)
+      (MBind arg'
+        (M.App (lift 1 (M.Var x)) (M.Var 0))
+      )
+  | TAppVarUnpure: forall Delta x arg arg',
+  List.nth_error Delta x = Some false ->
+    trans Delta arg arg' ->
+    trans Delta
+      (D.App (D.Var x) arg)
+      (MBind (M.Var x)
+        (MBind arg'
+          (M.App (lift 1 (M.Var 0)) (M.Var 0))
+        ) 
+      )
+  | TDefault: forall Delta es es' ej ej' ec ec',
+    List.Forall2 (trans Delta) es es' ->
+    trans Delta ej ej' ->
+    trans Delta ec ec' ->
+    trans Delta (Default es ej ec) (MHandle es' (thunk ej') (thunk ec'))
+  | TLit: forall Delta b, 
+    trans Delta (D.Const b) (MReturn (M.Const b))
+  | TEmpty: forall Delta,
+    trans Delta Empty MEmpty
+  | TConflict: forall Delta,
+    trans Delta D.Conflict (MRaise EConflict)
 .
 
-Definition is_Some {A} (x: option A) :=
-  match x with Some _ => True | _ => False end.
 
-Lemma remove_options_spec {A} {l: list (option A)}:
-  List.Forall is_Some l <->
-  exists l', remove_options l = Some l'.
-Proof. (* ugly proof *)
-  split.
-  * induction 1; simpl.
-    - eexists; eauto.
-    - destruct IHForall as [ l' Hl'].
-      rewrite Hl'.
-      induction x; simpl in *; tryfalse.
-      eexists; eauto.
-  * induction l; econstructor.
-    - unzip.
-      simpl in *.
-      induction a; simpl; eauto.
-      congruence.
-    - eapply IHl.
-      unzip. simpl in *.
-      induction a; tryfalse.
-      remember (remove_options l) as o.
-      induction o; tryfalse. eauto.
+(** First we need to prove that when we are applying the nth_error function, the result is always in bounds. To do so, we need to check the length of the list is always greater than largest free variable. This is not trivial since we are introducing thunks in the term. *)
+
+Lemma option_Some_neq_None {A} {x: A} o:
+  o = Some x -> o <> None.
+Proof.
+  intros; subst; congruence.
 Qed.
 
-Definition return_ (t: M.term): option monad :=
-  Some (Pure t).
-
-Fixpoint bind_aux
-  (m: monad)
-  (cont: M.term -> option monad)
-: option monad :=
-  match m with
-    M.Fake x => None
-  | M.Empty => Some M.Empty
-  | M.Conflict => Some M.Conflict
-  | M.Bind m1 m2 =>
-    match bind_aux m2 cont with
-      Some m2' => Some (Bind m1 m2')
-    | None => None
-    end
-  | M.Pure t => cont t
-
-  | M.Default ms mj mc =>
-    match cont (M.Var 0) with
-      Some m' => Some (Bind (M.Default ms mj mc) m')
-    | None => None
-    end
-  end.
-
-Definition bind
-  (m: option monad)
-  (cont: M.term -> option monad)
-: option monad :=
-  match m with
-  | Some m => bind_aux m cont
-  | None => None
-  end
-.
-
-Lemma bind_ex1: (bind (Some (Bind M.Empty (M.Pure (M.Var 0))))) (fun t => Some (Pure (M.App t t))) = Some (Bind M.Empty
-   (Pure (M.App (M.Var 0) (M.Var 0)))).
-Proof. simpl; eauto. Qed.
-
-
-Lemma left_identity: forall a m, bind (return_ a) m = m a.
+Lemma nth_error_Some' {A} l n (x: A) : List.nth_error l n = Some x -> n < List.length l.
 Proof.
-  simpl; eauto.
+  intros Hx.
+  apply List.nth_error_Some.
+  rewrite Hx; congruence.
 Qed.
 
-Lemma right_identity: forall m, bind m return_ = m.
+
+(* The other abence of overflow is on t', and require infrastructure about free variables on the terms. *)
+
+Lemma trans_ctx_no_overflow Delta t t':
+    trans Delta t t' -> fv (List.length Delta) t.
 Proof.
-  induction m; simpl; eauto.
-  induction a; simpl; eauto.
-  - admit.
-  - admit.
-  - replace (bind_aux x return_) with (Some x).
-    eauto.
+  induction 1; fv; repeat split; try eapply (nth_error_Some'); eauto.
+  { (* missing case because the induction predicate generated automaticly by coq is not strong enought. Assumed for the moment. *)
+    admit.
+  }
 Admitted.
 
 
-Lemma associativity: forall m1 m2 m3,
-  bind (bind m1 m2) m3 = bind m1 (fun x => bind (m2 x) m3).
-Proof.
-  induction m1.
-  - intros.
-    induction a using monad_ind'; simpl; eauto; admit.
-  - simpl; eauto.
-Admitted.
+(** translation correction *)
 
-Definition bind2
-  (m1: option monad)
-  (m2: option monad)
-  (cont: M.term -> M.term -> option monad)
-: option monad :=
-  bind m1 (fun t1 => bind m2 (fun t2 => cont t1 t2))
+Require Import STDCDefinition.
+Module DT := STDCDefinition.
+Module MT := STMCDefinition.
+
+Inductive trans_ty: bool -> DT.ty -> MT.ty -> Prop :=
+| TTVar: forall x, trans_ty true (DT.TyVar x) (MT.TyVar x)
+| TTFun: forall A B A' B',
+  trans_ty true A A' ->
+  trans_ty true B B' ->
+  trans_ty true (DT.TyFun A B) (MT.TyFun A' (MT.TyOption B'))
+| TTBool: trans_ty true DT.TyBool MT.TyBool
+| TTUnpure: forall tau tau',
+  trans_ty true tau tau' ->
+  trans_ty false tau (MT.TyOption tau') 
 .
 
 
-Compute (
-  bind2
-    (Some (Bind (M.Pure (M.Const true)) (M.Pure (M.Var 0))))
-    (Some (Bind (M.Pure (M.Const false)) (M.Pure (M.Var 0))))
-    (fun t1 t2 => return_ (M.App t1 t2))
-  ). (* incorrect translation for the moment. *)
+(* Propreties on trans_ty: trans_ty is a functionnal. This means there is a function such that trans_ty tau [tau] for all tau. Moreover, if trans_ty tau tau', then tau' = [tau]. *)
 
-Fixpoint trans (t: dterm) : option monad :=
-  match t with
-    Empty => Some M.Empty
-  | Conflict => Some M.Conflict
-  | Lam t =>
-    bind (trans t) (fun t => return_ (M.Lam t))
-  | App t1 t2 =>
-    bind2 (trans t1) (trans t2) (fun t1 t2 => return_ (M.App t1 t2))
-  | Const b => Some (Pure (M.Const b))
-  | Var x => Some (Pure (M.Var x))
-  | Default ts tj tc =>
-    let ms := remove_options (List.map trans ts) in
-    let mj := trans tj in
-    let mc := trans tc in
-
-    match ms, mj, mc with
-    Some ms, Some mj, Some mc => Some (M.Default ms mj mc)
-    | _, _, _ => None
-    end
-
-  | _ => None
-  end
-.
-
-
-(* no induction principle derived from this definition... *)
-Example ex1: trans (App (Lam (Var 0)) (Const true)) = Some (Pure (M.App (M.Lam (M.Var 0)) (M.Const true))).
+Lemma trans_ty_unique: forall b tau tau1',
+  trans_ty b tau tau1' -> forall tau2', trans_ty b tau tau2' -> tau1' = tau2'.
 Proof.
-  simpl; eauto.
+  induction 1; intros tau2' Htrans; inverts Htrans.
+  * eauto.
+  * replace A'0 with A'; eauto.
+    replace B'0 with B'; eauto.
+  * eauto.
+  * replace tau'0 with tau'; eauto.
 Qed.
 
-Example ex2: trans (Default nil (Const true) (Const false)) = Some (M.Default nil (Pure (M.Const true)) (Pure (M.Const false))).
+Lemma trans_ty_exists: forall b tau, exists tau',
+  trans_ty b tau tau'.
 Proof.
-  simpl; eauto.
+  assert (forall (tau : DT.ty), exists tau' : MT.ty, trans_ty true tau tau').
+  { induction tau; unpack; eexists; econstructor; eauto. }
+  intros.
+  case b; eauto.
+  destruct (H tau) as [tau' Htau'].
+  eexists; econstructor; eauto.
 Qed.
 
-Compute (trans ((Default nil (Const true) (Lam (Var 0))))).
-
-Compute (bind (Some
-(MCSyntax.Default nil (Pure (MCSyntax.Const true))
-   (Pure (MCSyntax.Lam (MCSyntax.Var 0))))) (fun t => return_ (M.Lam t))).
-
-Example ex3: trans (Lam (Default nil (Const true) (Lam (Var 0)))) =
-  Some (
-    Bind
-      (M.Default nil (Pure (M.Const true)) (Pure (M.Lam (M.Var 0))))
-      (Pure (M.Lam (M.Var 0)))
-    )
-    .
+Lemma trans_correct_type Delta  t1 t1':
+  trans Delta t1 t1' ->  
+  forall Gamma Gamma' tau tau',
+  jt Gamma t1 tau ->
+  trans_ty true tau tau' ->
+  (forall n, trans_ty (true (* TODO *)) (Gamma n) (Gamma' n)) ->
+  MT.jt Gamma' t1' tau'.
 Proof.
-  simpl. repeat f_equal.
-Qed.
-
-Example ex4: trans (App (Default nil (Const true) (Lam (Var 0))) (Const false)) =
-  Some (
-    Bind
-      (M.Default nil (Pure (M.Const true)) (Pure (M.Lam (M.Var 0))))
-      (Pure (M.App (M.Var 0) (M.Const false)))
-    )
-    .
-Proof.
-  simpl. repeat fequal.
-Qed.
-
-Example ex5: trans (App (Default nil (Const true) (Lam (Var 0))) (Default nil (Const false) (Lam (Var 0)))) =
-  Some (
-    Bind
-      (M.Default nil (Pure (M.Const true)) (Pure (M.Lam (M.Var 0))))
-      (Bind (M.Default nil (Pure (M.Const false)) (Pure (M.Lam (M.Var 0)))) (Pure (M.App (M.Var 0) (M.Var 1))))
-    )
-    .
-Proof.
-  simpl. repeat fequal. admit.
+  (*
+  induction 1; intros.
+  * inverts H0.
+    repeat econstructor.
+    eapply trans_ty_unique.
+    apply H2.
+    apply H1.
+  * inverts H0. 
+    repeat econstructor.
+    eapply trans_ty_unique.
+    apply H2.
+    apply H1.
+  * inverts H0. *)
 Admitted.
-
 
 Require Import DCReduction.
 
-
-(* this lemma is not true. Since [ [|Lam t|] = let* t = [|t|] in return_ (Lam t)], the transformation of Lam is not always an value. Hence, this lemmas does not hold. It is still true when v is Empty, Conflict, or an boolean, or when Lam does not have any defaults in its body. *)
-Lemma is_value_trans_is_valuem:
-  forall v, DCValuesRes.is_value_res v -> exists v', trans v = Some v' /\ is_valuem v'.
-Proof.
-  intros.
-  induction v; simpl in H; tryfalse; simpl; eexists; simpl; eauto.
-Abort.
-
-Lemma checking_prop_on_subst:
-  forall t v r, trans t.[v/] = Some r -> exists t' v', r = t'.|[v'/].
-Proof.
-  intros.
-  (* does not holds *)
-Abort.
-
-(* does not holds *)
-Lemma trans_correct: forall t1 t2,
-  cbv t1 t2 ->
-  forall t1',
-  Some t1' = trans t1 -> 
-  forall t2',
-  Some t2' = trans t2 -> 
-  (*--------------------*)
-  M.redm t1' t2'
-.
-Proof.
-  induction 1; tryfalse.
-  * subst. simpl; intros.
-    admit.
-  * simpl; intros; tryfalse.
-  * simpl.
-    intros.
-    (* I have no idea on how to prove this. *)
-Abort.
-
-Inductive is_pure : term -> Prop :=
-  | PVar : forall x, is_pure (Var x)
-  | PLam: forall t, is_pure t -> is_pure (Lam t)
-  | PApp: forall t1 t2, is_pure t1 -> is_pure t2 -> is_pure (App t1 t2)
-  | PConst: forall b, is_pure (Const b)
-.
-
-Lemma invert_trans_AppL:
-  forall t1 t2 t', trans (App t1 t2) = Some t' -> exists t1', trans t1 = Some t1'.
-Proof.
-  intros.
-  inverts H.
-  unfold bind2 in *.
-  unfold bind in *.
-  remember (trans t1) as o.
-  induction o; eauto.
-Qed.
-
-Lemma invert_trans_AppR:
-  forall t1 t2 t', is_pure (App t1 t2) -> trans (App t1 t2) = Some t' -> exists t2', trans t2 = Some t2'.
-Proof.
-  introv Hpure H.
-  inverts H.
-  unfold bind2 in *.
-  unfold bind in *.
-  remember (trans t2) as o. 
-  induction o; eauto.
-  remember (trans t1) as oo.
-  induction oo; eauto.
-  induction a; eauto.
-  - (* statment is false *) simpl in H1.
-Abort.
-
-Lemma trans_is_pure_is_pure:
-  forall t, is_pure t -> exists t', trans t = Some (Pure t').
-Proof.
-  introv H.
-  induction t; inverts H; tryfalse.
-  * simpl; eexists; eauto.
-  * destruct (IHt); eauto.
-    simpl.
-    rewrite H.
-    simpl.
-    unfold return_.
-    eexists; eauto.
-  * destruct (IHt1 H2); destruct (IHt2 H3).
-    simpl.
-    repeat match goal with [h: trans _ = Some (Pure _) |- _] => rewrite h end.
-    simpl.
-    unfold return_.
-    eexists; eauto.
-  * simpl.
-    eexists; eauto.
-Qed.
-
-
-Lemma is_pure_renaming:
-  forall t sigma,
-  is_ren sigma ->
-  is_pure t -> is_pure t.[sigma].
-Proof.
-  introv Hsigma Hpure; gen sigma.
-  induction Hpure; introv Hsigma.
-  * simpl. destruct Hsigma; subst. econstructor.
-  * simpl. econstructor. eapply IHHpure.
-    obvious.
-  * simpl. econstructor; [eapply IHHpure1 |eapply IHHpure2]; eauto.
-  * simpl; econstructor.
-Qed.
-
-Lemma is_pure_substitution:
-  forall t sigma,
-  (forall x, is_pure (sigma x)) ->
-  is_pure t -> is_pure t.[sigma].
-Proof.
-  introv Hsigma Hpure. gen sigma.
-  induction Hpure; introv Hsigma.
-  * simpl. eapply Hsigma.
-  * asimpl; econstructor; eapply IHHpure.
-    induction x; asimpl.
-    econstructor.
-    eapply is_pure_renaming.
-    - eexists; eauto.
-    - eapply Hsigma.   
-  * asimpl; econstructor; [eapply IHHpure1|eapply IHHpure2]; eauto.
-  * asimpl; econstructor; eauto.
-Qed.
-
-Ltac is_pure := repeat match goal with
-| [h: is_pure (Lam _) |- _] => inverts h
-| [h: is_pure (App _ _) |- _] => inverts h
-| [h: is_pure (Let _ _) |- _] => inverts h
-| [h: is_pure (Default _ _ _) |- _] => inverts h
-| [h: is_pure (Empty) |- _] => inverts h
-| [h: is_pure (Conflict) |- _] => inverts h
-| [h: is_pure (Const _) |- _] => inverts h
-end; eauto.
-
-Lemma cbv_is_pure_conserve:
-  forall t1 t2, is_pure t1 -> cbv t1 t2 -> is_pure t2.
-Proof.
-  introv Hpure Hcbv.
-  induction Hcbv; tryfalse; is_pure.
-  * subst; eapply is_pure_substitution; eauto.
-    induction x; asimpl; eauto; econstructor.
-  * econstructor; eauto.
-  * econstructor; eauto.
-Qed.
-
-
+Require Import MySequences.
+Require Import MyRelations.
 
 Require Import Procrastination.
 
-Lemma trans_is_pure_is_transp:
-  exists trans_p, 
-  forall t,
-    is_pure t -> exists t', trans t = Some (Pure t') /\ trans_p t t'.
+Check star.
+
+Lemma trans_correct Delta t1 t2 t1' t2':
+  exists rel: M.term -> M.term -> Prop,
+  trans Delta t1 t1' ->
+  cbv t1 t2 ->
+  trans Delta t2 t2' ->
+  rel t1' t2'.
 Proof.
-  begin defer assuming transp.
-  {
-    exists transp.
-    induction 1.
-    * eexists.
-      split.
-      { simpl. reflexivity. }
-      gen x; defer.
-    * unzip. eexists; split.
-      { simpl. rewrite H0; simpl. unfolds return_. reflexivity. }
-      
-      gen t x; defer.
-    * unzip.
-      eexists; split.
-      simpl.
-      repeat match goal with [h: trans _ = Some (Pure _) |- _] => rewrite h end.
-      simpl; reflexivity.
+  begin defer assuming rel.
+   exists rel.
+   intros Htrans Hred Htrans'.
+   gen Htrans Htrans'.
+   induction Hred;
+    tryfalse.
+  * admit.
+  * intros Htrans Htrans'.
 
-      gen t1 t2 x0 x; defer.
-    * eexists; simpl; split.
-      reflexivity.
-      gen b; defer.
-  }
-  end defer.
-Abort.
-
-Inductive transp: dterm -> M.term -> Prop:=
-|TP_Var: (forall x : var, transp (Var x) (M.Var x))
-|TP_Lam: (forall t : term,
- forall x : MCSyntax.term, transp t x -> transp (Lam t) (M.Lam x)) 
-|TP_App: (forall t1 : term,
- forall t2 : term,
- forall x0 : MCSyntax.term,
- transp t1 x0 ->
- forall x : MCSyntax.term,
- transp t2 x -> transp (App t1 t2) (M.App x0 x)) 
-|TP_Const: (forall b : bool, transp (Const b) (M.Const b))
-.
-
-
-Lemma trans_is_pure_is_transp:
-  forall t,
-    is_pure t -> exists t', transp t t' /\ trans t = Some (Pure t').
-Proof.
-  induction 1.
-  * eexists; simpl; split; [econstructor|].
-    eauto.
-  * unzip; eexists; simpl; split; [econstructor|]; eauto.
-    (* repeat rewrite $(trans _ = Some (Pure _)). *)
-    repeat match goal with [h: trans _ = Some (Pure _) |- _] => rewrite h end.
-    simpl; eauto.
-  * unzip; eexists; simpl; split; [econstructor|]; eauto.
-    repeat match goal with [h: trans _ = Some (Pure _) |- _] => rewrite h end.
-    simpl; eauto.
-  * unzip; eexists; simpl; split; [econstructor|]; eauto.
-Qed.
-
-Lemma trans_is_pure_is_transp':
-  forall t t', is_pure t -> Some t' = trans t -> exists t'', t' = Pure t'' /\ transp t t''.
-Proof.
-  introv Hpure Htrans.
-  forwards: trans_is_pure_is_transp Hpure.
-  unzip. 
-  eexists; split; eauto.
-  rewrite <- Htrans in H0.
-  injections.
-  eauto.
-Qed.
-
-
-Lemma transp_value_conserve:
-  forall v v', DCValuesRes.is_value_res v -> transp v v' -> M.is_value v'.
-Proof.
-  intros.
-  match goal with [h: transp _ _ |- _] => induction h end; simpl in *; eauto.
-Qed. 
-
-Lemma trans_correct_pure:
-  forall t1, forall t2, cbv t1 t2 ->
-  forall t1', transp t1 t1' ->
-  exists t2', transp t2 t2' /\ M.red t1' t2'.
-Proof.
-  (* we need a size induction since t.[v/] must be inside the induction hypothesis. *)
-
-  introv Hcbv Htransp. gen t2.
-  induction Htransp; introv Hcbv; inverts Hcbv; match goal with [h: cbv_mask _ |- _] => try solve [simpl h; tryfalse] end;
-  repeat match goal with
-  | [h: transp (Conflict) _ |- _] => inverts h
-  | [h: transp (Empty) _ |- _] => inverts h
-  end.
-  * inverts Htransp1.
-    eexists.
-    split.
-    2: {
-      eapply M.RedBetaV. eapply transp_value_conserve; eauto.
-      { (* whoups *) admit. }
-      reflexivity. 
-      }
-      { (* todo *) admit. }
-  *   
   * admit.
   * admit.
   * admit.
@@ -465,45 +222,15 @@ Proof.
   * admit.
   * admit.
   * admit.
-
   * admit.
-  * eexists.
-    split.
-    - econstructor.
-  rename x into t1'.
-  .
-  * 
-  induction Htransp; introv Hcbv; inverts Hcbv; .
-  *  
-  
-  match goal with [h: transp t1 _ |- _] => rename h into Htransp end.
-  rename x into t1'.
-
-  induction Htransp; introv Hcbv; inverts Hcbv; match goal with [h: cbv_mask _ |- _] => try solve [simpl h; tryfalse] end.
   * admit.
-  * 
-
-  intros t1; induction t1; introv Ht1; inverts Ht1; introv Ht1t2 Ht2pure; inverts Ht1t2; try solve
-    [ tryfalse
-    | is_pure ].
-  * is_pure.
-    destruct (trans_is_pure_is_pure (App (Lam t) t1_2)).
-    { repeat econstructor; eauto. }
-    admit.
-
-  * destruct (trans_is_pure_is_pure (App t1_1 t1_2)).
-    { repeat econstructor; is_pure; eauto. }
-    induction x; simpl in H.
+  * admit.
+  * admit.
+  * admit.
+  * admit.
+  * admit. 
 
   
-    intros; simpl in *. is_pure.
-    forwards bla: IHt1_1 H1 H7; eauto.
-    2:{
-      unzip.
-      rewrite <- H0.
-      simpl.
-       
-    { admit. }
-    { unzip. rewrite <- H0. simpl. admit. }
-  *  admit.
-Admitted.
+
+  
+

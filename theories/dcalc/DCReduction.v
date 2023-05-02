@@ -83,22 +83,22 @@ Inductive red (mask : mask) : term -> term -> Prop :=
     is_nerror v ->
     t.[v/] = u ->
     red mask (App (Lam t) v) u
-| RedLetV:
+(* | RedLetV:
     forall t v u,
     mask RuleLetV ->
     is_value v ->
     t.[v/] = u ->
-    red mask (Let v t) u
+    red mask (Let v t) u *)
 | RedBeta:
     forall t1 t2 u,
     mask RuleBeta ->
     t1.[t2/] = u ->
     red mask (App (Lam t1) t2) u
-| RedLet:
+(* | RedLet:
     forall t1 t2 u,
     mask RuleLet ->
     t2.[t1/] = u ->
-    red mask (Let t1 t2) u
+    red mask (Let t1 t2) u *)
 | RedParBetaV:
     forall t1 v1 t2 v2 u,
     mask RuleParBetaV ->
@@ -107,14 +107,14 @@ Inductive red (mask : mask) : term -> term -> Prop :=
     red mask v1 v2 ->
     t2.[v2/] = u ->
     red mask (App (Lam t1) v1) u
-| RedParLetV:
+(* | RedParLetV:
     forall t1 t2 v1 v2 u,
     mask RuleParLetV ->
     is_value v1 ->
     red mask t1 t2 ->
     red mask v1 v2 ->
     t2.[v2/] = u ->
-    red mask (Let v1 t1) u
+    red mask (Let v1 t1) u *)
 | RedVar:
     forall x,
     mask RuleVar ->
@@ -168,10 +168,10 @@ Inductive red (mask : mask) : term -> term -> Prop :=
   forall t,
   mask RuleAppLConflict ->
   red mask (App Conflict t) Conflict
-| RedLetLConflict:
+(* | RedLetLConflict:
   forall t,
   mask RuleLetLConflict ->
-  red mask (Let Conflict t) Conflict
+  red mask (Let Conflict t) Conflict *)
 | RedAppREmpty:
   forall t,
   mask RuleAppREmpty ->
@@ -182,7 +182,7 @@ Inductive red (mask : mask) : term -> term -> Prop :=
   mask RuleAppLEmpty ->
   match t with Conflict => False | _ => True end ->
   red mask (App Empty t) Empty
-| RedLetREmpty:
+(* | RedLetREmpty:
   forall t,
   mask RuleLetREmpty ->
   red mask (Let t Empty) Empty
@@ -205,7 +205,7 @@ Inductive red (mask : mask) : term -> term -> Prop :=
   mask RuleLetLR ->
   red mask t1 t2 ->
   red mask u1 u2 ->
-  red mask (Let t1 u1) (Let t2 u2)
+  red mask (Let t1 u1) (Let t2 u2) *)
 | RedDefaultEConflict:
   forall ts ts1 ti ts2 tj ts3 tjust tcons,
   mask RuleDefaultEConflict ->
@@ -388,7 +388,7 @@ Notation cbv := (red cbv_mask).
 Definition cbn_mask rule :=
   match rule with
   | RuleBeta     (* reduction of a beta   redex: (\x.t) v                 *)
-  | RuleLet      (* reduction of a let redex:    let x = v in t           *)
+  (* | RuleLet      reduction of a let redex:    let x = v in t           *)
   | RuleAppL     (* reduction in [App _ u]                                *)
   | RuleDefaultJ
   | RuleDefaultJFalse
@@ -398,12 +398,12 @@ Definition cbn_mask rule :=
   | RuleDefaultEValue
   | RuleAppRConflict
   | RuleAppLConflict
-  | RuleLetRConflict
-  | RuleLetLConflict
+  (* | RuleLetRConflict *)
+  (* | RuleLetLConflict *)
   | RuleAppREmpty
   | RuleAppLEmpty
-  | RuleLetREmpty
-  | RuleLetLEmpty
+  (* | RuleLetREmpty *)
+  (* | RuleLetLEmpty *)
   => True
   | _ => False
   end.
@@ -417,7 +417,7 @@ Notation cbn := (red cbn_mask).
 Definition pcbv_mask rule :=
   match rule with
   | RuleParBetaV (* reduction of a beta redex and reduction in both sides *)
-  | RuleParLetV  (* reduction of a let redex and reduction in both sides  *)
+  (*| RuleParLetV  reduction of a let redex and reduction in both sides *)
   | RuleVar      (* no reduction                                          *)
   | RuleConflict
   | RuleEmpty
@@ -427,18 +427,18 @@ Definition pcbv_mask rule :=
   | RuleConst
   | RuleLam      (* reduction in [Lam _]                                  *)
   | RuleAppLR    (* reduction in both sides of [App _ _]                  *)
-  | RuleLetLR    (* reduction in both sides of [Let _ _]                  *)
+  (* | RuleLetLR     reduction in both sides of [Let _ _]                  *)
   | RuleDefaultE
   | RuleDefaultEConflict
   | RuleDefaultEValue
   | RuleAppRConflict
   | RuleAppLConflict
-  | RuleLetRConflict
-  | RuleLetLConflict
+  (* | RuleLetRConflict *)
+  (* | RuleLetLConflict *)
   | RuleAppREmpty
   | RuleAppLEmpty
-  | RuleLetREmpty
-  | RuleLetLEmpty
+  (* | RuleLetREmpty *)
+  (* | RuleLetLEmpty *)
       => True
   | _ => False
   end.
@@ -461,11 +461,11 @@ Proof. obvious. Qed.
 Goal cbn (Let (Var 0) (Var 0)) (Var 0).
 Proof. obvious. Qed. *)
 
-Goal
+(* Goal
   let id := Lam (Var 0) in
   let t := (Let (Lam (Var 0)) (Var 0)) in
   cbn (App id t) t.
-Proof. simpl. obvious. Qed.
+Proof. simpl. obvious. Qed. *)
 
 Goal pcbv (App (App (Lam (Var 0)) (Var 0)) (App (Lam (Var 0)) (Var 0)))
           (App (Var 0) (Var 0)).
@@ -506,7 +506,7 @@ Lemma red_refl:
   mask RuleVar ->
   mask RuleLam ->
   mask RuleAppLR ->
-  mask RuleLetLR ->
+  (* mask RuleLetLR -> *)
   mask RuleConflict ->
   mask RuleEmpty ->
   mask RuleDefaultJ ->
@@ -522,11 +522,12 @@ Proof.
   induction t using term_ind'; eauto with red.
   * induction ts.
     - apply RedDefaultJ; eauto.
-    - inverts H12. 
+    - inverts H11. 
       replace ((cons a ts)) with (app nil (cons a ts)) by eauto using List.app_nil_l.
       eapply RedDefaultE; try eassumption.
       econstructor.
-Qed.
+  * admit.
+Admitted.
 
 (* [RuleBetaV] and [RuleLetV] are special cases of [RuleParBetaV] and
    [RuleParLetV], hence are admissible in parallel call-by-value reduction. *)
@@ -540,14 +541,14 @@ Proof.
   eauto using red_refl with obvious.
 Qed.
 
-Lemma pcbv_RedLetV:
+(* Lemma pcbv_RedLetV:
   forall t v u,
   is_value v ->
   t.[v/] = u ->
   pcbv (Let v t) u.
 Proof.
   eauto using red_refl with obvious.
-Qed.
+Qed. *)
 
 (* MySequences of reduction, [star cbv], can be carried out under a context. *)
 
@@ -673,7 +674,7 @@ Lemma red_subst:
   forall mask : mask,
   (mask RuleVar -> mask RuleLam) ->
   (mask RuleVar -> mask RuleAppLR) ->
-  (mask RuleVar -> mask RuleLetLR) ->
+  (* (mask RuleVar -> mask RuleLetLR) -> *)
   (mask RuleVar -> mask RuleConflict) ->
   (mask RuleVar -> mask RuleEmpty) ->
   (mask RuleVar -> mask RuleDefaultJ) ->
@@ -738,7 +739,7 @@ Lemma star_red_subst:
   forall mask : mask,
   (mask RuleVar -> mask RuleLam) ->
   (mask RuleVar -> mask RuleAppLR) ->
-  (mask RuleVar -> mask RuleLetLR) ->
+  (* (mask RuleVar -> mask RuleLetLR) -> *)
   (mask RuleVar -> mask RuleDefaultJ) ->
   (mask RuleVar -> mask RuleDefaultJTrue) ->
   (mask RuleVar -> mask RuleDefaultJFalse) ->
