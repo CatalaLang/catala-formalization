@@ -71,6 +71,7 @@ Inductive jt : tyenv -> term -> ty -> Prop :=
   jt Gamma t1 T1 ->
   jt Gamma t2 T2 ->
   jt Gamma (BinOp op t1 t2) U
+
 | JTMReturn:
   forall Gamma t T,
   jt Gamma t T ->
@@ -98,6 +99,48 @@ Inductive jt : tyenv -> term -> ty -> Prop :=
   jt Gamma (MRaise exp) T
 .
 
+Lemma jt_ind'
+	 : forall P : tyenv -> term -> ty -> Prop,
+       (forall (Gamma : var -> ty) (x : var) (T : ty),
+        Gamma x = T -> P Gamma (Var x) T) ->
+       (forall (Gamma : var -> ty) (t : term) (T U : ty),
+        jt (T .: Gamma) t U ->
+        P (T .: Gamma) t U -> P Gamma (Lam t) (TyFun T U)) ->
+       (forall (Gamma : tyenv) (t1 t2 : term) (T U : ty),
+        jt Gamma t1 (TyFun T U) ->
+        P Gamma t1 (TyFun T U) ->
+        jt Gamma t2 T -> P Gamma t2 T -> P Gamma (App t1 t2) U) ->
+       (forall (Gamma : tyenv) (b : bool), P Gamma (Const b) TyBool) ->
+       (forall (Gamma : tyenv) (op : operator) (t1 t2 : term) (T1 T2 U : ty),
+        jt_binop op T1 T2 U ->
+        jt Gamma t1 T1 ->
+        P Gamma t1 T1 ->
+        jt Gamma t2 T2 -> P Gamma t2 T2 -> P Gamma (BinOp op t1 t2) U) ->
+       (forall (Gamma : tyenv) (t : term) (T : ty),
+        jt Gamma t T -> P Gamma t T -> P Gamma (MReturn t) (TyOption T)) ->
+       (forall (Gamma : tyenv) (T : ty), P Gamma MEmpty (TyOption T)) ->
+       (forall (Gamma : tyenv) (arg t : term) (T1 T2 : ty),
+        jt Gamma arg (TyOption T1) ->
+        P Gamma arg (TyOption T1) ->
+        jt (T1 .: Gamma) t (TyOption T2) ->
+        P (T1 .: Gamma) t (TyOption T2) ->
+        P Gamma (MBind arg t) (TyOption T2)) ->
+       (forall (Gamma : tyenv) (t : term) (T : ty),
+        jt Gamma t (TyOption T) ->
+        P Gamma t (TyOption T) -> P Gamma (MErrorOnEmpty t) T) ->
+       (forall (Gamma : tyenv) (ts : list term) (tj tc : term) (T : ty),
+        List.Forall (fun ti : term => jt Gamma ti (TyOption T)) ts ->
+        List.Forall (fun ti : term => P Gamma ti (TyOption T)) ts ->
+        jt Gamma tj (TyFun TyUnit (TyOption TyBool)) ->
+        P Gamma tj (TyFun TyUnit (TyOption TyBool)) ->
+        jt Gamma tc (TyFun TyUnit (TyOption T)) ->
+        P Gamma tc (TyFun TyUnit (TyOption T)) ->
+        P Gamma (MHandle ts tj tc) T) ->
+       (forall (Gamma : tyenv) (exp : except) (T : ty),
+        P Gamma (MRaise exp) T) ->
+       forall (t : tyenv) (t0 : term) (t1 : ty), jt t t0 t1 -> P t t0 t1
+.
+Admitted.
 
 
 (*|
@@ -120,3 +163,25 @@ The following hint allows `eauto with jt` to apply the above typing rules.
 |*)
 
 Global Hint Constructors jt : jt.
+
+
+Lemma jt_te_renaming:
+  forall Gamma t U,
+  jt Gamma t U ->
+  forall Gamma' xi,
+  Gamma = xi >>> Gamma' ->
+  jt Gamma' t.[ren xi] U.
+Proof.
+  induction 1 using jt_ind'; intros; subst; asimpl;
+  econstructor; eauto with autosubst.
+  { admit. }
+Admitted.
+
+
+Lemma jt_te_renaming_0:
+  forall Gamma t T U,
+  jt Gamma t U ->
+  jt (T .: Gamma) (lift 1 t) U.
+Proof.
+  intros. eapply jt_te_renaming. eauto. autosubst.
+Qed.

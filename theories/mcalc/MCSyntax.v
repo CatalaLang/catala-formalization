@@ -21,6 +21,7 @@ Inductive operator :=
 Inductive except :=
 | EConflict
 | ENoValueProvided
+| ECompile
 .
 
 Inductive term :=
@@ -32,8 +33,8 @@ Inductive term :=
 | BinOp (op: operator) (t1 t2: term)
 
 
-| Op of operator
-| App (f: term) (args: list term)
+(* | Op: (op: operator)
+| App (f: term) (args: list term) *)
 
 (* monadic catala *)
 | MReturn (t: term)
