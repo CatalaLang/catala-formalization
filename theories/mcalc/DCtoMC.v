@@ -25,104 +25,56 @@ Lemma assert_lift_do_lift : (lift 1 (D.Var 0)) = D.Var 1.
 Proof. autosubst. Qed.
 
 
-Definition thunk: term -> term := fun t => Lam (lift 1 t).
+Definition thunk: M.term -> M.term := fun t => Lam (lift 1 t).
 Definition unthunk: term -> term := fun t => App t (Const true).
 
 
 
-(** Definition of the translation as a coq inductive. 
+(** Definition of the translation as a program fixpoint. *)
 
-To handle environements, we use lists.
 
-*)
-
-Definition trans_ctx := list bool.
 Definition trans_ctx := var -> bool.
 
-(* todo : utiliser nouvelle fonction. *)
-Inductive trans : trans_ctx -> DCSyntax.term -> MCSyntax.term -> Prop :=
-  | TVarPure: forall Delta x,
-    List.nth_error Delta x = Some true ->
-    trans Delta (D.Var x) (MReturn (M.Var x))
-  | TVarUnpure: forall Delta x,
-    List.nth_error Delta x = Some false ->
-    trans Delta (D.Var x) (M.Var x)
-  | TLam: forall Delta t t',
-    trans (true .: Delta) t t' ->
-    trans Delta (D.Lam t) (MReturn (M.Lam t'))
-  | TAppLam: forall Delta arg arg' body body',
-    trans Delta arg arg' ->
-    trans (true .: Delta) body body' ->
-    trans Delta (D.App (D.Lam body) arg) (MBind arg' body')
-  | TAppOp: forall Delta t1 t2 t1' t2' op,
-    trans Delta t1 t1' ->
-    trans Delta t2 t2' ->
-    trans Delta
-      (D.BinOp op t1 t2)
-      (MBind t1'
-        (MBind (lift 1 t2')
-          (MReturn (M.BinOp (trans_op op) (M.Var 0) (M.Var 1)))
-        )
-      )
-  | TAppVarPure: forall Delta x arg arg',
-  List.nth_error Delta x = Some true ->
-    trans Delta arg arg' ->
-    trans Delta
-      (D.App (D.Var x) arg)
-      (MBind arg'
-        (M.App (lift 1 (M.Var x)) (M.Var 0))
-      )
-  | TAppVarUnpure: forall Delta x arg arg',
-  List.nth_error Delta x = Some false ->
-    trans Delta arg arg' ->
-    trans Delta
-      (D.App (D.Var x) arg)
-      (MBind (M.Var x)
-        (MBind arg'
-          (M.App (lift 1 (M.Var 0)) (M.Var 0))
-        ) 
-      )
-  | TDefault: forall Delta es es' ej ej' ec ec',
-    List.Forall2 (trans Delta) es es' ->
-    trans Delta ej ej' ->
-    trans Delta ec ec' ->
-    trans Delta (Default es ej ec) (MHandle es' (thunk ej') (thunk ec'))
-  | TLit: forall Delta b, 
-    trans Delta (D.Const b) (MReturn (M.Const b))
-  | TEmpty: forall Delta,
-    trans Delta Empty MEmpty
-  | TConflict: forall Delta,
-    trans Delta D.Conflict (MRaise EConflict)
-.
+(* Defintion mmap t f := MBind arg (f (D.Var 0)) *)
 
+Fixpoint trans (Delta: trans_ctx) t { struct t } :=
+  match t with
+  | D.Var x =>
+    if Delta x
+    then MReturn (M.Var x)
+    else M.Var x
+  
+  | D.Lam t =>
+    MReturn (M.Lam (trans (true .: Delta) t))
+  
+  | D.App (D.Lam body) arg => (* let arg in body *)
+    MBind (trans Delta arg) (trans (true .: Delta) body)
+  (* | D.App () =>
+    MBind (trans Delta arg) (MReturn (M.Op op) ) *)
+  | D.App (D.Var f) arg =>
+    if Delta f
+    then (MBind (trans Delta arg)
+      (M.App (lift 1 (M.Var f)) (M.Var 0))
+    )
+    else (MBind (M.Var f)
+      (MBind (trans Delta arg)
+        (M.App (lift 1 (M.Var 0)) (M.Var 0))
+      ) 
+    )
+  | D.Default es ej ec =>
+    MHandle
+      (List.map (trans Delta) es)
+      (thunk (trans Delta ej))
+      (thunk (trans Delta ec))
+  | D.Const b =>
+    M.Const b
+  | Empty =>
+    MEmpty
+  | Conflict => MRaise EConflict
 
-(** First we need to prove that when we are applying the nth_error function, the result is always in bounds. To do so, we need to check the length of the list is always greater than largest free variable. This is not trivial since we are introducing thunks in the term. *)
-
-Lemma option_Some_neq_None {A} {x: A} o:
-  o = Some x -> o <> None.
-Proof.
-  intros; subst; congruence.
-Qed.
-
-Lemma nth_error_Some' {A} l n (x: A) : List.nth_error l n = Some x -> n < List.length l.
-Proof.
-  intros Hx.
-  apply List.nth_error_Some.
-  rewrite Hx; congruence.
-Qed.
-
-
-(* The other abence of overflow is on t', and require infrastructure about free variables on the terms. *)
-
-Lemma trans_ctx_no_overflow Delta t t':
-    trans Delta t t' -> fv (List.length Delta) t.
-Proof.
-  induction 1; fv; repeat split; try eapply (nth_error_Some'); eauto.
-  { (* missing case because the induction predicate generated automaticly by coq is not strong enought. Assumed for the moment. *)
-    admit.
-  }
-Admitted.
-
+  | D.BinOp op t1 t2 => MRaise M.ECompile
+  | D.App _ _ => MRaise M.ECompile
+  end.
 
 (** translation correction *)
 
@@ -130,50 +82,80 @@ Require Import STDCDefinition.
 Module DT := STDCDefinition.
 Module MT := STMCDefinition.
 
-Inductive trans_ty: bool -> DT.ty -> MT.ty -> Prop :=
-| TTVar: forall x, trans_ty true (DT.TyVar x) (MT.TyVar x)
-| TTFun: forall A B A' B',
-  trans_ty true A A' ->
-  trans_ty true B B' ->
-  trans_ty true (DT.TyFun A B) (MT.TyFun A' (MT.TyOption B'))
-| TTBool: trans_ty true DT.TyBool MT.TyBool
-| TTUnpure: forall tau tau',
-  trans_ty true tau tau' ->
-  trans_ty false tau (MT.TyOption tau') 
-.
+Require Import Program.
 
 
-(* Propreties on trans_ty: trans_ty is a functionnal. This means there is a function such that trans_ty tau [tau] for all tau. Moreover, if trans_ty tau tau', then tau' = [tau]. *)
+Fixpoint trans_ty_aux ty := 
+  match ty with
+  | DT.TyVar x => MT.TyVar x 
+  | DT.TyFun A B => MT.TyFun (trans_ty_aux A) (MT.TyOption (trans_ty_aux B))
+  | DT.TyBool => MT.TyBool
+  end.
 
-Lemma trans_ty_unique: forall b tau tau1',
-  trans_ty b tau tau1' -> forall tau2', trans_ty b tau tau2' -> tau1' = tau2'.
+Definition trans_ty (b: bool) ty := if b then trans_ty_aux ty else MT.TyOption (trans_ty_aux ty).
+
+Lemma jt_te_thunk Gamma t tau:
+  MT.jt Gamma t tau ->
+  forall u,
+  MT.jt Gamma (thunk t) (MT.TyFun u tau).
 Proof.
-  induction 1; intros tau2' Htrans; inverts Htrans.
-  * eauto.
-  * replace A'0 with A'; eauto.
-    replace B'0 with B'; eauto.
-  * eauto.
-  * replace tau'0 with tau'; eauto.
-Qed.
-
-Lemma trans_ty_exists: forall b tau, exists tau',
-  trans_ty b tau tau'.
-Proof.
-  assert (forall (tau : DT.ty), exists tau' : MT.ty, trans_ty true tau tau').
-  { induction tau; unpack; eexists; econstructor; eauto. }
+  unfold thunk.
   intros.
-  case b; eauto.
-  destruct (H tau) as [tau' Htau'].
-  eexists; econstructor; eauto.
+  econstructor.
+  now eapply jt_te_renaming_0.
 Qed.
 
-Lemma trans_correct_type Delta  t1 t1':
-  trans Delta t1 t1' ->  
-  forall Gamma Gamma' tau tau',
+
+Lemma trans_correct_type Gamma t1 tau:
   jt Gamma t1 tau ->
-  trans_ty true tau tau' ->
-  (forall n, trans_ty (true (* TODO *)) (Gamma n) (Gamma' n)) ->
-  MT.jt Gamma' t1' tau'.
+  forall Delta,
+  MT.jt (fun x => trans_ty (Delta x) (Gamma x)) (trans Delta t1) (trans_ty false tau).
+Proof.
+  induction 1 using jt_ind'; intros.
+  * remember (Delta x) as b.
+    induction b; simpl; symmetry in Heqb; rewrite Heqb.
+    - repeat econstructor; rewrite Heqb, H; eauto.
+    - repeat econstructor; rewrite Heqb, H; eauto.
+  * simpl.
+    repeat econstructor.
+    replace (trans_ty_aux T .: (fun x : var => trans_ty (Delta x) (Gamma x))) with (fun x : var => trans_ty ((true .: Delta) x) ((T .: Gamma) x)).
+    eapply IHjt.
+    { unfold ".:".
+      eapply functional_extensionality.
+      intros; induction x; simpl; eauto.
+    }
+  * simpl.
+    induction t1; repeat econstructor.
+    - remember (Delta x) as b.
+      induction b; symmetry in Heqb.
+      + econstructor.
+        { apply IHjt2. }
+        { inverts H. repeat econstructor. simpl; rewrite Heqb, H3; simpl. eauto. } 
+      + econstructor.
+        { simpl in IHjt1.
+          specialize IHjt1 with Delta.
+          rewrite Heqb in IHjt1.
+          apply IHjt1.
+        }
+        { econstructor. simpl in IHjt2.
+          replace (MT.TyFun (trans_ty_aux T) (MT.TyOption (trans_ty_aux U))
+          .: (fun x0 : var => trans_ty (Delta x0) (Gamma x0))) with 
+            (fun x => trans_ty ((true .: Delta) x) (((DT.TyFun T U) .: Gamma) x))
+          .
+          { inverts H. specialize IHjt2 with (true .: Delta). simpl in IHjt2. admit. }
+          { unfold ".:".
+            eapply functional_extensionality.
+            induction x0; simpl; eauto.
+          }
+          repeat econstructor. }
+    - admit.
+    - admit.
+  * simpl.
+    rename H0 into IHjts.
+    econstructor.
+    - admit.
+    - simpl in *. eapply jt_te_thunk. eapply IHjt1.
+    - simpl in *. eapply jt_te_thunk. eapply IHjt2.
 Proof.
   (*
   induction 1; intros.
