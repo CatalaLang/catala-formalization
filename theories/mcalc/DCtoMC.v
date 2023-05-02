@@ -67,7 +67,7 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
       (thunk (trans Delta ej))
       (thunk (trans Delta ec))
   | D.Const b =>
-    M.Const b
+    MReturn (M.Const b)
   | Empty =>
     MEmpty
   | Conflict => MRaise EConflict
