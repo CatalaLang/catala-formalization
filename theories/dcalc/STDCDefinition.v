@@ -1,7 +1,6 @@
 Require Import MyTactics.
 Require Import DCSyntax.
 Require Import DCValues.
-Require Import DCReduction.
 
 Require Import LibTactics.
 (*|

@@ -261,7 +261,5 @@ Goal forall A ts1 ti ts2 tj ts3 (P: A -> Prop),
   List.Forall P (ts1 ++ ti :: ts2 ++ tj :: ts3) ->
   List.Forall P ts1 /\ P ti /\ List.Forall P ts2 /\ P tj /\ List.Forall P ts3.
 Proof.
-  intros.
-  inverts_Forall.
-  eauto.
+  intros; inverts_Forall; eauto.
 Qed.
