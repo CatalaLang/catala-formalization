@@ -35,6 +35,7 @@
           buildInputs = [
             pkgs.coqPackages.serapi
             python3.pkgs.alectryon
+            python3.pkgs.rich
           ];
         };
       }
