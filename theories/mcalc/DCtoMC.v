@@ -125,8 +125,10 @@ Proof.
       intros; induction x; simpl; eauto.
     }
   * simpl.
-    induction t1; repeat econstructor.
-    - remember (Delta x) as b.
+    induction t1; try solve [repeat econstructor].
+    (* We consider all the cases for App. *)
+    - (* First case : App (Var x) _. *)
+      remember (Delta x) as b.
       induction b; symmetry in Heqb.
       + econstructor.
         { apply IHjt2. }
@@ -137,40 +139,36 @@ Proof.
           rewrite Heqb in IHjt1.
           apply IHjt1.
         }
-        { econstructor. simpl in IHjt2.
-          replace (MT.TyFun (trans_ty_aux T) (MT.TyOption (trans_ty_aux U))
-          .: (fun x0 : var => trans_ty (Delta x0) (Gamma x0))) with 
-            (fun x => trans_ty ((true .: Delta) x) (((DT.TyFun T U) .: Gamma) x))
-          .
-          { inverts H. specialize IHjt2 with (true .: Delta). simpl in IHjt2. admit. }
-          { unfold ".:".
-            eapply functional_extensionality.
-            induction x0; simpl; eauto.
-          }
-          repeat econstructor. }
-    - admit.
-    - admit.
+        { repeat econstructor.
+          { simpl in IHjt2.
+            eapply jt_te_renaming_0.
+            eapply IHjt2. }
+        }
+    - (* Second case: [App (Lam body) arg] represents an [let arg in body] statement. *)
+      econstructor.
+      { eapply IHjt2. }
+      { 
+        inverts H.
+        specialize IHjt1 with ((* true .: *) Delta).
+        simpl in IHjt1.
+        inverts IHjt1.
+        inverts H3.
+        eapply H5.
+      }
   * simpl.
     rename H0 into IHjts.
     econstructor.
-    - admit.
+    - induction ts. { econstructor. }
+      simpl.
+      inverts_Forall.
+      econstructor; eauto.
     - simpl in *. eapply jt_te_thunk. eapply IHjt1.
     - simpl in *. eapply jt_te_thunk. eapply IHjt2.
-Proof.
-  (*
-  induction 1; intros.
-  * inverts H0.
-    repeat econstructor.
-    eapply trans_ty_unique.
-    apply H2.
-    apply H1.
-  * inverts H0. 
-    repeat econstructor.
-    eapply trans_ty_unique.
-    apply H2.
-    apply H1.
-  * inverts H0. *)
-Admitted.
+  * simpl; econstructor.
+  * simpl; econstructor.
+  * simpl; repeat econstructor.
+Qed.
+
 
 Require Import DCReduction.
 
@@ -179,17 +177,16 @@ Require Import MyRelations.
 
 Require Import Procrastination.
 
-Check star.
-
-Lemma trans_correct Delta t1 t2 t1' t2':
+Lemma trans_correct Delta t1 t2:
   exists rel: M.term -> M.term -> Prop,
-  trans Delta t1 t1' ->
   cbv t1 t2 ->
-  trans Delta t2 t2' ->
-  rel t1' t2'.
+  rel (trans Delta t1) (trans Delta t2).
 Proof.
-  begin defer assuming rel.
+  begin defer assuming rel. {
    exists rel.
+   intros Hcbv.
+   inverts Hbv.
+   
    intros Htrans Hred Htrans'.
    gen Htrans Htrans'.
    induction Hred;
