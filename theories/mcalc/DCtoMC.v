@@ -57,7 +57,7 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
       (M.App (lift 1 (M.Var f)) (M.Var 0))
     )
     else (MBind (M.Var f)
-      (MBind (trans Delta arg)
+      (MBind (lift 1 (trans Delta arg))
         (M.App (lift 1 (M.Var 0)) (M.Var 0))
       ) 
     )
