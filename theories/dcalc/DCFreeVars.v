@@ -43,24 +43,6 @@ Proof.
   { unpack. congruence. }
 Qed.
 
-Lemma fv_App_eq:
-  forall k t1 t2,
-  fv k (App t1 t2) <-> fv k t1 /\ fv k t2.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-Lemma fv_BinOp_eq:
-  forall k op t1 t2,
-  fv k (BinOp op t1 t2) <-> fv k t1 /\ fv k t2.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
 Lemma thing: forall ts sigma,
   ts..[sigma] = ts <-> List.Forall (fun ti : term => ti.[sigma] = ti) ts.
 Proof.
@@ -74,6 +56,24 @@ Proof.
       f_equal; [eauto | now eapply IHts].
 Qed.
 
+Lemma fv_App_eq:
+  forall k f ts,
+  fv k (App f ts) <-> fv k f /\ List.Forall (fv k) ts.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. repeat split; eauto. { apply thing; assumption. } }
+  { unpack. f_equal; eauto. apply thing; eauto. }
+Qed.
+
+Lemma fv_Op_eq:
+  forall k op,
+  fv k (Op op) <-> True.
+Proof.
+  unfold fv. intros. asimpl. split; eauto.
+Qed.
+
+
+
 Lemma fv_Default_eq:
   forall k ts tj tc,
   fv k (Default ts tj tc) <->
@@ -83,15 +83,10 @@ Proof.
   { injections. repeat split; eauto.
     { apply thing; assumption. }
   }
-  { unpack. rewrite H0; rewrite H1.
-    remember (thing ts (upn k (ren (+1)))).
-    destruct i.
-    remember (e H).
-    rewrite e0.
-    reflexivity. }
+  { unpack. f_equal; eauto. apply thing; eauto. }
 Qed.
 
-Global Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq fv_BinOp_eq fv_Default_eq : fv.
+Global Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq fv_Op_eq fv_Default_eq : fv.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -107,6 +102,13 @@ Proof.
   unfold closed; intros; fv. lia.
 Qed.
 
+Lemma closed_Op:
+  forall op,
+  closed (Op op).
+Proof.
+  unfold closed; intros; fv.
+Qed.
+
 Lemma closed_AppL:
   forall t1 t2,
   closed (App t1 t2) ->
@@ -115,26 +117,11 @@ Proof.
   unfold closed; intros; fv. tauto.
 Qed.
 
-Lemma closed_BinOpR:
-  forall op t1 t2,
-  closed (BinOp op t1 t2) ->
-  closed t2.
-Proof.
-  unfold closed; intros; fv. tauto.
-Qed.
-
-Lemma closed_BinOpL:
-  forall op t1 t2,
-  closed (BinOp op t1 t2) ->
-  closed t1.
-Proof.
-  unfold closed; intros; fv. tauto.
-Qed.
 
 Lemma closed_AppR:
   forall t1 t2,
   closed (App t1 t2) ->
-  closed t2.
+  List.Forall closed t2.
 Proof.
   unfold closed; intros; fv. tauto.
 Qed.
@@ -207,8 +194,7 @@ Global Hint Resolve
   closed_DefaultE0
   closed_DefaultEi
   closed_DefaultEin
-  closed_BinOpR
-  closed_BinOpL
+  closed_Op
 : closed.
 
 (* -------------------------------------------------------------------------- *)
@@ -224,6 +210,7 @@ Proof.
   induction t using term_ind'; intros; fv; unpack; asimpl;
   try solve [ eauto using upn_k_sigma_x with typeclass_instances
             | f_equal; eauto ].
+  { f_equal; eauto. }
   { f_equal; eauto using upn_k_sigma_x with typeclass_instances.
     { apply thing.
       induction ts; econstructor.

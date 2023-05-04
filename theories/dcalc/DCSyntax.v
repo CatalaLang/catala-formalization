@@ -16,32 +16,37 @@ Inductive operator := OAdd.
 Inductive term :=
 | Var (x : var)
 | Lam (t : {bind term})
-| App (t1 t2 : term)
+| App (f : term) (ts: list term)
 | Default (ts: list term) (tj tc: term)
 | Empty
 | Conflict
 | Const (b: bool)
-| BinOp (op: operator) (t1 t2: term)
+| Op (op: operator)
 .
+Check term_ind.
 
 Lemma term_ind':
-forall P : term -> Prop,
-(forall x : var, P (Var x)) ->
-(forall t : {bind term}, P t -> P (Lam t)) ->
-(forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
-(forall (ts : list term),
- List.Forall (fun ti => P ti) ts -> forall tj : term, 
- P tj -> forall tc : term, P tc -> P (Default ts tj tc)) ->
-P Empty -> P Conflict -> (forall b, P (Const b))
--> (forall op: operator, forall t1 t2: term, P t1 -> P t2 -> P (BinOp op t1 t2))
--> forall t : term, P t.
+  forall P : term -> Prop,
+  (forall x : var, P (Var x)) ->
+  (forall t : {bind term}, P t -> P (Lam t)) ->
+  (forall f1 : term, P f1 -> forall args : list term, List.Forall P args -> P (App f1 args)) ->
+  (forall (ts : list term),
+   List.Forall P ts ->
+   forall (tj : term),
+    P tj -> forall tc : term, P tc -> P (Default ts tj tc)) ->
+  P Empty ->
+  P Conflict ->
+  (forall b : bool, P (Const b)) ->
+  (forall (op : operator), P (Op op)) ->
+  forall t : term, P t.
 Proof.
   intros; gen t.
   fix IH 1.
   intros t; case t.
   * apply H.
   * intros; apply H0; apply IH.
-  * intros; apply H1; apply IH.
+  * intros. apply H1. apply IH.
+    induction ts; econstructor. apply IH. apply IHts.
   * intros; apply H2; try apply IH.
     { induction ts; econstructor.
       apply IH.
@@ -52,14 +57,7 @@ Proof.
   * apply H5.
   * intros; apply H6; apply IH. 
 Qed.
-(* 
-(* 2022-05-03 TODO: ajouter des égalités et fonction de comparaison (comme en ocaml) *)
-Definition term_eq: term -> term -> bool.
-Admitted.
 
-Definition term_eq_OK t1 t2: reflect (t1 = t2) (term eq t1 t2).
-
-*)
 
 Global Instance Ids_term : Ids term. derive. Defined.
 Global Instance Rename_term : Rename term. derive. Defined.
@@ -119,8 +117,8 @@ Fixpoint size (t : term) : nat :=
   match t with
   | Var _ => 0
   | Lam t => 1 + size t
-  | App t1 t2
-  | BinOp _ t1 t2 => 1 + size t1 + size t2
+  | App f ts => 1 + size f + list_size size ts
+  | Op _ => 1
   | Default ts tj tc =>
       1 + list_size size ts + size tj + size tc
   | Empty => 0
@@ -193,9 +191,13 @@ Proof.
   try reflexivity.
   (* [Var] *)
   { destruct Hsigma as [ xi ? ]. subst. reflexivity. }
+  (* [App] *)
+  { do 2 fequal.
+    induction args; unfold list_size; asimpl; inverts H; eauto.
+  }
   (* [Default] *)
   { do 3 fequal.
-    induction ts; unfold list_size; simpl; inverts H; eauto. 
+    induction ts; unfold list_size; simpl; inverts H; eauto.
   }
 Qed.
 
@@ -246,14 +248,14 @@ Qed.
 
 Lemma subst_app:
   forall t1 t2 sigma,
-  (App t1 t2).[sigma] = App t1.[sigma] t2.[sigma].
+  (App t1 t2).[sigma] = App t1.[sigma] t2..[sigma].
 Proof.
   autosubst.
 Qed.
 
 Lemma subst_op:
-  forall op t1 t2 sigma,
-  (BinOp op t1 t2).[sigma] = BinOp op t1.[sigma] t2.[sigma].
+  forall op sigma,
+  (Op op).[sigma] = Op op .
 Proof.
   autosubst.
 Qed.
