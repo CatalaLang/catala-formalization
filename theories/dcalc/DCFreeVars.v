@@ -200,7 +200,7 @@ Global Hint Resolve
 (* -------------------------------------------------------------------------- *)
 
 (* If the free variables of the term [t] are below [k], then [t] is unaffected
-   by a substitution of the form [upn k sigma]. *)
+   by a substitution of the form [upn k sigma]. This is the soundness theorem for the free variable definition. *)
 
 Lemma fv_unaffected:
   forall t k sigma,
@@ -210,16 +210,13 @@ Proof.
   induction t using term_ind'; intros; fv; unpack; asimpl;
   try solve [ eauto using upn_k_sigma_x with typeclass_instances
             | f_equal; eauto ].
-  { f_equal; eauto. }
-  { f_equal; eauto using upn_k_sigma_x with typeclass_instances.
-    { apply thing.
-      induction ts; econstructor.
-      * rename a into ti.
-        inverts H0; inverts H.
-        eauto.
-      * inverts H0; inverts H.
-        eapply IHts; eauto.
-    }
+  { f_equal; eauto.
+    apply thing.
+    induction args; econstructor; inverts_Forall; eauto.
+  }
+  { f_equal; eauto.
+    apply thing.
+    induction ts; econstructor; inverts_Forall; eauto.
   }
 Qed.
   
