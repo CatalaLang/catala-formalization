@@ -23,12 +23,39 @@ Inductive term :=
 | VariantSome (t: term)
 .
 
-Instance Ids_term : Ids term. derive. Defined.  
-Instance Rename_term : Rename term. derive. Defined.
-Instance Subst_term : Subst term. derive. Defined.
-Instance SubstLemmas_term : SubstLemmas term. derive. Qed.
+Definition monad_bind arg (body: {bind term}) :=
+  Match arg VariantNone body.
 
-Instance IdsLemmas_term : IdsLemmas term.
+Definition monad_return arg :=
+  VariantSome arg.
+
+Definition monad_empty :=
+  VariantNone.
+
+Definition monad_map arg (body: {bind term}):=
+  monad_bind arg (monad_return body).
+
+Definition monad_mbind (args: list term) (body: {bind term}): term :=
+  List.fold_right (monad_bind) body args
+  (* equivalent to 
+  fix monad_mbind_aux (args : list B) : A :=
+  match l with
+  | nil => body
+  | (arg :: args)%list => f arg (monad_mbind_aux args)
+  end
+ *)
+.
+
+Definition monad_mmap args (body: {bind term}): term :=
+  (* unsure about this one, but it should work since the body bind is working. *)
+  monad_mbind args (monad_return body)
+.
+
+#[export] Instance Ids_term : Ids term. derive. Defined.  
+#[export] Instance Rename_term : Rename term. derive. Defined.
+#[export] Instance Subst_term : Subst term. derive. Defined.
+#[export] Instance SubstLemmas_term : SubstLemmas term. derive. Qed.
+#[export] Instance IdsLemmas_term : IdsLemmas term.
 Proof. econstructor. intros. injections. eauto. Qed.
 
 (* If the image of [t] through a substitution is a variable, then [t] must

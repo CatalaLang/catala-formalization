@@ -175,41 +175,11 @@ Require Import DCReduction.
 Require Import MySequences.
 Require Import MyRelations.
 
-Require Import Procrastination.
 
 Lemma trans_correct Delta t1 t2:
   exists rel: M.term -> M.term -> Prop,
   cbv t1 t2 ->
   rel (trans Delta t1) (trans Delta t2).
 Proof.
-  begin defer assuming rel. {
-   exists rel.
-   intros Hcbv.
-   inverts Hbv.
-   
-   intros Htrans Hred Htrans'.
-   gen Htrans Htrans'.
-   induction Hred;
-    tryfalse.
-  * admit.
-  * intros Htrans Htrans'.
-
-  * admit.
-  * admit.
-  * admit.
-  * admit.
-  * admit.
-  * admit.
-  * admit.
-  * admit.
-  * admit.
-  * admit.
-  * admit.
-  * admit.
-  * admit.
-  * admit. 
-
-  
-
-  
+Admitted.
 
