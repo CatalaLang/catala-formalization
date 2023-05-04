@@ -86,34 +86,9 @@ def print_both(a, b):
     printc("".join(res))
 
 
-s = """Error: In environment
-Gamma : tyenv
-ts : list DCSyntax.term
-tj, tc : DCSyntax.term
-T : ty
-H : List.Forall (fun ti : DCSyntax.term => jt Gamma ti T) ts
-IHjts : List.Forall
-          (fun ti : DCSyntax.term =>
-           forall Delta : var -> bool,
-           MT.jt (fun x : var => trans_ty (Delta x) (Gamma x)) 
-             (trans Delta ti) (MT.TyOption (trans_ty_aux T))) ts
-H1 : jt Gamma tj TyBool
-H2 : jt Gamma tc T
-IHjt1 : forall Delta : var -> bool,
-        MT.jt (fun x : var => trans_ty (Delta x) (Gamma x)) 
-          (trans Delta tj) (MT.TyOption MT.TyBool)
-IHjt2 : forall Delta : var -> bool,
-        MT.jt (fun x : var => trans_ty (Delta x) (Gamma x)) 
-          (trans Delta tc) (MT.TyOption (trans_ty_aux T))
-Delta : var -> bool
-Unable to unify
- "MT.jt (fun x : var => trans_ty (?M4052 x) (Gamma x)) (trans ?M4052 tj)
-    (MT.TyOption MT.TyBool)"
-with
- "MT.jt (fun x : var => trans_ty (Delta x) (Gamma x)) (trans Delta tc)
-    (MT.TyOption (trans_ty_aux T))"."""
+s = "\n".join(sys.stdin.readlines())
 
-detector = re.compile(r'Unable to unify[^\"]*\"(?P<a>[^\"]*)\"[^\"]*with[^\"]*\"(?P<b>[^\"]*)\".')
+detector = re.compile(r'Unable to unify[^\"]*\"(?P<a>[^\"]*)\"[^\"]*with[^\"]*\"(?P<b>[^\"]*)\"')
 
 for a, b in detector.findall(s):
     print_both(" ".join(a.split()), " ".join(b.split()))
