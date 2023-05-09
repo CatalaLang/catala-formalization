@@ -13,10 +13,20 @@ Here is the syntax of simple types:
 
 |*)
 
+
+From elpi.apps Require Import derive.
+Set Uniform Inductive Parameters.
+
+
 Inductive ty :=
 | TyVar (x : var)
 | TyBool
-| TyFun (A B : ty).
+| TyFun (As: list ty) (B : ty)
+.
+
+#[only(induction)] derive ty.
+
+
 
 (*|
 

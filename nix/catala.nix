@@ -1,6 +1,7 @@
 { lib
 , mkCoqDerivation
 , coq
+, coq-elpi
 , autosubst
 }:
 
@@ -13,6 +14,7 @@ mkCoqDerivation {
 
   propagatedBuildInputs = [
     autosubst
+    coq-elpi
   ];
 
   meta = {
