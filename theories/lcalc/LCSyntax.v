@@ -18,7 +18,10 @@ Open Scope list_scope.
 (* The syntax of the lambda-calculus. *)
 
 Inductive operator :=
-| OIf.
+| OIf
+| OConst (b: bool)
+| OUnit
+.
 
 Inductive except :=
 | EConflict

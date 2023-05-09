@@ -33,9 +33,9 @@ Proof.
      then by cases on `cbv t t'`. *)
   induction 1; intros; subst; invert_cbv; try eauto with jt.
   (* Case: JApp/RedBetaV. *)
-  { pick_jt (Lam t) invert.
+  { pick_jt (ELam t) invert.
     eauto using jt_te_substitution_0. }
-  { pick_jt (VariantSome vc) invert.
+  { pick_jt (EVariantSome vc) invert.
     eauto using jt_te_substitution_0.
   }
 Qed.
@@ -52,7 +52,7 @@ Lemma invert_jt_TyFun:
   jt Gamma t (TyFun T1 T2) ->
   closed t ->
   is_value t ->
-  exists t', t = Lam t'.
+  exists t', t = ELam t'.
 Proof.
   (* By cases. The type system is so simple that an induction is not
      even required here. An induction would be required if the type
@@ -75,12 +75,12 @@ Lemma invert_jt_TyOption:
   is_value t ->
   closed t ->
   (
-    t = VariantNone \/
+    t = EVariantNone \/
     exists t',
       is_value t'
       /\ closed t'
       /\ jt Gamma t' T
-      /\ t = VariantSome t'
+      /\ t = EVariantSome t'
   ).
 Proof.
   inversion 1; intros; subst.

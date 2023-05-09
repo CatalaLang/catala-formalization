@@ -4,6 +4,8 @@ Require Import LCValues.
 Require Import LCReduction.
 Require Import Arith.
 
+Require Import LCFreeVars.
+
 (*|
 
 -----
@@ -54,29 +56,29 @@ Inductive jt : tyenv -> term -> ty -> Prop :=
 | JTVar:
     forall Gamma x T,
     Gamma x = T ->
-    jt Gamma (Var x) T
+    jt Gamma (EVar x) T
 | JTLam:
     forall Gamma t T U,
     jt (T .: Gamma) t U ->
-    jt Gamma (Lam t) (TyFun T U)
+    jt Gamma (ELam t) (TyFun T U)
 | JTApp:
     forall Gamma t1 t2 T U,
     jt Gamma t1 (TyFun T U) ->
     jt Gamma t2 T ->
-    jt Gamma (App t1 t2) U
+    jt Gamma (EApp t1 t2) U
 | JtNone:
   forall Gamma T,
-  jt Gamma VariantNone (TyOption T)
+  jt Gamma EVariantNone (TyOption T)
 | JtSome:
   forall Gamma t T,
   jt Gamma t T ->
-  jt Gamma (VariantSome t) (TyOption T)
+  jt Gamma (EVariantSome t) (TyOption T)
 | JtMatch:
   forall Gamma tc t1 t2 T U,
   jt Gamma tc (TyOption U) ->
   jt Gamma t1 T ->
   jt ( U .: Gamma) t2 T ->
-  jt Gamma (Match tc t1 t2) T
+  jt Gamma (EMatch tc t1 t2) T
 .
 
 
@@ -107,9 +109,9 @@ Admitted.
 
 Lemma jt_determ:
   forall Gamma x T,
-  jt Gamma (Var x) T ->
+  jt Gamma (EVar x) T ->
   forall U,
-  jt Gamma (Var x) U ->
+  jt Gamma (EVar x) U ->
   T = U.
 Proof.
   intros Gamma t x Hjtx.

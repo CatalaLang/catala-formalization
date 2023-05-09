@@ -10,27 +10,22 @@ Inductive rule :=
 | RuleBetaV     (* reduction of a beta-v redex: (\x.t) v                   *)
 | RuleLetV      (* reduction of a let-v redex:  let x = v in t             *)
 | RuleBeta      (* reduction of a beta   redex: (\x.t) u                   *)
-| RuleLet       (* reduction of a let redex:    let x = u in t             *)
 | RuleParBetaV  (* reduction of a beta-v redex and reduction in both sides *)
-| RuleParLetV   (* reduction of a let redex and reduction in both sides    *)
-| RuleMatchNone (* reduction of a match when None                          *)
-| RuleMatchSome (* reduction of a match when Some                          *)
-| RuleMatchSomeV(* reduction of a match when Some when it is a value       *)
-| RuleVar       (* no reduction                                            *)
+| RuleEMatchNone (* reduction of a match when None                          *)
+| RuleEMatchSome (* reduction of a match when Some                          *)
+| RuleEMatchSomeV(* reduction of a match when Some when it is a value       *)
+| RuleEVar       (* no reduction                                            *)
 | RuleNone      (* no reduction                                            *)
-| RuleSome      (* reduction in [VariantSome _]                            *)
-| RuleMatchCond (* reduction in [Match _ t1 t2]                            *)
-| RuleMatchL    (* reduction in [Match tc _ t2]                            *)
-| RuleMatchR    (* reduction in [Match tc t1 _]                            *)
-| RuleLam       (* reduction in [Lam _]                                    *)
-| RuleAppL      (* reduction in [App _ u]                                  *)
-| RuleAppR      (* reduction in [App u _]                                  *)
-| RuleAppVR     (* reduction in [App v _], if [v] is a value               *)
-| RuleAppLR     (* reduction in both sides of [App _ _]                    *)
-| RuleLetL      (* reduction in [Let _ u]                                  *)
-| RuleLetR      (* reduction in [Let t _]                                  *)
-| RuleLetLR     (* reduction in both sides of [Let _ _]                    *).
-
+| RuleSome      (* reduction in [EVariantSome _]                            *)
+| RuleEMatchCond (* reduction in [EMatch _ t1 t2]                            *)
+| RuleEMatchL    (* reduction in [EMatch tc _ t2]                            *)
+| RuleEMatchR    (* reduction in [EMatch tc t1 _]                            *)
+| RuleELam       (* reduction in [ELam _]                                    *)
+| RuleEAppL      (* reduction in [EApp _ u]                                  *)
+| RuleEAppR      (* reduction in [EApp u _]                                  *)
+| RuleEAppVR     (* reduction in [EApp v _], if [v] is a value               *)
+| RuleEAppLR     (* reduction in both sides of [EApp _ _]                    *)
+.
 
 (* A mask is a set of rules. *)
 
@@ -45,23 +40,12 @@ Inductive red (mask : mask) : term -> term -> Prop :=
     mask RuleBetaV ->
     is_value v ->
     t.[v/] = u ->
-    red mask (App (Lam t) v) u
-| RedLetV:
-    forall t v u,
-    mask RuleLetV ->
-    is_value v ->
-    t.[v/] = u ->
-    red mask (Let v t) u
+    red mask (EApp (ELam t) v) u
 | RedBeta:
     forall t1 t2 u,
     mask RuleBeta ->
     t1.[t2/] = u ->
-    red mask (App (Lam t1) t2) u
-| RedLet:
-    forall t1 t2 u,
-    mask RuleLet ->
-    t2.[t1/] = u ->
-    red mask (Let t1 t2) u
+    red mask (EApp (ELam t1) t2) u
 | RedParBetaV:
     forall t1 v1 t2 v2 u,
     mask RuleParBetaV ->
@@ -69,99 +53,75 @@ Inductive red (mask : mask) : term -> term -> Prop :=
     red mask t1 t2 ->
     red mask v1 v2 ->
     t2.[v2/] = u ->
-    red mask (App (Lam t1) v1) u
-| RedParLetV:
-    forall t1 t2 v1 v2 u,
-    mask RuleParLetV ->
-    is_value v1 ->
-    red mask t1 t2 ->
-    red mask v1 v2 ->
-    t2.[v2/] = u ->
-    red mask (Let v1 t1) u
-| RedVar:
+    red mask (EApp (ELam t1) v1) u
+| RedEVar:
     forall x,
-    mask RuleVar ->
-    red mask (Var x) (Var x)
-| RedLam:
+    mask RuleEVar ->
+    red mask (EVar x) (EVar x)
+| RedELam:
     forall t1 t2,
-    mask RuleLam ->
+    mask RuleELam ->
     red mask t1 t2 ->
-    red mask (Lam t1) (Lam t2)
-| RedAppL:
+    red mask (ELam t1) (ELam t2)
+| RedEAppL:
     forall t1 t2 u,
-    mask RuleAppL ->
+    mask RuleEAppL ->
     red mask t1 t2 ->
-    red mask (App t1 u) (App t2 u)
-| RedAppVR:
+    red mask (EApp t1 u) (EApp t2 u)
+| RedEAppVR:
     forall v u1 u2,
-    mask RuleAppVR ->
+    mask RuleEAppVR ->
     is_value v ->
     red mask u1 u2 ->
-    red mask (App v u1) (App v u2)
-| RedAppLR:
+    red mask (EApp v u1) (EApp v u2)
+| RedEAppLR:
     forall t1 t2 u1 u2,
-    mask RuleAppLR ->
+    mask RuleEAppLR ->
     red mask t1 t2 ->
     red mask u1 u2 ->
-    red mask (App t1 u1) (App t2 u2)
-| RedAppR:
+    red mask (EApp t1 u1) (EApp t2 u2)
+| RedEAppR:
     forall t1 u1 u2,
-    mask RuleAppR ->
+    mask RuleEAppR ->
     red mask u1 u2 ->
-    red mask (App t1 u1) (App t1 u2)
-| RedLetL:
-    forall t1 t2 u,
-    mask RuleLetL ->
-    red mask t1 t2 ->
-    red mask (Let t1 u) (Let t2 u)
-| RedLetR:
-    forall t u1 u2,
-    mask RuleLetR ->
-    red mask u1 u2 ->
-    red mask (Let t u1) (Let t u2)
-| RedLetLR:
-    forall t1 t2 u1 u2,
-    mask RuleLetLR ->
-    red mask t1 t2 ->
-    red mask u1 u2 ->
-    red mask (Let t1 u1) (Let t2 u2)
-| RedMatchNone:
+    red mask (EApp t1 u1) (EApp t1 u2)
+| RedEMatchNone:
     forall tc t1 t2,
-    mask RuleMatchNone ->
-    tc = VariantNone ->
-    red mask (Match tc t1 t2) t1
-| RedMatchSomeV:
+    mask RuleEMatchNone ->
+    tc = EVariantNone ->
+    red mask (EMatch tc t1 t2) t1
+| RedEMatchSomeV:
     forall tc vc t1 t2 u,
-    mask RuleMatchSomeV ->
-    tc = VariantSome vc ->
+    mask RuleEMatchSomeV ->
+    tc = EVariantSome vc ->
     is_value vc ->
     t2.[vc/] = u ->
-    red mask (Match tc t1 t2) u
-| RedMatchCond:
+    red mask (EMatch tc t1 t2) u
+| RedEMatchCond:
     forall tc tc' t1 t2,
-    mask RuleMatchCond ->
+    mask RuleEMatchCond ->
     red mask tc tc' ->
-    red mask (Match tc t1 t2) (Match tc' t1 t2)
-| RedMatchL:
+    red mask (EMatch tc t1 t2) (EMatch tc' t1 t2)
+| RedEMatchL:
     forall tc t1 t1' t2,
-    mask RuleMatchL ->
+    mask RuleEMatchL ->
     red mask t1 t1' ->
-    red mask (Match tc t1 t2) (Match tc t1' t2)
-| RedMatchR:
+    red mask (EMatch tc t1 t2) (EMatch tc t1' t2)
+| RedEMatchR:
     forall tc t1 t2 t2',
-    mask RuleMatchR ->
+    mask RuleEMatchR ->
     red mask t2 t2' ->
-    red mask (Match tc t1 t2) (Match tc t1 t2')
+    red mask (EMatch tc t1 t2) (EMatch tc t1 t2')
 
 | RedNone:
     mask RuleNone ->
-    red mask VariantNone VariantNone
+    red mask EVariantNone EVariantNone
 
 | RedSome:
     forall t t',
     mask RuleSome ->
     red mask t t' ->
-    red mask (VariantSome t) (VariantSome t')
+    red mask (EVariantSome t) (EVariantSome t')
 .
 
 Global Hint Constructors red : red obvious.
@@ -172,13 +132,12 @@ Definition cbv_mask rule :=
   match rule with
   | RuleBetaV    (* reduction of a beta-v redex: (\x.t) v                 *)
   | RuleLetV     (* reduction of a let-v redex:  let x = v in t           *)
-  | RuleAppL     (* reduction in [App _ u]                                *)
-  | RuleAppVR    (* reduction in [App v _], if [v] is a value             *)
-  | RuleLetL     (* reduction in [Let _ u]                                *)
-  | RuleMatchNone
-  | RuleMatchSomeV
-  | RuleMatchCond
-  | RuleMatchSome
+  | RuleEAppL     (* reduction in [EApp _ u]                                *)
+  | RuleEAppVR    (* reduction in [EApp v _], if [v] is a value             *)
+  | RuleEMatchNone
+  | RuleEMatchSomeV
+  | RuleEMatchCond
+  | RuleEMatchSome
   | RuleSome
       => True
   | _ => False
@@ -192,7 +151,7 @@ Definition cbn_mask rule :=
   match rule with
   | RuleBeta     (* reduction of a beta   redex: (\x.t) v                 *)
   | RuleLet      (* reduction of a let redex:    let x = v in t           *)
-  | RuleAppL     (* reduction in [App _ u]                                *)
+  | RuleEAppL     (* reduction in [EApp _ u]                                *)
   | RuleIteTrue
   | RuleIteFalse
   | RuleIteCond
@@ -210,9 +169,9 @@ Definition pcbv_mask rule :=
   match rule with
   | RuleParBetaV (* reduction of a beta redex and reduction in both sides *)
   | RuleParLetV  (* reduction of a let redex and reduction in both sides  *)
-  | RuleVar      (* no reduction                                          *)
-  | RuleLam      (* reduction in [Lam _]                                  *)
-  | RuleAppLR    (* reduction in both sides of [App _ _]                  *)
+  | RuleEVar      (* no reduction                                          *)
+  | RuleELam      (* reduction in [ELam _]                                  *)
+  | RuleEAppLR    (* reduction in both sides of [EApp _ _]                  *)
   | RuleLetLR    (* reduction in both sides of [Let _ _]                  *)
   | RuleIteTrue
   | RuleIteFalse
@@ -233,23 +192,9 @@ Global Hint Extern 1 (cbv_mask _)  => (simpl; tauto) : red obvious.
 (* Global Hint Extern 1 (cbn_mask _)  => (simpl; tauto) : red obvious.
 Global Hint Extern 1 (pcbv_mask _) => (simpl; tauto) : red obvious. *)
 
-Goal cbv (Let (App (Lam (Var 0)) (Var 0)) (Var 0)) (Let (Var 0) (Var 0)).
-Proof. obvious. Qed.
-
-Goal cbv (Let (Var 0) (Var 0)) (Var 0).
-Proof. obvious. Qed.
-(* 
-Goal cbn (Let (Var 0) (Var 0)) (Var 0).
-Proof. obvious. Qed.
-
-Goal
-  let id := Lam (Var 0) in
-  let t := (Let (Lam (Var 0)) (Var 0)) in
-  cbn (App id t) t.
-Proof. simpl. obvious. Qed.
-
-Goal pcbv (App (App (Lam (Var 0)) (Var 0)) (App (Lam (Var 0)) (Var 0)))
-          (App (Var 0) (Var 0)).
+(*
+Goal pcbv (EApp (EApp (ELam (EVar 0)) (EVar 0)) (EApp (ELam (EVar 0)) (EVar 0)))
+          (EApp (EVar 0) (EVar 0)).
 Proof.
   eauto 8 with obvious.
 Qed. *)
@@ -284,18 +229,17 @@ Ltac invert_cbn :=
 
 Lemma red_refl:
   forall mask : mask,
-  mask RuleVar ->
-  mask RuleLam ->
-  mask RuleAppLR ->
-  mask RuleLetLR ->
-  mask RuleMatchCond ->
+  mask RuleEVar ->
+  mask RuleELam ->
+  mask RuleEAppLR ->
+  mask RuleEMatchCond ->
   mask RuleNone ->
   mask RuleSome ->
   forall t,
   red mask t t.
 Proof.
   induction t; eauto with red.
-Qed.
+Abort.
 
 (* [RuleBetaV] and [RuleLetV] are special cases of [RuleParBetaV] and
    [RuleParLetV], hence are admissible in parallel call-by-value reduction. *)
@@ -304,7 +248,7 @@ Lemma pcbv_RedBetaV:
   forall t v u,
   is_value v ->
   t.[v/] = u ->
-  pcbv (App (Lam t) v) u.
+  pcbv (EApp (ELam t) v) u.
 Proof.
   eauto using red_refl with obvious.
 Qed.
@@ -322,106 +266,98 @@ Qed.
 
 
 
-Lemma star_pcbv_AppL:
+Lemma star_pcbv_EAppL:
   forall t1 t2 u,
   star pcbv t1 t2 ->
-  star pcbv (App t1 u) (App t2 u).
+  star pcbv (EApp t1 u) (EApp t2 u).
 Proof.
   induction 1; eauto using red_refl with sequences obvious.
 Qed.
 
-Lemma plus_pcbv_AppL:
+Lemma plus_pcbv_EAppL:
   forall t1 t2 u,
   plus pcbv t1 t2 ->
-  plus pcbv (App t1 u) (App t2 u).
+  plus pcbv (EApp t1 u) (EApp t2 u).
 Proof.
   induction 1.
-  econstructor; [ | eauto using star_pcbv_AppL ].
-  eapply RedAppLR; eauto using red_refl with obvious.
+  econstructor; [ | eauto using star_pcbv_EAppL ].
+  eapply RedEAppLR; eauto using red_refl with obvious.
 Qed. *)
 
-Lemma star_cbv_AppL:
+Lemma star_cbv_EAppL:
   forall t1 t2 u,
   star cbv t1 t2 ->
-  star cbv (App t1 u) (App t2 u).
+  star cbv (EApp t1 u) (EApp t2 u).
 Proof.
   induction 1; eauto with sequences obvious.
 Qed.
 
-Lemma star_cbv_AppR:
+Lemma star_cbv_EAppR:
   forall t u1 u2,
   is_value t ->
   star cbv u1 u2 ->
-  star cbv (App t u1) (App t u2).
+  star cbv (EApp t u1) (EApp t u2).
 Proof.
   induction 2; eauto with sequences obvious.
 Qed.
 
 Global Hint Resolve
-  (* star_cbv_AppL star_pcbv_AppL plus_pcbv_AppL *)
-  star_cbv_AppL
-  star_cbv_AppR : red obvious.
+  (* star_cbv_EAppL star_pcbv_EAppL plus_pcbv_EAppL *)
+  star_cbv_EAppL
+  star_cbv_EAppR : red obvious.
 
-Lemma star_cbv_AppLR:
+Lemma star_cbv_EAppLR:
   forall t1 t2 u1 u2,
   star cbv t1 t2 ->
   star cbv u1 u2 ->
   is_value t2 ->
-  star cbv (App t1 u1) (App t2 u2).
+  star cbv (EApp t1 u1) (EApp t2 u2).
 Proof.
   eauto with sequences obvious.
 Qed.
 
-Lemma star_cbv_LetL:
-  forall t1 t2 u,
-  star cbv t1 t2 ->
-  star cbv (Let t1 u) (Let t2 u).
-Proof.
-  induction 1; eauto with sequences obvious.
-Qed.
-
-Global Hint Resolve star_cbv_AppLR star_cbv_LetL : red obvious.
+Global Hint Resolve star_cbv_EAppLR : red obvious.
 
 (* Reduction commutes with substitutions of values for variables. (This
    includes renamings.) This is true of every reduction strategy, with
-   the proviso that if [RuleVar] is enabled, then [RuleLam], [RuleAppLR]
+   the proviso that if [RuleEVar] is enabled, then [RuleELam], [RuleEAppLR]
    and [RuleLetLR] must be enabled as well, so that reduction is reflexive. *)
 
 Lemma red_subst:
   forall mask : mask,
-  (mask RuleVar -> mask RuleLam) ->
-  (mask RuleVar -> mask RuleAppLR) ->
-  (mask RuleVar -> mask RuleLetLR) ->
-  (mask RuleVar -> mask RuleMatchCond) ->
-  (mask RuleVar -> mask RuleSome) ->
-  (mask RuleVar -> mask RuleNone) ->
+  (mask RuleEVar -> mask RuleELam) ->
+  (mask RuleEVar -> mask RuleEAppLR) ->
+  (mask RuleEVar -> mask RuleEMatchCond) ->
+  (mask RuleEVar -> mask RuleSome) ->
+  (mask RuleEVar -> mask RuleNone) ->
   forall t1 t2,
   red mask t1 t2 ->
   forall sigma,
   is_value_subst sigma ->
   red mask t1.[sigma] t2.[sigma].
 Proof.
-  induction 7; simpl; intros; subst;
+  admit.
+  (* induction 6; simpl; intros; subst;
   try solve [ econstructor; solve [ eauto with is_value | autosubst ]].
-  (* Case: [Var] *)
-  { eapply red_refl; eauto. }
-Qed.
+  (* Case: [EVar] *)
+  { eapply red_refl; eauto. } *)
+Abort.
 
 Lemma star_red_subst:
   forall mask : mask,
-  (mask RuleVar -> mask RuleLam) ->
-  (mask RuleVar -> mask RuleAppLR) ->
-  (mask RuleVar -> mask RuleLetLR) ->
-  (mask RuleVar -> mask RuleMatchCond) ->
-  (mask RuleVar -> mask RuleSome) ->
-  (mask RuleVar -> mask RuleNone) ->
+  (mask RuleEVar -> mask RuleELam) ->
+  (mask RuleEVar -> mask RuleEAppLR) ->
+  (mask RuleEVar -> mask RuleEMatchCond) ->
+  (mask RuleEVar -> mask RuleSome) ->
+  (mask RuleEVar -> mask RuleNone) ->
   forall t1 t2 sigma,
   star (red mask) t1 t2 ->
   is_value_subst sigma ->
   star (red mask) t1.[sigma] t2.[sigma].
 Proof.
-  induction 7; eauto using red_subst with sequences.
-Qed.
+  admit.
+  (* induction 6; eauto using red_subst with sequences. *)
+Abort.
 
 (* Call-by-value reduction is contained in parallel call-by-value. *)
 (* 
@@ -446,7 +382,7 @@ Qed.
 Lemma None_do_not_reduce:
   forall t1 t2,
   cbv t1 t2 ->
-  ~ t1 = VariantNone.
+  ~ t1 = EVariantNone.
 Proof.
   unfold cbv_mask in *.
   inversion 1; try solve [assumption | discriminate | congruence].
@@ -510,56 +446,37 @@ Qed.
 
 (* Inversion lemmas for [irred]. *)
 
-Lemma invert_irred_cbv_App_1:
+Lemma invert_irred_cbv_EApp_1:
   forall t u,
-  irred cbv (App t u) ->
+  irred cbv (EApp t u) ->
   irred cbv t.
 Proof.
   intros. eapply irred_irred; obvious.
 Qed.
 
-Lemma invert_irred_cbv_App_2:
+Lemma invert_irred_cbv_EApp_2:
   forall t u,
-  irred cbv (App t u) ->
+  irred cbv (EApp t u) ->
   is_value t ->
   irred cbv u.
 Proof.
   intros. eapply irred_irred; obvious.
 Qed.
 
-Lemma invert_irred_cbv_App_3:
+Lemma invert_irred_cbv_EApp_3:
   forall t u,
-  irred cbv (App t u) ->
+  irred cbv (EApp t u) ->
   is_value t ->
   is_value u ->
-  forall t', t <> Lam t'.
+  forall t', t <> ELam t'.
 Proof.
   intros ? ? Hirred. repeat intro. subst.
   eapply Hirred. obvious.
 Qed.
 
-Lemma invert_irred_cbv_Let_1:
-  forall t u,
-  irred cbv (Let t u) ->
-  irred cbv t.
-Proof.
-  intros. eapply irred_irred; obvious.
-Qed.
-
-Lemma invert_irred_cbv_Let_2:
-  forall t u,
-  irred cbv (Let t u) ->
-  ~ is_value t.
-Proof.
-  intros ? ? Hirred ?. eapply Hirred. obvious.
-Qed.
-
-
 Global Hint Resolve
-  invert_irred_cbv_App_1
-  invert_irred_cbv_App_2
-  invert_irred_cbv_Let_1
-  invert_irred_cbv_Let_2
+  invert_irred_cbv_EApp_1
+  invert_irred_cbv_EApp_2
 : irred.
 
 (* An analysis of irreducible terms for call-by-value reduction. A stuck

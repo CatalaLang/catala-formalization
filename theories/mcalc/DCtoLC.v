@@ -1,15 +1,15 @@
 
 Require Import DCSyntax.
-Require Import MCSyntax.
+Require Import LCSyntax.
 Require Import DCFreeVars.
 
-Require Import STMCDefinition.
+Require Import STLCDefinition.
 
 Require Import MyTactics.
 
 
 Module D := DCSyntax.
-Module M := MCSyntax.
+Module M := LCSyntax.
 
 Import List.ListNotations.
 Open Scope list_scope.
@@ -26,7 +26,7 @@ Proof. autosubst. Qed.
 
 
 Definition thunk: M.term -> M.term := fun t => Lam (lift 1 t).
-Definition unthunk: term -> term := fun t => App t (Const true).
+Definition unthunk: term -> term := fun t => App t (OUnit).
 
 
 
@@ -41,16 +41,16 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
   match t with
   | D.Var x =>
     if Delta x
-    then MReturn (M.Var x)
+    then monad_return (M.Var x)
     else M.Var x
   
   | D.Lam t =>
-    MReturn (M.Lam (trans (true .: Delta) t))
+    monad_return (M.Lam (trans (true .: Delta) t))
   
   | D.App (D.Lam body) arg => (* let arg in body *)
     MBind (trans Delta arg) (trans (true .: Delta) body)
   (* | D.App () =>
-    MBind (trans Delta arg) (MReturn (M.Op op) ) *)
+    MBind (trans Delta arg) (monad_return (M.Op op) ) *)
   | D.App (D.Var f) arg =>
     if Delta f
     then (MBind (trans Delta arg)
@@ -62,14 +62,14 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
       ) 
     )
   | D.Default es ej ec =>
-    MHandle
+    monad_handle
       (List.map (trans Delta) es)
       (thunk (trans Delta ej))
       (thunk (trans Delta ec))
   | D.Const b =>
-    MReturn (M.Const b)
+    monad_return (M.Const b)
   | Empty =>
-    MEmpty
+    monad_empty
   | Conflict => MRaise EConflict
 
   | D.BinOp op t1 t2 => MRaise M.ECompile

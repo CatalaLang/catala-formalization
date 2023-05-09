@@ -3,9 +3,9 @@ Require Import LCSyntax.
 
 (* This technical lemma states that the renaming [lift 1] is injective. *)
 
-Lemma lift_inj_Var:
+Lemma lift_inj_EVar:
   forall t x,
-  lift 1 t = Var (S x) <-> t = Var x.
+  lift 1 t = EVar (S x) <-> t = EVar x.
 Proof.
   split; intros.
   { eauto using lift_inj. }
@@ -16,9 +16,9 @@ Qed.
 
 (* The predicate [fv] is characterized by the following lemmas. *)
 
-Lemma fv_Var_eq:
+Lemma fv_EVar_eq:
   forall k x,
-  fv k (Var x) <-> x < k.
+  fv k (EVar x) <-> x < k.
 Proof.
   unfold fv. asimpl. induction k; intros.
   (* Base case. *)
@@ -31,145 +31,126 @@ Proof.
   (* Step. *)
   { destruct x; asimpl.
     { split; intros. { lia. } { reflexivity. } }
-    rewrite lift_inj_Var. rewrite IHk. lia. }
+    rewrite lift_inj_EVar. rewrite IHk. lia. }
 Qed.
 
-Lemma fv_Lam_eq:
+Lemma fv_ELam_eq:
   forall k t,
-  fv k (Lam t) <-> fv (S k) t.
+  fv k (ELam t) <-> fv (S k) t.
 Proof.
   unfold fv. intros. asimpl. split; intros.
   { injections. eauto. }
   { unpack. congruence. }
 Qed.
 
-Lemma fv_App_eq:
+Lemma fv_EApp_eq:
   forall k t1 t2,
-  fv k (App t1 t2) <-> fv k t1 /\ fv k t2.
+  fv k (EApp t1 t2) <-> fv k t1 /\ fv k t2.
 Proof.
   unfold fv. intros. asimpl. split; intros.
   { injections. eauto. }
   { unpack. congruence. }
 Qed.
 
-Lemma fv_Let_eq:
-  forall k t1 t2,
-  fv k (Let t1 t2) <-> fv k t1 /\ fv (S k) t2.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-Lemma fv_Match_eq:
+Lemma fv_EMatch_eq:
   forall k tc t1 t2,
-  fv k (Match tc t1 t2) <-> fv k tc /\ fv k t1 /\ fv (S k) t2.
+  fv k (EMatch tc t1 t2) <-> fv k tc /\ fv k t1 /\ fv (S k) t2.
 Proof.
   unfold fv. intros. asimpl. split; intros.
   { injections. eauto. }
   { unpack. congruence. }
 Qed.
 
-Lemma fv_VariantNone_eq:
+Lemma fv_EVariantNone_eq:
   forall k,
-  fv k VariantNone.
+  fv k EVariantNone.
 Proof.
   unfold fv. intros. now asimpl.
 Qed.
 
-Lemma fv_VariantSome_eq:
+Lemma fv_EVariantSome_eq:
   forall k t,
-  fv k (VariantSome t) <-> fv k t.
+  fv k (EVariantSome t) <-> fv k t.
 Proof.
   unfold fv. intros. asimpl. split; intros.
   { injections. eauto. }
   { congruence. }
 Qed.
 
-
+#[export]
 Hint Rewrite
-  fv_Var_eq
-  fv_Lam_eq
-  fv_App_eq
-  fv_Let_eq
-  fv_VariantSome_eq
-  fv_VariantNone_eq
-  fv_Match_eq: fv.
+  fv_EVar_eq
+  fv_ELam_eq
+  fv_EApp_eq
+  fv_EVariantSome_eq
+  fv_EVariantNone_eq
+  fv_EMatch_eq: fv.
 
 (* -------------------------------------------------------------------------- *)
 
 (* The following lemmas allow decomposing a closedness hypothesis.
    Because [closed] is not an inductive notion, there is no lemma
-   for [Lam] and for the right-hand side of [Let]. *)
+   for [ELam]. *)
 
-Lemma closed_Var:
+Lemma closed_EVar:
   forall x,
-  closed (Var x) ->
+  closed (EVar x) ->
   False.
 Proof.
   unfold closed; intros; fv. lia.
 Qed.
 
-Lemma closed_AppL:
+Lemma closed_EAppL:
   forall t1 t2,
-  closed (App t1 t2) ->
+  closed (EApp t1 t2) ->
   closed t1.
 Proof.
   unfold closed; intros; fv. tauto.
 Qed.
 
-Lemma closed_AppR:
+Lemma closed_EAppR:
   forall t1 t2,
-  closed (App t1 t2) ->
+  closed (EApp t1 t2) ->
   closed t2.
 Proof.
   unfold closed; intros; fv. tauto.
 Qed.
 
-Lemma closed_LetL:
-  forall t1 t2,
-  closed (Let t1 t2) ->
-  closed t1.
-Proof.
-  unfold closed; intros; fv. tauto.
-Qed.
-
-Lemma closed_MatchC:
+Lemma closed_EMatchC:
   forall tc t1 t2,
-  closed (Match tc t1 t2) -> closed tc.
+  closed (EMatch tc t1 t2) -> closed tc.
 Proof.
   unfold closed; intros; fv. tauto.
 Qed.
 
-Lemma closed_MatchL:
+Lemma closed_EMatchL:
   forall tc t1 t2,
-  closed (Match tc t1 t2) -> closed t1.
+  closed (EMatch tc t1 t2) -> closed t1.
 Proof.
   unfold closed; intros; fv. tauto.
 Qed.
 
-Lemma closed_VariantSome:
+Lemma closed_EVariantSome:
   forall t,
-  closed (VariantSome t) -> closed t.
+  closed (EVariantSome t) -> closed t.
 Proof.
   unfold closed; intros; fv; tauto.
 Qed.
 
-Lemma closed_VariantNone:
-  closed VariantNone.
+Lemma closed_EVariantNone:
+  closed EVariantNone.
 Proof.
-  unfold closed; intros; eapply fv_VariantNone_eq.
+  unfold closed; intros; eapply fv_EVariantNone_eq.
 Qed.
 
 Global Hint Resolve
-  closed_Var
-  closed_AppL
-  closed_AppR
-  closed_LetL
-  closed_MatchC
-  closed_MatchL
-  closed_VariantSome
-  closed_VariantNone
+  closed_EVar
+  closed_EAppL
+  closed_EAppR
+  closed_EMatchC
+  closed_EMatchL
+  closed_EVariantSome
+  closed_EVariantNone
 : closed.
 
 (* -------------------------------------------------------------------------- *)

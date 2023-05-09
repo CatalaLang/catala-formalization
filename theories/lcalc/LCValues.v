@@ -5,8 +5,8 @@ Require Import LCSyntax.
 
 Fixpoint if_value {A} (t : term) (a1 a2 : A) : A :=
   match t with
-  | Var _ | Lam _ | VariantNone => a1
-  | VariantSome t => if_value t a1 a2 
+  | EVar _ | ELam _ | EVariantNone => a1
+  | EVariantSome t => if_value t a1 a2 
   | _ => a2
   end.
 
