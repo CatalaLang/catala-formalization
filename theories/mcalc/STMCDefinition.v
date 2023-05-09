@@ -174,9 +174,13 @@ Lemma jt_te_renaming:
 Proof.
   induction 1 using jt_ind'; intros; subst; asimpl;
   econstructor; eauto with autosubst.
-  { admit. }
-Admitted.
-
+  - induction H; econstructor.
+    * inverts H0.
+      now eapply H6.
+    * inverts H0.
+      eapply IHForall.
+      eauto.
+Qed.
 
 Lemma jt_te_renaming_0:
   forall Gamma t T U,
