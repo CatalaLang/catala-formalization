@@ -11,26 +11,55 @@ Require Import PeanoNat.
 Require Import Arith.Wf_nat.
 Require Export Autosubst_FreeVars.
 
+
+Import List.ListNotations.
+Open Scope list_scope.
+
 (* The syntax of the lambda-calculus. *)
 
-Inductive term :=
-| Var (x : var)
-| Lam (t : {bind term})
-| App (t1 t2 : term)
-| Let (t1 : term) (t2 : {bind term})
-| Match (tc t1: term) (t2 : {bind term})
-| VariantNone
-| VariantSome (t: term)
+Inductive operator :=
+| OIf.
+
+Inductive except :=
+| EConflict
+| ENoValueProvided
+| ECompile
 .
 
+
+Inductive term :=
+| EVar (x : var)
+| ELam (t : {bind term})
+| EApp (t1 t2 : term)
+| EOp (op: operator)
+
+| EMatch (tc t1: term) (t2 : {bind term})
+| EVariantNone
+| EVariantSome (t: term)
+| EPanic (exp: except)
+.
+
+
+Definition operator_in_term op := EOp op.
+
+Coercion operator_in_term : operator >-> term.
+
+#[export] Instance Ids_term : Ids term. derive. Defined.  
+#[export] Instance Rename_term : Rename term. derive. Defined.
+#[export] Instance Subst_term : Subst term. derive. Defined.
+#[export] Instance SubstLemmas_term : SubstLemmas term. derive. Qed.
+#[export] Instance IdsLemmas_term : IdsLemmas term.
+Proof. econstructor. intros. injections. eauto. Qed.
+
+
 Definition monad_bind arg (body: {bind term}) :=
-  Match arg VariantNone body.
+  EMatch arg EVariantNone body.
 
 Definition monad_return arg :=
-  VariantSome arg.
+  EVariantSome arg.
 
 Definition monad_empty :=
-  VariantNone.
+  EVariantNone.
 
 Definition monad_map arg (body: {bind term}):=
   monad_bind arg (monad_return body).
@@ -47,16 +76,34 @@ Definition monad_mbind (args: list term) (body: {bind term}): term :=
 .
 
 Definition monad_mmap args (body: {bind term}): term :=
-  (* unsure about this one, but it should work since the body bind is working. *)
+  (* unsure about this one, but it should work since the body bind is working *)
   monad_mbind args (monad_return body)
 .
 
-#[export] Instance Ids_term : Ids term. derive. Defined.  
-#[export] Instance Rename_term : Rename term. derive. Defined.
-#[export] Instance Subst_term : Subst term. derive. Defined.
-#[export] Instance SubstLemmas_term : SubstLemmas term. derive. Qed.
-#[export] Instance IdsLemmas_term : IdsLemmas term.
-Proof. econstructor. intros. injections. eauto. Qed.
+
+Fixpoint monad_handle_one ts : term :=
+  match ts with
+  | nil => EVar 0
+  | cons thead ttail =>
+    EMatch (lift 1 thead)
+      (monad_handle_one ttail)
+      (EPanic EConflict)
+  end.
+
+Fixpoint monad_handle_zero ts tj tc: term :=
+  match ts with
+  | nil => monad_bind tj (EApp (EApp (EApp OIf (EVar 0)) (lift 1 tc)) EVariantNone)
+  | cons thead ttail =>
+    EMatch thead
+      (monad_handle_zero ttail tj tc)
+      (monad_handle_one ttail)
+  end.
+
+
+
+Definition monad_handle ts tj tc: term :=
+  monad_handle_zero ts tj tc
+.
 
 (* If the image of [t] through a substitution is a variable, then [t] must
    itself be a variable. *)
@@ -100,14 +147,15 @@ Global Hint Resolve ids_implies_is_ren : is_ren obvious.
 
 Fixpoint size (t : term) : nat :=
   match t with
-  | Var _ => 0
-  | Lam t => 1 + size t
-  | App t1 t2
-  | Let t1 t2 => 1 + size t1 + size t2
-  | Match tc t1 t2 =>
+  | EVar _ => 0
+  | ELam t => 1 + size t
+  | EApp t1 t2 => 1 + size t1 + size t2
+  | EMatch tc t1 t2 =>
     1 + size tc + size t1 + size t2
-  | VariantNone => 0
-  | VariantSome t => 1 + size t
+  | EVariantNone => 0
+  | EVariantSome t => 1 + size t
+  | EOp _ => 0
+  | EPanic _ => 0
   end.
 
 (* The size of a term is preserved by renaming. *)
@@ -209,35 +257,29 @@ Defined.
 
 Lemma subst_var:
   forall x sigma,
-  (Var x).[sigma] = sigma x.
+  (EVar x).[sigma] = sigma x.
 Proof.
   autosubst.
 Qed.
 
 Lemma subst_lam:
   forall t sigma,
-  (Lam t).[sigma] = Lam (t.[up sigma]).
+  (ELam t).[sigma] = ELam (t.[up sigma]).
 Proof.
   autosubst.
 Qed.
 
 Lemma subst_app:
   forall t1 t2 sigma,
-  (App t1 t2).[sigma] = App t1.[sigma] t2.[sigma].
+  (EApp t1 t2).[sigma] = EApp t1.[sigma] t2.[sigma].
 Proof.
   autosubst.
 Qed.
 
-Lemma subst_let:
-  forall t1 t2 sigma,
-  (Let t1 t2).[sigma] = Let t1.[sigma] t2.[up sigma].
-Proof.
-  autosubst.
-Qed.
 
 Lemma subst_variant_none:
   forall sigma,
-  VariantNone.[sigma] = VariantNone.
+  EVariantNone.[sigma] = EVariantNone.
 Proof.
   autosubst.
 Qed.
@@ -245,7 +287,7 @@ Qed.
 
 Lemma subst_variant_some:
   forall t1 sigma,
-  (VariantSome t1).[sigma] = VariantSome t1.[sigma].
+  (EVariantSome t1).[sigma] = EVariantSome t1.[sigma].
 Proof.
   autosubst.
 Qed.
@@ -253,7 +295,67 @@ Qed.
 
 Lemma subst_match:
   forall tb t1 t2 sigma,
-  (Match tb t1 t2).[sigma] = Match tb.[sigma] t1.[sigma] t2.[up sigma].
+  (EMatch tb t1 t2).[sigma] = EMatch tb.[sigma] t1.[sigma] t2.[up sigma].
 Proof.
   autosubst.
+Qed.
+
+Lemma subst_monad_return:
+  forall t1 sigma,
+  (monad_return t1).[sigma] = monad_return t1.[sigma].
+Proof.
+  autosubst.
+Qed.
+
+Lemma subst_monad_bind:
+  forall arg body sigma,
+  (monad_bind arg body).[sigma] = monad_bind arg.[sigma] body.[up sigma].
+Proof.
+  autosubst.
+Qed.
+
+(* This lemma is really harder to fully express correctly. Indeed, becase we are using a List.fold_right, terms in ts are gradually upped. The first element is upped 1 time, the second term 2 times, all the way to the final body that is upped n times.
+
+Hence, there is no substitution sigma' such that this lemma hods. *)
+Lemma subst_monad_mbind:
+  forall ts body sigma n,
+  exists sigma',
+  List.length ts = n ->
+  (monad_mbind ts body).[sigma] = monad_mbind ts..[sigma'] body.[upn n sigma].
+Abort.
+
+Lemma subst_monad_handle_one :
+  forall ts sigma,
+  (monad_handle_one ts).[up sigma] = monad_handle_one ts..[sigma].
+Proof.
+  induction ts; try autosubst.
+  * asimpl.
+    intros.
+    rewrite IHts.
+    f_equal.
+    autosubst.
+Qed.
+
+Lemma subst_monad_handle_zero :
+  forall ts tj tc sigma,
+  (monad_handle_zero ts tj tc).[sigma] = monad_handle_zero ts..[sigma] tj.[sigma] tc.[sigma].
+Proof.
+  induction ts.
+  * asimpl.
+    unfold monad_bind.
+    intros.
+    do 3 f_equal.
+    autosubst.
+  * intros. asimpl.
+    rewrite IHts.
+    rewrite subst_monad_handle_one.
+    f_equal.
+Qed.
+
+Lemma subst_monad_handle:
+  forall ts tj tc sigma,
+  (monad_handle ts tj tc).[sigma] = monad_handle ts..[sigma] tj.[sigma] tc.[sigma].
+Proof.
+  unfold monad_handle.
+  apply subst_monad_handle_zero.
 Qed.
