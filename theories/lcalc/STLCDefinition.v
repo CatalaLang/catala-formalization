@@ -155,8 +155,7 @@ Lemma jt_te_renaming:
   Gamma = xi >>> Gamma' ->
   jt Gamma' t.[ren xi] U.
 Proof.
-  dup 2.
-  {
+  (* dup 2. {
     (* A detailed proof, where every case is dealt with explicitly: *)
     induction 1; intros; subst.
     (* JTVar *)
@@ -169,7 +168,7 @@ Proof.
     { asimpl. econstructor. eauto. }
     { asimpl. econstructor. eauto. eauto.
       eapply IHjt3. autosubst. }
-  }
+  } *) 
   (* A shorter script, where all cases are dealt with uniformly: *)
   induction 1; intros; subst; asimpl;
   econstructor; eauto with autosubst.
@@ -456,3 +455,14 @@ Lemma JTmonad_handle Gamma ts tj tc A:
 Proof.
   eapply JTmonad_handle_zero.
 Qed.
+
+Global Hint Resolve 
+  JTmonad_return
+  JTmonad_empty
+  JTmonad_bind
+  JTmonad_map
+  (* JTmonad_mbind *)
+  JTmonad_mmap
+  JTmonad_handle_one
+  JTmonad_handle_zero
+  JTmonad_handle: jt.
