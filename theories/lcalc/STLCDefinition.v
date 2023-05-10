@@ -19,13 +19,15 @@ Here is the syntax of simple types:
 Inductive ty :=
 | TyVar (x : var)
 | TyFun (A B : ty)
-| TyOption (T: ty).
+| TyOption (T: ty)
+| TyBool.
 
 Fixpoint size (T: ty) { struct T } :=
   match T with
   | TyVar _ => 0
   | TyFun A B => 1 + size A + size B
   | TyOption A => 1 + size A
+  | TyBool => 1
   end
 .
 
@@ -51,6 +53,13 @@ The simply-typed lambda-calculus is defined by the following three
 typing rules.
 
 |*)
+
+Notation "A @-> B" := (TyFun A B) (at level 49, right associativity).
+
+Inductive jt_op : operator -> ty -> Prop :=
+| TO_if: forall A, jt_op OIf (TyBool @-> A @-> A @-> A)
+.
+
 
 Inductive jt : tyenv -> term -> ty -> Prop :=
 | JTVar:
@@ -79,33 +88,14 @@ Inductive jt : tyenv -> term -> ty -> Prop :=
   jt Gamma t1 T ->
   jt ( U .: Gamma) t2 T ->
   jt Gamma (EMatch tc t1 t2) T
+| JtPanic:
+  forall Gamma exp T,
+  jt Gamma (EPanic exp) T
+| JtOp:
+  forall Gamma op T,
+  jt_op op T ->
+  jt Gamma op T
 .
-
-
-Lemma empty_is_sound:
-  forall t T Gamma,
-  jt Gamma t T -> 
-  forall k,
-  fv k t ->
-  forall Gamma',
-  (forall i, i < k  -> Gamma' i = Gamma i) -> jt Gamma' t T.
-Proof.
-  intros t T Gamma H; induction H; intros.
-  * econstructor.
-    rewrite H1; eauto.
-    fv.
-  * econstructor.
-    eapply IHjt.
-    fv.
-    induction i; eauto.
-    simpl; intros. apply H1. lia.
-  * econstructor; fv; unpack.
-    - eapply IHjt1; eauto.
-    - eapply IHjt2; eauto.
-  * admit.
-  * admit.
-  * admit.
-Admitted.
 
 Lemma jt_determ:
   forall Gamma x T,
@@ -119,35 +109,6 @@ Proof.
   intros.
   now inverts H.
 Qed.
-
-
-Lemma exists_diff (T: ty):
-  exists U, T <> U.
-Proof.
-  exists (TyFun T T).
-  remember (size T).
-  assert (size T <> 1 + size T + size T).
-  { lia. }
-  intro.
-  eapply H.
-  rewrite H0 at 1. simpl; eauto.
-Qed.
-
-
-Require Import PeanoNat.
-Require Import Bool.
-
-Lemma reflect_lt_ltb:
-  forall n m, reflect (n < m) (n <? m).
-Proof.
-  intros.
-  remember (n <? m).
-  induction b; econstructor.
-  * eapply Nat.ltb_lt; eauto.
-  * eapply Nat.ltb_nlt; eauto.
-Qed.
-
-
 
 (*|
 
@@ -168,83 +129,330 @@ The following hint allows `eauto with jt` to apply the above typing rules.
 
 |*)
 
+
+Global Hint Constructors jt_op : jt.
 Global Hint Constructors jt : jt.
 
-Require Import FunctionalExtensionality.
 
-Lemma empty_is_complete:
-forall t T Gamma,
-  jt Gamma t T -> 
-  forall k,
-  (forall Gamma', (forall i, i < k  -> Gamma' i = Gamma i) -> jt Gamma' t T) ->
-  fv k t.
-Proof. (*| Let's start the proof. |*)
-  introv Hjt.
-  induction Hjt.
-  * introv Hsame; fv.
-    (*| Case JtVar. Either x < k or x >= k. In the first case, we are ok. In the second one, we build Gamma' as (fun i => if i <? k then Gamma i else U) where U is an element such that U <> T. |*)
-    destruct reflect_lt_ltb with x k.
-    - eauto.
-    - false.
-      forwards [U HU]: exists_diff T.
-      eapply HU.
-      eapply jt_determ with (fun i => if i <? k then Gamma i else U) x.
-      + eapply Hsame.
-        { intros.
-          replace (i <? k) with true; eauto.
-            { symmetry. destruct Nat.ltb_lt with i k. eauto. }
-        }
-      + econstructor.
-        replace (x <? k) with false; eauto.
-          { symmetry. eapply Nat.ltb_nlt. eauto. }
-  * (*| Case JtLam. By induction hypothesis, it suffice to prove |*)
-    introv Hsame; fv.
-    eapply IHHjt; intros.
-    assert (
-      exists Gamma'', T.: Gamma'' = Gamma' ).
-    { exists (fun x => Gamma' (S x)).
-      eapply functional_extensionality; intros.
-      induction x.
-      - rewrite H; simpl; eauto with lia.
-      - now simpl.
-    } unpack; replace Gamma' with (T .: Gamma'') in *; clear Gamma'; rename Gamma'' into Gamma'; clear H0.
+(*|
+---------------------------
+Renamings of term variables
+---------------------------
+|*)
 
-    forwards: Hsame Gamma'.
-    { intros. eapply (H (S i)). lia. }
-    now match goal with h: jt _ _ _ |- _ => inverts h end.
-  
-  * (*| Case JtApp |*)
-    introv Hsame; fv.
-    split.
-    - eapply IHHjt1; intros.
-      forwards tmp: Hsame Gamma' ; eauto. inverts tmp.
-      admit. (* ??? *)
-    - eapply IHHjt2; intros.
-      forwards tmp: Hsame Gamma'; eauto; inverts tmp. 
+(*|
 
-      admit.
+The typing judgement is preserved by a renaming `xi` that maps
+term variables to term variables. Note that `xi` need not be
+injective.
 
-      (* eapply H1.
-      eapply jt_determ.
-      eapply Hsame.
+|*)
 
-      eapply jt_determ. *)
+Lemma jt_te_renaming:
+  forall Gamma t U,
+  jt Gamma t U ->
+  forall Gamma' xi,
+  Gamma = xi >>> Gamma' ->
+  jt Gamma' t.[ren xi] U.
+Proof.
+  dup 2.
+  {
+    (* A detailed proof, where every case is dealt with explicitly: *)
+    induction 1; intros; subst.
+    (* JTVar *)
+    { asimpl. econstructor. eauto. }
+    (* JTLam *)
+    { asimpl. econstructor. eapply IHjt. autosubst. }
+    (* JTApp *)
+    { asimpl. econstructor. eauto. eauto. }
+    { asimpl. econstructor. }
+    { asimpl. econstructor. eauto. }
+    { asimpl. econstructor. eauto. eauto.
+      eapply IHjt3. autosubst. }
+  }
+  (* A shorter script, where all cases are dealt with uniformly: *)
+  induction 1; intros; subst; asimpl;
+  econstructor; eauto with autosubst.
+Qed.
 
-    
+(*|
 
-    (* eapply (H0 (fun i => if i <=? k then Gamma i else U)).  *)
-  * set (Gamma' := (fun x: nat => TyFun T T)).
-    admit.
-    (*
-    assert (T = TyFun T T).
-    {
-      eapply jt_determ.
-      eapply (H Gamma').
-      econstructor.
-      subst Gamma'.
+As a corollary, `jt` is preserved by the renaming `(+1)`.
+
+|*)
+
+Lemma jt_te_renaming_0:
+  forall Gamma t T U,
+  jt Gamma t U ->
+  jt (T .: Gamma) (lift 1 t) U.
+Proof.
+  intros. eapply jt_te_renaming. eauto. autosubst.
+Qed.
+
+(*|
+-----------------------------------------
+Substitutions of terms for term variables
+-----------------------------------------
+|*)
+
+(*|
+
+The typing judgement is extended to substitutions of terms for term
+variables.
+
+With respect to a type environment `Gamma`, a substitution `sigma` has
+type `Delta` if and only if, for every variable `x`, the term `sigma
+x` has type `Delta x`.
+
+This auxiliary judgement encourages us to think of terms of *total*
+substitutions, where *every* variable is replaced by a term. This
+concept turns out to be easier to understand and manipulate,
+especially during proofs by induction. Of course one always later
+consider the special case of a substitution that seems to affect just
+one variable, say variable 0. (In reality, such a substitution affects
+all variables, as the variables other than 0 are renumbered.)
+
+|*)
+
+Definition js Gamma sigma Delta :=
+  forall x : var,
+  jt Gamma (sigma x) (Delta x).
+
+(*|
+
+The following are basic lemmas about `js`.
+
+The identity substitution has type `Gamma` in environment `Gamma`.
+
+|*)
+
+Lemma js_ids:
+  forall Gamma,
+  js Gamma ids Gamma.
+Proof.
+  unfold js. eauto with jt.
+Qed.
+
+(*|
+
+The typing judgement `js` behaves like an infinite list of typing judgements
+`jt`. So, one can prepend one more `jt` judgement in front of it.
+
+|*)
+
+Lemma js_cons:
+  forall Gamma t sigma T Delta,
+  jt Gamma t T ->
+  js Gamma sigma Delta ->
+  js Gamma (t .: sigma) (T .: Delta).
+Proof.
+  intros. intros [|x]; asimpl; eauto.
+Qed.
+
+(*|
+
+The typing judgement `js` is preserved by the introduction of a new term
+variable. That is, a typing judgement `js` can be pushed under a
+lambda-abstraction.
+
+|*)
+
+Lemma js_up:
+  forall Gamma sigma Delta T,
+  js Gamma sigma Delta ->
+  js (T .: Gamma) (up sigma) (T .: Delta).
+Proof.
+  intros. eapply js_cons.
+  { eauto with jt. }
+  { intro x. asimpl. eauto using jt_te_renaming_0. }
+Qed.
+
+(*|
+
+The typing judgement is preserved by a well-typed substitution `sigma`
+of (all) term variables to terms.
+
+|*)
+
+Lemma jt_te_substitution:
+  forall Delta t U,
+  jt Delta t U ->
+  forall Gamma sigma,
+  js Gamma sigma Delta ->
+  jt Gamma t.[sigma] U.
+Proof.
+  (* A short script, where all cases are dealt with in the same way: *)
+  induction 1; intros; subst; asimpl; eauto using js_up with jt.
+  * econstructor; eauto.
+    - eauto using js_up, IHjt3. 
+Qed.
+
+(*|
+
+As a corollary, the typing judgement is preserved by a well-typed
+substitution of one term for one variable, namely variable 0.
+
+This property is exploited in the proof of subject reduction, in the
+case of beta-reduction.
+
+|*)
+
+Lemma jt_te_substitution_0:
+  forall Gamma t1 t2 T U,
+  jt (T .: Gamma) t1 U ->
+  jt Gamma t2 T ->
+  jt Gamma t1.[t2/] U.
+Proof.
+(*
+  (* One can do the proof step by step as follows: *)
+  intros. eapply jt_te_substitution.
+  { eauto. }
+  { eapply js_cons.
+    { eauto. }
+    { eapply js_ids. } }
+  (* Of course one can also let Coq find the proof by itself: *)
+  Restart.*) eauto using jt_te_substitution, js_ids, js_cons.
+Qed.
+
+
+
+(*|
+-----------------------------------------
+Smart constructor for monadic constructs.
+-----------------------------------------
+|*)
+
+
+
+Ltac unfold_monad :=
+  unfold monad_handle;
+  unfold monad_handle_one;
+  unfold monad_handle_zero;
+  unfold monad_mmap;
+  unfold monad_mbind;
+
+  unfold monad_map;
+  unfold monad_bind;
+  unfold monad_empty;
+  unfold monad_return;
+  eauto with jt.
+
+
+Lemma JTmonad_return Gamma t T:
+  jt Gamma t T -> jt Gamma (monad_return t) (TyOption T)
+.
+Proof.
+  unfold_monad.
+Qed.
+
+Lemma JTmonad_empty Gamma T:
+  jt Gamma (monad_empty) (TyOption T)
+.
+Proof.
+  unfold_monad.
+Qed.
+Lemma JTmonad_bind Gamma arg body A B:
+  jt Gamma arg (TyOption A) ->
+  jt (A .: Gamma) body (TyOption B) ->
+  jt Gamma (monad_bind arg body) (TyOption B)
+.
+Proof.
+  unfold_monad.
+Qed.
+
+Lemma JTmonad_map Gamma arg body A B:
+  jt Gamma arg (TyOption A) ->
+  jt (A .: Gamma) body B ->
+  jt Gamma (monad_map arg body) (TyOption B)
+.
+Proof.
+  unfold_monad.
+Qed.
+
+Locate ".:".
+Search scons.
+
+Require Import Coq.Program.Basics.
+
+Check flip.
+
+Lemma JTmonad_mbind Gamma args body As B:
+  List.Forall2 (fun arg A => jt Gamma arg (TyOption A)) args As ->
+  jt (List.fold_left (flip scons) As Gamma) body (TyOption B) ->
+  jt Gamma (monad_mbind args body) (TyOption B).
+Proof.
+  gen Gamma body As B.
+  induction args.
+  * introv HFA Hjt.
+    inverts HFA.
+    eauto.
+  * intros.
+    asimpl.
+    inverts H.
+    eapply JTmonad_bind.
+    eapply H3.
+    unfold monad_mbind in IHargs.
+    eapply IHargs.
+    2:{
+      asimpl in *.
+      unfold flip at 2 in H0.
       eauto.
     }
-    false.
-    admit. (* with a size on types *) *)
-  *  
-Admitted.
+    { admit. }
+Abort.
+
+
+Lemma JTmonad_mmap Gamma args body As B:
+  List.Forall2 (fun arg A => jt Gamma arg (TyOption A)) args As ->
+  jt (List.fold_right scons Gamma As) body B ->
+  jt Gamma (monad_mmap args body) (TyOption B).
+Proof.
+  unfold monad_mmap.
+  intros; eapply JTmonad_mbind; eauto.
+  * now eapply JTmonad_return.
+Qed.
+
+Lemma JTmonad_handle_one Gamma ts A:
+  List.Forall (fun ti => jt Gamma ti (TyOption A)) ts ->
+  jt (A .: Gamma) (monad_handle_one ts) (TyOption A)
+.
+Proof.
+  induction 1; simpl.
+  * eauto with jt.
+  * econstructor; try eauto with jt.
+    - eapply jt_te_renaming_0.
+      eauto.
+Qed.
+
+Lemma JTmonad_handle_zero Gamma ts tj tc A:
+  List.Forall (fun ti => jt Gamma ti (TyOption A)) ts ->
+  jt Gamma tj (TyOption TyBool) ->
+  jt Gamma tc (TyOption A) ->
+  jt Gamma (monad_handle_zero ts tj tc) (TyOption A)
+.
+Proof.
+  gen Gamma tj tc A.
+  induction ts; asimpl.
+  * intros.
+    unfold_monad.
+    eapply JtMatch; try eassumption.
+    - econstructor.
+    - assert (jt (TyBool .: Gamma) (lift 1 tc) (TyOption A)).
+      { eapply jt_te_renaming_0. eauto. }
+      repeat (econstructor; try eassumption).
+  * intros; inverts_Forall.
+    repeat econstructor; try eassumption.
+    - eapply IHts; eauto.
+    - eapply JTmonad_handle_one; eauto.
+Qed.
+
+
+Lemma JTmonad_handle Gamma ts tj tc A:
+  List.Forall (fun ti => jt Gamma ti (TyOption A)) ts ->
+  jt Gamma tj (TyOption TyBool) ->
+  jt Gamma tc (TyOption A) ->
+  jt Gamma (monad_handle ts tj tc) (TyOption A)
+.
+Proof.
+  eapply JTmonad_handle_zero.
+Qed.

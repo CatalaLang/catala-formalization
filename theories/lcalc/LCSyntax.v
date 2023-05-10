@@ -86,7 +86,7 @@ Definition monad_mmap args (body: {bind term}): term :=
 
 Fixpoint monad_handle_one ts : term :=
   match ts with
-  | nil => EVar 0
+  | nil => monad_return (EVar 0)
   | cons thead ttail =>
     EMatch (lift 1 thead)
       (monad_handle_one ttail)
