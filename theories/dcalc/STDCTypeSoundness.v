@@ -3,7 +3,6 @@ Require Import DCSyntax.
 Require Import DCValues.
 Require Import DCReduction.
 Require Import STDCDefinition.
-Require Import STDCLemmas.
 
 Require Import MyList.
 

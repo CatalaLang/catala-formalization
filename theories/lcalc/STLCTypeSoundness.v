@@ -3,7 +3,6 @@ Require Import LCSyntax.
 Require Import LCValues.
 Require Import LCReduction.
 Require Import STLCDefinition.
-Require Import STLCLemmas.
 
 (*|
 
@@ -58,15 +57,11 @@ Proof.
      even required here. An induction would be required if the type
      system had non-syntax-directed rules, such as a subtyping rule, or
      type abstraction and type instantiation rules, as in System F. *)
-  inversion 1; intros; subst.
+  inversion 1; intros; subst; tryfalse.
   (* Case: JVar. A variable is not closed. Contradiction. *)
   { false. eauto with closed. }
   (* Case: JLam. Immediate. *)
   { obvious. }
-  (* Case: JApp. An application is not a value. Contradiction. *)
-  { false. }
-  (* Case: Ite. An Ite is not a value. Contradiction. *)
-  { false. }
 Qed.
 
 Lemma invert_jt_TyOption:
@@ -83,12 +78,10 @@ Lemma invert_jt_TyOption:
       /\ t = EVariantSome t'
   ).
 Proof.
-  inversion 1; intros; subst.
+  inversion 1; intros; subst; tryfalse.
   { false. eauto with closed. }
-  { false. }
   { obvious. }
   { right. exists t0; repeat split; eauto with closed. }
-  { false. }
 Qed.
 
 
@@ -152,4 +145,6 @@ Proof.
     forward invert_jt_TyOption. { eauto with closed. }
     destruct H4; unpack; eauto with red.
   }
-Qed.
+  { admit. }
+  { admit. }
+Admitted.

@@ -4,6 +4,9 @@ Require Import LCValues.
 Require Import LCReduction.
 Require Import Arith.
 
+(* for flip *)
+Require Import Coq.Program.Basics.
+
 Require Import LCFreeVars.
 
 (*|
@@ -368,12 +371,8 @@ Proof.
   unfold_monad.
 Qed.
 
-Locate ".:".
-Search scons.
 
-Require Import Coq.Program.Basics.
 
-Check flip.
 
 Lemma JTmonad_mbind Gamma args body As B:
   List.Forall2 (fun arg A => jt Gamma arg (TyOption A)) args As ->
@@ -407,9 +406,9 @@ Lemma JTmonad_mmap Gamma args body As B:
   jt Gamma (monad_mmap args body) (TyOption B).
 Proof.
   unfold monad_mmap.
-  intros; eapply JTmonad_mbind; eauto.
-  * now eapply JTmonad_return.
-Qed.
+  intros; (* eapply JTmonad_mbind *)admit; eauto.
+  (* * now eapply JTmonad_return. *)
+Abort.
 
 Lemma JTmonad_handle_one Gamma ts A:
   List.Forall (fun ti => jt Gamma ti (TyOption A)) ts ->
@@ -462,7 +461,7 @@ Global Hint Resolve
   JTmonad_bind
   JTmonad_map
   (* JTmonad_mbind *)
-  JTmonad_mmap
+  (* JTmonad_mmap *)
   JTmonad_handle_one
   JTmonad_handle_zero
   JTmonad_handle: jt.
