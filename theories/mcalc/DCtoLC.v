@@ -219,15 +219,15 @@ Proof.
         rewrite lift_up; tc.
     - (* Case [App (Lam _) _]*)
       intros; clear IHt0.
+      Opaque trans. asimpl. Transparent trans.
       simpl trans.
       unfold_monad.
       asimpl.
-      asimpl in IHt1. unfold monad_return in IHt1.
+      unfold monad_return in IHt1.
       f_equal.
-
       + eapply IHt2; eauto.
-      + asimpl.
-        replace (xi >>> ids) with (ren xi) in IHt1.
+      + simpl trans in IHt1. rewrite <- subst_lam in IHt1.
+        asimpl.
         rewrite <- up_ren in IHt1.
 
       inverts IHt1.
