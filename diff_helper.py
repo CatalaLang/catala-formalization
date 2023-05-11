@@ -86,10 +86,19 @@ def print_both(a, b):
     printc("".join(res))
 
 
-s = "\n".join(sys.stdin.readlines())
+lines = sys.stdin.readlines()
+s = "\n".join(lines)
 
 detector = re.compile(r'Unable to unify[^\"]*\"(?P<a>[^\"]*)\"[^\"]*with[^\"]*\"(?P<b>[^\"]*)\"')
 
-for a, b in detector.findall(s):
+matchs = detector.findall(s)
+
+if len(matchs) == 0:
+    print("not found")
+    if len(lines) == 2:
+        a, b = lines
+        print_both(" ".join(a.split()), " ".join(b.split()))
+
+for a, b in matchs:
     print_both(" ".join(a.split()), " ".join(b.split()))
 

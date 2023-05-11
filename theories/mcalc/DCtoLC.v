@@ -9,7 +9,7 @@ Require Import MyTactics.
 
 
 Module D := DCSyntax.
-Module M := LCSyntax.
+Module L := LCSyntax.
 
 Import List.ListNotations.
 Open Scope list_scope.
@@ -18,16 +18,11 @@ Open Scope list_scope.
 (** Some parts of the code could be *)
 
 
-Definition trans_op : D.operator -> M.operator.
+Definition trans_op : D.operator -> L.operator.
 Admitted.
 
 Lemma assert_lift_do_lift : (lift 1 (D.Var 0)) = D.Var 1.
 Proof. autosubst. Qed.
-
-
-Definition thunk: M.term -> M.term := fun t => Lam (lift 1 t).
-Definition unthunk: term -> term := fun t => App t (OUnit).
-
 
 
 (** Definition of the translation as a program fixpoint. *)
@@ -41,77 +36,77 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
   match t with
   | D.Var x =>
     if Delta x
-    then monad_return (M.Var x)
-    else M.Var x
+    then monad_return (L.EVar x)
+    else L.EVar x
   
   | D.Lam t =>
-    monad_return (M.Lam (trans (true .: Delta) t))
+    monad_return (L.ELam (trans (true .: Delta) t))
   
   | D.App (D.Lam body) arg => (* let arg in body *)
-    MBind (trans Delta arg) (trans (true .: Delta) body)
+    monad_bind (trans Delta arg) (trans (true .: Delta) body)
   (* | D.App () =>
-    MBind (trans Delta arg) (monad_return (M.Op op) ) *)
+    MBind (trans Delta arg) (monad_return (L.EOp op) ) *)
   | D.App (D.Var f) arg =>
     if Delta f
-    then (MBind (trans Delta arg)
-      (M.App (lift 1 (M.Var f)) (M.Var 0))
+    then (monad_bind (trans Delta arg)
+      (L.EApp (lift 1 (L.EVar f)) (L.EVar 0))
     )
-    else (MBind (M.Var f)
-      (MBind (lift 1 (trans Delta arg))
-        (M.App (lift 1 (M.Var 0)) (M.Var 0))
+    else (monad_bind (L.EVar f)
+      (monad_bind (lift 1 (trans Delta arg))
+        (L.EApp (lift 1 (L.EVar 0)) (L.EVar 0))
       ) 
     )
   | D.Default es ej ec =>
     monad_handle
       (List.map (trans Delta) es)
-      (thunk (trans Delta ej))
-      (thunk (trans Delta ec))
+      (trans Delta ej)
+      (trans Delta ec)
   | D.Const b =>
-    monad_return (M.Const b)
+    monad_return (L.OConst b)
   | Empty =>
     monad_empty
-  | Conflict => MRaise EConflict
+  | Conflict => L.EPanic EConflict
 
-  | D.BinOp op t1 t2 => MRaise M.ECompile
-  | D.App _ _ => MRaise M.ECompile
+  | D.BinOp op t1 t2 => L.EPanic L.ECompile
+  | D.App _ _ => L.EPanic L.ECompile
   end.
 
 (** translation correction *)
 
 Require Import STDCDefinition.
 Module DT := STDCDefinition.
-Module MT := STMCDefinition.
+Module LT := STLCDefinition.
 
 Require Import Program.
 
 
 Fixpoint trans_ty_aux ty := 
   match ty with
-  | DT.TyVar x => MT.TyVar x 
-  | DT.TyFun A B => MT.TyFun (trans_ty_aux A) (MT.TyOption (trans_ty_aux B))
-  | DT.TyBool => MT.TyBool
+  | DT.TyVar x => LT.TyVar x 
+  | DT.TyFun A B => LT.TyFun (trans_ty_aux A) (LT.TyOption (trans_ty_aux B))
+  | DT.TyBool => LT.TyBool
   end.
 
-Definition trans_ty (b: bool) ty := if b then trans_ty_aux ty else MT.TyOption (trans_ty_aux ty).
-
+Definition trans_ty (b: bool) ty := if b then trans_ty_aux ty else LT.TyOption (trans_ty_aux ty).
+(* 
 Lemma jt_te_thunk Gamma t tau:
-  MT.jt Gamma t tau ->
+  LT.jt Gamma t tau ->
   forall u,
-  MT.jt Gamma (thunk t) (MT.TyFun u tau).
+  LT.jt Gamma (thunk t) (LT.TyFun u tau).
 Proof.
   unfold thunk.
   intros.
   econstructor.
   now eapply jt_te_renaming_0.
-Qed.
+Qed. *)
 
 
 Lemma trans_correct_type Gamma t1 tau:
   jt Gamma t1 tau ->
   forall Delta,
-  MT.jt (fun x => trans_ty (Delta x) (Gamma x)) (trans Delta t1) (trans_ty false tau).
+  LT.jt (fun x => trans_ty (Delta x) (Gamma x)) (trans Delta t1) (trans_ty false tau).
 Proof.
-  induction 1 using jt_ind'; intros.
+  induction 1 using jt_ind'; intros; try solve [simpl; eauto with jt].
   * remember (Delta x) as b.
     induction b; simpl; symmetry in Heqb; rewrite Heqb.
     - repeat econstructor; rewrite Heqb, H; eauto.
@@ -124,28 +119,31 @@ Proof.
       eapply functional_extensionality.
       intros; induction x; simpl; eauto.
     }
-  * simpl.
+  * simpl trans.
     induction t1; try solve [repeat econstructor].
     (* We consider all the cases for App. *)
-    - (* First case : App (Var x) _. *)
+    - (* First case : App (Var x) _. Either Delta x is true or false. *)
       remember (Delta x) as b.
       induction b; symmetry in Heqb.
-      + econstructor.
+      + (* If Delta x is true, *)
+        eapply JTmonad_bind.
         { apply IHjt2. }
-        { inverts H. repeat econstructor. simpl; rewrite Heqb, H3; simpl. eauto. } 
-      + econstructor.
+        { inverts H. repeat econstructor. asimpl.
+          rewrite Heqb, H3. now asimpl. } 
+      + (* If Delta x is false *)
+        eapply JTmonad_bind.
         { simpl in IHjt1.
           specialize IHjt1 with Delta.
           rewrite Heqb in IHjt1.
           apply IHjt1.
         }
-        { repeat econstructor.
+        { eapply JTmonad_bind; repeat econstructor.
           { simpl in IHjt2.
             eapply jt_te_renaming_0.
             eapply IHjt2. }
         }
     - (* Second case: [App (Lam body) arg] represents an [let arg in body] statement. *)
-      econstructor.
+      eapply JTmonad_bind.
       { eapply IHjt2. }
       { 
         inverts H.
@@ -155,31 +153,171 @@ Proof.
         inverts H3.
         eapply H5.
       }
-  * simpl.
+  * simpl. 
     rename H0 into IHjts.
-    econstructor.
+    eapply JTmonad_handle.
     - induction ts. { econstructor. }
       simpl.
       inverts_Forall.
       econstructor; eauto.
-    - simpl in *. eapply jt_te_thunk. eapply IHjt1.
-    - simpl in *. eapply jt_te_thunk. eapply IHjt2.
-  * simpl; econstructor.
-  * simpl; econstructor.
-  * simpl; repeat econstructor.
+    - simpl in *. eapply IHjt1.
+    - simpl in *. eapply IHjt2.
 Qed.
 
+(* TODO : look at the trans definition when App does not have multiple arguments. *)
+
+Require Import FunInd.
+
+
+(* does not work because of List.map in translate. *)
+Fail Generate graph for trans.
+
+Fail Functional Scheme trans_ind := Induction for trans Sort Prop.
+Fail Check trans_ind.
+
+
+Lemma trans_te_renaming:
+  forall Delta t u,
+  trans Delta t = u->
+  forall Delta' xi,
+  Delta = xi >>> Delta' ->
+  trans Delta' t.[ren xi] = u.[ren xi].
+Proof.
+  intros Delta t.
+  gen Delta.
+  induction t using term_ind'; intros; subst; try solve [asimpl; unfold_monad;
+  eauto with autosubst].
+  * (* Case [Var x]. We just need to look at [Delta x]. *)
+    simpl; unfold_monad.
+    case (Delta' (xi x)); eauto with autosubst.
+  * (* Case [Lam _] nothing particular. *)
+    asimpl; unfold_monad; repeat f_equal; eauto with autosubst.
+  * (* Case [App _ _] *)
+    
+    remember t1; induction t1; subst; try eauto with autosubst.
+    - (* Case [App (Var f) _ ]*)
+      intros; subst.
+      simpl trans.
+      case (Delta' (xi x)).
+      + unfold_monad.
+        rewrite
+          subst_match,
+          subst_variant_none,
+          subst_app,
+          subst_var.
+        repeat f_equal.
+        eapply IHt2; reflexivity.
+      + unfold_monad. 
+        repeat rewrite
+          subst_match,
+          subst_match,
+          subst_app,
+          subst_variant_none,
+          subst_var.
+        do 2 f_equal.
+        erewrite IHt2; try reflexivity.
+        rewrite lift_up; tc.
+    - (* Case [App (Lam _) _]*)
+      intros; clear IHt0.
+      simpl trans.
+      unfold_monad.
+      asimpl.
+      asimpl in IHt1. unfold monad_return in IHt1.
+      f_equal.
+
+      + eapply IHt2; eauto.
+      + asimpl.
+        replace (xi >>> ids) with (ren xi) in IHt1.
+        rewrite <- up_ren in IHt1.
+
+      inverts IHt1.
+  * asimpl.
+    rewrite subst_monad_handle.
+    f_equal; eauto.
+    { induction ts; asimpl; inverts_Forall; repeat f_equal; eauto. }
+Admitted.
+
+
+Lemma trans_te_renaming_0:
+  forall Gamma t T u,
+  trans Gamma t = u ->
+  trans (T .: Gamma) (lift 1 t) = (lift 1 u).
+Proof.
+  intros. eapply trans_te_renaming; eauto.
+Qed.
 
 Require Import DCReduction.
 
 Require Import MySequences.
 Require Import MyRelations.
 
+Definition transs Delta sigma1 sigma2 :=
+  forall x : var,
+  trans Delta (sigma1 x) = (sigma2 x).
 
-Lemma trans_correct Delta t1 t2:
-  exists rel: M.term -> M.term -> Prop,
-  cbv t1 t2 ->
-  rel (trans Delta t1) (trans Delta t2).
+Lemma js_ids:
+  forall Delta,
+  transs Delta ids (fun x => (if Delta x then monad_return (L.EVar x) else L.EVar x)).
 Proof.
+  unfold transs.
+  induction x; eauto.
+Qed.
+
+Lemma js_cons:
+  forall Delta t u sigma1 sigma2,
+  trans Delta t = u ->
+  transs Delta sigma1 sigma2 ->
+  transs Delta (t .: sigma1) (u .: sigma2).
+Proof.
+  intros. intros [|x]; asimpl; eauto.
+Qed.
+
+
+Lemma js_up_true:
+  forall Delta sigma1 sigma2,
+  transs Delta sigma1 sigma2 ->
+  transs (true .: Delta) (up sigma1) (monad_return (ids 0) .: sigma2).
+Proof.
+  intros. eapply js_cons.
+  { eauto. }
+  { asimpl. }
+Qed.
+
+
+Lemma trans_te_substitution:
+  forall Delta t U,
+  trans Delta t U ->
+  forall Gamma sigma,
+  js Gamma sigma Delta ->
+  trans Gamma t.[sigma] U.
+
+Lemma trans_te_substitution_0:
+  forall Delta t1 t2 u1 u2,
+  trans Delta t1 = u1 ->
+  trans Delta t2 = u2 ->
+  trans Delta t1.[t2/] = u1.[u2/].
+Proof.
+  
+
+
+Require Import LCReduction.
+
+Definition dcbv := DCReduction.cbv.
+Definition lcbv := LCReduction.cbv.
+
+Lemma trans_correct t1 t2:
+  dcbv t1 t2 ->
+  forall Delta,
+  exists target,
+    star lcbv (trans Delta t1) target /\
+    star lcbv (trans Delta t2) target.
+Proof.
+  induction 1; tryfalse; intros; unpack.
+  * subst; eexists; split.
+    2:{ eapply star_refl. }
+    simpl.
+
+
+
 Admitted.
 

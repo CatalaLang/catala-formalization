@@ -61,6 +61,7 @@ Notation "A @-> B" := (TyFun A B) (at level 49, right associativity).
 
 Inductive jt_op : operator -> ty -> Prop :=
 | TO_if: forall A, jt_op OIf (TyBool @-> A @-> A @-> A)
+| TO_const: forall b, jt_op (OConst b) TyBool
 .
 
 

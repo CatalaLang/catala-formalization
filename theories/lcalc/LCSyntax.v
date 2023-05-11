@@ -55,6 +55,10 @@ Coercion operator_in_term : operator >-> term.
 Proof. econstructor. intros. injections. eauto. Qed.
 
 
+Definition thunk: term -> term := fun t => ELam (lift 1 t).
+Definition unthunk: term -> term := fun t => EApp t (OUnit).
+
+
 Definition monad_bind arg (body: {bind term}) :=
   EMatch arg EVariantNone body.
 
