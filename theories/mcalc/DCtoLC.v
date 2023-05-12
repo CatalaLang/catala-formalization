@@ -178,12 +178,13 @@ Fail Check trans_ind.
 
 Lemma trans_te_renaming:
   forall Delta t u,
-  trans Delta t = u->
+  trans Delta t = u ->
   forall Delta' xi,
   Delta = xi >>> Delta' ->
   trans Delta' t.[ren xi] = u.[ren xi].
 Proof.
-  intros Delta t.
+  intros Delta t u Hu.
+  subst.
   gen Delta.
   induction t using term_ind'; intros; subst; try solve [asimpl; unfold_monad;
   eauto with autosubst].
@@ -226,16 +227,15 @@ Proof.
       unfold monad_return in IHt1.
       f_equal.
       + eapply IHt2; eauto.
-      + simpl trans in IHt1. rewrite <- subst_lam in IHt1.
-        asimpl.
-        rewrite <- up_ren in IHt1.
-
-      inverts IHt1.
+      + simpl trans in IHt1.
+        assert (trans Delta' (Lam t0).[ren xi] = (trans (xi >>> Delta') (Lam t0)).[ren xi]).
+        { unfold monad_return in IHt1. forwards: IHt1 (xi >>> Delta') Delta' xi; eauto. }
+        injections. eauto with autosubst.
   * asimpl.
     rewrite subst_monad_handle.
     f_equal; eauto.
     { induction ts; asimpl; inverts_Forall; repeat f_equal; eauto. }
-Admitted.
+Qed.
 
 
 Lemma trans_te_renaming_0:
@@ -243,7 +243,8 @@ Lemma trans_te_renaming_0:
   trans Gamma t = u ->
   trans (T .: Gamma) (lift 1 t) = (lift 1 u).
 Proof.
-  intros. eapply trans_te_renaming; eauto.
+  intros.
+  eapply trans_te_renaming; eauto.
 Qed.
 
 Require Import DCReduction.
@@ -255,7 +256,7 @@ Definition transs Delta sigma1 sigma2 :=
   forall x : var,
   trans Delta (sigma1 x) = (sigma2 x).
 
-Lemma js_ids:
+Lemma trans_ids:
   forall Delta,
   transs Delta ids (fun x => (if Delta x then monad_return (L.EVar x) else L.EVar x)).
 Proof.
@@ -263,7 +264,7 @@ Proof.
   induction x; eauto.
 Qed.
 
-Lemma js_cons:
+Lemma trans_cons:
   forall Delta t u sigma1 sigma2,
   trans Delta t = u ->
   transs Delta sigma1 sigma2 ->
@@ -273,23 +274,37 @@ Proof.
 Qed.
 
 
-Lemma js_up_true:
+Lemma trans_up_true:
   forall Delta sigma1 sigma2,
   transs Delta sigma1 sigma2 ->
-  transs (true .: Delta) (up sigma1) (monad_return (ids 0) .: sigma2).
+  transs (Delta) (ids 0 .: sigma1) ((if Delta 0 then monad_return (ids 0) else (ids 0)) .: sigma2).
 Proof.
-  intros. eapply js_cons.
-  { eauto. }
-  { asimpl. }
+  intros. eapply trans_cons; eauto.
 Qed.
 
 
 Lemma trans_te_substitution:
-  forall Delta t U,
-  trans Delta t U ->
-  forall Gamma sigma,
-  js Gamma sigma Delta ->
-  trans Gamma t.[sigma] U.
+  forall Delta t u,
+  trans Delta t = u ->
+  forall sigma1 sigma2,
+  transs Delta sigma1 sigma2 ->
+  trans Delta t.[sigma1] = u.[sigma2].
+Proof.
+  induction 1; intros; subst; asimpl; eauto using js_up with jt.
+  * 
+  intros.
+  induction t; try solve [
+    simpl trans in *;
+    subst;
+    unfold_monad;
+    asimpl; 
+    eauto
+  ].
+  * simpl trans in *.
+    subst.
+    case (Delta x); asimpl.
+
+
 
 Lemma trans_te_substitution_0:
   forall Delta t1 t2 u1 u2,
