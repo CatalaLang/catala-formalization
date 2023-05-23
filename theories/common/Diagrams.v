@@ -13,7 +13,8 @@ Variable C1: Type.
 Variable step1: C1 -> C1 -> Prop.
 Variable C2: Type.
 Variable step2: C2 -> C2 -> Prop.
-Variable inv: C1 -> C2 -> Prop. *)
+Variable inv: C1 -> C2 -> Prop.
+*)
 
 Definition determinist {X} (R: X -> X -> Prop) :=
     forall x y1 y2, R x y1 -> R x y2 -> y1 = y2.
@@ -94,9 +95,8 @@ Lemma simulation2_star {C1 C2: Type}:
     forall step1 step2 (trans: C1 -> C2),
     simulation2 step1 step2 trans ->
     determinist step2 ->
-    forall c1 c2, star step1 c1 c2 ->
-        exists target, (star step2 (trans c1) target)
-        /\ (star step2 (trans c2) target).
+    simulation2 (star step1) step2 trans.
+
 Proof.
     introv Hsim Hdet.
     induction 1; eauto with sequences.
@@ -141,9 +141,23 @@ Qed.
 
 Lemma simulation2_vertical_concat2 (C1 C2 C3: Type):
     forall step1 step2 step3 (trans1: C1 -> C2) (trans2: C2 -> C3),
+        determinist step2 ->
+        determinist step3 ->
         simulation2 step1 step2 trans1 ->
         simulation2 step2 step3 trans2 ->
         simulation2 step1 step3 (compose trans2 trans1).
 Proof.
+    introv Hdet2 Hdet3 Hsim1 Hsim2.
+    introv Hstep11'.
+    destruct (Hsim1 _ _ Hstep11') as [target2 [Htarget2 Htarget2']].
+
+    destruct (simulation2_star _ _ _ Hsim2 Hdet3 _ _ Htarget2) as [t1 [Ht1 Ht1']].
+    destruct (simulation2_star _ _ _ Hsim2 Hdet3 _ _ Htarget2') as [t2 [Ht2 Ht2']].
+    unfold compose.
+
+    edestruct (star_determnist_easy_to_use _ Hdet3 _ _ Ht1' _ Ht2')
+    as [target [Htarget Htarget']].
+    exists target; eauto with sequences.
+Qed.
     
 
