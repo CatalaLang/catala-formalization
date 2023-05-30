@@ -274,7 +274,7 @@ Proof.
 Qed.
 
 
-Lemma trans_up_true:
+Lemma trans_up:
   forall Delta sigma1 sigma2,
   transs Delta sigma1 sigma2 ->
   transs (Delta) (ids 0 .: sigma1) ((if Delta 0 then monad_return (ids 0) else (ids 0)) .: sigma2).
@@ -289,9 +289,17 @@ Lemma trans_te_substitution:
   forall sigma1 sigma2,
   transs Delta sigma1 sigma2 ->
   trans Delta t.[sigma1] = u.[sigma2].
-Proof.
-  induction 1; intros; subst; asimpl; eauto using js_up with jt.
-  * 
+Proof. admit.
+
+  (* intros Delta t. gen Delta.
+  induction t; intros; subst; asimpl; eauto using trans_up with jt.
+  * (* FAUX! *) asimpl. admit.
+  * unfold_monad.
+    asimpl.
+    repeat fequal.
+    eapply IHt; eauto.
+    eapply trans_cons.
+
   intros.
   induction t; try solve [
     simpl trans in *;
@@ -302,8 +310,8 @@ Proof.
   ].
   * simpl trans in *.
     subst.
-    case (Delta x); asimpl.
-
+    case (Delta x); asimpl. *)
+Admitted.
 
 
 Lemma trans_te_substitution_0:
@@ -312,7 +320,8 @@ Lemma trans_te_substitution_0:
   trans Delta t2 = u2 ->
   trans Delta t1.[t2/] = u1.[u2/].
 Proof.
-  
+  admit.
+Admitted.
 
 
 Require Import LCReduction.
@@ -320,7 +329,9 @@ Require Import LCReduction.
 Definition dcbv := DCReduction.cbv.
 Definition lcbv := LCReduction.cbv.
 
-Lemma trans_correct t1 t2:
+Lemma trans_correct t1 t2 Gamma T:
+  jt Gamma t1 T ->
+  no_compile_error (trans Delta t1) ->
   dcbv t1 t2 ->
   forall Delta,
   exists target,
@@ -330,7 +341,16 @@ Proof.
   induction 1; tryfalse; intros; unpack.
   * subst; eexists; split.
     2:{ eapply star_refl. }
-    simpl.
+    simpl; unfold_monad.
+    admit.
+  * destruct (IHred Delta) as [target [Htarget1 Htarget2]].
+    exists (EApp target (trans Delta u)).
+    split; eapply star_one; asimpl.
+    all: admit.
+  * destruct (IHred Delta) as [target [Htarget1 Htarget2]].
+    exists (EApp (trans Delta v) target).
+    induction v; simpl in H0; tryfalse.
+    (* v is a value. *)
 
 
 

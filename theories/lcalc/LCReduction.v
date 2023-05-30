@@ -216,7 +216,7 @@ Ltac finished :=
 
 Ltac invert_cbv :=
   pick (red cbv_mask) invert;
-  try solve [ false; eauto 3 with obvious ].
+  try solve [ false; eauto 2 with obvious ].
 
 Ltac invert_star_cbv :=
   pick (star cbv) invert.
@@ -438,10 +438,15 @@ Lemma cbv_deterministic:
   t1 = t2.
 Proof.
   (* Induction over [cbv t t1]. *)
-  induction 1; try solve [ tauto ]; intros; 
+  induction 1; try solve [ tauto ].
+  all: intros.
   (* Invert the second hypothesis, [cbv t t2]. The fact that values do not
      reduce is used to eliminate some cases. *)
-  try solve [subst; invert_cbv; repeat f_equal; injections; eauto; try discriminate].  
+  all: subst.
+  all: invert_cbv.
+  all: repeat f_equal; eauto.
+  all: injections.
+  all: eauto.
 Qed.
 
 (* Inversion lemmas for [irred]. *)

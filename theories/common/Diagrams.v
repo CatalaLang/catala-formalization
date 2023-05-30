@@ -7,18 +7,16 @@ Require Import MyTactics.
 Require Import LibTactics.
 Section Composition.
 
-(* 
-Context {A B : Type}.
-Variable C1: Type.
-Variable step1: C1 -> C1 -> Prop.
-Variable C2: Type.
-Variable step2: C2 -> C2 -> Prop.
-Variable inv: C1 -> C2 -> Prop.
-*)
-
 Definition determinist {X} (R: X -> X -> Prop) :=
     forall x y1 y2, R x y1 -> R x y2 -> y1 = y2.
 
+Definition simulation1
+    {C1 C2: Type}
+    (step1: relation C1)
+    (step2: relation C2)
+    (inv: C1 -> C2) :=
+    forall c1 c1', step1 c1 c1' ->
+        (plus step2 (inv c1) (inv c1')).
 
 Definition simulation2
     {C1 C2: Type}
@@ -29,15 +27,6 @@ Definition simulation2
     exists target,
         (star step2 (inv c1) target)
         /\ (star step2 (inv c1') target).
-
-
-Definition simulation1
-    {C1 C2: Type}
-    (step1: relation C1)
-    (step2: relation C2)
-    (inv: C1 -> C2) :=
-    forall c1 c1', step1 c1 c1' ->
-        (plus step2 (inv c1) (inv c1') ).
 
 Lemma star_determnist {C1} (step: relation C1):
     determinist step ->

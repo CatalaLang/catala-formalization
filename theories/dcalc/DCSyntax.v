@@ -21,8 +21,11 @@ Inductive term :=
 | Empty
 | Conflict
 | Const (b: bool)
-| BinOp (op: operator) (t1 t2: term)
 .
+
+Require Import Utf8.
+
+Check term_ind.
 
 Lemma term_ind':
 forall P : term -> Prop,
@@ -32,9 +35,10 @@ forall P : term -> Prop,
 (forall (ts : list term),
  List.Forall (fun ti => P ti) ts -> forall tj : term, 
  P tj -> forall tc : term, P tc -> P (Default ts tj tc)) ->
-P Empty -> P Conflict -> (forall b, P (Const b))
--> (forall op: operator, forall t1 t2: term, P t1 -> P t2 -> P (BinOp op t1 t2))
--> forall t : term, P t.
+P Empty ->
+P Conflict -> 
+(forall b, P (Const b)) ->
+forall t : term, P t.
 Proof.
   intros; gen t.
   fix IH 1.
@@ -50,7 +54,6 @@ Proof.
   * apply H3.
   * apply H4.
   * apply H5.
-  * intros; apply H6; apply IH. 
 Qed.
 (* 
 (* 2022-05-03 TODO: ajouter des égalités et fonction de comparaison (comme en ocaml) *)
@@ -119,8 +122,8 @@ Fixpoint size (t : term) : nat :=
   match t with
   | Var _ => 0
   | Lam t => 1 + size t
-  | App t1 t2
-  | BinOp _ t1 t2 => 1 + size t1 + size t2
+  | App t1 t2 =>
+    1 + size t1 + size t2
   | Default ts tj tc =>
       1 + list_size size ts + size tj + size tc
   | Empty => 0
@@ -251,12 +254,12 @@ Proof.
   autosubst.
 Qed.
 
-Lemma subst_op:
+(* Lemma subst_op:
   forall op t1 t2 sigma,
   (BinOp op t1 t2).[sigma] = BinOp op t1.[sigma] t2.[sigma].
 Proof.
   autosubst.
-Qed.
+Qed. *)
 
 Lemma subst_default:
   forall ts tj tc sigma,

@@ -499,6 +499,7 @@ Ltac invert_cbn :=
   pick (red cbn_mask) invert;
   try solve [ false; eauto 3 with obvious ].
 
+
 (* If the following four rules are enabled, then reduction is reflexive. *)
 
 Lemma red_refl:
@@ -552,13 +553,42 @@ Qed. *)
 
 (* MySequences of reduction, [star cbv], can be carried out under a context. *)
 
-(* Lemma star_cbv_AppL:
+Lemma cbv_is_error:
+  forall t1 t2,
+  cbv t1 t2 ->
+  ~is_error t2 ->
+  ~is_error t1.
+Proof.
+  induction 1; asimpl; eauto.
+Qed.
+
+Lemma star_cbv_is_error:
+  forall t1 t2,
+  star cbv t1 t2 ->
+  ~is_error t2 ->
+  ~is_error t1.
+Proof.
+  induction 1; eauto; intros.
+  eapply cbv_is_error; eauto.
+Qed.
+
+(* trop chiant les is_error etc en proposition. Il vaudrait mieux utiliser des booléens peut etre ? *)
+
+
+Lemma star_cbv_AppL:
   forall t1 t2 u,
   star cbv t1 t2 ->
+  ~is_error t2->
   star cbv (App t1 u) (App t2 u).
 Proof.
   induction 1; eauto with sequences obvious.
-Qed. *)
+  intros.
+  assert (~is_error a). { eapply star_cbv_is_error with c; eauto with sequences. }
+  assert (~is_error b). { eapply star_cbv_is_error with c; eauto with sequences. }
+  eapply star_step with (App b u); eauto.
+  econstructor; asimpl; jauto.
+
+Qed.
 
 Lemma star_pcbv_AppL:
   forall t1 t2 u,
