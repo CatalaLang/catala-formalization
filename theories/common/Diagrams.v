@@ -5,6 +5,8 @@ Require Import MyRelations.
 Require Import MySequences.
 Require Import MyTactics.
 Require Import LibTactics.
+Require Import Coq.Program.Basics.
+
 Section Composition.
 
 Definition determinist {X} (R: X -> X -> Prop) :=
@@ -97,7 +99,6 @@ Proof.
     exists target; eauto with sequences.
 Qed.
 
-Require Import Coq.Program.Basics.
 
 Lemma simulation1_star {C1 C2: Type}:
     forall step1 step2 (trans: C1 -> C2),
@@ -148,5 +149,5 @@ Proof.
     as [target [Htarget Htarget']].
     exists target; eauto with sequences.
 Qed.
-    
 
+End Composition.

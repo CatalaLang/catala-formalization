@@ -52,14 +52,14 @@ Proof.
   { unpack. congruence. }
 Qed.
 
-Lemma fv_BinOp_eq:
+(* Lemma fv_BinOp_eq:
   forall k op t1 t2,
   fv k (BinOp op t1 t2) <-> fv k t1 /\ fv k t2.
 Proof.
   unfold fv. intros. asimpl. split; intros.
   { injections. eauto. }
   { unpack. congruence. }
-Qed.
+Qed. *)
 
 Lemma thing: forall ts sigma,
   ts..[sigma] = ts <-> List.Forall (fun ti : term => ti.[sigma] = ti) ts.
@@ -91,7 +91,7 @@ Proof.
     reflexivity. }
 Qed.
 
-Global Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq fv_BinOp_eq fv_Default_eq : fv.
+Global Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq (* fv_BinOp_eq *) fv_Default_eq : fv.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -115,7 +115,7 @@ Proof.
   unfold closed; intros; fv. tauto.
 Qed.
 
-Lemma closed_BinOpR:
+(* Lemma closed_BinOpR:
   forall op t1 t2,
   closed (BinOp op t1 t2) ->
   closed t2.
@@ -129,7 +129,7 @@ Lemma closed_BinOpL:
   closed t1.
 Proof.
   unfold closed; intros; fv. tauto.
-Qed.
+Qed. *)
 
 Lemma closed_AppR:
   forall t1 t2,
@@ -207,8 +207,8 @@ Global Hint Resolve
   closed_DefaultE0
   closed_DefaultEi
   closed_DefaultEin
-  closed_BinOpR
-  closed_BinOpL
+  (* closed_BinOpR
+  closed_BinOpL *)
 : closed.
 
 (* -------------------------------------------------------------------------- *)

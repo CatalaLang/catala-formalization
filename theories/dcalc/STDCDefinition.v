@@ -72,7 +72,6 @@ Inductive jt : tyenv -> term -> ty -> Prop :=
   jt Gamma (Const b) TyBool
 .
 
-
 Theorem jt_ind'
 : forall P : tyenv -> term -> ty -> Prop,
     (forall (Gamma : var -> ty) (x : var) (T : ty),

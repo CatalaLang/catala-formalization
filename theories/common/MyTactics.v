@@ -245,15 +245,80 @@ Proof.
   eapply Forall_app.
 Qed.
 
+Lemma Forall2_app_left A B (P: A -> B -> Prop) l1 l2 l':
+  List.Forall2 P (l1 ++ l2) l' ->
+  exists l1' l2', l' = (l1' ++ l2')%list /\ List.Forall2 P l1 l1' /\ List.Forall2 P l2 l2'.
+Admitted.
+
+Lemma Forall2_app_right A B (P: A -> B -> Prop) l l1' l2':
+  List.Forall2 P l (l1' ++ l2') ->
+  exists l1 l2, l = (l1 ++ l2)%list /\ List.Forall2 P l1 l1' /\ List.Forall2 P l2 l2'.
+Admitted.
+
+Lemma Forall2_cons_left A B (P: A -> B -> Prop) l1 l2 l':
+  List.Forall2 P (l1 :: l2) l' ->
+  exists l1' l2', l' = (l1' :: l2')%list /\ P l1 l1' /\ List.Forall2 P l2 l2'.
+Admitted.
+
+Lemma Forall2_cons_right A B (P: A -> B -> Prop) l l1' l2':
+  List.Forall2 P l (l1' :: l2') ->
+  exists l1 l2, l = (l1 :: l2)%list /\ P l1 l1' /\ List.Forall2 P l2 l2'.
+Admitted.
+
+Lemma Forall2_cons_both A B (P: A -> B -> Prop) l1 l2 l1' l2':
+  List.Forall2 P (l1 :: l2) (l1' :: l2') ->
+  P l1 l1' /\ List.Forall2 P l2 l2'.
+Admitted.
+
+Lemma Forall2_app_both A B (P: A -> B -> Prop) l1 l2 l1' l2':
+  List.Forall2 P (l1 ++ l2) (l1' ++ l2') ->
+  List.Forall2 P l1 l1' /\ List.Forall2 P l2 l2'.
+Admitted.
+
 
 Ltac inverts_Forall :=
 repeat match goal with
 | h: @List.Forall _ _ (_ :: _) |- _ => inverts h
-| h: @List.Forall2 _ _ _ (_ :: _) (_ :: _) |- _ => inverts h
 | h: @List.Forall _ _ (_ ++ _) |- _ =>
   let tmp := fresh "tmp" in
   rename h into tmp;
   destruct (Forall_app_dir _ _ _ _ tmp); clear tmp
+| h: @List.Forall2 _ _ _ (_ :: _) (_ :: _) |- _ => inverts h
+| h: @List.Forall2 _ _ _ (_ ++ _) (_ ++ _) |- _ =>
+  let tmp := fresh "tmp" in
+  rename h into tmp;
+  destruct (Forall2_app_both _ _ _ _ _ _ _ tmp);
+  unpack;
+  subst;
+  clear tmp
+| h: @List.Forall2 _ _ _ (_ ++ _) _ |- _ =>
+  let tmp := fresh "tmp" in
+  rename h into tmp;
+  destruct (Forall2_app_left _ _ _ _ _ _ tmp);
+  unpack;
+  subst;
+  clear tmp
+| h: @List.Forall2 _ _ _ _ (_ ++ _) |- _ =>
+  let tmp := fresh "tmp" in
+  rename h into tmp;
+  destruct (Forall2_app_right _ _ _ _ _ _ tmp);
+  unpack;
+  subst;
+  clear tmp
+| h: @List.Forall2 _ _ _ (_ :: _) _ |- _ =>
+  let tmp := fresh "tmp" in
+  rename h into tmp;
+  destruct (Forall2_cons_left _ _ _ _ _ _ tmp);
+  unpack;
+  subst;
+  clear tmp
+| h: @List.Forall2 _ _ _ _ (_ :: _) |- _ =>
+  let tmp := fresh "tmp" in
+  rename h into tmp;
+  destruct (Forall2_cons_right _ _ _ _ _ _ tmp);
+  unpack;
+  subst;
+  clear tmp
 (* | h: @Option.Forall _ _ (Some _) |- _ => inverts h *)
 end.
 
@@ -263,3 +328,20 @@ Goal forall A ts1 ti ts2 tj ts3 (P: A -> Prop),
 Proof.
   intros; inverts_Forall; eauto.
 Qed.
+
+
+Goal forall A ts1 ti ts2 tj ts3 (P: A -> A -> Prop) x,
+  List.Forall2 P (ts1 ++ ti :: ts2 ++ tj :: ts3) x -> True.
+Proof.
+  intros.
+  inverts_Forall.
+  eauto.
+Qed.
+
+
+Goal forall A B ts vs1 v vs2 (P: A -> B -> Prop),
+  List.Forall2 P ts (vs1 ++ v :: vs2) -> exists l0, List.Forall2 P l0 vs2.
+Proof.
+  intros; inverts_Forall; eauto.
+Qed.
+

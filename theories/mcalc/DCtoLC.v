@@ -67,7 +67,7 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
     monad_empty
   | Conflict => L.EPanic EConflict
 
-  | D.BinOp op t1 t2 => L.EPanic L.ECompile
+  (* | D.BinOp op t1 t2 => L.EPanic L.ECompile*)
   | D.App _ _ => L.EPanic L.ECompile
   end.
 
@@ -186,7 +186,8 @@ Proof.
   intros Delta t u Hu.
   subst.
   gen Delta.
-  induction t using term_ind'; intros; subst; try solve [asimpl; unfold_monad;
+  induction t using term_ind'; intros; subst;
+  try solve [asimpl; unfold_monad;
   eauto with autosubst].
   * (* Case [Var x]. We just need to look at [Delta x]. *)
     simpl; unfold_monad.
@@ -252,17 +253,21 @@ Require Import DCReduction.
 Require Import MySequences.
 Require Import MyRelations.
 
+(* This propertie des not seems to hold correctly. Indeed, *)
+
 Definition transs Delta sigma1 sigma2 :=
   forall x : var,
-  trans Delta (sigma1 x) = (sigma2 x).
+  trans Delta (sigma1 x) = sigma2 x(* if Delta x then monad_return (sigma2 x) else (sigma2 x) *)
+  .
+
 
 Lemma trans_ids:
   forall Delta,
-  transs Delta ids (fun x => (if Delta x then monad_return (L.EVar x) else L.EVar x)).
+  transs Delta ids ids.
 Proof.
   unfold transs.
-  induction x; eauto.
-Qed.
+  induction x; eauto; asimpl.
+Abort.
 
 Lemma trans_cons:
   forall Delta t u sigma1 sigma2,
@@ -270,28 +275,86 @@ Lemma trans_cons:
   transs Delta sigma1 sigma2 ->
   transs Delta (t .: sigma1) (u .: sigma2).
 Proof.
-  intros. intros [|x]; asimpl; eauto.
+  intros.
+  intros [|x]; asimpl; eauto.
 Qed.
-
 
 Lemma trans_up:
   forall Delta sigma1 sigma2,
   transs Delta sigma1 sigma2 ->
-  transs (Delta) (ids 0 .: sigma1) ((if Delta 0 then monad_return (ids 0) else (ids 0)) .: sigma2).
+  transs Delta (up sigma1) (up sigma2).
 Proof.
   intros. eapply trans_cons; eauto.
+  2: {
+    unfold transs; intros; asimpl; eapply trans_te_renaming.
+    
+
+Admitted.
+
+
+(* First the propertie on transs should satisfy this : *)
+
+Lemma rewrite_subst_ite:
+  forall (b: bool) sigma (x y: L.term),
+    (if b then x else y).[sigma] = (if b then x.[sigma] else y.[sigma]).
+Proof.
+  induction b; intros; asimpl; eauto.
 Qed.
 
+Lemma trans_te_subst_var:
+  forall Delta sigma1 sigma2, 
+  transs Delta sigma1 sigma2 ->
+  forall x, 
+  trans Delta (sigma1 x) = (if Delta x then monad_return (L.EVar x) else L.EVar x).[sigma2].
+Proof.
+  unfold monad_return.
+  (* I dont really understand this one as it seems. Maybe it is that if we replace x with something else, then it must have a certain shape. For example, let's assume for now that x is a value. *)
+
+
+  admit.
+Admitted.
+
+
+
+(* 
+let translate_var_to_exp (s: D.var_to_exp) : Tot L.var_to_exp =
+  fun x -> translate_exp (s x)
+
+let rec substitution_correctness (s: D.var_to_exp) (e: D.exp)
+    : Lemma (ensures (
+      translate_exp (D.subst s e) ==
+        L.subst (translate_var_to_exp s) (translate_exp e)))
+      (decreases %[D.is_var_size e; D.is_renaming_size s; 1; e])
+
+
+    trans (e.[s]) = trans e.[trans_sigma s]
+  = *)
+
+
+(*
+Definition transs Delta sigma1 sigma2 :=
+  forall x : var,
+  trans Delta (sigma1 x) =
+    sigma2 x
+    (* if Delta x then monad_return (sigma2 x) else (sigma2 x) *)
+  .
+*)
+
+(* trans x.[x |-> Empty] = trans Empty = None
+(trans x).[x |-> None] = x.[x -> None] = None
+
+Delta x = true
+
+trans x.[x |-> 3] = trans 3 = Some 3
+(trans x).[x |-> Some 3] = x.[x -> Some 3] = Some 3 *)
 
 Lemma trans_te_substitution:
-  forall Delta t u,
-  trans Delta t = u ->
+  forall Delta t,
   forall sigma1 sigma2,
   transs Delta sigma1 sigma2 ->
-  trans Delta t.[sigma1] = u.[sigma2].
-Proof. admit.
-
-  (* intros Delta t. gen Delta.
+  trans Delta t.[sigma1] = (trans Delta t).[sigma2].
+Proof.
+  intros Delta t. gen Delta.
   induction t; intros; subst; asimpl; eauto using trans_up with jt.
   * (* FAUX! *) asimpl. admit.
   * unfold_monad.
@@ -308,9 +371,7 @@ Proof. admit.
     asimpl; 
     eauto
   ].
-  * simpl trans in *.
-    subst.
-    case (Delta x); asimpl. *)
+  
 Admitted.
 
 
@@ -329,16 +390,20 @@ Require Import LCReduction.
 Definition dcbv := DCReduction.cbv.
 Definition lcbv := LCReduction.cbv.
 
+Inductive no_compile_error: term -> Prop :=
+.
+
 Lemma trans_correct t1 t2 Gamma T:
   jt Gamma t1 T ->
+  forall Delta,
   no_compile_error (trans Delta t1) ->
   dcbv t1 t2 ->
-  forall Delta,
+  
   exists target,
     star lcbv (trans Delta t1) target /\
     star lcbv (trans Delta t2) target.
 Proof.
-  induction 1; tryfalse; intros; unpack.
+  induction 3; tryfalse; intros; unpack.
   * subst; eexists; split.
     2:{ eapply star_refl. }
     simpl; unfold_monad.

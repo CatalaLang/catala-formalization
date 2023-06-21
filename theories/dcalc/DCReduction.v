@@ -527,7 +527,6 @@ Proof.
       replace ((cons a ts)) with (app nil (cons a ts)) by eauto using List.app_nil_l.
       eapply RedDefaultE; try eassumption.
       econstructor.
-  * admit.
 Admitted.
 
 (* [RuleBetaV] and [RuleLetV] are special cases of [RuleParBetaV] and
@@ -578,16 +577,36 @@ Qed.
 Lemma star_cbv_AppL:
   forall t1 t2 u,
   star cbv t1 t2 ->
-  ~is_error t2->
+  ~is_error u ->
   star cbv (App t1 u) (App t2 u).
 Proof.
   induction 1; eauto with sequences obvious.
   intros.
-  assert (~is_error a). { eapply star_cbv_is_error with c; eauto with sequences. }
-  assert (~is_error b). { eapply star_cbv_is_error with c; eauto with sequences. }
-  eapply star_step with (App b u); eauto.
-  econstructor; asimpl; jauto.
+  eapply star_step.
+  {
+    eapply RedAppL; asimpl; eauto.
+    * induction H; simpl in *; eauto.
+    * induction u; simpl in *; eauto. 
+  }
 
+  eapply IHstar; eauto.
+Qed.
+
+
+Lemma star_cbv_AppR:
+  forall t u1 u2,
+  is_value t ->
+  ~is_error t ->
+  star cbv u1 u2 ->
+  star cbv (App t u1) (App t u2).
+Proof.
+  induction 3; eauto with sequences obvious.
+  eapply star_step.
+  { eapply RedAppVR; asimpl; eauto.
+    * induction t; simpl in *; eauto.
+    * induction H1; simpl in *; eauto. 
+  }
+  eapply IHstar; eauto.
 Qed.
 
 Lemma star_pcbv_AppL:
@@ -608,16 +627,14 @@ Proof.
   eapply RedAppLR; eauto using red_refl with obvious.
 Qed.
 
-(* Lemma star_cbv_AppR:
-  forall t u1 u2,
-  is_value t ->
-  star cbv u1 u2 ->
-  star cbv (App t u1) (App t u2).
-Proof.
-  induction 2; eauto with sequences obvious.
-Qed. *)
-(* 
-Global Hint Resolve star_cbv_AppL star_pcbv_AppL plus_pcbv_AppL star_cbv_AppR : red obvious. *)
+
+
+Global Hint Resolve
+  star_cbv_AppL
+  star_cbv_AppR
+  star_pcbv_AppL
+  plus_pcbv_AppL
+: red obvious.
 
 (* Lemma star_cbv_AppLR:
   forall t1 t2 u1 u2,
