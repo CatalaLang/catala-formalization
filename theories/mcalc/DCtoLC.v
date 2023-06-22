@@ -348,35 +348,41 @@ Delta x = true
 trans x.[x |-> 3] = trans 3 = Some 3
 (trans x).[x |-> Some 3] = x.[x -> Some 3] = Some 3 *)
 
+Definition transs' Delta sigma1 sigma2 :=
+  forall x : var,
+  trans Delta (sigma1 x) =
+  if Delta x then monad_return (sigma2 x) else (sigma2 x)
+  .
+
+
+Lemma trans'_cons:
+  forall Delta t u sigma1 sigma2,
+  trans Delta t = u ->
+  transs' Delta sigma1 sigma2 ->
+  transs' Delta (t .: sigma1) (u .: sigma2).
+Proof.
+Admitted.
+
+
 Lemma trans_te_substitution:
   forall Delta t,
   forall sigma1 sigma2,
-  transs Delta sigma1 sigma2 ->
+  transs' Delta sigma1 sigma2 ->
   trans Delta t.[sigma1] = (trans Delta t).[sigma2].
 Proof.
   intros Delta t. gen Delta.
   induction t using term_ind'; intros; subst; asimpl; eauto using trans_cons with jt.
-  * unfold transs in H. asimpl.
-    remember (Delta x).
-    induction b; subst.
-    asimpl.
-    unfold transs in H.
-    rewrite H.
+  * rewrite H.
+    remember (Delta x) as b; induction b; subst; asimpl; eauto.
   * unfold_monad.
     asimpl.
     repeat fequal.
     eapply IHt; eauto.
-    eapply trans_cons.
-
-  intros.
-  induction t; try solve [
-    simpl trans in *;
-    subst;
-    unfold_monad;
-    asimpl; 
-    eauto
-  ].
-  
+    eapply trans'_cons.
+    (* this does not hold since we don't have trans'_cons. *)
+    admit. admit.
+  * admit.
+  * induction ts; asimpl; admit.
 Admitted.
 
 
@@ -385,9 +391,10 @@ Lemma trans_te_substitution_0:
   trans Delta t1 = u1 ->
   trans Delta t2 = u2 ->
   trans Delta t1.[t2/] = u1.[u2/].
+  (* this is not true. *)
 Proof.
   admit.
-Admitted.
+Abort.
 
 
 Require Import LCReduction.
@@ -412,7 +419,7 @@ Proof.
   * subst; eexists; split.
     2:{ eapply star_refl. }
     simpl; unfold_monad.
-    admit.
+    
   * destruct (IHred Delta) as [target [Htarget1 Htarget2]].
     exists (EApp target (trans Delta u)).
     split; eapply star_one; asimpl.
