@@ -257,17 +257,18 @@ Require Import MyRelations.
 
 Definition transs Delta sigma1 sigma2 :=
   forall x : var,
-  trans Delta (sigma1 x) = sigma2 x(* if Delta x then monad_return (sigma2 x) else (sigma2 x) *)
+  trans Delta (sigma1 x) = sigma2 x
+  (* if Delta x then monad_return (sigma2 x) else (sigma2 x) *)
   .
 
 
 Lemma trans_ids:
   forall Delta,
-  transs Delta ids ids.
+  transs Delta ids (fun x => trans Delta (ids x)).
 Proof.
   unfold transs.
   induction x; eauto; asimpl.
-Abort.
+Qed.
 
 Lemma trans_cons:
   forall Delta t u sigma1 sigma2,
@@ -279,17 +280,16 @@ Proof.
   intros [|x]; asimpl; eauto.
 Qed.
 
+(* this lemma does not hold. *)
 Lemma trans_up:
   forall Delta sigma1 sigma2,
   transs Delta sigma1 sigma2 ->
   transs Delta (up sigma1) (up sigma2).
 Proof.
-  intros. eapply trans_cons; eauto.
+  intros; eapply trans_cons; eauto.
   2: {
     unfold transs; intros; asimpl; eapply trans_te_renaming.
-    
-
-Admitted.
+Abort.
 
 
 (* First the propertie on transs should satisfy this : *)
@@ -312,7 +312,7 @@ Proof.
 
 
   admit.
-Admitted.
+Abort.
 
 
 
@@ -355,8 +355,13 @@ Lemma trans_te_substitution:
   trans Delta t.[sigma1] = (trans Delta t).[sigma2].
 Proof.
   intros Delta t. gen Delta.
-  induction t; intros; subst; asimpl; eauto using trans_up with jt.
-  * (* FAUX! *) asimpl. admit.
+  induction t using term_ind'; intros; subst; asimpl; eauto using trans_cons with jt.
+  * unfold transs in H. asimpl.
+    remember (Delta x).
+    induction b; subst.
+    asimpl.
+    unfold transs in H.
+    rewrite H.
   * unfold_monad.
     asimpl.
     repeat fequal.
