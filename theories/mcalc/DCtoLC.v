@@ -2,6 +2,7 @@
 Require Import DCSyntax.
 Require Import LCSyntax.
 Require Import DCFreeVars.
+Require Import DCValuesRes.
 
 Require Import STLCDefinition.
 
@@ -57,6 +58,8 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
         (L.EApp (lift 1 (L.EVar 0)) (L.EVar 0))
       ) 
     )
+  | D.App f arg =>
+    monad_bind (trans Delta f) (monad_bind (lift 1 (trans Delta arg)) (L.EApp (lift 1 (L.EVar 0)) (L.EVar 0)))
   | D.Default es ej ec =>
     monad_handle
       (List.map (trans Delta) es)
@@ -69,7 +72,6 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
   | Conflict => L.EPanic EConflict
 
   (* | D.BinOp op t1 t2 => L.EPanic L.ECompile*)
-  | D.App _ _ => L.EPanic L.ECompile
   end.
 (* end snippet dc2lc_trans *)
 
@@ -79,6 +81,8 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
 Require Import STDCDefinition.
 Module DT := STDCDefinition.
 Module LT := STLCDefinition.
+
+Module DVR := DCValuesRes.
 
 Require Import Program.
 
@@ -123,7 +127,14 @@ Proof.
       intros; induction x; simpl; eauto.
     }
   * simpl trans.
-    induction t1; try solve [repeat econstructor].
+    induction t1; try solve [repeat econstructor|
+    (* general case *)
+    repeat eapply JTmonad_bind;
+    solve
+      [ eapply IHjt1
+      | eapply jt_te_renaming_0;eapply IHjt2
+      | repeat econstructor ]
+    ].
     (* We consider all the cases for App. *)
     - (* First case : App (Var x) _. Either Delta x is true or false. *)
       remember (Delta x) as b.
