@@ -8,6 +8,9 @@ Require Import STLCDefinition.
 
 Require Import MyTactics.
 
+Tactic Notation "admit" := admit.
+Tactic Notation "admit" string(x):= admit.
+
 
 Module D := DCSyntax.
 Module L := LCSyntax.
@@ -218,8 +221,18 @@ Proof.
     introv [Gamma [T Hty]] Hval Hsigma.
     asimpl.
     induction t1; asimpl; eauto.
-    - specialize Hval with x; remember (sigma1 x); induction t; tryfalse.
-      4:{ }
+    - assert (Hvalx: is_value_res (sigma1 x)) by eapply Hval.
+      remember (sigma1 x); induction t; tryfalse.
+      2:{
+        asimpl; unfold_monad. remember (Delta x). induction b; asimpl.
+        * admit "impossible case: x could not be true. We need to modify the invariants on the substitutions for it to work.".
+        * rewrite <- Hsigma; rewrite <- Heqt; asimpl; unfold_monad.
+          do 2 f_equal.
+          erewrite IHt2; try eauto with jt; asimpl; eauto.
+          inverts Hty; exists Gamma T0; eauto.
+        }
+      4:{ (* Typing error: Const b has type bool where is it supposed to have type A -> B. *)
+      }
 
     - unfold_monad. (* this is basicly the same thing as IHt1 and IHt2. But requires a little more work, since IHt1 is specialized on Lambda *)
       erewrite IHt2; eauto. repeat f_equal.
@@ -522,8 +535,6 @@ Tactic Notation "consider" uconstr(E) :=
     [_:  context [E] |- _ ] =>
     idtac end.
 
-Tactic Notation "admit" := admit.
-Tactic Notation "admit" string(x):= admit.
 
 
 Tactic Notation "pick" uconstr(R) ltac(k) :=
