@@ -4,6 +4,7 @@ Require Import LCSyntax.
 Require Import DCFreeVars.
 Require Import DCValuesRes.
 
+Require Import DCValues.
 Require Import STLCDefinition.
 
 Require Import MyTactics.
@@ -11,6 +12,18 @@ Require Import MyTactics.
 Tactic Notation "admit" := admit.
 Tactic Notation "admit" string(x):= admit.
 
+
+Notation "'is_nerror' t" :=
+  (match t with
+  | Conflict | Empty => False
+  | _ => True
+  end) (at level 70).
+
+Notation "'is_error' t" :=
+  (match t with
+  | Conflict | Empty => True
+  | _ => False
+  end) (at level 70).
 
 Module D := DCSyntax.
 Module L := LCSyntax.
@@ -59,10 +72,10 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
     else (monad_bind (L.EVar f)
       (monad_bind (lift 1 (trans Delta arg))
         (L.EApp (lift 1 (L.EVar 0)) (L.EVar 0))
-      ) 
+      )
     )
-  | D.App f arg =>
-    monad_bind (trans Delta f) (monad_bind (lift 1 (trans Delta arg)) (L.EApp (lift 1 (L.EVar 0)) (L.EVar 0)))
+  (* | D.App f arg =>
+    monad_bind (trans Delta f) (monad_bind (lift 1 (trans Delta arg)) (L.EApp (lift 1 (L.EVar 0)) (L.EVar 0))) *)
   | D.Default es ej ec =>
     monad_handle
       (List.map (trans Delta) es)
@@ -73,7 +86,7 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
   | Empty =>
     monad_empty
   | Conflict => L.EPanic EConflict
-
+  | D.App _ _ => L.EPanic ECompile
   (* | D.BinOp op t1 t2 => L.EPanic L.ECompile*)
   end.
 (* end snippet dc2lc_trans *)
@@ -208,30 +221,43 @@ Proof.
   }
 Abort.
 
+Definition well_typed t :=
+  exists Gamma T, jt Gamma t T.
+
 Theorem trans_te_substitution:
   forall t Delta,
   forall sigma1 sigma2,
-  (exists Gamma T, jt Gamma t T) ->
+  (exists Gamma T, jt Gamma t T /\ jt Gamma t.[sigma1] T) ->
   (forall x, is_value_res (sigma1 x)) ->
+  (forall x, is_nerror (sigma1 x)) ->
   (forall x, trans Delta (sigma1 x) = sigma2 x) ->
   trans Delta t.[sigma1] = (trans Delta t).[sigma2].
 Proof.
   induction t using term_ind'.
   3: {
-    introv [Gamma [T Hty]] Hval Hsigma.
-    asimpl.
-    induction t1; asimpl; eauto.
-    - assert (Hvalx: is_value_res (sigma1 x)) by eapply Hval.
-      remember (sigma1 x); induction t; tryfalse.
-      2:{
-        asimpl; unfold_monad. remember (Delta x). induction b; asimpl.
-        * admit "impossible case: x could not be true. We need to modify the invariants on the substitutions for it to work.".
-        * rewrite <- Hsigma; rewrite <- Heqt; asimpl; unfold_monad.
-          do 2 f_equal.
-          erewrite IHt2; try eauto with jt; asimpl; eauto.
-          inverts Hty; exists Gamma T0; eauto.
+    introv [Gamma [T [Hty Htysigma]]] Hval Hnerr Hsigma.
+    induction t1; try solve [asimpl; eauto].
+    - 
+      assert (Hvalx: is_value_res (sigma1 x)) by eapply Hval.
+      assert (Hnerrx: is_nerror (sigma1 x)) by eapply Hnerr.
+      asimpl; remember (sigma1 x); induction t; try clear IHt; tryfalse.
+      2:{ false.
+          admit "then x has type bool, and this is not possible.".
         }
-      4:{ (* Typing error: Const b has type bool where is it supposed to have type A -> B. *)
+      1:{
+        asimpl.
+        remember (Delta x).
+        induction b; asimpl; unfold_monad.
+        - erewrite IHt2; eauto. 2:{ admit "typing of t2 is trivial". }
+          rewrite <- Hsigma; rewrite <- Heqt.
+          asimpl.
+          repeat f_equal.
+          admit "this is not even well typed".
+        - erewrite <- Hsigma; rewrite <- Heqt. asimpl; unfold_monad.
+      }
+      {
+
+
       }
 
     - unfold_monad. (* this is basicly the same thing as IHt1 and IHt2. But requires a little more work, since IHt1 is specialized on Lambda *)
