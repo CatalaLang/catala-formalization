@@ -224,10 +224,17 @@ Abort.
 Definition well_typed t :=
   exists Gamma T, jt Gamma t T.
 
+Hypothesis iota_equality: forall t1 t2,
+  EMatch (EVariantSome t1)  EVariantNone t2 = t2.[t1/].
+
+Hypothesis eta_equality: forall t1,
+  EApp (ELam t1) (ids 0) = t1. 
+
 Theorem trans_te_substitution:
   forall t Delta,
   forall sigma1 sigma2,
-  (exists Gamma T, jt Gamma t T /\ jt Gamma t.[sigma1] T) ->
+  (exists Gamma T, jt Gamma t T) ->
+  (exists Gamma T, jt Gamma t.[sigma1] T) ->
   (forall x, is_value_res (sigma1 x)) ->
   (forall x, is_nerror (sigma1 x)) ->
   (forall x, trans Delta (sigma1 x) = sigma2 x) ->
@@ -235,7 +242,7 @@ Theorem trans_te_substitution:
 Proof.
   induction t using term_ind'.
   3: {
-    introv [Gamma [T [Hty Htysigma]]] Hval Hnerr Hsigma.
+    introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr Hsigma.
     induction t1; try solve [asimpl; eauto].
     - 
       assert (Hvalx: is_value_res (sigma1 x)) by eapply Hval.
@@ -248,20 +255,29 @@ Proof.
         asimpl.
         remember (Delta x).
         induction b; asimpl; unfold_monad.
-        - erewrite IHt2; eauto. 2:{ admit "typing of t2 is trivial". }
+        - erewrite IHt2; eauto.
+            2:{ inverts Hty; eauto. }
+            2:{ inverts Hty'; eauto. }
           rewrite <- Hsigma; rewrite <- Heqt.
           asimpl.
           repeat f_equal.
           admit "this is not even well typed".
-        - erewrite <- Hsigma; rewrite <- Heqt. asimpl; unfold_monad.
+        - erewrite IHt2; eauto.
+          2:{ inverts Hty; eauto. }
+          2:{ inverts Hty'; eauto. }
+
+          (* alectryon mark *)
+
+         erewrite <- Hsigma; rewrite <- Heqt. asimpl; unfold_monad.
+         rewrite iota_equality; asimpl.
+         rewrite eta_equality; asimpl.
+         repeat f_equal.
+
+          admit.
       }
-      {
-
-
-      }
-
-    - unfold_monad. (* this is basicly the same thing as IHt1 and IHt2. But requires a little more work, since IHt1 is specialized on Lambda *)
-      erewrite IHt2; eauto. repeat f_equal.
+    - asimpl; unfold_monad.
+      (* this is basicly the same thing as IHt1 and IHt2. But requires a little more work, since IHt1 is specialized on Lambda *)
+      erewrite IHt2; eauto. 2:{ inverts Hty. inverts Htysigma. } repeat f_equal.
       admit.
   }
 
