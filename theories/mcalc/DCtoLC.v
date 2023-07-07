@@ -172,11 +172,50 @@ Qed.
 Require Import FunInd.
 
 
-(* does not work because of List.map in translate. *)
-Fail Generate graph for trans.
+(******************************************************************************)
 
-Fail Functional Scheme trans_ind := Induction for trans Sort Prop.
-Fail Check trans_ind.
+
+(* The goal of this part is to prove a substitution lemma for trans *)
+
+Theorem trans_te_substitution:
+  forall Delta t,
+  forall sigma1 sigma2,
+  (forall x,  trans Delta (sigma1 x) = sigma2 x) ->
+  trans Delta t.[sigma1] = (trans Delta t).[sigma2].
+Proof.
+  induction t using term_ind'; intros; asimpl.
+  3: { (* Here, if t1 is a variable, then the right hand side reduces to [if Delta f then ...] while the left hand side might reduce to something like an application. In this case, the translation would be a an compilation error. 
+  
+  Hence this theorem does not hold in general. But do we need it in all generality?
+  
+  This theorem is used in the simulation diagram in the case of beta-reduction. And since we are in call by value, substitution must happend on values only. Hence, for all x, [sigma1 x] is a value. This reduces greatly the difficulties.
+  *)
+  admit.
+  }
+Abort.
+
+Theorem trans_te_substitution:
+  forall t Delta,
+  forall sigma1 sigma2,
+  (exists Gamma T, jt Gamma t T) ->
+  (forall x, is_value_res (sigma1 x)) ->
+  (forall x, trans Delta (sigma1 x) = sigma2 x) ->
+  trans Delta t.[sigma1] = (trans Delta t).[sigma2].
+Proof.
+  induction t using term_ind'.
+  3: {
+    introv [Gamma [T Hty]] Hval Hsigma.
+    asimpl.
+    induction t1; asimpl; eauto.
+    - specialize Hval with x; remember (sigma1 x); induction t; tryfalse.
+      4:{ }
+
+    - unfold_monad. (* this is basicly the same thing as IHt1 and IHt2. But requires a little more work, since IHt1 is specialized on Lambda *)
+      erewrite IHt2; eauto. repeat f_equal.
+      admit.
+  }
+
+(* The proof is as follows: by induction on t, we take a look into each of the cases. *)
 
 
 Lemma trans_te_renaming:

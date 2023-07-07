@@ -203,7 +203,7 @@ Global Hint Extern 1 (_ = _) => autosubst : autosubst.
 Global Hint Resolve scons_scomp : autosubst.
 
 (* -------------------------------------------------------------------------- *)
-
+(* 
 (* Autosubst support for coq-elpi *)
 
 From elpi Require Import derive.std.
@@ -238,6 +238,6 @@ Inductive term :=
 | Lam (t: annotation term 1).
 
 #[verbose,recursive,only(induction)] derive term.
-
+ *)
 
 (* -------------------------------------------------------------------------- *)
