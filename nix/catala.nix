@@ -1,6 +1,6 @@
 { lib
 , mkCoqDerivation
-, coq
+, coq-elpi
 , autosubst
 }:
 
@@ -13,6 +13,11 @@ mkCoqDerivation {
 
   propagatedBuildInputs = [
     autosubst
+    (lib.overrideCoqDerivation {
+      version="1.16.0";
+      release."1.16.0".sha256="rGDzZUpaeJeWOXCeJ5ArdVG2FXlAnez/6X+Sz1xKiKM=";
+    } coq-elpi)
+
   ];
 
   meta = {

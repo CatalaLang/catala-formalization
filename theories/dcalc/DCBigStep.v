@@ -320,12 +320,15 @@ Proof.
       | [ |- List.Forall2 _ ( _ ++ _ ) _] => eapply Forall2_app
       | [ |- List.Forall2 _ ( _ :: _ ) _] => eapply Forall2_cons
       end.
-      - eapply H4.
+      -eapply H4.
       eauto.
 
     }
-
+  saves.
 Qed.
+
+
+
 
 Lemma star_cbv_bigcbv:
   forall t v,

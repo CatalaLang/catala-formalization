@@ -203,3 +203,41 @@ Global Hint Extern 1 (_ = _) => autosubst : autosubst.
 Global Hint Resolve scons_scomp : autosubst.
 
 (* -------------------------------------------------------------------------- *)
+
+(* Autosubst support for coq-elpi *)
+
+From elpi Require Import derive.std.
+Set Uniform Inductive Parameters.
+
+
+Definition annotation (T2: Type) (n: nat) := T2.
+
+
+
+derive annotation.
+
+
+
+Definition is_annotation_functor
+	 : 
+       forall (T2 : Type) (P2a P2b : T2 -> Type),
+       (forall x : T2, P2a x -> P2b x) ->
+       forall (n : nat) (Pn : is_nat n) (x : annotation T2 n),
+       is_annotation  T2 P2a n Pn x -> is_annotation T2 P2b n Pn x
+. trivial. Defined.
+
+
+Elpi Accumulate derive lp:{{
+  param1-functor-db {{ is_annotation lp:T lp:P }} {{ is_annotation lp:T lp:Q }}
+                    {{ is_annotation_functor lp:T lp:P lp:Q lp:H }} :-
+                    param1-functor-db P Q H.
+}}.
+
+Inductive term :=
+| Dummy (x: bool)
+| Lam (t: annotation term 1).
+
+#[verbose,recursive,only(induction)] derive term.
+
+
+(* -------------------------------------------------------------------------- *)

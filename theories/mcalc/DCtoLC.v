@@ -32,6 +32,7 @@ Definition trans_ctx := var -> bool.
 
 (* Defintion mmap t f := MBind arg (f (D.Var 0)) *)
 
+(* begin snippet dc2lc_trans *)
 Fixpoint trans (Delta: trans_ctx) t { struct t } :=
   match t with
   | D.Var x =>
@@ -70,6 +71,8 @@ Fixpoint trans (Delta: trans_ctx) t { struct t } :=
   (* | D.BinOp op t1 t2 => L.EPanic L.ECompile*)
   | D.App _ _ => L.EPanic L.ECompile
   end.
+(* end snippet dc2lc_trans *)
+
 
 (** translation correction *)
 
@@ -405,6 +408,83 @@ Definition lcbv := LCReduction.cbv.
 Inductive no_compile_error: term -> Prop :=
 .
 
+
+Declare Scope latex_scope.
+
+Notation "'\left\llbracket' t '\right\rrbracket^{' Delta '}'" := (trans Delta t) : latex_scope.
+
+Notation "'\mathtt{true}'" := (true): latex_scope.
+Notation "'\mathtt{false}'" := (false): latex_scope.
+Notation "t '.\left[' sigma '\right]'" := (t.[sigma]) (at level 100, no associativity): latex_scope.
+
+Notation "a '\to' b" := (lcbv a b) (at level 100, no associativity): latex_scope.
+Notation "a '\to^*' b" := (star lcbv a b) (at level 100, no associativity): latex_scope.
+
+Notation "'\synreturn' t" := (monad_return t) (at level 100): latex_scope.
+
+(* Open Scope latex_scope. *)
+
+Print Scopes.
+
+
+Lemma bind_ret_star_cbv v t:
+  LCValues.is_value v ->
+  star cbv
+    (monad_bind (monad_return v) t)
+    t.[v/].
+Proof.
+  intros.
+  eapply star_one.
+  unfold monad_bind, monad_return.
+  eapply RedEMatchSomeV; asimpl; try eauto.
+Qed.
+
+Lemma trans_te_substitution_0_true (t v: DCSyntax.term) Delta:
+  (trans (true .: Delta) t).[(trans (fun i => true) v)/] = trans Delta (t.[v/]).
+  (* This is an instance of the more general *)
+Proof.
+  intros.
+  asimpl.
+Admitted.
+
+Lemma trans_te_substitution_0_false (t v: DCSyntax.term) Delta:
+  (trans (false .: Delta) t).[(trans (fun i => true) v)/] = trans Delta (t.[v/]).
+  (* This is an instance of the more general *)
+Proof.
+  intros.
+  asimpl.
+Admitted.
+
+
+
+
+Lemma trans_correct_bind_const Delta b t:
+  (monad_bind (monad_return (L.OConst b)) (trans (true .: Delta) t)) = (trans Delta t).[EOp (L.OConst b)/].
+Proof.
+  unfold monad_bind, monad_return.
+  
+Admitted.
+
+
+
+Tactic Notation "consider" uconstr(E) :=
+  match goal with
+    [_:  context [E] |- _ ] =>
+    idtac end.
+
+Tactic Notation "admit" := admit.
+Tactic Notation "admit" string(x):= admit.
+
+
+Tactic Notation "pick" uconstr(R) ltac(k) :=
+  match goal with
+  |[h : context [R] |-_ ] => k h
+  end.
+
+Tactic Notation "save" uconstr(E) "as" ident(x) :=
+  match goal with [ h: context [E] |- _ ] => rename h into x end.
+
+
 Lemma trans_correct t1 t2 Gamma T:
   jt Gamma t1 T ->
   forall Delta,
@@ -415,12 +495,31 @@ Lemma trans_correct t1 t2 Gamma T:
     star lcbv (trans Delta t1) target /\
     star lcbv (trans Delta t2) target.
 Proof.
-  induction 3; tryfalse; intros; unpack.
+  intros Hjt Delta Hcompil Hdcbv.
+  revert Hdcbv Gamma T Hjt Delta Hcompil.
+
+
+  induction 1; tryfalse; intros; unpack.
   * subst; eexists; split.
     2:{ eapply star_refl. }
-    simpl; unfold_monad.
-    
-  * destruct (IHred Delta) as [target [Htarget1 Htarget2]].
+    simpl.
+    induction v; tryfalse.
+    - admit "Variable should not be values. Hence this case should not arise.".
+    - admit "More complicated version of the next case.".
+    - asimpl.
+      eapply star_one.
+      unfold monad_bind, monad_return, monad_empty.
+      eapply RedEMatchSomeV.
+      + trivial.
+      + reflexivity.
+      + unfold LCValues.is_value, LCValues.if_value; simpl.
+        admit "Error in the definition of what is a value in LCValues.".
+      + symmetry. eapply trans_te_substitution.
+        admit "This is an instance of trans_te_substitution_0 for both relations with the ite ".
+  * inv jt.
+    assert (no_compile_error (trans Delta t1)). { admit. }
+
+    destruct (IHred ) as [target [Htarget1 Htarget2]].
     exists (EApp target (trans Delta u)).
     split; eapply star_one; asimpl.
     all: admit.
