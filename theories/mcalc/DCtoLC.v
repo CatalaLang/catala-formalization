@@ -225,10 +225,10 @@ Definition well_typed t :=
   exists Gamma T, jt Gamma t T.
 
 Hypothesis iota_equality: forall t1 t2,
-  EMatch (EVariantSome t1)  EVariantNone t2 = t2.[t1/].
+  EMatch (EVariantSome t1) EVariantNone t2 = t2.[t1/].
 
-Hypothesis eta_equality: forall t1,
-  EApp (ELam t1) (ids 0) = t1. 
+Hypothesis eta_equality: forall t1 t2,
+  EApp (ELam t1) t2 = t1.[t2/].
 
 Theorem trans_te_substitution:
   forall t Delta,
@@ -240,22 +240,27 @@ Theorem trans_te_substitution:
   (forall x, trans Delta (sigma1 x) = sigma2 x) ->
   trans Delta t.[sigma1] = (trans Delta t).[sigma2].
 Proof.
-  induction t using term_ind'.
+  induction t using term_ind'; try eauto.
   3: {
     introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr Hsigma.
     induction t1; try solve [asimpl; eauto].
-    - 
+    - (* Case [App (Var x) _] *) 
       assert (Hvalx: is_value_res (sigma1 x)) by eapply Hval.
       assert (Hnerrx: is_nerror (sigma1 x)) by eapply Hnerr.
       asimpl; remember (sigma1 x); induction t; try clear IHt; tryfalse.
       2:{ false.
-          admit "then x has type bool, and this is not possible.".
+          inverts Hty'.
+          rewrite <- Heqt in H2.
+          inverts H2.
+          (* admit "Then x has type bool, and this is not possible since it must have type TyArrow.". *)
         }
       1:{
         asimpl.
         remember (Delta x).
         induction b; asimpl; unfold_monad.
-        - erewrite IHt2; eauto.
+        - (* First case: (Delta x) is true. Hence, x is pure.
+             In this case, *)
+          erewrite IHt2; eauto.
             2:{ inverts Hty; eauto. }
             2:{ inverts Hty'; eauto. }
           rewrite <- Hsigma; rewrite <- Heqt.
@@ -266,23 +271,54 @@ Proof.
           2:{ inverts Hty; eauto. }
           2:{ inverts Hty'; eauto. }
 
-          (* alectryon mark *)
-
-         erewrite <- Hsigma; rewrite <- Heqt. asimpl; unfold_monad.
-         rewrite iota_equality; asimpl.
-         rewrite eta_equality; asimpl.
-         repeat f_equal.
-
-          admit.
+          erewrite <- Hsigma. rewrite <- Heqt. asimpl; unfold_monad.
+          rewrite iota_equality; asimpl.
+          rewrite eta_equality; asimpl.
+          repeat f_equal.
       }
     - asimpl; unfold_monad.
-      (* this is basicly the same thing as IHt1 and IHt2. But requires a little more work, since IHt1 is specialized on Lambda *)
-      erewrite IHt2; eauto. 2:{ inverts Hty. inverts Htysigma. } repeat f_equal.
-      admit.
+      
+      repeat f_equal.
+      * (* by IHt2, [trans Delta t2.[sigma1] = (trans Delta t2).[sigma2]] *)
+        erewrite IHt2; eauto.
+        { inverts Hty. inverts Hty'. exists Gamma T0. eauto. }
+        { inverts Hty. inverts Hty'. exists Gamma' T1. eauto. }
+      * (* by IHt1, [trans Delta (Lam t).[sigma1] = (trans Delta (Lam t)).[sigma2]]. *)
+        assert (trans Delta (Lam t).[sigma1] = (trans Delta (Lam t)).[sigma2]).
+        { eapply IHt1; eauto; inverts Hty; inverts Hty'.
+          { exists Gamma (TyFun T0 T); eauto. }
+          { exists Gamma' (TyFun T1 T'); eauto. }
+        }
+        asimpl in H.
+        injections; eauto.
   }
+  3: {
+    introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr Hsigma.
+    assert (Hts: List.map (trans Delta) ts..[sigma1] = (List.map (trans Delta) ts)..[sigma2]).
+    { admit "by IHts". }
+    assert (Ht1: trans Delta t1.[sigma1] = (trans Delta t1).[sigma2]).
+    { admit "by IHt1". }
+    assert (Ht2: trans Delta t2.[sigma1] = (trans Delta t2).[sigma2]).
+    { admit "by IHt2". }
 
-(* The proof is as follows: by induction on t, we take a look into each of the cases. *)
+    asimpl.
+    rewrite Hts, Ht1, Ht2.
+    rewrite subst_monad_handle.
+    eauto.
+  }
+  2: {
+    introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr Hsigma.
+    asimpl.
+    unfold_monad. repeat fequal.
+    eapply IHt; eauto.
+    assert (trans Delta (Lam t).[sigma1] = (trans Delta (t)).[sigma2]).
+    { 
+    }
+    asimpl in H.
+    injections; eauto.
 
+    admit "same as case App (Lam _) _".
+  }
 
 Lemma trans_te_renaming:
   forall Delta t u,
