@@ -4,10 +4,7 @@ Require Import Coq.ZArith.ZArith.
 
 
 
-Inductive value :=
-    | Bool (b: bool)
-    | Int (i: Z.t)
-.
+
 
 Inductive op :=
     | Add
@@ -20,11 +17,15 @@ Inductive term :=
     | App (t1 t2: term)
     | Lam (t: {bind term})
     | Default (ts: list term) (tj tc: term)
+        (* induction principle is not strong enought on the default. But this is known. *)
     | Empty
     | Conflict
 
     | Value (v: value)
     | Binop (op: op) (t1 t2: term)
-    .
 
-
+with value :=
+    | Bool (b: bool)
+    | Int (i: Z.t)
+    | Closure (t: term) (sigma: var -> value)
+.
