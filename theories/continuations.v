@@ -29,8 +29,8 @@ Inductive cred: state -> state -> Prop :=
     | cred_var:
         (* $\leval \synvar x, \kappa, \sigma \reval \leadsto \lcont\kappa, \sigma, \sigma(x) \rcont$ *)
 
-        forall x kappa sigma v,
-        cred (mode_eval (Var x) kappa sigma) (mode_cont kappa sigma (RValue v))
+        forall x kappa sigma,
+        cred (mode_eval (Var x) kappa sigma) (mode_cont kappa sigma (RValue (sigma x)))
 
     | cred_app:
         (* $\leval e_1\ e_2, \kappa, \sigma \reval \leadsto \leval e_1, (\square\ e_2) \cons \kappa, \sigma \reval $ *)
@@ -133,4 +133,24 @@ Inductive cred: state -> state -> Prop :=
             (mode_cont (phi::kappa) sigma RConflict)
             (mode_cont kappa sigma RConflict)
 .
+
+Tactic Notation "admit" := admit.
+Tactic Notation "admit" string(x):= admit.
+
+
+
+Theorem cred_deterministic (s s1' s2': state):
+    cred s s1' -> cred s s2' -> s1' = s2'.
+Proof.
+    induction 1; inversion 1; subst; eauto.
+    (* All the cases are quite the same: we know the top of the stack is not an Default, but the top of the stack is a default. Hence there is a contradiction. *)
+    * specialize H4 with o (th::ts) tj tc. destruct H4. eauto.
+    * specialize H4 with (Some v) ([]) tj tc. destruct H4. eauto.
+    * specialize H4 with None [] tj tc. destruct H4. eauto.
+    * specialize H with o (th::ts) tj tc. destruct H. eauto.
+    * specialize H with (Some v) ([]) tj tc. destruct H. eauto.
+    * specialize H with None [] tj tc. destruct H. eauto.
+Qed.
+
+
 
