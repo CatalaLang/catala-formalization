@@ -30,31 +30,37 @@ Inductive cred: state -> state -> Prop :=
         (* $\leval \synvar x, \kappa, \sigma \reval \leadsto \lcont\kappa, \sigma, \sigma(x) \rcont$ *)
 
         forall x kappa sigma,
-        cred (mode_eval (Var x) kappa sigma) (mode_cont kappa sigma (RValue (sigma x)))
+        cred
+            (mode_eval (Var x) kappa sigma)
+            (mode_cont kappa sigma (RValue (sigma x)))
 
     | cred_app:
         (* $\leval e_1\ e_2, \kappa, \sigma \reval \leadsto \leval e_1, (\square\ e_2) \cons \kappa, \sigma \reval $ *)
         forall t1 t2 kappa sigma,
-        cred (mode_eval (App t1 t2) kappa sigma) (mode_eval t1 ((CAppR t2) :: kappa) sigma)
+        cred
+            (mode_eval (App t1 t2) kappa sigma)
+            (mode_eval t1 ((CAppR t2) :: kappa) sigma)
     
     | cred_clo:
         (* $\leval \lambda x. t, \kappa, \sigma \reval \leadsto \lcont\kappa, \sigma, Clo (x, t, \sigma) \rcont$ *)
         forall t kappa sigma,
-        cred (mode_eval (Lam t) kappa sigma) (mode_cont kappa sigma (RValue (Closure t sigma)))
+        cred
+            (mode_eval (Lam t) kappa sigma)
+            (mode_cont kappa sigma (RValue (Closure t sigma)))
 
-
-    
     | cred_arg:
         (* $\lcont (\square\ e_2) \cons \kappa, \sigma, Clo (x, t_{cl}, \sigma_{cl}) \rcont \leadsto \leval e_2, (Clo(x, t_{cl}, \sigma_{cl})\ \square) \cons \kappa, \sigma \reval$ *)
-
         forall t2 kappa sigma tcl sigmacl,
-        cred (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl))) (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
+        cred
+            (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl)))
+            (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
 
     | cred_beta:
         (* $\lcont(Clo(x, t_{cl}, \sigma_{cl})\ \square) \cons \kappa, \sigma, v \rcont \leadsto \leval t_{cl}, \kappa, (x\mapsto v) \cons\sigma_{cl} \reval$ *)
         forall tcl sigmacl kappa sigma v, 
-        cred (mode_cont ((CClosure tcl sigmacl)::kappa) sigma (RValue v))
-             (mode_eval tcl kappa  (v .: sigmacl))
+        cred
+            (mode_cont ((CClosure tcl sigmacl)::kappa) sigma (RValue v))
+            (mode_eval tcl kappa  (v .: sigmacl))
 
 
     | cred_default:
@@ -132,11 +138,20 @@ Inductive cred: state -> state -> Prop :=
         cred
             (mode_cont (phi::kappa) sigma RConflict)
             (mode_cont kappa sigma RConflict)
+    | cred_confict_intro:
+        forall kappa sigma,
+        cred
+            (mode_eval Conflict kappa sigma)
+            (mode_cont kappa sigma RConflict)
+    | cred_empty_intro:
+        forall kappa sigma,
+        cred
+            (mode_eval Empty kappa sigma)
+            (mode_cont kappa sigma REmpty)
 .
 
 Tactic Notation "admit" := admit.
 Tactic Notation "admit" string(x):= admit.
-
 
 
 Theorem cred_deterministic (s s1' s2': state):
@@ -151,6 +166,3 @@ Proof.
     * specialize H with (Some v) ([]) tj tc. destruct H. eauto.
     * specialize H with None [] tj tc. destruct H. eauto.
 Qed.
-
-
-

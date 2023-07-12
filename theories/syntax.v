@@ -2,10 +2,6 @@ Require Export Autosubst.Autosubst.
 Require Import String.
 Require Import Coq.ZArith.ZArith.
 
-
-
-
-
 Inductive op :=
     | Add
     | Eq
@@ -13,7 +9,7 @@ Inductive op :=
 
 Inductive term :=
     | Var (x: var)
-    | FreeVar (x: string)
+    | FreeVar (x: string) (* external variables *)
     | App (t1 t2: term)
     | Lam (t: {bind term})
     | Default (ts: list term) (tj tc: term)
