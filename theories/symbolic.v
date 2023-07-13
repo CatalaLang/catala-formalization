@@ -1,4 +1,4 @@
-From Coq Require Import List String ZArith.
+From Coq Require Import List String ZArith FunctionalExtensionality.
 From Autosubst Require Import Autosubst.
 From Catala Require Import syntax continuations.
 Import ListNotations.
@@ -266,6 +266,17 @@ Inductive similar (env : string -> value) : state -> sym_state -> Prop :=
         similar env (mode_cont kappa sigma r) (sym_mode_cont sym_kappa phi sym_sigma sym_r)
     .
 
+(* Lemma eval_sym_expr_closure:
+    forall tcl sigmacl e env,
+        Closure tcl sigmacl = eval_sym_expr e env ->
+        exists sym_sigmacl,
+            e = Sclo tcl sym_sigmacl /\
+            similar_env env sigmacl sym_sigmacl.
+Proof.
+    intros.
+    induction e; try easy; simpl in *.
+    - eexists. *)
+
 (**
     Every concrete transition can be simulated
     by a symbolic one
@@ -278,4 +289,35 @@ Theorem sym_cred_complete:
             similar env s2 sym_s2 /\ sym_cred sym_s1 sym_s2.
 Proof.
     intros * Hsim1 Hred.
+    induction Hred.
+    - inversion Hsim1; subst.
+        now repeat econstructor.
+    - inversion Hsim1; subst.
+        now repeat econstructor.
+    - inversion Hsim1; subst.
+        repeat econstructor; eauto.
+        unfold similar_value. simpl.
+        f_equal. now apply functional_extensionality.
+    - inversion Hsim1; subst.
+        inversion H2; subst.
+        inversion H5; subst.
+        inversion H1; subst.
+        inversion H0; subst.
+        (* AAHA we have a problem if some free vars evaluate to closures *)
+        admit.
+    - inversion Hsim1; subst.
+        admit.
+    - inversion Hsim1; subst.
+        admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
 Admitted.
