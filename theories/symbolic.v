@@ -1,6 +1,6 @@
 From Coq Require Import List String ZArith.
 From Autosubst Require Import Autosubst.
-From Catala Require Import syntax.
+From Catala Require Import syntax continuations.
 Import ListNotations.
 
 (** Symbolic expressions *)
@@ -13,6 +13,19 @@ Inductive sym_expr :=
     | Sempty
     | Sconflict.
 
+Fixpoint eval_sym_expr (e : sym_expr) (env : string -> value) : result :=
+    match e with
+    | Sbool b => RValue (Bool b)
+    | Sint i => RValue (Int i)
+    | Svar s => RValue (env s)
+    | Sadd e1 e2 =>
+        match eval_sym_expr e1 env, eval_sym_expr e2 env with
+        | RValue (Int i1), RValue (Int i2) =>RValue (Int (i1 + i2)%Z)
+        | _, _ => RConflict
+        end
+    | _ => RConflict
+    end.
+
 (** Symbolic continuations *)
 Inductive sym_cont :=
     | SCAppL (t1 : term) (* [ t1 \square ] *)
@@ -24,9 +37,10 @@ Inductive sym_cont :=
 
 (** Symbolic constraints *)
 Inductive sym_constraint :=
-    | OneOf (l : list sym_expr) (* only one expression is not empty *)
     | Eq (e1 e2 : sym_expr)
-    | Ne (e1 e2 : sym_expr)
+    | And (c1 c2 : sym_constraint)
+    | Or (c1 c2 : sym_constraint)
+    | Not (c : sym_constraint)
     .
 
 (** Symbolic paths *)
@@ -61,6 +75,7 @@ Inductive sym_cred: sym_state -> sym_state -> Prop :=
         sym_cred
             (sym_mode_eval (Lam t) kappa phi sigma)
             (sym_mode_cont kappa phi sigma ((Sclo t sigma))).
+
 (* 
     | cred_arg:
         (* $\lcont (\square\ e_2) \cons \kappa, \sigma, Clo (x, t_{cl}, \sigma_{cl}) \rcont \leadsto \leval e_2, (Clo(x, t_{cl}, \sigma_{cl})\ \square) \cons \kappa, \sigma \reval$ *)
