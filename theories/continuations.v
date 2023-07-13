@@ -155,14 +155,84 @@ Tactic Notation "admit" string(x):= admit.
 
 
 Theorem cred_deterministic (s s1' s2': state):
-    cred s s1' -> cred s s2' -> s1' = s2'.
+  cred s s1' -> cred s s2' -> s1' = s2'.
 Proof.
-    induction 1; inversion 1; subst; eauto.
-    (* All the cases are quite the same: we know the top of the stack is not an Default, but the top of the stack is a default. Hence there is a contradiction. *)
-    * specialize H4 with o (th::ts) tj tc. destruct H4. eauto.
-    * specialize H4 with (Some v) ([]) tj tc. destruct H4. eauto.
-    * specialize H4 with None [] tj tc. destruct H4. eauto.
-    * specialize H with o (th::ts) tj tc. destruct H. eauto.
-    * specialize H with (Some v) ([]) tj tc. destruct H. eauto.
-    * specialize H with None [] tj tc. destruct H. eauto.
+  induction 1; inversion 1; subst; eauto.
+  (* All the cases are quite the same: we know the top of the stack is not an Default, but the top of the stack is a default. Hence there is a contradiction. *)
+  * specialize H4 with o (th::ts) tj tc. destruct H4. eauto.
+  * specialize H4 with (Some v) ([]) tj tc. destruct H4. eauto.
+  * specialize H4 with None [] tj tc. destruct H4. eauto.
+  * specialize H with o (th::ts) tj tc. destruct H. eauto.
+  * specialize H with (Some v) ([]) tj tc. destruct H. eauto.
+  * specialize H with None [] tj tc. destruct H. eauto.
+Qed.
+
+Definition stack_empty s :=
+  match s with
+  | mode_eval _ [] _ =>
+    true
+  | mode_cont [] _ _ =>
+    true
+  | _ => false
+  end.
+
+Require Import sequences.
+
+Check irred.
+
+Theorem cred_stack_empty_irred:
+  forall sigma v,
+    irred cred (mode_cont [] sigma v)
+.
+Proof.
+  repeat intro.
+  inversion H.
+Qed.
+
+Theorem cred_star_deterministc s sigma v :
+  star cred s (mode_cont [] sigma v) ->
+  forall sigma' v', star cred s (mode_cont [] sigma' v') ->
+  sigma = sigma' /\ v = v'.
+Proof.
+  intros.
+  assert (mode_cont [] sigma v = (mode_cont [] sigma' v')).
+  { eapply finseq_unique; eauto using cred_deterministic, cred_stack_empty_irred.
+  }
+  match goal with [h: mode_cont _ _ _ = mode_cont _ _ _ |- _] => injection h end; eauto.
+Qed.
+
+Definition append_stack s kappa2 :=
+  match s with
+  | mode_eval t kappa1 sigma =>
+    mode_eval t (kappa1++kappa2) sigma
+  | mode_cont kappa1 sigma v =>
+    mode_cont (kappa1++kappa2) sigma v
+  end
+.
+
+
+(* Main Lemma about stack extending *)
+Theorem append_stack_stable s s':
+  cred s s'
+  ->
+  forall k,
+  cred (append_stack s k) (append_stack s' k).
+Proof.
+  induction 1; intros; asimpl; try econstructor; eauto.
+Qed.
+
+Theorem append_stack_stable_star s s':
+  star cred s s'
+  ->
+  forall k,
+  star cred (append_stack s k) (append_stack s' k).
+Proof.
+  induction 1.
+  * eauto with sequences.
+  * intros.
+    eapply star_step.
+    { eapply append_stack_stable; eauto. }
+    { eapply IHstar. }
+Qed.
+Proof.
 Qed.
