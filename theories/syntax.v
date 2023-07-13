@@ -25,3 +25,10 @@ with value :=
     | Int (i: Z.t)
     | Closure (t: term) (sigma: var -> value)
 .
+
+Definition value_eqb (v1 v2 : value) : bool :=
+    match v1, v2 with
+    | Bool b1, Bool b2 => Bool.eqb b1 b2
+    | Int i1, Int i2 => Z.eqb i1 i2
+    | _, _ => false
+    end.

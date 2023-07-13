@@ -11,6 +11,11 @@ Inductive sym_expr :=
     | Sop (o : op) (e1 e2 : sym_expr)
     | Sclo (t: term) (sigma: var -> sym_expr).
 
+Inductive sym_result :=
+    | SRexpr (e : sym_expr)
+    | SRempty
+    | SRconflict.
+
 Fixpoint eval_sym_expr (e : sym_expr) (env : string -> value) : value :=
     match e with
     | Sbool b => Bool b
@@ -41,6 +46,7 @@ Inductive sym_cont :=
 (** Symbolic constraints *)
 Inductive sym_constraint :=
     | Eq (e1 e2 : sym_expr)
+    | IsTrue (e : sym_expr)
     | And (c1 c2 : sym_constraint)
     | Or (c1 c2 : sym_constraint)
     | Not (c : sym_constraint)
@@ -52,12 +58,31 @@ Definition sym_path := list sym_constraint.
 (** Symbolic stores *)
 Definition sym_store := var -> sym_expr.
 
+Fixpoint eval_sym_constraint (env : string -> value) (c : sym_constraint) :=
+    match c with
+    | Eq e1 e2 => value_eqb (eval_sym_expr e1 env) (eval_sym_expr e1 env)
+    | IsTrue e =>
+        match eval_sym_expr e env with
+        | Bool b => b
+        | _ => false
+        end
+    | And c1 c2 =>
+        (eval_sym_constraint env c1 && eval_sym_constraint env c2)%bool
+    | Or c1 c2 =>
+        (eval_sym_constraint env c1 || eval_sym_constraint env c2)%bool
+    | Not c =>
+        negb (eval_sym_constraint env c)
+    end.
+
+Definition eval_sym_path (env : string -> value) (p : sym_path) :=
+    forallb (eval_sym_constraint env) p.
+
 (** Symbolic states *)
 Inductive sym_state :=
     (* Symbolic evaluation mode *)
     | sym_mode_eval (e : term) (stack : list sym_cont) (path : sym_path) (env : sym_store)
     (* Symbolic continuation mode *)
-    | sym_mode_cont (stack : list sym_cont) (path : sym_path) (env : sym_store) (v : sym_expr).
+    | sym_mode_cont (stack : list sym_cont) (path : sym_path) (env : sym_store) (r : sym_result).
 
 
 Inductive sym_cred: sym_state -> sym_state -> Prop :=
@@ -65,7 +90,7 @@ Inductive sym_cred: sym_state -> sym_state -> Prop :=
         forall x kappa phi sigma,
         sym_cred
             (sym_mode_eval (Var x) kappa phi sigma)
-            (sym_mode_cont kappa phi sigma (sigma x))
+            (sym_mode_cont kappa phi sigma (SRexpr (sigma x)))
 
     | sym_cred_app:
         forall t1 t2 kappa phi sigma,
@@ -77,107 +102,180 @@ Inductive sym_cred: sym_state -> sym_state -> Prop :=
         forall t kappa phi sigma,
         sym_cred
             (sym_mode_eval (Lam t) kappa phi sigma)
-            (sym_mode_cont kappa phi sigma ((Sclo t sigma))).
+            (sym_mode_cont kappa phi sigma (SRexpr (Sclo t sigma)))
 
-(* 
-    | cred_arg:
-        (* $\lcont (\square\ e_2) \cons \kappa, \sigma, Clo (x, t_{cl}, \sigma_{cl}) \rcont \leadsto \leval e_2, (Clo(x, t_{cl}, \sigma_{cl})\ \square) \cons \kappa, \sigma \reval$ *)
-        forall t2 kappa sigma tcl sigmacl,
-        cred
-            (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl)))
-            (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
+    | sym_cred_arg:
+        forall t2 kappa phi sigma tcl sigmacl,
+        sym_cred
+            (sym_mode_cont ((SCAppR t2)::kappa) phi sigma (SRexpr (Sclo tcl sigmacl)))
+            (sym_mode_eval t2 ((SCClosure tcl sigmacl)::kappa) phi sigma)
 
-    | cred_beta:
-        (* $\lcont(Clo(x, t_{cl}, \sigma_{cl})\ \square) \cons \kappa, \sigma, v \rcont \leadsto \leval t_{cl}, \kappa, (x\mapsto v) \cons\sigma_{cl} \reval$ *)
-        forall tcl sigmacl kappa sigma v, 
-        cred
-            (mode_cont ((CClosure tcl sigmacl)::kappa) sigma (RValue v))
-            (mode_eval tcl kappa  (v .: sigmacl))
+    | sym_cred_beta:
+        forall tcl sigmacl kappa phi sigma v,
+        sym_cred
+            (sym_mode_cont ((SCClosure tcl sigmacl)::kappa) phi sigma (SRexpr v))
+            (sym_mode_eval tcl kappa phi (v .: sigmacl))
 
 
-    | cred_default:
-        (* $\leval \synlangle es \synmid e_j \synjust e_c \synrangle, \kappa, \sigma \reval \leadsto \lcont (\mathtt{Def}(\synnone, es, e_j, e_c)) \cons \kappa, \sigma, \synempty \rcont$ *)
-        
-        forall ts tj tc kappa sigma,
-        cred
-            (mode_eval (Default ts tj tc) kappa sigma)
-            (mode_cont ((CDefault None ts tj tc)::kappa) sigma REmpty)
+    | sym_cred_default:
+        forall ts tj tc kappa phi sigma,
+        sym_cred
+            (sym_mode_eval (Default ts tj tc) kappa phi sigma)
+            (sym_mode_cont ((SCDefault None ts tj tc)::kappa) phi sigma SRempty)
 
-    | cred_defaultunpack:
-        (* $\lcont \mathtt{Def}(o, e_h \cons es, e_j, e_c) \cons \kappa, \sigma, \synempty \rcont \leadsto \leval e_h, \mathtt{Def}(o, es, e_j, e_c) \cons \kappa, \sigma \reval$ *)
-        forall o th ts tj tc kappa sigma,
-        cred
-            (mode_cont ((CDefault o (th::ts) tj tc)::kappa) sigma REmpty)
-            (mode_eval th ((CDefault o ts tj tc)::kappa) sigma)
+    | sym_cred_defaultunpack:
+        forall o th ts tj tc kappa phi sigma,
+        sym_cred
+            (sym_mode_cont ((SCDefault o (th::ts) tj tc)::kappa) phi sigma SRempty)
+            (sym_mode_eval th ((SCDefault o ts tj tc)::kappa) phi sigma)
 
-    | cred_defaultnone:
-        (* $\lcont \mathtt{Def}(\synnone, e_h \cons es, e_j, e_c) \cons \kappa, \sigma, v \rcont \leadsto \leval e_h, \mathtt{Def}(\synsome(v), es, e_j, e_c) \cons \kappa, \sigma \reval$ *)
-        forall ts tj tc kappa sigma v,
-        cred
-            (mode_cont ((CDefault None ts tj tc)::kappa) sigma (RValue v))
-            (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma REmpty)
+    | sym_cred_defaultnone:
+        forall ts tj tc kappa phi sigma v,
+        sym_cred
+            (sym_mode_cont ((SCDefault None ts tj tc)::kappa) phi sigma (SRexpr v))
+            (sym_mode_cont ((SCDefault (Some v) ts tj tc)::kappa) phi sigma SRempty)
 
-    | cred_defaultconflict:
-        (* $\lcont \mathtt{Def}(\synsome(v), es, e_j, e_c) \cons \kappa, \sigma, v' \rcont \leadsto \lcont \mathtt{Def}(\synsome(v), es, e_j, e_c)  \cons \kappa, \sigma, \synconflict \rcont$ *)
-        forall ts tj tc kappa sigma v v',
-        cred
-            (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma (RValue v'))
-            (mode_cont kappa sigma RConflict)
+    | sym_cred_defaultconflict:
+        forall ts tj tc kappa phi sigma v v',
+        sym_cred
+            (sym_mode_cont ((SCDefault (Some v) ts tj tc)::kappa) phi sigma (SRexpr v'))
+            (sym_mode_cont kappa phi sigma SRconflict)
 
-    | cred_defaultvalue:
-        (* $\lcont \mathtt{Def}(\synsome(v), [], e_j, e_c) \cons \kappa, \sigma, \synempty \rcont \leadsto \lcont \kappa, \sigma, v \rcont$ *)
-        forall v tj tc kappa sigma,
-        cred 
-            (mode_cont ((CDefault (Some v) [] tj tc)::kappa) sigma REmpty)
-            (mode_cont kappa sigma (RValue v))
+    | sym_cred_defaultvalue:
+        forall v tj tc kappa phi sigma,
+        sym_cred
+            (sym_mode_cont ((SCDefault (Some v) [] tj tc)::kappa) phi sigma SRempty)
+            (sym_mode_cont kappa phi sigma (SRexpr v))
 
     (* | cred_defaultnonefinal: (* not needed *)
         (* $\lcont \mathtt{Def}(\synnone, [], e_j, e_c) \cons \kappa, \sigma, v \rcont \leadsto \lcont \kappa, \sigma, v \rcont$ \hfill $v \neq \synempty, \synconflict$ *)
         todo *)
 
-    | cred_defaultbase:
-        (* $\lcont \mathtt{Def}(\synnone, [], e_j, e_c) \cons \kappa, \sigma, \synempty \rcont \leadsto \leval e_j, \synlanglemid \square \synjust e_c \synrangle \cons \kappa, \sigma \reval$ *)
-        forall tj tc kappa sigma,
-        cred 
-            (mode_cont ((CDefault None [] tj tc)::kappa) sigma REmpty)
-            (mode_eval tj ((CDefaultBase tc)::kappa) sigma)
+    | sym_cred_defaultbase:
+        forall tj tc kappa phi sigma,
+        sym_cred
+            (sym_mode_cont ((SCDefault None [] tj tc)::kappa) phi sigma SRempty)
+            (sym_mode_eval tj ((SCDefaultBase tc)::kappa) phi sigma)
 
-    | cred_defaultbasetrue:
-        (* $\lcont \synlanglemid \square \synjust e_c \synrangle \cons \kappa, \sigma, \syntrue \rcont \leadsto \leval e_c, \kappa, \sigma \reval$ *)
-        forall tc kappa sigma,
-        cred
-            (mode_cont ((CDefaultBase tc)::kappa) sigma (RValue (Bool true)))
-            (mode_eval tc kappa sigma)
+    | sym_cred_defaultbasetrue:
+        forall tc kappa phi sigma v,
+        sym_cred
+            (sym_mode_cont ((SCDefaultBase tc)::kappa) phi sigma (SRexpr v))
+            (sym_mode_eval tc kappa (IsTrue v :: phi) sigma)
 
-    | cred_defaultbasefalse:
-        (* $\lcont \synlanglemid \square \synjust e_c \synrangle \cons \kappa, \sigma, \synfalse \rcont \leadsto \lcont \kappa, \sigma, \synempty \rcont$ *)
-        forall tc kappa sigma,
-        cred
-            (mode_cont ((CDefaultBase tc)::kappa) sigma (RValue (Bool false)))
-            (mode_cont kappa sigma REmpty)
+    | sym_cred_defaultbasefalse:
+        forall tc kappa phi sigma v,
+        sym_cred
+            (sym_mode_cont ((SCDefaultBase tc)::kappa) phi sigma (SRexpr v))
+            (sym_mode_cont kappa (Not (IsTrue v) :: phi) sigma SRempty)
 
-    | cred_empty:
-        (* $\lcont \phi \cons \kappa, \sigma, \synempty \rcont \leadsto \lcont \kappa, \sigma, \synempty \rcont$ \hfill $\forall o\ es\ e_j\ e_c,\ \phi \neq \mathtt{Def}(o, es, e_j, ec)$ *)
-        forall phi kappa sigma,
-        (forall o ts tj tc, phi <> CDefault o ts tj tc) ->
-        cred
-            (mode_cont (phi::kappa) sigma REmpty)
-            (mode_cont kappa sigma REmpty)
+    | sym_cred_empty:
+        forall k kappa phi sigma,
+        (forall o ts tj tc, k <> SCDefault o ts tj tc) ->
+        sym_cred
+            (sym_mode_cont (k::kappa) phi sigma SRempty)
+            (sym_mode_cont kappa phi sigma SRempty)
 
-    | cred_conflict:
-        (* $\lcont \phi \cons \kappa, \sigma, \synconflict \rcont \leadsto \lcont \kappa, \sigma, \synconflict \rcont$ *)
-        forall phi kappa sigma,
-        cred
-            (mode_cont (phi::kappa) sigma RConflict)
-            (mode_cont kappa sigma RConflict)
-    | cred_confict_intro:
-        forall kappa sigma,
-        cred
-            (mode_eval Conflict kappa sigma)
-            (mode_cont kappa sigma RConflict)
-    | cred_empty_intro:
-        forall kappa sigma,
-        cred
-            (mode_eval Empty kappa sigma)
-            (mode_cont kappa sigma REmpty)
-. *)
+    | sym_cred_conflict:
+        forall k kappa phi sigma,
+        sym_cred
+            (sym_mode_cont (k::kappa) phi sigma SRconflict)
+            (sym_mode_cont kappa phi sigma SRconflict)
+
+    | sym_cred_confict_intro:
+        forall kappa phi sigma,
+        sym_cred
+            (sym_mode_eval Conflict kappa phi sigma)
+            (sym_mode_cont kappa phi sigma SRconflict)
+
+    | sym_cred_empty_intro:
+        forall kappa phi sigma,
+        sym_cred
+            (sym_mode_eval Empty kappa phi sigma)
+            (sym_mode_cont kappa phi sigma SRempty)
+    .
+
+(**
+    What it means for a concrete and a symbolic value
+    to be related with respect to an assignement of free variables
+*)
+Definition similar_value (env : string -> value) (v : value) (sym_v : sym_expr) :=
+    v = eval_sym_expr sym_v env.
+
+(**
+    What it means for a concrete and a symbolic result
+    to be related with respect to an assignement of free variables
+*)
+Inductive similar_result (env : string -> value) : result -> sym_result -> Prop :=
+    | similar_result_value v sym_v :
+        similar_value env v sym_v ->
+        similar_result env (RValue v) (SRexpr sym_v)
+    | similar_result_empty :
+        similar_result env REmpty SRempty
+    | similar_result_conflict :
+        similar_result env RConflict SRconflict.
+
+(**
+    What it means for a concrete and a symbolic environement
+    to be related with respect to an assignement of free variables
+*)
+Definition similar_env (env0 : string -> value) (env1 : var -> value) (env2 : var -> sym_expr) :=
+    forall x, similar_value env0 (env1 x) (env2 x).
+
+(**
+    What it means for a concrete and a symbolic continuation to be related
+    with respect to an assignement of free variables
+*)
+Inductive similar_cont (env : string -> value) : cont -> sym_cont -> Prop :=
+    | similar_cont_CAppL t :
+        similar_cont env (CAppL t) (SCAppL t)
+
+    | similar_cont_CAppR t :
+        similar_cont env (CAppR t) (SCAppR t)
+    
+    | similar_cont_CClosure (x : {bind term}) ctx sym_ctx :
+        similar_env env ctx sym_ctx ->
+        similar_cont env (CClosure x ctx) (SCClosure x sym_ctx)
+    
+    | similar_cont_CDefault_none l t1 t2 :
+        similar_cont env (CDefault None l t1 t2) (SCDefault None l t1 t2)
+
+    | similar_cont_CDefault_some v sym_v l t1 t2 :
+        similar_value env v sym_v ->
+        similar_cont env (CDefault (Some v) l t1 t2) (SCDefault (Some sym_v) l t1 t2)
+    
+    | similar_cont_CDefault_base t :
+        similar_cont env (CDefaultBase t) (SCDefaultBase t).
+
+(**
+    What it means for a concrete and a symbolic state to be related
+    with respect to an assignement of free variables
+*)
+Inductive similar (env : string -> value) : state -> sym_state -> Prop :=
+    | similar_mode_eval t kappa sym_kappa sigma sym_sigma phi :
+        Forall2 (similar_cont env) kappa sym_kappa ->
+        eval_sym_path env phi = true ->
+        similar_env env sigma sym_sigma ->
+        similar env (mode_eval t kappa sigma) (sym_mode_eval t sym_kappa phi sym_sigma)
+    
+    | similar_mode_cont kappa sym_kappa sigma sym_sigma phi r sym_r :
+        Forall2 (similar_cont env) kappa sym_kappa ->
+        eval_sym_path env phi = true ->
+        similar_result env r sym_r ->
+        similar_env env sigma sym_sigma ->
+        similar env (mode_cont kappa sigma r) (sym_mode_cont sym_kappa phi sym_sigma sym_r)
+    .
+
+(**
+    Every concrete transition can be simulated
+    by a symbolic one
+*)
+Theorem sym_cred_complete:
+    forall env s1 s2 sym_s1,
+        similar env s1 sym_s1 ->
+        cred s1 s2 ->
+        exists sym_s2,
+            similar env s2 sym_s2 /\ sym_cred sym_s1 sym_s2.
+Proof.
+    intros * Hsim1 Hred.
+Admitted.
