@@ -8,22 +8,25 @@ Inductive sym_expr :=
     | Sbool (b: bool)
     | Sint (i: Z)
     | Svar (s : string)
-    | Sadd (e1 e2 : sym_expr)
-    | Sclo (t: term) (sigma: var -> sym_expr)
-    | Sempty
-    | Sconflict.
+    | Sop (o : op) (e1 e2 : sym_expr)
+    | Sclo (t: term) (sigma: var -> sym_expr).
 
-Fixpoint eval_sym_expr (e : sym_expr) (env : string -> value) : result :=
+Fixpoint eval_sym_expr (e : sym_expr) (env : string -> value) : value :=
     match e with
-    | Sbool b => RValue (Bool b)
-    | Sint i => RValue (Int i)
-    | Svar s => RValue (env s)
-    | Sadd e1 e2 =>
+    | Sbool b => Bool b
+    | Sint i => Int i
+    | Svar s => env s
+    | Sop Add e1 e2 =>
         match eval_sym_expr e1 env, eval_sym_expr e2 env with
-        | RValue (Int i1), RValue (Int i2) =>RValue (Int (i1 + i2)%Z)
-        | _, _ => RConflict
+        | Int i1, Int i2 => Int (i1 + i2)%Z
+        | _, _ => Int 0%Z (* unreachable *)
         end
-    | _ => RConflict
+    | Sop Eq e1 e2 =>
+        match eval_sym_expr e1 env, eval_sym_expr e2 env with
+        | Int i1, Int i2 => Bool (i1 =? i2)%Z
+        | _, _ => Bool false (* unreachable *)
+        end
+    | Sclo t s => Closure t (fun x => eval_sym_expr (s x) env)
     end.
 
 (** Symbolic continuations *)
