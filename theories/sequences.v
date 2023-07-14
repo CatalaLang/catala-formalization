@@ -299,7 +299,30 @@ Proof.
     destruct (not_all_ex_not _ _ H) as [b Hb].
     destruct (imply_to_and _ _ Hb).
     unfold halts, irred, not. eauto. }
+Lemma takewhile:
+  forall R p a c,
+  star R a c ->
+  p c = false ->
+  star (fun a b => R a b /\ p a = false) a c /\ p a = false \/
+  exists b,
+  star (fun a b => R a b /\ p a = true) a b
+  /\ star R b c
+  /\ p b = false.
+Proof.
+  induction 1.
+  * intros; left; econstructor; eauto using star_refl.
+  * intros Hc; destruct (IHstar Hc) as [[Hb1 Hb2]|[b' [Hb1 [Hb2 Hb3]]]];
+    remember (p a) as ret; induction ret.
+    - right.
+      exists b; repeat split; eauto.
+      eapply star_one; eauto.
+    - left; repeat split; eauto; econstructor; eauto.
+    - right; exists b'; repeat split; eauto.
+      econstructor; eauto.
+    - right; exists a; repeat split; eauto; econstructor; eauto.
 Qed.
+
+
 
 (** Additional properties for deterministic transition relations. *)
 
