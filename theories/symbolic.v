@@ -396,6 +396,7 @@ Proof.
     now repeat econstructor.
 Qed.
 
+
 Theorem sym_creds_complete:
   forall s1 s2,
     star cred s1 s2 ->
@@ -415,3 +416,51 @@ Proof.
     eapply star_one; eauto.
     auto.
 Qed.
+
+Tactic Notation "admit" := admit.
+Tactic Notation "admit" string(x):= admit.
+
+(* Theorem boring_2: *)
+Theorem boring_2:
+  forall env sigma1 sigma2,
+    similar_env env sigma1 sigma2 -> (fun x => eval_sym_expr (sigma2 x) env) = sigma1.
+Proof.
+  intros.
+  apply functional_extensionality.
+  intros. simpl.
+  now rewrite H.
+Qed.
+
+Theorem sym_cred_sound:
+  forall env s1 sym_s2 sym_s1,
+    no_closure env ->
+    similar env s1 sym_s1 ->
+    sym_cred sym_s1 sym_s2 ->
+    exists s2,
+      similar env s2 sym_s2 /\ cred s1 s2.
+Proof.
+  intros * Hclo Hsim1 Hred.
+  induction Hred.
+  - inversion Hsim1; subst.
+    repeat econstructor; eauto.
+    rewrite <- (boring_2 _ _ _ H6).
+    econstructor.
+  - inversion Hsim1; subst.
+    admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+  - admit "Arthur".
+Admitted.
+
