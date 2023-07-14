@@ -446,8 +446,13 @@ Proof.
     rewrite <- (boring_2 _ _ _ H6).
     econstructor.
   - inversion Hsim1; subst.
-    admit "Arthur".
-  - admit "Arthur".
+    repeat econstructor; eauto.
+    rewrite <- (boring_2 _ _ _ H6).
+    econstructor.
+  - inversion Hsim1; subst.
+    repeat econstructor; eauto.
+    rewrite <- (boring_2 _ _ _ H6).
+    econstructor.
   - admit "Arthur".
   - admit "Arthur".
   - admit "Arthur".
@@ -463,4 +468,3 @@ Proof.
   - admit "Arthur".
   - admit "Arthur".
 Admitted.
-
