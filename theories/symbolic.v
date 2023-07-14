@@ -195,6 +195,42 @@ Inductive sym_cred: sym_state -> sym_state -> Prop :=
           (sym_mode_cont kappa phi sigma SRempty)
   .
 
+Definition concretize_env (env : string -> value) (ctx : var -> sym_expr) :=
+  fun x => eval_sym_expr (ctx x) env.
+
+Notation "env • ctx" := (concretize_env env ctx) (at level 80).
+
+Definition concretize_cont (env : string -> value) (k : sym_cont) :=
+  match k with
+  | SCAppL t => CAppL t
+  | SCAppR t => CAppR t
+  | SCClosure t ctx => CClosure t (env • ctx)
+  | SCDefault None l t1 t2 => CDefault None l t1 t2
+  | SCDefault (Some e) l t1 t2 => CDefault (Some (eval_sym_expr e env)) l t1 t2
+  | SCDefaultBase t => CDefaultBase t
+  end.
+
+Definition concretize_result (env : string -> value) (r : sym_result) :=
+  match r with
+  | SRexpr e => RValue (eval_sym_expr e env)
+  | SRempty => REmpty
+  | SRconflict => RConflict
+  end.
+
+Definition concretize_state (env : string -> value) (s : sym_state) :=
+  match s with
+  | sym_mode_eval t l p s => mode_eval t (map (concretize_cont env) l) (env • s)
+  | sym_mode_cont l p s r => mode_cont (map (concretize_cont env) l) (env • s) (concretize_result env r)
+  end.
+
+Definition satisfy (env : string -> value) (s : sym_state) :=
+  match s with
+  | sym_mode_eval _ _ p _ => eval_sym_path env p = true
+  | sym_mode_cont _ p _ _ => eval_sym_path env p = true
+  end.
+
+Notation "x ⊨ s" := (satisfy x s) (at level 80).
+
 (**
     What it means for a concrete and a symbolic value
     to be related with respect to an assignement of free variables
@@ -431,19 +467,69 @@ Proof.
   now rewrite H.
 Qed.
 
-Theorem sym_cred_sound:
-  forall env s1 sym_s2 sym_s1,
-    no_closure env ->
-    similar env s1 sym_s1 ->
-    sym_cred sym_s1 sym_s2 ->
-    exists s2,
-      similar env s2 sym_s2 /\ cred s1 s2.
+Theorem boring_3:
+  forall (env : string -> value) v ctx,
+    (env • v .: ctx) = ((eval_sym_expr v env) .: (env • ctx)).
 Proof.
-  intros * Hclo Hsim1 Hred.
+  intros.
+  apply functional_extensionality.
+  now intros [].
+Qed.
+
+Theorem sym_cred_sound:
+  forall sym_s1 sym_s2,
+    sym_cred sym_s1 sym_s2 ->
+    forall env,
+      no_closure env ->
+      env ⊨ sym_s2 ->
+      cred (concretize_state env sym_s1) (concretize_state env sym_s2).
+Proof.
+  intros * Hred * Hclo Hsat.
+  inversion Hred; subst; try (econstructor; fail).
+  - simpl. rewrite boring_3.
+    econstructor.
+  - simpl. destruct o; econstructor.
+  - simpl in *.
+    destruct eval_sym_expr; try easy.
+    destruct b; simpl in *; try easy.
+    econstructor.
+  - simpl in *.
+    destruct eval_sym_expr.
+    + destruct b; simpl in *; try easy.
+      econstructor.
+    + simpl in *.
+      admit "Problem de typage: suppose v is of type bool".
+    + simpl in *.
+      admit "Problem de typage: suppose v is of type bool".
+  - simpl in *.
+    econstructor.
+    intros.
+    destruct k; try easy.
+    simpl. destruct o0.
+    + specialize (H (Some s) ts tj tc).
+      now intros [=<-<-<-<-].
+    + specialize (H None ts tj tc).
+      now intros [=<-<-<-<-].
+Admitted.
+
+(* Theorem sym_cred_sound:
+  forall sym_s1 sym_s2,
+    sym_cred sym_s1 sym_s2 ->
+    forall env s1 s2,
+      no_closure env ->
+      similar env s1 sym_s1 ->
+      similar env s2 sym_s2 ->
+      cred s1 s2.
+Proof.
+  intros * Hred * Hclo Hsim1 Hsim2.
   inversion Hred; subst.
   - inversion Hsim1; subst.
+    inversion Hsim2; subst.
+    inversion H9; subst.
+    rewrite H1. 
+    
+    <- (boring_2 _ _ _ H10), <- (boring_2 _ _ _ H6).
     repeat econstructor; eauto.
-    rewrite <- (boring_2 _ _ _ H6).
     econstructor.
   - inversion Hsim1; subst.
     repeat econstructor; eauto.
@@ -522,4 +608,4 @@ Proof.
   - admit "Arthur".
   - admit "Arthur".
   - admit "Arthur".
-Admitted.
+Admitted. *)
