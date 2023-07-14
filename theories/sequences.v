@@ -27,7 +27,7 @@ Hint Constructors star : star.
 Theorem star_ind_rev
   : forall R P : A -> A -> Prop,
     (forall a : A, P a a) ->
-    (forall a b c : A, star R a b -> R b c -> P b c -> P a c) ->
+    (forall a b c : A, star R a b -> R b c -> P a b -> P a c) ->
     forall a a0 : A, star R a a0 -> P a a0.
 Admitted.
 
