@@ -1,6 +1,6 @@
 From Coq Require Import List String ZArith FunctionalExtensionality.
 From Autosubst Require Import Autosubst.
-From Catala Require Import syntax continuations sequences.
+From Catala Require Import syntax continuations sequences tactics.
 Import ListNotations.
 
 (** Symbolic expressions *)
@@ -453,9 +453,6 @@ Proof.
     auto.
 Qed.
 
-Tactic Notation "admit" := admit.
-Tactic Notation "admit" string(x):= admit.
-
 (* Theorem boring_2: *)
 Theorem boring_2:
   forall env sigma1 sigma2,
@@ -498,9 +495,9 @@ Proof.
     + destruct b; simpl in *; try easy.
       econstructor.
     + simpl in *.
-      admit "Problem de typage: suppose v is of type bool".
+      admit arthur "Problem de typage: suppose v is of type bool".
     + simpl in *.
-      admit "Problem de typage: suppose v is of type bool".
+      admit arthur "Problem de typage: suppose v is of type bool".
   - simpl in *.
     econstructor.
     intros.
@@ -510,7 +507,7 @@ Proof.
       now intros [=<-<-<-<-].
     + specialize (H None ts tj tc).
       now intros [=<-<-<-<-].
-Admitted.
+Abort.
 
 (* Theorem sym_cred_sound:
   forall sym_s1 sym_s2,
