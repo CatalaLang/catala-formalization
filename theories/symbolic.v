@@ -1,6 +1,6 @@
 From Coq Require Import List String ZArith FunctionalExtensionality.
 From Autosubst Require Import Autosubst.
-From Catala Require Import syntax continuations.
+From Catala Require Import syntax continuations sequences.
 Import ListNotations.
 
 (** Symbolic expressions *)
@@ -394,4 +394,24 @@ Proof.
     now repeat econstructor.
   - inversion Hsim1; subst.
     now repeat econstructor.
+Qed.
+
+Theorem sym_creds_complete:
+  forall s1 s2,
+    star cred s1 s2 ->
+    forall env sym_s1,
+      no_closure env ->
+      similar env s1 sym_s1 ->
+      exists sym_s2,
+        similar env s2 sym_s2 /\ star sym_cred sym_s1 sym_s2.
+Proof.
+  intros s1 s2 H.
+  induction H using star_ind_rev; intros.
+  - eauto with sequences.
+  - specialize (IHstar _ _ H1 H2) as [sym_s2 [Hs2_1 Hs2_2]].
+    epose proof (sym_cred_complete _ _ _ _ H1 Hs2_1 H0) as [sym_s3 [Hs3_1 Hs3_2]].
+    eexists. split; cycle 1.
+    eapply star_trans; eauto.
+    eapply star_one; eauto.
+    auto.
 Qed.
