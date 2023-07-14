@@ -440,7 +440,7 @@ Theorem sym_cred_sound:
       similar env s2 sym_s2 /\ cred s1 s2.
 Proof.
   intros * Hclo Hsim1 Hred.
-  induction Hred.
+  inversion Hred; subst.
   - inversion Hsim1; subst.
     repeat econstructor; eauto.
     rewrite <- (boring_2 _ _ _ H6).
@@ -453,15 +453,70 @@ Proof.
     repeat econstructor; eauto.
     rewrite <- (boring_2 _ _ _ H6).
     econstructor.
-  - admit "Arthur".
-  - admit "Arthur".
-  - admit "Arthur".
-  - admit "Arthur".
-  - admit "Arthur".
-  - admit "Arthur".
-  - admit "Arthur".
-  - admit "Arthur".
-  - admit "Arthur".
+  - inversion Hsim1; subst.
+    inversion H4; subst.
+    inversion H2; subst.
+    inversion H6; subst.
+    inversion H1; subst.
+    repeat econstructor; eauto.
+    rewrite <- (boring_2 _ _ _ H7).
+    econstructor.
+  - inversion Hsim1; subst.
+    inversion H4; subst.
+    inversion H2; subst.
+    inversion H6; subst.
+    repeat econstructor; eauto.
+    rewrite <- (boring_2 _ _ _ H7).
+    pose proof (boring_lemma _ _ _ _ _ H8 H1).
+    rewrite (boring_2 _ _ _ H).
+    econstructor.
+  - inversion Hsim1; subst.
+    repeat econstructor; eauto.
+    rewrite <- (boring_2 _ _ _ H6).
+    econstructor.
+  - inversion Hsim1; subst.
+    inversion H4; subst.
+    inversion H6; subst.
+    inversion H2; subst.
+    + repeat econstructor; eauto.
+      rewrite <- (boring_2 _ _ _ H7).
+      econstructor.
+    + repeat econstructor; eauto.
+      rewrite H1, <- (boring_2 _ _ _ H7).
+      econstructor.
+  - inversion Hsim1; subst.
+    inversion H4; subst.
+    inversion H6; subst.
+    inversion H2; subst.
+    repeat econstructor; eauto.
+    rewrite H1, <- (boring_2 _ _ _ H7).
+    econstructor.
+  - inversion Hsim1; subst.
+    inversion H4; subst.
+    inversion H6; subst.
+    inversion H2; subst.
+    rewrite H1, H8, <- (boring_2 _ _ _ H7).
+    repeat econstructor; eauto.
+  - inversion Hsim1; subst.
+    inversion H4; subst.
+    inversion H6; subst.
+    inversion H2; subst.
+    rewrite H1, <- (boring_2 _ _ _ H7).
+    repeat econstructor; eauto.
+  - inversion Hsim1; subst.
+    inversion H4; subst.
+    inversion H6; subst.
+    inversion H2; subst.
+    rewrite <- (boring_2 _ _ _ H7).
+    repeat econstructor; eauto.
+  - inversion Hsim1; subst.
+    inversion H4; subst.
+    inversion H6; subst.
+    inversion H2; subst.
+    rewrite <- (boring_2 _ _ _ H7).
+    repeat econstructor; eauto.
+    simpl. admit.
+    econstructor.
   - admit "Arthur".
   - admit "Arthur".
   - admit "Arthur".
