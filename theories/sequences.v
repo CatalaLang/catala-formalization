@@ -1,8 +1,12 @@
 (** A library of relation operators defining sequences of transitions
   and useful properties about them. Originally by Xavier Leroy, with
-  some improvements and additions by François Pottier. *)
+  some improvements and additions by François Pottier, and more
+  additions by Alain Delaët. *)
 
 Require Import Classical.
+Require Import Relation_Operators.
+Require Import Operators_Properties.
+
 Set Implicit Arguments.
 
 Section SEQUENCES.
@@ -14,6 +18,7 @@ Implicit Types P   : A -> Prop.
 
 (** Zero, one or several transitions: reflexive, transitive closure of [R]. *)
 
+
 Inductive star R : A -> A -> Prop :=
 | star_refl:
   forall a,
@@ -22,14 +27,59 @@ Inductive star R : A -> A -> Prop :=
   forall a b c,
   R a b -> star R b c -> star R a c.
 
+
+(* specialized inductions principles *)
+
+Lemma star_is_clos_trans_1n:
+  forall R a b,
+  star R a b <-> clos_refl_trans_1n A R a b.
+Proof.
+  split; induction 1; econstructor; eauto.
+Qed.
+
+Theorem star_ind_clos_refl_trans
+  : forall (R : A -> A -> Prop) (P : A -> A -> Prop),
+    (forall x y : A, R x y -> P x y) ->
+    (forall x : A, P x x) ->
+    (forall x y z : A,
+    star R x y ->
+    P x y -> star R y z -> P y z -> P x z) ->
+    forall x a : A, star R x a -> P x a.
+Proof.
+  setoid_rewrite star_is_clos_trans_1n.
+  setoid_rewrite <-clos_rt_rt1n_iff.
+  intros ? ? ? ? ? ? ?.
+  induction 1; eauto.
+Qed.
+
+Theorem star_ind_1n
+  : forall (R : A -> A -> Prop) (P : A -> A -> Prop),
+    (forall x : A, P x x) ->
+    (forall x y z : A,
+    R x y -> star R y z -> P y z -> P x z) ->
+    forall x a : A, star R x a -> P x a.
+Proof.
+  setoid_rewrite star_is_clos_trans_1n.
+  intros ? ? ? ? ? ?.
+  induction 1; eauto.
+Qed.
+
+Theorem star_ind_n1
+  : forall (R : A -> A -> Prop) (x : A) (P : A -> Prop),
+    P x ->
+    (forall y z : A, R y z -> star R x y -> P y -> P z) ->
+    forall a : A, star R x a -> P a
+.
+Proof.
+  setoid_rewrite star_is_clos_trans_1n.
+  setoid_rewrite <-clos_rt_rt1n_iff.
+  setoid_rewrite clos_rt_rtn1_iff.
+  intros ? ? ? ? ? ?.
+  induction 1; eauto.
+Qed.
+
 Hint Constructors star : star.
 
-Theorem star_ind_rev
-  : forall R P : A -> A -> Prop,
-    (forall a : A, P a a) ->
-    (forall a b c : A, star R a b -> R b c -> P a b -> P a c) ->
-    forall a a0 : A, star R a a0 -> P a a0.
-Admitted.
 
 Lemma star_refl_eq:
   forall R a b, a = b -> star R a b.
