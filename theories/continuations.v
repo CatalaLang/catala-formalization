@@ -5,6 +5,8 @@ Open Scope list_scope.
 Require Import sequences.
 Require Import Lia.
 
+From Catala Require Import tactics.
+
 
 (* Definition of continuaton semantics for the catala programming language. *)
 
@@ -17,6 +19,8 @@ Inductive result :=
 Inductive cont :=
   (* | CAppL (t1: term) (* [t1 \square] *) *) (* cannot happend*)
   | CAppR (t2: term) (* [\square t2] *)
+  | CBinopL (op: op) (v1: value) (* [op t1 \square] *)
+  | CBinopR (op: op) (t2: term) (* [op \square t2] *)
   | CClosure (t_cl: {bind term}) (sigma_cl: var -> value)
     (* [Clo(x, t_cl, sigma_cl) \sigma] Since we are using De Bruijn indices, there is no variable x. *)
   | CDefault (o: option value) (ts: list term) (tj: term) (tc: term)
@@ -144,7 +148,7 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont (phi::kappa) sigma RConflict)
       (mode_cont kappa sigma RConflict)
 
-  | cred_confict_intro:
+  (* | cred_confict_intro:
     forall kappa sigma,
     cred
       (mode_eval Conflict kappa sigma)
@@ -154,12 +158,31 @@ Inductive cred: state -> state -> Prop :=
     forall kappa sigma,
     cred
       (mode_eval Empty kappa sigma)
-      (mode_cont kappa sigma REmpty)
+      (mode_cont kappa sigma REmpty) *)
   
-  | cred_value_intr:
+  | cred_value_intro:
     forall v kappa sigma,
     cred
       (mode_eval (Value v) kappa sigma)
+      (mode_cont kappa sigma (RValue v))
+  
+  | cred_op_intro:
+    forall op e1 e2 kappa sigma,
+    cred
+      (mode_eval (Binop op e1 e2) kappa sigma)
+      (mode_eval e1 (CBinopR op e2::kappa) sigma)
+  
+  | cred_op_mid:
+    forall op e2 kappa sigma v,
+    cred 
+      (mode_cont (CBinopR op e2 :: kappa) sigma (RValue v))
+      (mode_eval e2 (CBinopL op v :: kappa) sigma)
+  
+  | cred_op_final:
+    forall op v v1 v2 kappa sigma,
+    Some v = get_op op v1 v2 ->
+    cred
+      (mode_cont (CBinopL op v1 :: kappa) sigma (RValue v2))
       (mode_cont kappa sigma (RValue v))
 .
 
@@ -181,21 +204,22 @@ Theorem cred_progress s:
 Proof.
   induction s.
   * induction e; try solve [left; eexists; econstructor].
-    - admit "todo: add an interpretation for free variables".
-    - admit "todo: add an interpretation of binary operators".
+    - admit alain "todo: add an interpretation for free variables".
   * match goal with [v: list cont |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
     match goal with [v: cont |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
     match goal with [v: result |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
-    match goal with [v: value |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
     match goal with [v: option value |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
     match goal with [v: list term |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
-    match goal with [v: bool |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end.
+    repeat match goal with [v: value |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
+    match goal with [v: bool |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
+    match goal with [v: op |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end.
     all: try solve[left; eexists; econstructor; repeat intro; discriminate].
-    - admit "typing error on the function application.".
-    - admit "typing error on the function application.".
-    - admit "typing error on the function application.".
-    - admit "typing error on the justification".
-    - admit "typing error on the justification".
+    all: match goal with [ |- context[CBinopL] ] => left; eexists; econstructor; try solve [simpl; eauto]; admit "typing error on the operator"| _ => idtac end.
+    - admit alain "typing error on the function application.".
+    - admit alain "typing error on the function application.".
+    - admit alain "typing error on the function application.".
+    - admit alain "typing error on the justification".
+    - admit alain "typing error on the justification".
 Admitted.
 
 Theorem cred_deterministic (s s1' s2': state):
@@ -209,6 +233,8 @@ Proof.
   * specialize H with o (th::ts) tj tc. destruct H. eauto.
   * specialize H with (Some v) ([]) tj tc. destruct H. eauto.
   * specialize H with None [] tj tc. destruct H. eauto.
+  * rewrite <- H in H7.
+    injection H7; intros; subst; eauto.
 Qed.
 
 Theorem cred_stack_empty_irred:
