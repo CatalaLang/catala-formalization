@@ -199,6 +199,12 @@ Definition stack s :=
   | mode_cont k _ _ => k
   end.
 
+Definition with_stack s kappa :=
+  match s with
+  | mode_eval t _ sigma => mode_eval t kappa sigma
+  | mode_cont _ sigma v => mode_cont kappa sigma v
+  end.
+
 Theorem cred_progress s:
   (exists s', cred s s') \/ stack s = [].
 Proof.
@@ -354,6 +360,28 @@ Lemma creds_lastn_stable_aux s1 s2 n:
 Proof.
   induction 1; econstructor; unpack; eauto using cred_lastn_stable.
 Qed.
+
+Lemma fuck_stdlib {A} (x: A) l :
+  l <> x :: l.
+Proof.
+  induction l; intro; inj; contradiction.
+Qed.
+
+
+Lemma cred_stack_inv s1 s2:
+  stack s1 = stack s2 ->
+  cred s1 s2 ->
+  cred (with_stack s1 []) (with_stack s2 []).
+Proof.
+  intros Heq. induction 1; simpl in *; inj;
+  try solve
+    [econstructor
+    |exfalso; eapply fuck_stdlib; eauto
+  ].
+Qed.
+
+
+
 
 Open Scope nat.
 
