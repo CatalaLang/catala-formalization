@@ -248,6 +248,7 @@ Qed.
 
 
 
+
 Theorem cred_star_deterministic s1 s2 s2':
   star cred s1 s2 ->
   star cred s1 s2' ->
@@ -313,29 +314,46 @@ Proof.
   all: try solve [discriminate].
 Qed.
 
-(* conversly, if we have a transition *)
-Theorem bottom_stack_unmodified_cred s1 s2 kappa:
-  cred (append_stack s1 kappa) s2 ->
-  List.length (stack (append_stack s1 kappa)) >= List.length kappa ->
-  exists s2', s2 = append_stack s2' kappa.
+
+Search "skipn" "length". 
+
+Definition lastn {A} n (l: list A) := List.skipn ((List.length l) - n) l.
+
+Lemma lastn_length {A} n:
+  forall l: list A, List.length (lastn n l) = min n (List.length l).
 Proof.
-  remember (append_stack s1 kappa) as s1'.
-  induction 1; subst; simpl; intros Hlen; match goal with [h: (_ = append_stack _ _) |- _] => pose proof append_stack_inv _ _ _ h as [kappa']; simpl in *; subst end.
-  all: try match goal with [ |- context [_ ++ _]] => admit end.
+  unfold lastn.
+  setoid_rewrite List.skipn_length; lia.
 Qed.
 
-Theorem bottom_stack_unmodified s1 s2 kappa p:
-  star
-    (fun a b => cred a b /\ p a)
-    s1 s2
-  -> 
-  exists s1', s1 = append_stack s1' kappa ->
-  exists s2', s1 = append_stack s2' kappa.
+Lemma lastn_cons {A} n:
+  forall a (l: list A), length l >= n -> lastn n (a::l) = lastn n l.
 Proof.
-  induction 1 as [|a b c [Hred Hp] Hstar IHstar].
-  * eauto.
-  * induction H.
+  unfold lastn.
+  intros.
+  simpl length.
+  replace (S (length l) - n) with (S (length l - n)); eauto.
+  lia.
+Qed.
 
+
+Lemma cred_lastn_stable s1 s2 n:
+  List.length (stack s1) > n ->
+  List.length (stack s2) > n ->
+  cred s1 s2 ->
+  lastn n (stack s1) = lastn n (stack s2).
+Proof.
+  intros Hs1 Hs2.
+  induction 1; try solve [unfold lastn; case n; simpl in *; eauto];
+    simpl in *; repeat rewrite lastn_cons in *; eauto; try lia.
+Qed.
+
+Lemma creds_lastn_stable_aux s1 s2 n:
+  star (fun a b => cred a b /\ List.length (stack a) > n /\ List.length (stack b) > n) s1 s2 ->
+  star (fun a b => cred a b /\ lastn n (stack a) = lastn n (stack b)) s1 s2.
+Proof.
+  induction 1; econstructor; unpack; eauto using cred_lastn_stable.
+Qed.
 
 Open Scope nat.
 
@@ -343,10 +361,10 @@ Require Import Lia.
 
 From Catala Require Import tactics.
 
-Lemma technical_lemma:
+Lemma cred_stack_descreasing_mode_cont:
   forall s1 s2,
   cred s1 s2 ->
-  Nat.ltb (stack_length s2) (stack_length s1) = true ->
+  Nat.ltb (List.length (stack s2)) (List.length (stack s1)) = true ->
   exists kappa sigma v,
   s1 = mode_cont kappa sigma v
   .
@@ -355,31 +373,46 @@ Proof.
   all: admit alain "All cases are trivially true by computation".
 Admitted.
 
+Lemma cred_stack_descreasing_mode_cont_0:
+  forall s1 s2 k,
+  cred s1 s2 ->
+  stack s1 = [k] ->
+  stack s2 = [] ->
+  exists sigma v,
+  s1 = mode_cont [k] sigma v.
+Proof.
+  induction 1; simpl; intros; subst; inj; eauto.
+Qed.
+
 Open Scope nat_scope.
 
+Search List.length.
+
 Lemma general_inversion_lemma:
-  forall x k sigma v',
+  forall t k_1 sigma_1 sigma_3 v_3,
   star cred
-    (mode_eval x [k] sigma)
-    (mode_cont [] sigma v')
+    (mode_eval t [k_1] sigma_1)
+    (mode_cont [] sigma_3 v_3)
   ->
-  exists v,
+  exists sigma_2 v_2,
   star cred 
-    (mode_eval x [k] sigma)
-    (mode_cont [] sigma v).
+    (mode_eval t [] sigma_1)
+    (mode_cont [] sigma_2 v_2).
 Proof.
-  intros.
-  destruct (takewhile (fun s => Nat.ltb 0  (stack_length s) ) H).
+  intros ? ? ? ? ? Hstar13.
+  destruct (takewhile (fun s => Nat.ltb 0 (List.length (stack s)) ) Hstar13)
+  as [[H1 H2]|[s_2' [Hs2'a [Hs2'b Hs2'c]]]].
   - eauto.
-  - destruct H0.
-    simpl in H1.
-    exfalso; discriminate.
-  - destruct H0 as [s [Hs1 [Hs2 Hs3]]].
-    induction Hs1 using star_ind_n1.
-    * eauto.
-    *  
-      (* I know cred y z and stack_length y > stack_length z and stack_elngth z = 0. Hence y = mode_cont [k'] sigma v.*)
-    induction .
+  - simpl in *; exfalso; discriminate.
+  - induction Hs2'a using star_ind_n1.
+    * simpl in *; exfalso; discriminate.
+    * rename y into s2, z into s2'.
+      assert (Hassert: exists k_2 sigma_2 v_2, s2 = mode_cont [k_2] sigma_2 v_2).
+      { admit "Since [List.length (stack s2') = 0] and [cred s2 s2'] ". }
+      destruct Hassert as [k_2 [sigma_2 [v_2 Hs_2]]]; subst.
+
+      admit "since [s1 ~> s2] and stack length is always greater than one, k1 = k2 and [cred (mode_eval t [] sigma_1) (mode_cont [] sigma_2 v_2)].".
+Abort.    
 
 
 Lemma inversion_lemma:
@@ -393,6 +426,7 @@ Lemma inversion_lemma:
     (mode_eval x [CDefault o l tj tc] sigma)
     (mode_cont [CDefault o l tj tc] sigma v').
 Proof.
+Abort.
 
 
 Lemma thing1:
@@ -409,36 +443,69 @@ Proof.
   inversion H; subst.
   inversion H0; subst.
   econstructor.
-  { eapply cred_defaultunpack. } 
+  { admit "wip". } 
   do 2 econstructor.
-  { econstructor. }
-  - 
-  eapply star_step.
+  { econstructor.
+    admit "wip".
+    admit "wip". }
+Abort.
 
+Notation "'{\leval'  t ,  kappa ,  sigma  '\reval}'" := (mode_eval t kappa sigma).
+Notation "'{\lcont'  kappa ,  sigma ,  v  '\rcont}'" := (mode_cont kappa sigma v).
+Notation "'{' s1  '\leadsto^*' s2 '}'" := (star cred s1 s2).
 
+Lemma technical3:
+  forall x k s1 s3 v3,
+    star cred (mode_eval x [k] s1) (mode_cont [] s3 v3) ->
+    exists v2 s2,
+      star cred (mode_eval x [] s1) (mode_cont [] s2 v2).
+Proof.
+  intros.
+  (* *)
+  inversion H; subst.
+
+  induction H0; inversion H; subst; inversion H0.  
 
 
 (* semantics does no changes when permuting the differents exceptions *)
 
-Theorem default_permut_stable ts1 ts2 tj tc sigma s1 s2:
+Theorem default_permut_stable ts1 ts2 tj tc sigma sigma1 sigma2 v1 v2:
   Permutation ts1 ts2 ->
   star cred 
     (mode_eval (Default ts1 tj tc) [] sigma)
-    s1
+    (mode_cont [] sigma1 v1)
   ->
   star cred 
     (mode_eval (Default ts2 tj tc) [] sigma)
-    s2
+    (mode_cont [] sigma2 v2)
   ->
-  irred cred s1 ->
-  irred cred s2 ->
-  s1 = s2.
+  (* The more general [irred cred s1 /\ irred cred s2] does not holds: indeed, in the swap case [Default (t1::t2::ts) tj tc] the terms [t1] and [t2] could be stuck for differents reasons. *)
+  (mode_cont [] sigma1 v1) = (mode_cont [] sigma2 v2).
 Proof.
   induction 1.
   * intros.
-    eapply finseq_unique; eauto using cred_deterministic.
+    eapply finseq_unique; eauto using cred_deterministic, cred_stack_empty_irred.
   * intros.
     eapply IHPermutation; eauto.
-    - 
+    - inversion H0; subst.
+      inversion H2; subst.
+      inversion H3; subst.
+      inversion H4; subst.
+       { econstructor. }
 
-Qed.
+      admit "computation using previous lemmas".
+    - admit "same computation".
+  * admit "
+    we only need to unrool [mode_eval x [] sigma] and [mode_eval y [] sigma]
+
+    Then there is 3*3 distinct cases: [x] can returns REmpty, RConflict or RValue, same for [y]. wlog, we can suppose x <= y for a any order on return. We can now consider all the cases:
+
+    * RConflict, _ -> we return Rconflict in both cases.
+    * REmpty, REmpty -> we can use finseq_unique to after the computation of both [x] and [y]
+    * RValue, REmpty -> we can use finseq_unique to after the computation of both [x] and [y]
+    * RValue, RValue -> we can use finseq_unique to after the computation of both [x] and [y]
+
+    /!\ It is not possible to add an other kind of error and have this theorem: conflict and empty must be the only one. Else, the following terms are counter example: [Default [Error1; Error2] false false] [Default [Error2; Error1] false false].
+    
+  ".
+Abort.
