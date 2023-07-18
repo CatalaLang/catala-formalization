@@ -78,6 +78,20 @@ Proof.
   induction 1; eauto.
 Qed.
 
+
+Theorem star_step_1n:
+  forall R x y z,  R x y -> star R y z -> star R x z.
+Proof.
+  eapply star_step.
+Qed.
+
+Theorem star_step_n1:
+  forall R x y z,  R y z -> star R x y -> star R x z.
+Proof.
+  intros ? ? ? ? ?.
+  induction 1; econstructor; eauto; econstructor. 
+Qed.
+
 Hint Constructors star : star.
 
 
@@ -445,5 +459,17 @@ End DETERMINISM.
 
 End SEQUENCES.
 
-Global Hint Resolve star_refl star_step star_one star_trans plus_left plus_one
-        plus_star plus_star_trans star_plus_trans plus_right: sequences.
+Global Hint Resolve
+  star_refl
+  star_step
+  star_one
+  star_trans
+  star_step_1n
+  star_step_n1
+  plus_left
+  plus_one
+  plus_star
+  plus_star_trans
+  star_plus_trans
+  plus_right
+: sequences.

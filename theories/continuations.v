@@ -3,7 +3,11 @@ Require Import Sorting.Permutation.
 Import List.ListNotations.
 Open Scope list_scope.
 Require Import sequences.
-Require Import Lia.
+Require Import Coq.Arith.Arith.
+
+
+(* Proof automation. ZifyBool is needed for operators such as [_ <=? _] *)
+Require Import Lia ZifyBool.
 
 From Catala Require Import tactics.
 
@@ -343,6 +347,22 @@ Proof.
 Qed.
 
 
+(* This lemma does not hold in whole generality. *)
+Lemma cred_lastn_stable s1 s2 n:
+  List.length (stack s1) >= n ->
+  List.length (stack s2) >= n ->
+  cred s1 s2 ->
+  lastn n (stack s1) = lastn n (stack s2).
+Proof.
+  intros Hs1 Hs2.
+  induction 1;
+    try solve [
+      unfold lastn; case n; simpl in *; eauto
+      | simpl in *; repeat rewrite lastn_cons in *; eauto
+    ].
+Abort.
+ 
+
 Lemma cred_lastn_stable s1 s2 n:
   List.length (stack s1) > n ->
   List.length (stack s2) > n ->
@@ -361,12 +381,25 @@ Proof.
   induction 1; econstructor; unpack; eauto using cred_lastn_stable.
 Qed.
 
+Lemma creds_lastn_stable s1 s2 n:
+  n <? List.length (stack s2) = true ->
+  star (fun a b => cred a b /\ n <? List.length (stack a) = true) s1 s2 ->
+  star (fun a b => cred a b /\ lastn n (stack a) = lastn n (stack b)) s1 s2.
+Proof.
+  intros.
+  destruct creds_lastn_stable_aux with s1 s2 n; try solve [econstructor; eauto].
+  match goal with |[h: star _ _ _ |- _ ] => induction h using star_ind_n1 end.
+  unpack.
+  { econstructor. }
+  { eapply star_step_n1; unpack; repeat split; eauto; try lia. }
+Qed.
+
+
 Lemma fuck_stdlib {A} (x: A) l :
   l <> x :: l.
 Proof.
   induction l; intro; inj; contradiction.
 Qed.
-
 
 Lemma cred_stack_inv s1 s2:
   stack s1 = stack s2 ->
@@ -381,25 +414,16 @@ Proof.
 Qed.
 
 
-
-
-Open Scope nat.
-
-Require Import Lia.
-
-From Catala Require Import tactics.
-
 Lemma cred_stack_descreasing_mode_cont:
   forall s1 s2,
   cred s1 s2 ->
-  Nat.ltb (List.length (stack s2)) (List.length (stack s1)) = true ->
+  (List.length (stack s2)) <? (List.length (stack s1)) = true  ->
   exists kappa sigma v,
   s1 = mode_cont kappa sigma v
   .
 Proof.
-  induction 1; simpl; eauto.
-  all: admit alain "All cases are trivially true by computation".
-Admitted.
+  induction 1; simpl; eauto; lia.
+Qed.
 
 Lemma cred_stack_descreasing_mode_cont_0:
   forall s1 s2 k,
@@ -409,12 +433,44 @@ Lemma cred_stack_descreasing_mode_cont_0:
   exists sigma v,
   s1 = mode_cont [k] sigma v.
 Proof.
-  induction 1; simpl; intros; subst; inj; eauto.
+  intros.
+  edestruct cred_stack_descreasing_mode_cont.
+  * eauto.
+  * repeat match goal with [h: stack _ = _ |- _ ] => rewrite h end; simpl; lia.
+  * unpack; subst; simpl in *; subst; eexists; eauto. 
 Qed.
 
-Open Scope nat_scope.
+Lemma cred_stack_zero:
+  forall s1 s2,
+  cred s1 s2 ->
+  1 <=? List.length (stack s1) = true ->
+  stack s2 = [] ->
+  exists k, stack s1 = [k].
+Proof.
+  inversion 1; intros.
+  all: repeat (simpl stack in *; simpl length in *; subst).
+  all: try solve [lia| inj| eexists; eauto].
+Qed.
 
-Search List.length.
+Require Import Coq.Logic.Decidable.
+
+Lemma term_dec: forall t1 t2: term, {t1 = t2} + {t1 <> t2}.
+Admitted.
+
+Lemma value_dec: forall t1 t2: value, {t1 = t2} + {t1 <> t2}.
+Admitted.
+
+
+Lemma eq_dec_cont: forall t1 t2: cont, {t1 = t2} + {t1 <> t2}.
+Proof.
+  unfold decidable.
+  decide equality.
+  * 
+  intros.
+  
+  induction t1. induction t2; inj.
+
+
 
 Lemma general_inversion_lemma:
   forall t k_1 sigma_1 sigma_3 v_3,
@@ -434,12 +490,23 @@ Proof.
   - simpl in *; exfalso; discriminate.
   - induction Hs2'a using star_ind_n1.
     * simpl in *; exfalso; discriminate.
-    * rename y into s2, z into s2'.
+    * rename y into s2, z into s2'. unpack.
       assert (Hassert: exists k_2 sigma_2 v_2, s2 = mode_cont [k_2] sigma_2 v_2).
-      { admit "Since [List.length (stack s2') = 0] and [cred s2 s2'] ". }
-      destruct Hassert as [k_2 [sigma_2 [v_2 Hs_2]]]; subst.
+      { (* Since [List.length (stack s2') = 0] and [cred s2 s2'], we can be sure s2 have this form. *)
+        edestruct cred_stack_descreasing_mode_cont.
+        { eauto. }
+        { lia. }
+        edestruct cred_stack_zero.
+        { eauto. }
+        { lia. }
+        { rewrite <- List.length_zero_iff_nil; lia. }
 
-      admit "since [s1 ~> s2] and stack length is always greater than one, k1 = k2 and [cred (mode_eval t [] sigma_1) (mode_cont [] sigma_2 v_2)].".
+        unpack; repeat (simpl in *; subst); repeat eexists; f_equal.
+      }
+
+      unpack; repeat (simpl in *; subst).
+
+      admit alain "since [s1 ~> s2] and [stack length] is always greater than one, k1 = k2 and [cred (mode_eval t [] sigma_1) (mode_cont [] sigma_2 v_2)].".
 Abort.    
 
 
@@ -471,16 +538,16 @@ Proof.
   inversion H; subst.
   inversion H0; subst.
   econstructor.
-  { admit "wip". } 
+  { admit alain "wip". } 
   do 2 econstructor.
   { econstructor.
-    admit "wip".
-    admit "wip". }
+    admit alain "wip".
+    admit alain "wip". }
 Abort.
 
-Notation "'{\leval'  t ,  kappa ,  sigma  '\reval}'" := (mode_eval t kappa sigma).
+(* Notation "'{\leval'  t ,  kappa ,  sigma  '\reval}'" := (mode_eval t kappa sigma).
 Notation "'{\lcont'  kappa ,  sigma ,  v  '\rcont}'" := (mode_cont kappa sigma v).
-Notation "'{' s1  '\leadsto^*' s2 '}'" := (star cred s1 s2).
+Notation "'{' s1  '\leadsto^*' s2 '}'" := (star cred s1 s2). *)
 
 Lemma technical3:
   forall x k s1 s3 v3,
@@ -491,10 +558,10 @@ Proof.
   intros.
   (* *)
   inversion H; subst.
+  induction H0; inversion H; subst; match goal with |[h: cred _ _ |- _ ] => inversion h end; subst; eauto.
+  * 
 
-  induction H0; inversion H; subst; inversion H0.  
-
-
+Abort.
 (* semantics does no changes when permuting the differents exceptions *)
 
 Theorem default_permut_stable ts1 ts2 tj tc sigma sigma1 sigma2 v1 v2:

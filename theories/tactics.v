@@ -15,6 +15,8 @@ Ltac inj :=
 
 Ltac unpack :=
     repeat match goal with
-    [h: _ /\ _ |- _ ] =>
+     [h: _ /\ _ |- _ ] =>
+        destruct h
+    |[h: exists _, _ |- _] =>
         destruct h
     end.

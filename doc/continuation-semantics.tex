@@ -168,7 +168,7 @@ The first one is the following:
 \end{lemma}
 
 \begin{proof}
-  Since $\mathtt{List.length}(\mathtt{stack} \leval x, [k], \sigma_1 \reval) = 1$ and $\mathtt{List.length} (\lcont [], \sigma_3, v_3 \rcont) = 0$, there is an $s_2 \leadsto s_2'$ first in the sequence $\leval x, [k_1], \sigma_1 \reval \leadsto^* \lcont [], \sigma_3, v_3 \rcont$ such that $\mathtt{List.length}(\mathtt{stack}(s_2)) \geq 1$ and $\mathtt{List.length}(\mathtt{stack}(s_2')) = 0$. Since stack size vary by one at most and is deacreasing, hence $s_2$ is in the form $\lcont [k_2], \sigma_2, v_2 \rcont$. Finally, since $s_2 \leadsto s_2'$ is the first, the stack size between $\leval x, [k_1], \sigma_1 \reval$ and $\lcont [k_2], \sigma_2, v_2 \rcont$ is always greater than one. Hence $k_1 = k_2$ and $\leval x, [], \sigma_1 \reval \leadsto^* \lcont [], \sigma_2, v_2 \rcont$. This concludes the proof.
+  Since $\mathtt{List.length}(\mathtt{stack} \leval x, [k], \sigma_1 \reval) = 1$ and $\mathtt{List.length} (\lcont [], \sigma_3, v_3 \rcont) = 0$, there is an $s_2 \leadsto s_2'$ first in the sequence $\leval x, [k_1], \sigma_1 \reval \leadsto^* \lcont [], \sigma_3, v_3 \rcont$ such that $\mathtt{List.length}(\mathtt{stack}(s_2)) \geq 1$ and $\mathtt{List.length}(\mathtt{stack}(s_2')) = 0$. Since stack size vary by one at most and is deacreasing, we know $s_2$ is in the form $\lcont [k_2], \sigma_2, v_2 \rcont$. Finally, since $s_2 \leadsto s_2'$ is the first, the stack size between $\leval x, [k_1], \sigma_1 \reval$ and $\lcont [k_2], \sigma_2, v_2 \rcont$ is always greater than one. Hence $k_1 = k_2$ and $\leval x, [], \sigma_1 \reval \leadsto^* \lcont [], \sigma_2, v_2 \rcont$. This concludes the proof.
 \end{proof}
 
 
