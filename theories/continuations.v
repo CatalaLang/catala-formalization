@@ -191,10 +191,6 @@ Inductive cred: state -> state -> Prop :=
 .
 
 
-
-Tactic Notation "admit" := admit.
-Tactic Notation "admit" string(x) := admit.
-
 Section CRED_PROPERTIES.
 
 Definition stack s :=
@@ -224,7 +220,7 @@ Proof.
     match goal with [v: bool |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
     match goal with [v: op |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end.
     all: try solve[left; eexists; econstructor; repeat intro; discriminate].
-    all: match goal with [ |- context[CBinopL] ] => left; eexists; econstructor; try solve [simpl; eauto]; admit "typing error on the operator"| _ => idtac end.
+    all: match goal with [ |- context[CBinopL] ] => left; eexists; econstructor; try solve [simpl; eauto]; admit alain "typing error on the operator"| _ => idtac end.
     - admit alain "typing error on the function application.".
     - admit alain "typing error on the function application.".
     - admit alain "typing error on the function application.".
@@ -470,7 +466,7 @@ Proof.
   
   induction t1. induction t2; inj.
 
-
+Abort.
 
 Lemma general_inversion_lemma:
   forall t k_1 sigma_1 sigma_3 v_3,
@@ -585,12 +581,11 @@ Proof.
     - inversion H0; subst.
       inversion H2; subst.
       inversion H3; subst.
-      inversion H4; subst.
-       { econstructor. }
+      inversion H4; subst. { admit alain. }
 
-      admit "computation using previous lemmas".
-    - admit "same computation".
-  * admit "
+      admit alain "computation using previous lemmas".
+    - admit alain "same computation".
+  * admit alain "
     we only need to unrool [mode_eval x [] sigma] and [mode_eval y [] sigma]
 
     Then there is 3*3 distinct cases: [x] can returns REmpty, RConflict or RValue, same for [y]. wlog, we can suppose x <= y for a any order on return. We can now consider all the cases:
