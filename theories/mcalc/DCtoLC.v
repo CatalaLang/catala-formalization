@@ -221,8 +221,6 @@ Proof.
   }
 Abort.
 
-Definition well_typed t :=
-  exists Gamma T, jt Gamma t T.
 
 Hypothesis iota_equality: forall t1 t2,
   EMatch (EVariantSome t1) EVariantNone t2 = t2.[t1/].
@@ -230,95 +228,20 @@ Hypothesis iota_equality: forall t1 t2,
 Hypothesis eta_equality: forall t1 t2,
   EApp (ELam t1) t2 = t1.[t2/].
 
-Theorem trans_te_substitution:
-  forall t Delta,
-  forall sigma1 sigma2,
-  (exists Gamma T, jt Gamma t T) ->
-  (exists Gamma T, jt Gamma t.[sigma1] T) ->
-  (forall x, is_value_res (sigma1 x)) ->
-  (forall x, is_nerror (sigma1 x)) ->
-  (forall x, trans Delta (sigma1 x) = sigma2 x) ->
-  trans Delta t.[sigma1] = (trans Delta t).[sigma2].
+
+Lemma trans_up_T Delta sigma1 sigma2 :
+  (forall x : var, Delta x = true -> trans Delta (sigma1 x) = EVariantSome (sigma2 x)) ->
+  forall x : var,
+  (true .: Delta) x = true -> trans (true .: Delta) (up sigma1 x) = EVariantSome (up sigma2 x).
 Proof.
-  induction t using term_ind'; try eauto.
-  3: {
-    introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr Hsigma.
-    induction t1; try solve [asimpl; eauto].
-    - (* Case [App (Var x) _] *) 
-      assert (Hvalx: is_value_res (sigma1 x)) by eapply Hval.
-      assert (Hnerrx: is_nerror (sigma1 x)) by eapply Hnerr.
-      asimpl; remember (sigma1 x); induction t; try clear IHt; tryfalse.
-      2:{ false.
-          inverts Hty'.
-          rewrite <- Heqt in H2.
-          inverts H2.
-          (* admit "Then x has type bool, and this is not possible since it must have type TyArrow.". *)
-        }
-      1:{
-        asimpl.
-        remember (Delta x).
-        induction b; asimpl; unfold_monad.
-        - (* First case: (Delta x) is true. Hence, x is pure.
-             In this case, *)
-          erewrite IHt2; eauto.
-            2:{ inverts Hty; eauto. }
-            2:{ inverts Hty'; eauto. }
-          rewrite <- Hsigma; rewrite <- Heqt.
-          asimpl.
-          repeat f_equal.
-          admit "this is not even well typed".
-        - erewrite IHt2; eauto.
-          2:{ inverts Hty; eauto. }
-          2:{ inverts Hty'; eauto. }
+  intros.
+  idtac.
+  induction x.
+  * eauto.
+  * 
+Abort.
 
-          erewrite <- Hsigma. rewrite <- Heqt. asimpl; unfold_monad.
-          rewrite iota_equality; asimpl.
-          rewrite eta_equality; asimpl.
-          repeat f_equal.
-      }
-    - asimpl; unfold_monad.
-      
-      repeat f_equal.
-      * (* by IHt2, [trans Delta t2.[sigma1] = (trans Delta t2).[sigma2]] *)
-        erewrite IHt2; eauto.
-        { inverts Hty. inverts Hty'. exists Gamma T0. eauto. }
-        { inverts Hty. inverts Hty'. exists Gamma' T1. eauto. }
-      * (* by IHt1, [trans Delta (Lam t).[sigma1] = (trans Delta (Lam t)).[sigma2]]. *)
-        assert (trans Delta (Lam t).[sigma1] = (trans Delta (Lam t)).[sigma2]).
-        { eapply IHt1; eauto; inverts Hty; inverts Hty'.
-          { exists Gamma (TyFun T0 T); eauto. }
-          { exists Gamma' (TyFun T1 T'); eauto. }
-        }
-        asimpl in H.
-        injections; eauto.
-  }
-  3: {
-    introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr Hsigma.
-    assert (Hts: List.map (trans Delta) ts..[sigma1] = (List.map (trans Delta) ts)..[sigma2]).
-    { admit "by IHts". }
-    assert (Ht1: trans Delta t1.[sigma1] = (trans Delta t1).[sigma2]).
-    { admit "by IHt1". }
-    assert (Ht2: trans Delta t2.[sigma1] = (trans Delta t2).[sigma2]).
-    { admit "by IHt2". }
 
-    asimpl.
-    rewrite Hts, Ht1, Ht2.
-    rewrite subst_monad_handle.
-    eauto.
-  }
-  2: {
-    introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr Hsigma.
-    asimpl.
-    unfold_monad. repeat fequal.
-    eapply IHt; eauto.
-    assert (trans Delta (Lam t).[sigma1] = (trans Delta (t)).[sigma2]).
-    { 
-    }
-    asimpl in H.
-    injections; eauto.
-
-    admit "same as case App (Lam _) _".
-  }
 
 Lemma trans_te_renaming:
   forall Delta t u,
@@ -391,6 +314,140 @@ Proof.
   intros.
   eapply trans_te_renaming; eauto.
 Qed.
+
+Theorem trans_te_substitution:
+  forall t Delta,
+  forall sigma1 sigma2,
+  (exists Gamma T, jt Gamma t T) ->
+  (exists Gamma T, jt Gamma t.[sigma1] T) ->
+  (forall x, is_value_res (sigma1 x)) ->
+  (forall x, is_nerror (sigma1 x)) ->
+  (forall x, Delta x = true -> (trans Delta (sigma1 x)) = EVariantSome (sigma2 x)) ->
+  (forall x, Delta x = false -> (trans Delta (sigma1 x)) = sigma2 x) ->
+  trans Delta t.[sigma1] = (trans Delta t).[sigma2].
+Proof.
+  induction t using term_ind'; try eauto.
+  3: {
+    introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr HsigmaT HsigmaF.
+    induction t1; try solve [asimpl; eauto].
+    - (* Case [App (Var x) _] *) 
+      assert (Hvalx: is_value_res (sigma1 x)) by eapply Hval.
+      assert (Hnerrx: is_nerror (sigma1 x)) by eapply Hnerr.
+      asimpl; remember (sigma1 x); induction t; try clear IHt; tryfalse.
+      2:{ (* Then x has type bool, and this is not possible since it must have type TyArrow.*)
+          false.
+          inverts Hty'.
+          rewrite <- Heqt in H2.
+          inverts H2.
+        }
+      1:{
+        asimpl.
+        remember (Delta x).
+        induction b; asimpl; unfold_monad.
+        - (* First case: (Delta x) is true. Hence, x is pure.
+             In this case, *)
+          erewrite IHt2; eauto.
+            2:{ inverts Hty; eauto. }
+            2:{ inverts Hty'; eauto. }
+          
+          replace (sigma2 x) with (L.ELam (trans (true .: Delta) t)).
+          { asimpl; repeat f_equal.
+            rewrite eta_equality; asimpl; eauto.
+          }
+          {
+            symmetry in Heqb.
+            assert (Hsigma: trans Delta (sigma1 x) = EVariantSome (sigma2 x)) by eauto.
+            rewrite <- Heqt in Hsigma. simpl in Hsigma. unfold monad_return in Hsigma.
+            injections; eauto.
+          }
+        - erewrite IHt2; eauto.
+          2:{ inverts Hty; eauto. }
+          2:{ inverts Hty'; eauto. }
+
+          erewrite <- HsigmaF; eauto. rewrite <- Heqt. asimpl; unfold_monad.
+          rewrite iota_equality; asimpl.
+          rewrite eta_equality; asimpl.
+          repeat f_equal.
+      }
+    - (* Case [App (Lam t) _ ] *)
+      asimpl; unfold_monad.
+      
+      repeat f_equal.
+      * (* by IHt2, [trans Delta t2.[sigma1] = (trans Delta t2).[sigma2]] *)
+        erewrite IHt2; eauto.
+        { inverts Hty. inverts Hty'. exists Gamma T0. eauto. }
+        { inverts Hty. inverts Hty'. exists Gamma' T1. eauto. }
+      * (* by IHt1, [trans Delta (Lam t).[sigma1] = (trans Delta (Lam t)).[sigma2]]. *)
+        assert (trans Delta (Lam t).[sigma1] = (trans Delta (Lam t)).[sigma2]).
+        { eapply IHt1; eauto; inverts Hty; inverts Hty'.
+          { exists Gamma (TyFun T0 T); eauto. }
+          { exists Gamma' (TyFun T1 T'); eauto. }
+        }
+        asimpl in H.
+        injections; eauto.
+  }
+  3: {
+    introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr HsigmaT HsigmaF.
+    assert (Hts: List.map (trans Delta) ts..[sigma1] = (List.map (trans Delta) ts)..[sigma2]).
+    { induction ts; asimpl; repeat f_equal.
+      - inverts Hty; inverts Hty'. inverts_Forall.
+        eapply H4; eauto.
+      - inverts Hty; inverts Hty'. inverts_Forall.
+        eapply IHts; eauto using jt. 
+    }
+    assert (Ht1: trans Delta t1.[sigma1] = (trans Delta t1).[sigma2]).
+    { 
+      eapply IHt1; eauto.
+      inverts Hty; exists Gamma TyBool; eauto.
+      inverts Hty'; exists Gamma' TyBool; eauto.
+    }
+    assert (Ht2: trans Delta t2.[sigma1] = (trans Delta t2).[sigma2]).
+    { eapply IHt2; eauto.
+      inverts Hty; exists Gamma T; eauto.
+      inverts Hty'; exists Gamma' T'; eauto.
+    }
+
+    asimpl.
+    rewrite Hts, Ht1, Ht2.
+    rewrite subst_monad_handle.
+    eauto.
+  }
+  2: {
+    (* Case [Lam _] *)
+    introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr HsigmaT HsigmaF.
+    asimpl.
+    unfold_monad. repeat fequal.
+    inverts Hty; inverts Hty'.
+    eapply IHt; eauto.
+    - match goal with [ |- forall x, is_value_res (up sigma1 x) ] => idtac end.
+      admit "[forall x, is_value_res (up sigma1 x)] is false since [up sigma1 0] is [ids 0] hence a variable.".
+    - clear -Hnerr.
+      induction x; asimpl.
+      { unfold ids, D.Ids_term; eauto. }
+      { specialize Hnerr with x.
+        remember (sigma1 x) as t.
+        induction t; asimpl; eauto.
+      }
+    - clear -HsigmaT.
+      induction x; intros.
+      { unfold ids, D.Ids_term; asimpl; eauto. }
+      { asimpl.
+        replace (EVariantSome (lift 1 (sigma2 x))) with (lift 1 (EVariantSome (sigma2 x))); eauto using trans_te_renaming_0. }
+    - clear -HsigmaF.
+      induction x; asimpl; intros.
+      { tryfalse. }
+      { eapply trans_te_renaming_0; eauto. }
+  }
+  { (* case [Var _] *)
+    introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr HsigmaT HsigmaF.
+    asimpl.
+    remember (Delta x) as b.
+    specialize HsigmaT with x.
+    specialize HsigmaF with x.
+    induction b; eauto.
+  }
+Admitted. 
+
 
 Require Import DCReduction.
 
@@ -580,9 +637,11 @@ Proof.
   eapply RedEMatchSomeV; asimpl; try eauto.
 Qed.
 
-Lemma trans_te_substitution_0_true (t v: DCSyntax.term) Delta:
-  (trans (true .: Delta) t).[(trans (fun i => true) v)/] = trans Delta (t.[v/]).
-  (* This is an instance of the more general *)
+Lemma trans_te_substitution_0_true (t v: DCSyntax.term) v' Delta:
+
+  trans (fun i => true) v = EVariantSome v' ->
+  (trans (true .: Delta) t).[v'/] = trans Delta t.[v/].
+  (* This is an instance of the more general substitution lemma *)
 Proof.
   intros.
   asimpl.
@@ -629,14 +688,13 @@ Lemma trans_correct t1 t2 Gamma T:
   forall Delta,
   no_compile_error (trans Delta t1) ->
   dcbv t1 t2 ->
-  
+
   exists target,
     star lcbv (trans Delta t1) target /\
     star lcbv (trans Delta t2) target.
 Proof.
   intros Hjt Delta Hcompil Hdcbv.
   revert Hdcbv Gamma T Hjt Delta Hcompil.
-
 
   induction 1; tryfalse; intros; unpack.
   * subst; eexists; split.
@@ -652,22 +710,19 @@ Proof.
       + trivial.
       + reflexivity.
       + unfold LCValues.is_value, LCValues.if_value; simpl.
-        admit "Error in the definition of what is a value in LCValues.".
-      + symmetry. eapply trans_te_substitution.
-        admit "This is an instance of trans_te_substitution_0 for both relations with the ite ".
+        admit "Error: OConst should be a value in LCValues.".
+      + eapply trans_te_substitution_0_true.
+        asimpl; eauto. 
   * inv jt.
     assert (no_compile_error (trans Delta t1)). { admit. }
 
-    destruct (IHred ) as [target [Htarget1 Htarget2]].
+    destruct (IHHdcbv _ _ H5 _ H2) as [target [Htarget1 Htarget2]].
     exists (EApp target (trans Delta u)).
     split; eapply star_one; asimpl.
     all: admit.
-  * destruct (IHred Delta) as [target [Htarget1 Htarget2]].
+  * destruct (IHHdcbv Delta) as [target [Htarget1 Htarget2]].
     exists (EApp (trans Delta v) target).
     induction v; simpl in H0; tryfalse.
     (* v is a value. *)
-
-
-
 Admitted.
 
