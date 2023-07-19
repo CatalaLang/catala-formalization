@@ -287,7 +287,7 @@ Theorem trans_te_substitution:
   forall sigma1 sigma2,
   (exists Gamma T, jt Gamma t T) ->
   (exists Gamma T, jt Gamma t.[sigma1] T) ->
-  (forall x, is_value_res (sigma1 x)) ->
+  (forall x, is_value_res (sigma1 x) \/ (sigma1 x) = ids x) ->
   (forall x, is_nerror (sigma1 x)) ->
   (forall x, Delta x = true -> (trans Delta (sigma1 x)) = EVariantSome (sigma2 x)) ->
   (forall x, Delta x = false -> (trans Delta (sigma1 x)) = sigma2 x) ->
@@ -298,25 +298,40 @@ Proof.
     introv [Gamma [T Hty]] [Gamma' [T' Hty']] Hval Hnerr HsigmaT HsigmaF.
     induction t1; try solve [asimpl; eauto].
     - (* Case [App (Var x) _] *) 
-      assert (Hvalx: is_value_res (sigma1 x)) by eapply Hval.
+      assert (Hvalx: is_value_res (sigma1 x) \/ sigma1 x = ids x) by eapply Hval.
       assert (Hnerrx: is_nerror (sigma1 x)) by eapply Hnerr.
-      asimpl; remember (sigma1 x); induction t; try clear IHt; tryfalse.
-      2:{ (* Then x has type bool, and this is not possible since it must have type TyArrow.*)
-          false.
-          inverts Hty'.
-          rewrite <- Heqt in H2.
-          inverts H2.
+      asimpl; remember (sigma1 x) as t; induction t; try clear IHt; destruct Hvalx; tryfalse; injections; subst.
+      {
+        asimpl.
+        remember (Delta x).
+        induction b; asimpl; unfold_monad; fequal.
+        { 
+          inverts Hty; inverts Hty'.
+          eapply IHt2; eauto.
         }
-      1:{
+        { fequal. assert (H: trans Delta (sigma1 x) = EVariantSome (sigma2 x)).
+          { eapply HsigmaT; eauto. }
+          rewrite <- Heqt in H; asimpl in H; rewrite <- Heqb in H; unfold monad_return in H.
+          injections.
+          rewrite <- H; eauto.
+        }
+        { fequal. assert (H: trans Delta (sigma1 x) = sigma2 x).
+          { eapply HsigmaF; eauto. }
+          rewrite <- Heqt in H; asimpl in H; rewrite <- Heqb in H; unfold monad_return in H.
+          eauto.
+        }
+        { f_equal.
+          inverts Hty; inverts Hty'.
+          erewrite IHt2; eauto; asimpl.
+          eauto.
+        }
+      }
+      {
         asimpl.
         remember (Delta x).
         induction b; asimpl; unfold_monad.
-        - (* First case: (Delta x) is true. Hence, x is pure.
-             In this case, *)
+        - inverts Hty; inverts Hty'.
           erewrite IHt2; eauto.
-            2:{ inverts Hty; eauto. }
-            2:{ inverts Hty'; eauto. }
-          
           replace (sigma2 x) with (L.ELam (trans (true .: Delta) t)).
           { asimpl; repeat f_equal.
             rewrite eta_equality; asimpl; eauto.
@@ -336,6 +351,14 @@ Proof.
           rewrite eta_equality; asimpl.
           repeat f_equal.
       }
+      { (* Then x has type bool, and this is not possible since it must have type TyArrow.*)
+          false.
+          inverts Hty'.
+          match goal with [h: jt _ (sigma1 x) (TyFun _ _) |- _] =>
+            rewrite <- Heqt in h;
+            inverts h
+          end.
+        }
     - (* Case [App (Lam t) _ ] *)
       asimpl; unfold_monad.
       
@@ -386,10 +409,11 @@ Proof.
     unfold_monad. repeat fequal.
     inverts Hty; inverts Hty'.
     eapply IHt; eauto.
-    - match goal with [ |- forall x, is_value_res (up sigma1 x) ] => idtac end.
-
-      
-      admit "[forall x, is_value_res (up sigma1 x)] is false since [up sigma1 0] is [ids 0] hence a variable.".
+    - induction x.
+      * asimpl; eauto.
+      * destruct (Hval x) as [H|H].
+        { left; asimpl; eapply is_value_res_renaming; eauto. }
+        { right; asimpl. rewrite H; eauto. }
     - clear -Hnerr.
       induction x; asimpl.
       { unfold ids, D.Ids_term; eauto. }
@@ -415,7 +439,7 @@ Proof.
     specialize HsigmaF with x.
     induction b; eauto.
   }
-Admitted. 
+Qed.
 
 Lemma trans_te_substitution_0:
   forall Delta t1 t2 u1 u2,

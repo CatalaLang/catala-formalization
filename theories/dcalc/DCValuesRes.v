@@ -78,7 +78,7 @@ Proof.
   induction l; intros; asimpl; inverts_Forall; econstructor; eauto using is_value_res_subst_stable.
 Qed.
 
-Lemma is_nonvalue_renaming:
+Lemma is_nonvalue_res_renaming:
   forall v xi,
   ~ is_value_res v ->
   ~ is_value_res v.[ren xi].
