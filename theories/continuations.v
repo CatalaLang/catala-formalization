@@ -357,7 +357,7 @@ Proof.
       | simpl in *; repeat rewrite lastn_cons in *; eauto
     ].
 Abort.
- 
+
 
 Lemma cred_lastn_stable s1 s2 n:
   List.length (stack s1) > n ->
@@ -409,16 +409,16 @@ Proof.
   ].
 Qed.
 
-
 Lemma cred_stack_descreasing_mode_cont:
   forall s1 s2,
   cred s1 s2 ->
-  (List.length (stack s2)) <? (List.length (stack s1)) = true  ->
+  (List.length (stack s2)) <? (List.length (stack s1)) = true \/ (List.skipn 1 (stack s1) = List.skipn 1 (stack s2)) ->
   exists kappa sigma v,
   s1 = mode_cont kappa sigma v
   .
 Proof.
-  induction 1; simpl; eauto; lia.
+  induction 1; try solve [ simpl; eauto; lia]; induction 1; try solve [simpl in *; lia].
+  * induction kappa; simpl.
 Qed.
 
 Lemma cred_stack_descreasing_mode_cont_0:
@@ -448,25 +448,45 @@ Proof.
   all: try solve [lia| inj| eexists; eauto].
 Qed.
 
-Require Import Coq.Logic.Decidable.
+Require Import Bool.Bool.
 
-Lemma term_dec: forall t1 t2: term, {t1 = t2} + {t1 <> t2}.
-Admitted.
-
-Lemma value_dec: forall t1 t2: value, {t1 = t2} + {t1 <> t2}.
-Admitted.
+Hypothesis cont_eqb: cont -> cont -> bool.
+Hypothesis cont_eqbOK: forall x y, reflect (x = y) (cont_eqb x y).
 
 
-Lemma eq_dec_cont: forall t1 t2: cont, {t1 = t2} + {t1 <> t2}.
+From elpi.apps Require Import derive.std.
+
+Theorem list_eqbOK {T} f : 
+  (forall x y: T, reflect (x=y) (f x y)) -> 
+  forall x y, reflect (x = y) (list_eqb _ f x y).
 Proof.
-  unfold decidable.
-  decide equality.
-  * 
-  intros.
-  
-  induction t1. induction t2; inj.
+  intros H.
+  induction x, y; simpl; try econstructor; eauto using fuck_stdlib.
+  3: {
+    induction (H a t); subst; simpl; induction (IHx y); simpl; econstructor; repeat intro; subst; eauto; inj; congruence.
+  }
+  all: repeat intro; congruence.
+Qed.
 
-Abort.
+
+Lemma same_stack:
+  forall s1 s2,
+  star (fun a b : state => cred a b /\ list_eqb cont cont_eqb (stack a) (stack b) = true) s1 s2 ->
+  stack s1 = stack s2.
+Proof.
+  induction 1; eauto.
+  {
+    unpack. rewrite <- IHstar.
+    destruct (list_eqbOK _ cont_eqbOK (stack a) (stack b)); eauto; congruence.
+  }
+Qed.
+
+Lemma same_stack':
+  forall s1 s2,
+  star (fun a b : state => cred a b /\ list_eqb cont cont_eqb (stack s1) (stack b) = true) s1 s2 ->
+  stack s1 = stack s2.
+Proof.
+Admitted.
 
 Lemma general_inversion_lemma:
   forall t k_1 sigma_1 sigma_3 v_3,
@@ -480,22 +500,17 @@ Lemma general_inversion_lemma:
     (mode_cont [] sigma_2 v_2).
 Proof.
   intros ? ? ? ? ? Hstar13.
-  destruct (takewhile (fun s => Nat.ltb 0 (List.length (stack s)) ) Hstar13)
+  destruct (takewhile (fun s => list_eqb _ cont_eqb [k_1] (stack s)) Hstar13)
   as [[H1 H2]|[s_2' [Hs2'a [Hs2'b Hs2'c]]]].
   - eauto.
-  - simpl in *; exfalso; discriminate.
+  - simpl in *; exfalso; induction (cont_eqbOK k_1 k_1); eauto.
   - induction Hs2'a using star_ind_n1.
-    * simpl in *; exfalso; discriminate.
+    * simpl in *; exfalso; induction (cont_eqbOK k_1 k_1); eauto.
     * rename y into s2, z into s2'. unpack.
-      assert (Hassert: exists k_2 sigma_2 v_2, s2 = mode_cont [k_2] sigma_2 v_2).
-      { (* Since [List.length (stack s2') = 0] and [cred s2 s2'], we can be sure s2 have this form. *)
-        edestruct cred_stack_descreasing_mode_cont.
-        { eauto. }
-        { lia. }
-        edestruct cred_stack_zero.
-        { eauto. }
-        { lia. }
-        { rewrite <- List.length_zero_iff_nil; lia. }
+      assert (Hassert: exists sigma_2 v_2, s2 = mode_cont [k_1] sigma_2 v_2).
+      { 
+        replace ([k_1]) with (stack (mode_eval t [k_1] sigma_1)) in Hs2'a; simpl; eauto.
+        assert ((stack s2) = [k_1]). { admit alain "wip". }
 
         unpack; repeat (simpl in *; subst); repeat eexists; f_equal.
       }
