@@ -204,44 +204,11 @@ Require Import FunInd.
 
 (* The goal of this part is to prove a substitution lemma for trans *)
 
-Theorem trans_te_substitution:
-  forall Delta t,
-  forall sigma1 sigma2,
-  (forall x,  trans Delta (sigma1 x) = sigma2 x) ->
-  trans Delta t.[sigma1] = (trans Delta t).[sigma2].
-Proof.
-  induction t using term_ind'; intros; asimpl.
-  3: { (* Here, if t1 is a variable, then the right hand side reduces to [if Delta f then ...] while the left hand side might reduce to something like an application. In this case, the translation would be a an compilation error. 
-  
-  Hence this theorem does not hold in general. But do we need it in all generality?
-  
-  This theorem is used in the simulation diagram in the case of beta-reduction. And since we are in call by value, substitution must happend on values only. Hence, for all x, [sigma1 x] is a value. This reduces greatly the difficulties.
-  *)
-  admit.
-  }
-Abort.
-
-
 Hypothesis iota_equality: forall t1 t2,
   EMatch (EVariantSome t1) EVariantNone t2 = t2.[t1/].
 
 Hypothesis eta_equality: forall t1 t2,
   EApp (ELam t1) t2 = t1.[t2/].
-
-
-Lemma trans_up_T Delta sigma1 sigma2 :
-  (forall x : var, Delta x = true -> trans Delta (sigma1 x) = EVariantSome (sigma2 x)) ->
-  forall x : var,
-  (true .: Delta) x = true -> trans (true .: Delta) (up sigma1 x) = EVariantSome (up sigma2 x).
-Proof.
-  intros.
-  idtac.
-  induction x.
-  * eauto.
-  * 
-Abort.
-
-
 
 Lemma trans_te_renaming:
   forall Delta t u,
@@ -420,6 +387,8 @@ Proof.
     inverts Hty; inverts Hty'.
     eapply IHt; eauto.
     - match goal with [ |- forall x, is_value_res (up sigma1 x) ] => idtac end.
+
+      
       admit "[forall x, is_value_res (up sigma1 x)] is false since [up sigma1 0] is [ids 0] hence a variable.".
     - clear -Hnerr.
       induction x; asimpl.
@@ -447,145 +416,6 @@ Proof.
     induction b; eauto.
   }
 Admitted. 
-
-
-Require Import DCReduction.
-
-Require Import MySequences.
-Require Import MyRelations.
-
-(* This propertie des not seems to hold correctly. Indeed, *)
-
-Definition transs Delta sigma1 sigma2 :=
-  forall x : var,
-  trans Delta (sigma1 x) = sigma2 x
-  (* if Delta x then monad_return (sigma2 x) else (sigma2 x) *)
-  .
-
-
-Lemma trans_ids:
-  forall Delta,
-  transs Delta ids (fun x => trans Delta (ids x)).
-Proof.
-  unfold transs.
-  induction x; eauto; asimpl.
-Qed.
-
-Lemma trans_cons:
-  forall Delta t u sigma1 sigma2,
-  trans Delta t = u ->
-  transs Delta sigma1 sigma2 ->
-  transs Delta (t .: sigma1) (u .: sigma2).
-Proof.
-  intros.
-  intros [|x]; asimpl; eauto.
-Qed.
-
-(* this lemma does not hold. *)
-Lemma trans_up:
-  forall Delta sigma1 sigma2,
-  transs Delta sigma1 sigma2 ->
-  transs Delta (up sigma1) (up sigma2).
-Proof.
-  intros; eapply trans_cons; eauto.
-  2: {
-    unfold transs; intros; asimpl; eapply trans_te_renaming.
-Abort.
-
-
-(* First the propertie on transs should satisfy this : *)
-
-Lemma rewrite_subst_ite:
-  forall (b: bool) sigma (x y: L.term),
-    (if b then x else y).[sigma] = (if b then x.[sigma] else y.[sigma]).
-Proof.
-  induction b; intros; asimpl; eauto.
-Qed.
-
-Lemma trans_te_subst_var:
-  forall Delta sigma1 sigma2, 
-  transs Delta sigma1 sigma2 ->
-  forall x, 
-  trans Delta (sigma1 x) = (if Delta x then monad_return (L.EVar x) else L.EVar x).[sigma2].
-Proof.
-  unfold monad_return.
-  (* I dont really understand this one as it seems. Maybe it is that if we replace x with something else, then it must have a certain shape. For example, let's assume for now that x is a value. *)
-
-
-  admit.
-Abort.
-
-
-
-(* 
-let translate_var_to_exp (s: D.var_to_exp) : Tot L.var_to_exp =
-  fun x -> translate_exp (s x)
-
-let rec substitution_correctness (s: D.var_to_exp) (e: D.exp)
-    : Lemma (ensures (
-      translate_exp (D.subst s e) ==
-        L.subst (translate_var_to_exp s) (translate_exp e)))
-      (decreases %[D.is_var_size e; D.is_renaming_size s; 1; e])
-
-
-    trans (e.[s]) = trans e.[trans_sigma s]
-  = *)
-
-
-(*
-Definition transs Delta sigma1 sigma2 :=
-  forall x : var,
-  trans Delta (sigma1 x) =
-    sigma2 x
-    (* if Delta x then monad_return (sigma2 x) else (sigma2 x) *)
-  .
-*)
-
-(* trans x.[x |-> Empty] = trans Empty = None
-(trans x).[x |-> None] = x.[x -> None] = None
-
-Delta x = true
-
-trans x.[x |-> 3] = trans 3 = Some 3
-(trans x).[x |-> Some 3] = x.[x -> Some 3] = Some 3 *)
-
-Definition transs' Delta sigma1 sigma2 :=
-  forall x : var,
-  trans Delta (sigma1 x) =
-  if Delta x then monad_return (sigma2 x) else (sigma2 x)
-  .
-
-
-Lemma trans'_cons:
-  forall Delta t u sigma1 sigma2,
-  trans Delta t = u ->
-  transs' Delta sigma1 sigma2 ->
-  transs' Delta (t .: sigma1) (u .: sigma2).
-Proof.
-Admitted.
-
-
-Lemma trans_te_substitution:
-  forall Delta t,
-  forall sigma1 sigma2,
-  transs' Delta sigma1 sigma2 ->
-  trans Delta t.[sigma1] = (trans Delta t).[sigma2].
-Proof.
-  intros Delta t. gen Delta.
-  induction t using term_ind'; intros; subst; asimpl; eauto using trans_cons with jt.
-  * rewrite H.
-    remember (Delta x) as b; induction b; subst; asimpl; eauto.
-  * unfold_monad.
-    asimpl.
-    repeat fequal.
-    eapply IHt; eauto.
-    eapply trans'_cons.
-    (* this does not hold since we don't have trans'_cons. *)
-    admit. admit.
-  * admit.
-  * induction ts; asimpl; admit.
-Admitted.
-
 
 Lemma trans_te_substitution_0:
   forall Delta t1 t2 u1 u2,
@@ -620,7 +450,7 @@ Notation "a '\to^*' b" := (star lcbv a b) (at level 100, no associativity): late
 
 Notation "'\synreturn' t" := (monad_return t) (at level 100): latex_scope.
 
-(* Open Scope latex_scope. *)
+Open Scope latex_scope.
 
 Print Scopes.
 
@@ -645,6 +475,7 @@ Lemma trans_te_substitution_0_true (t v: DCSyntax.term) v' Delta:
 Proof.
   intros.
   asimpl.
+  rewrite trans_te_substitution.
 Admitted.
 
 Lemma trans_te_substitution_0_false (t v: DCSyntax.term) Delta:
