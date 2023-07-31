@@ -226,7 +226,7 @@ Proof.
     - admit alain "typing error on the function application.".
     - admit alain "typing error on the justification".
     - admit alain "typing error on the justification".
-Admitted.
+Abort.
 
 Theorem cred_deterministic (s s1' s2': state):
   cred s s1' -> cred s s2' -> s1' = s2'.
@@ -419,7 +419,7 @@ Lemma cred_stack_descreasing_mode_cont:
 Proof.
   induction 1; try solve [ simpl; eauto; lia]; induction 1; try solve [simpl in *; lia].
   * induction kappa; simpl.
-Qed.
+Admitted.
 
 Lemma cred_stack_descreasing_mode_cont_0:
   forall s1 s2 k,
@@ -513,6 +513,7 @@ Proof.
         assert ((stack s2) = [k_1]). { admit alain "wip". }
 
         unpack; repeat (simpl in *; subst); repeat eexists; f_equal.
+        admit alain.
       }
 
       unpack; repeat (simpl in *; subst).
@@ -614,3 +615,5 @@ Proof.
     
   ".
 Abort.
+
+End CRED_PROPERTIES.
