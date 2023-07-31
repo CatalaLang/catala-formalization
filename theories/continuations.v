@@ -2,8 +2,9 @@ Require Import syntax.
 Require Import Sorting.Permutation.
 Import List.ListNotations.
 Open Scope list_scope.
-Require Import sequences.
+Require Import sequences common.
 Require Import Coq.Arith.Arith.
+Require Import Bool.
 
 
 (* Proof automation. ZifyBool is needed for operators such as [_ <=? _] *)
@@ -190,8 +191,9 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont kappa sigma (RValue v))
 .
 
-
 Section CRED_PROPERTIES.
+
+(** STACK MANIPULATION *)
 
 Definition stack s :=
   match s with
@@ -204,6 +206,138 @@ Definition with_stack s kappa :=
   | mode_eval t _ sigma => mode_eval t kappa sigma
   | mode_cont _ sigma v => mode_cont kappa sigma v
   end.
+
+Definition is_mode_eval s :=
+  match s with
+  | mode_eval _ _ _ => true
+  | _ => false
+  end.
+
+Definition is_mode_cont s :=
+  match s with
+  | mode_cont _ _ _ => true
+  | _ => false
+  end.
+
+Definition append_stack s kappa2 :=
+  match s with
+  | mode_eval t kappa1 sigma =>
+    mode_eval t (kappa1++kappa2) sigma
+  | mode_cont kappa1 sigma v =>
+    mode_cont (kappa1++kappa2) sigma v
+  end
+.
+
+Theorem append_stack_def s kappa:
+  append_stack s kappa = with_stack s (stack s ++ kappa).
+Proof.
+  induction s; simpl; eauto.
+Qed.
+
+
+(** Reductions are stable if stack is append. *)
+
+Theorem append_stack_stable s s':
+  (* If you can do a transition, then you can do the same transition with additional informations on the stack. *)
+  cred s s' ->
+  forall k,
+  cred (append_stack s k) (append_stack s' k).
+Proof.
+  induction 1; intros; asimpl; try econstructor; eauto.
+Qed.
+
+Theorem append_stack_stable_star s s':
+  star cred s s'
+  ->
+  forall k,
+  star cred (append_stack s k) (append_stack s' k).
+Proof.
+  induction 1; intros.
+  * eauto with sequences.
+  * eapply star_step; eauto using append_stack_stable.
+Qed.
+
+
+(** Reduction don't modify the stack too much *)
+
+Lemma cred_stack_lenght_at_most_one s1 s2:
+  cred s1 s2 ->
+  let n1 := List.length (stack s1) in
+  let n2 := List.length (stack s2) in
+  False
+  \/ n1 = n2 /\ is_mode_cont s1 = true
+  \/ n1 = n2 /\ is_mode_eval s1 = true /\ is_mode_cont s2 = true /\ stack s1 = stack s2
+  \/ n1 = S n2 /\ is_mode_cont s1 = true
+  \/ S n1 = n2 /\ is_mode_eval s1 = true.
+Proof.
+  simpl.
+  induction 1; repeat split; try solve [simpl; lia].
+  *  
+Qed.
+
+Lemma cred_stack_same_length_unmodified s1 s2:
+  cred s1 s2 ->
+  List.length (stack s1) = List.length (stack s2) ->
+  is_mode_cont s1 = true \/ stack s1 = stack s2 /\ is_mode_eval s1 = true /\ is_mode_cont s2 = true.
+Proof.
+  induction 1; try solve [simpl; try lia; eauto].
+Qed.
+
+
+
+Lemma cred_lastn_stable s1 s2 n:
+  List.length (stack s1) >= n ->
+  List.length (stack s2) >= n ->
+  cred s1 s2 ->
+  lastn n (stack s1) = lastn n (stack s2).
+Proof.
+  intros Hs1 Hs2.
+  induction 1;
+    try solve [ idtac
+      | unfold lastn; case n; simpl in *; eauto
+      | simpl in *; repeat rewrite lastn_cons in *; eauto
+    ].
+Abort.
+
+Lemma cred_lastn_stable s1 s2 n:
+  List.length (stack s1) > n ->
+  List.length (stack s2) > n ->
+  cred s1 s2 ->
+  lastn n (stack s1) = lastn n (stack s2).
+Proof.
+  intros Hs1 Hs2.
+  induction 1; try solve [unfold lastn; case n; simpl in *; eauto];
+    simpl in *; repeat rewrite lastn_cons in *; eauto; try lia.
+Qed.
+
+Lemma creds_lastn_stable_aux s1 s2 n:
+  star (fun a b => cred a b /\ List.length (stack a) > n /\ List.length (stack b) > n) s1 s2 ->
+  star (fun a b => cred a b /\ lastn n (stack a) = lastn n (stack b)) s1 s2.
+Proof.
+  induction 1; econstructor; unpack; eauto using cred_lastn_stable.
+Qed.
+
+Lemma creds_lastn_stable s1 s2 n:
+  n <? List.length (stack s2) = true ->
+  star (fun a b => cred a b /\ n <? List.length (stack a) = true) s1 s2 ->
+  star (fun a b => cred a b /\ lastn n (stack a) = lastn n (stack b)) s1 s2.
+Proof.
+  intros.
+  destruct creds_lastn_stable_aux with s1 s2 n; try solve [econstructor; eauto].
+  match goal with |[h: star _ _ _ |- _ ] => induction h using star_ind_n1 end.
+  unpack.
+  { econstructor. }
+  { eapply star_step_n1; unpack; repeat split; eauto; try lia. }
+Qed.
+
+
+
+
+
+
+
+(* PROPERTIES OF CRED *)
+
 
 Theorem cred_progress s:
   (exists s', cred s s') \/ stack s = [].
@@ -278,121 +412,13 @@ Proof.
   injection h end; eauto.
 Qed.
 
-
-Definition append_stack s kappa2 :=
-  match s with
-  | mode_eval t kappa1 sigma =>
-    mode_eval t (kappa1++kappa2) sigma
-  | mode_cont kappa1 sigma v =>
-    mode_cont (kappa1++kappa2) sigma v
-  end
-.
-
-(* Properties of append_stack *)
-
-Theorem append_stack_stable s s':
-  (* If you can do a transition, then you can do the same transition with additional informations on the stack. *)
-  cred s s' ->
-  forall k,
-  cred (append_stack s k) (append_stack s' k).
-Proof.
-  induction 1; intros; asimpl; try econstructor; eauto.
-Qed.
-
-Theorem append_stack_stable_star s s':
-  star cred s s'
-  ->
-  forall k,
-  star cred (append_stack s k) (append_stack s' k).
-Proof.
-  induction 1; intros.
-  * eauto with sequences.
-  * eapply star_step; eauto using append_stack_stable.
-Qed.
-
-Lemma append_stack_inv:
-  forall s1 s2 kappa2,
-  s1 = append_stack s2 (kappa2) ->
-  exists kappa1, stack s1 = kappa1 ++ kappa2.
-Proof.
-  induction s1; induction s2; simpl; intros.
-  all: try solve [injection H; intros; subst; eexists; eauto ].
-  all: try solve [discriminate].
-Qed.
-
-
-Search "skipn" "length". 
-
-Definition lastn {A} n (l: list A) := List.skipn ((List.length l) - n) l.
-
-Lemma lastn_length {A} n:
-  forall l: list A, List.length (lastn n l) = min n (List.length l).
-Proof.
-  unfold lastn.
-  setoid_rewrite List.skipn_length; lia.
-Qed.
-
-Lemma lastn_cons {A} n:
-  forall a (l: list A), length l >= n -> lastn n (a::l) = lastn n l.
-Proof.
-  unfold lastn.
-  intros.
-  simpl length.
-  replace (S (length l) - n) with (S (length l - n)); eauto.
-  lia.
-Qed.
-
-
+Require Import common.
 (* This lemma does not hold in whole generality. *)
-Lemma cred_lastn_stable s1 s2 n:
-  List.length (stack s1) >= n ->
-  List.length (stack s2) >= n ->
-  cred s1 s2 ->
-  lastn n (stack s1) = lastn n (stack s2).
-Proof.
-  intros Hs1 Hs2.
-  induction 1;
-    try solve [
-      unfold lastn; case n; simpl in *; eauto
-      | simpl in *; repeat rewrite lastn_cons in *; eauto
-    ].
-Abort.
 
-
-Lemma cred_lastn_stable s1 s2 n:
-  List.length (stack s1) > n ->
-  List.length (stack s2) > n ->
-  cred s1 s2 ->
-  lastn n (stack s1) = lastn n (stack s2).
-Proof.
-  intros Hs1 Hs2.
-  induction 1; try solve [unfold lastn; case n; simpl in *; eauto];
-    simpl in *; repeat rewrite lastn_cons in *; eauto; try lia.
-Qed.
-
-Lemma creds_lastn_stable_aux s1 s2 n:
-  star (fun a b => cred a b /\ List.length (stack a) > n /\ List.length (stack b) > n) s1 s2 ->
-  star (fun a b => cred a b /\ lastn n (stack a) = lastn n (stack b)) s1 s2.
-Proof.
-  induction 1; econstructor; unpack; eauto using cred_lastn_stable.
-Qed.
-
-Lemma creds_lastn_stable s1 s2 n:
-  n <? List.length (stack s2) = true ->
-  star (fun a b => cred a b /\ n <? List.length (stack a) = true) s1 s2 ->
-  star (fun a b => cred a b /\ lastn n (stack a) = lastn n (stack b)) s1 s2.
-Proof.
-  intros.
-  destruct creds_lastn_stable_aux with s1 s2 n; try solve [econstructor; eauto].
-  match goal with |[h: star _ _ _ |- _ ] => induction h using star_ind_n1 end.
-  unpack.
-  { econstructor. }
-  { eapply star_step_n1; unpack; repeat split; eauto; try lia. }
-Qed.
 
 
 Lemma fuck_stdlib {A} (x: A) l :
-  l <> x :: l.
+  x :: l <> l.
 Proof.
   induction l; intro; inj; contradiction.
 Qed.
