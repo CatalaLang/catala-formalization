@@ -72,7 +72,12 @@
 \newcommand{\synconflicterror}{\texttt{ConflictError}}
 \newcommand{\syntry}{\synkeyword{try}\;}
 \newcommand{\synlist}{\;\texttt{list}}
-\newcommand\fstar{F$^\star$\xspace}
+\newcommand{\syncons}{\synpunct{::}}
+\newcommand{\fstar}{F$^\star$\xspace}
+
+\newcommand{\ghostvvalue}{}
+\newcommand{\ghostvalue}{}
+\newcommand{\ghostbool}{}
 
 %% Typing
 \newcommand{\typctx}[1]{\textcolor{orange!90!black}{\ensuremath{#1}}}
@@ -167,4 +172,7 @@
 \newcommand{\vcnil}{\synpunct{[]}}
 \newcommand{\vccons}{\synpunct{,}}
 
-
+%% Continuations
+\newcommand{\synClo}{\synkeyword{\texttt{Clo}}}
+\newcommand{\synCClo}{\synkeyword{\texttt{CClo}}}
+\newcommand{\synDef}{\synkeyword{\texttt{Def}}}

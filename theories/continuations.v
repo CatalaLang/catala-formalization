@@ -191,6 +191,59 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont kappa sigma (RValue v))
 .
 
+
+Declare Custom Entry latex.
+  (* Base coq *)
+  Notation "'<LATEX>' e '</LATEX>'" := e (e custom latex): latex.
+  Notation "'<COQERROR>' x '</COQERROR>'" := x (in custom latex, x constr): latex.
+
+  Notation "'\ident{' x '}'" := (x) (x ident, in custom latex at level 0): latex.
+
+  Notation "'\synpunct{[]}" := (@nil _) (in custom latex): latex.
+  Notation "'{' x '\syncons' l '}'" := (@cons _ x l) (in custom latex): latex.
+
+  Notation "'{' \synnone '}'" := None (in custom latex): latex.
+  Notation "'{' '\synsome(' v ')' '}'" := (Some v) (in custom latex): latex.
+
+  (* Terms *)
+  Notation "'{' '\overline{\synvar{' x '}}' '}'" := (Var x) (in custom latex): latex.
+  Notation "'{' '\synvar{' x '}' '}'" := (FreeVar x) (in custom latex): latex.
+  Notation "'{' t1  t2 '}'" := (App t1 t2) (in custom latex): latex.
+  Notation "'{' '\synlambda.' t '}'" := (Lam t) (in custom latex): latex.
+  Notation "'{' '\synlangle' ts '\synmid' tj '\synjust' tc '\synrangle' '}'" :=  (Default ts tj tc) (in custom latex): latex.
+  Notation "'{' '\ghostvalue' v '}'" := (Value (v)) (in custom latex): latex.
+  Notation "'{' t1 '\synpunct{' op '}' t2 '}'" := (Binop op t1 t2) (in custom latex): latex.
+
+
+  (* Closures *)
+  Notation "'{' '\square' '\synpunct{' op '}' e2 '}'" := (CBinopR op e2) (in custom latex): latex.
+  Notation "'{' '\square' e2 '}'" := (CAppR e2) (in custom latex): latex.
+  Notation "'{' v1 '\synpunct{' op '}' '\square' '}'" := (CBinopL op v1) (in custom latex): latex.
+  Notation "'{' '\synCClo(' t_cl ','  sigma_cl ')' '}'" := (CClosure t_cl sigma_cl) (in custom latex): latex.
+  Notation "'{' '\synDef(' o ',' ts ','  tj ','  tc ')' '}'" := (CDefault o ts tj tc) (in custom latex): latex.
+  Notation "'{' '\synlangle' '\square' '\synjust' tc '\synrangle' '}'" := (CDefaultBase tc) (in custom latex): latex.
+
+
+  (* Runtime Values *)
+  Notation "\syntrue" := true (in custom latex): latex.
+  Notation "\synfalse" := false (in custom latex): latex.
+  Notation "'{' \ghostbool b '}'" := (Bool b) (in custom latex): latex.
+  Notation "'{' \ghostint i '}'" := (Int i) (in custom latex): latex.
+  Notation "'{' '\synClo(' t ','  sigma ')' '}'" := (VClosure t sigma) (in custom latex): latex.
+  Notation "'{' '\ghostvvalue'  v '}'" := (VValue v) (in custom latex): latex.
+
+
+  (* Results *)
+  Notation "'\synempty'" := REmpty (in custom latex): latex.
+  Notation "'\synconflict'" := RConflict (in custom latex): latex.
+  Notation "'{' v '}'" := (RValue v) (in custom latex): latex.
+
+  (* continuation mode *)
+  Notation "'{\leval'  t ,  kappa ,  sigma  '\reval}'" := (mode_eval t kappa  sigma) (in custom latex): latex.
+  Notation "'{\lcont'  kappa ,  sigma ,  v  '\rcont}'" := (mode_cont kappa sigma  v) (in custom latex): latex.
+  Notation "'{' s1  '\leadsto^*' s2 '}'" := (star cred s1 s2) (in custom latex): latex.
+  Notation "'{' s1  '\leadsto' s2 '}'" := (cred s1 s2) (in custom latex): latex.
+
 Section CRED_PROPERTIES.
 
 (** STACK MANIPULATION *)
