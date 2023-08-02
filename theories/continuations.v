@@ -201,6 +201,7 @@ Declare Custom Entry latex.
 
   Notation "'\synpunct{[]}" := (@nil _) (in custom latex): latex.
   Notation "'{' x '\syncons' l '}'" := (@cons _ x l) (in custom latex): latex.
+  Notation "'{' '[' x ']' '}'" := ([x]) (in custom latex): latex.
 
   Notation "'{' \synnone '}'" := None (in custom latex): latex.
   Notation "'{' '\synsome(' v ')' '}'" := (Some v) (in custom latex): latex.
@@ -229,8 +230,8 @@ Declare Custom Entry latex.
   Notation "\synfalse" := false (in custom latex): latex.
   Notation "'{' \ghostbool b '}'" := (Bool b) (in custom latex): latex.
   Notation "'{' \ghostint i '}'" := (Int i) (in custom latex): latex.
-  Notation "'{' '\synClo(' t ','  sigma ')' '}'" := (VClosure t sigma) (in custom latex): latex.
-  Notation "'{' '\ghostvvalue'  v '}'" := (VValue v) (in custom latex): latex.
+  (* Notation "'{' '\synClo(' t ','  sigma ')' '}'" := (VClosure t sigma) (in custom latex): latex. *)
+  (* Notation "'{' '\ghostvvalue'  v '}'" := (VValue v) (in custom latex): latex. *)
 
 
   (* Results *)
@@ -310,10 +311,59 @@ Proof.
   * eapply star_step; eauto using append_stack_stable.
 Qed.
 
+Theorem cred_append_stack_inv s s' n:
+  cred s s' ->
+  (fun x y => lastn n (stack x) = lastn n (stack y)) s s'->
+  cred
+    (with_stack s (droplastn n (stack s)))
+    (with_stack s' (droplastn n (stack s')))
+.
+Proof.
+  induction 1; simpl; intros; try econstructor.
+  all: repeat rewrite droplastn_cons; try econstructor.
+  all: try solve [eapply lastn_cons_length; eauto].
+  all: try eapply lastn_cons_cons_length; eauto; try congruence.
+  all: intro; injections; eapply fuck_stdlib; eauto.
+Qed.
+
+Theorem cred_star_append_stack_inv s s' n:
+  star (fun x y => cred x y /\ lastn n (stack x) = lastn n (stack y)) s s' ->
+  star cred
+    (with_stack s (droplastn n (stack s)))
+    (with_stack s' (droplastn n (stack s'))).
+Proof.
+  induction 1; unpack; econstructor.
+  { eapply cred_append_stack_inv; eauto. }
+  { eauto. }
+Qed.
+
+Theorem cred_stack_stack_inv_one s s' k:
+  star (fun x y => cred x y /\ lastn 1 (stack x) = lastn 1 (stack y)) s s' ->
+  stack s = [k] ->
+  stack s' = [k] ->
+  star cred (with_stack s []) (with_stack s' []).
+Proof.
+  intros Hcred Hs Hs'.
+  replace ([]) with (droplastn 1 (stack s)) at 1.
+  2:{ rewrite Hs; unfold droplastn; simpl; eauto. }
+  replace ([]) with (droplastn 1 (stack s')) at 1.
+  2:{ rewrite Hs'; unfold droplastn; simpl; eauto. }
+  eapply cred_star_append_stack_inv; eauto.
+Qed.
+
 
 (** Reduction don't modify the stack too much *)
 
 Lemma cred_stack_lenght_at_most_one s1 s2:
+  cred s1 s2 ->
+  let n1 := List.length (stack s1) in
+  let n2 := List.length (stack s2) in
+  n1 = n2 \/ n1 = S n2 \/ S n1 = n2.
+Proof.
+  induction 1; simpl; lia.
+Qed.
+
+Lemma cred_stack_lenght_at_most_one_precise s1 s2:
   cred s1 s2 ->
   let n1 := List.length (stack s1) in
   let n2 := List.length (stack s2) in
@@ -323,10 +373,46 @@ Lemma cred_stack_lenght_at_most_one s1 s2:
   \/ n1 = S n2 /\ is_mode_cont s1 = true
   \/ S n1 = n2 /\ is_mode_eval s1 = true.
 Proof.
-  simpl.
-  induction 1; repeat split; try solve [simpl; lia].
-  *  
+  induction 1; try solve [ idtac
+    | simpl; left; repeat split
+    | simpl; right; left; repeat split
+    | simpl; right; right; left; repeat split
+    | simpl; right; right; right; left; repeat split
+    | simpl; right; right; right; right; left; repeat split
+    | simpl; lia]. 
 Qed.
+
+Lemma cred_lastn_stable_n_minus_one s1 s2 n:
+  List.length (stack s1) > n ->
+  List.length (stack s2) > n ->
+  cred s1 s2 ->
+  lastn n (stack s1) = lastn n (stack s2).
+Proof.
+  intros Hs1 Hs2.
+  induction 1; try solve [unfold lastn; case n; simpl in *; eauto];
+    simpl in *; repeat rewrite lastn_cons in *; eauto; try lia.
+Qed.
+
+Lemma cred_lastn_different s1 s2:
+  let n1 := List.length (stack s1) in
+  let n2 := List.length (stack s2) in
+  cred s1 s2 ->
+  lastn n1 (stack s1) <> lastn n1 (stack s2) ->
+  (n1 = S n2 /\ is_mode_cont s1 = true /\ lastn n2 (stack s1) = lastn n2 (stack s2))
+  \/ (n1 = n2 /\ is_mode_cont s1 = true /\ forall k, n1 = S k -> lastn k (stack s1) = lastn k (stack s2))
+  \/ (S n1 = n2 /\ False).
+Proof.
+  Ltac finish := try solve [repeat split; intros; injections; subst;
+      repeat rewrite lastn_length in *;
+      repeat rewrite lastn_length_cons in *;
+      eauto; tryfalse lia].
+  simpl.
+  induction 1; simpl; intros;
+  solve [ left; finish | right; left; finish | right; right finish].
+Qed.
+
+(* specialized versions of the previous lemma *)
+
 
 Lemma cred_stack_same_length_unmodified s1 s2:
   cred s1 s2 ->
@@ -335,8 +421,6 @@ Lemma cred_stack_same_length_unmodified s1 s2:
 Proof.
   induction 1; try solve [simpl; try lia; eauto].
 Qed.
-
-
 
 Lemma cred_lastn_stable s1 s2 n:
   List.length (stack s1) >= n ->
@@ -535,37 +619,20 @@ Hypothesis cont_eqbOK: forall x y, reflect (x = y) (cont_eqb x y).
 
 From elpi.apps Require Import derive.std.
 
-Theorem list_eqbOK {T} f : 
-  (forall x y: T, reflect (x=y) (f x y)) -> 
-  forall x y, reflect (x = y) (list_eqb _ f x y).
-Proof.
-  intros H.
-  induction x, y; simpl; try econstructor; eauto using fuck_stdlib.
-  3: {
-    induction (H a t); subst; simpl; induction (IHx y); simpl; econstructor; repeat intro; subst; eauto; inj; congruence.
-  }
-  all: repeat intro; congruence.
-Qed.
 
+Check list_eqb_OK.
 
-Lemma same_stack:
-  forall s1 s2,
-  star (fun a b : state => cred a b /\ list_eqb cont cont_eqb (stack a) (stack b) = true) s1 s2 ->
-  stack s1 = stack s2.
+Lemma list_eqb_helper:
+  forall s1 s2 (f: state -> list cont),
+  star (fun a b : state => cred a b /\ list_eqb _ cont_eqb (f a) (f b) = true) s1 s2 ->
+  f s1 = f s2.
 Proof.
   induction 1; eauto.
   {
     unpack. rewrite <- IHstar.
-    destruct (list_eqbOK _ cont_eqbOK (stack a) (stack b)); eauto; congruence.
+    destruct (list_eqb_OK _ _ cont_eqbOK (f a) (f b)); eauto; congruence.
   }
 Qed.
-
-Lemma same_stack':
-  forall s1 s2,
-  star (fun a b : state => cred a b /\ list_eqb cont cont_eqb (stack s1) (stack b) = true) s1 s2 ->
-  stack s1 = stack s2.
-Proof.
-Admitted.
 
 Lemma general_inversion_lemma:
   forall t k_1 sigma_1 sigma_3 v_3,
@@ -579,26 +646,44 @@ Lemma general_inversion_lemma:
     (mode_cont [] sigma_2 v_2).
 Proof.
   intros ? ? ? ? ? Hstar13.
-  destruct (takewhile (fun s => list_eqb _ cont_eqb [k_1] (stack s)) Hstar13)
+  destruct (takewhile (fun s => list_eqb _ cont_eqb [k_1] (lastn 1 (stack s))) Hstar13)
   as [[H1 H2]|[s_2' [Hs2'a [Hs2'b Hs2'c]]]].
   - eauto.
   - simpl in *; exfalso; induction (cont_eqbOK k_1 k_1); eauto.
   - induction Hs2'a using star_ind_n1.
     * simpl in *; exfalso; induction (cont_eqbOK k_1 k_1); eauto.
-    * rename y into s2, z into s2'. unpack.
-      assert (Hassert: exists sigma_2 v_2, s2 = mode_cont [k_1] sigma_2 v_2).
-      { 
-        replace ([k_1]) with (stack (mode_eval t [k_1] sigma_1)) in Hs2'a; simpl; eauto.
-        assert ((stack s2) = [k_1]). { admit alain "wip". }
+    * rename y into s2, z into s2'; unpack.
+      remember (mode_eval t [k_1] sigma_1) as s1.
+      remember (mode_cont [] sigma_3 v_3) as s3.
+      replace ([k_1]) with (lastn 1 (stack (s1))) in H0, Hs2'c.
+      2: { subst; simpl; eauto. }
 
-        unpack; repeat (simpl in *; subst); repeat eexists; f_equal.
-        admit alain.
+
+      (* This should simply by a move => /eqP in reflect. *)
+      assert (Hs1s2: lastn 1 (stack s1) = lastn 1 (stack s2)).
+      { destruct (list_eqb_OK _ _ cont_eqbOK (lastn 1 (stack s1)) (lastn 1 (stack s2))); eauto; congruence.
       }
 
-      unpack; repeat (simpl in *; subst).
+      (* This should simply by a move => /eqP in reflect. *)
+      assert (Hs2s2': lastn 1 (stack s1) <> lastn 1 (stack s2')).
+      { destruct (list_eqb_OK _ _ cont_eqbOK (lastn 1 (stack s1)) (lastn 1 (stack s2'))); eauto; congruence.
+      }
 
-      admit alain "since [s1 ~> s2] and [stack length] is always greater than one, k1 = k2 and [cred (mode_eval t [] sigma_1) (mode_cont [] sigma_2 v_2)].".
-Abort.    
+      rewrite Hs1s2 in Hs2s2'.
+
+
+      destruct (cred_lastn_different s2 s2').
+      { (* s2 ~> s2' *) eauto. }
+      { (*lastn 1 (stack s2) <> lastn 1 (stack s2') *)
+        replace (length (stack s2)) with 1.
+        2: { admit alain "follows from the fact that lastn 1 (stack s2) <> lastn 1 (stack s2') and s2 ~> s2'. ". }
+        eauto.
+      }
+
+Admitted.
+
+Open Scope latex.
+Check general_inversion_lemma.
 
 
 Lemma inversion_lemma:
