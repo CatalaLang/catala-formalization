@@ -141,8 +141,8 @@
     \item \label{fig:ruledefaultbase} $\lcont \mathtt{Def}(\synnone, [], e_j, e_c) \cons \kappa, \sigma, \synempty \rcont \leadsto \leval e_j, \synlanglemid \square \synjust e_c \synrangle \cons \kappa, \sigma \reval$
     \item \label{fig:ruledefaultbasetrue} $\lcont \synlanglemid \square \synjust e_c \synrangle \cons \kappa, \sigma, \syntrue \rcont \leadsto \leval e_c, \kappa, \sigma \reval$
     \item \label{fig:ruledefaultbasefalse} $\lcont \synlanglemid \square \synjust e_c \synrangle \cons \kappa, \sigma, \synfalse \rcont \leadsto \lcont \kappa, \sigma, \synempty \rcont$
-    \item\label{fig:ruleempty} $\lcont \phi \cons \kappa, \sigma, \synempty \rcont \leadsto \lcont \kappa, \sigma, \synempty \rcont$ \hfill $\forall o\ es\ e_j\ e_c,\ \phi \neq \mathtt{Def}(o, es, e_j, ec)$
-    \item\label{fig:ruleconflict} $\lcont \phi \cons \kappa, \sigma, \synconflict \rcont \leadsto \lcont \kappa, \sigma, \synconflict \rcont$
+          \item\label{fig:ruleempty} $\lcont \phi \cons \kappa, \sigma, \synempty \rcont \leadsto \lcont \kappa, \sigma, \synempty \rcont$ \hfill $\forall o\ es\ e_j\ e_c,\ \phi \neq \mathtt{Def}(o, es, e_j, ec)$
+          \item\label{fig:ruleconflict} $\lcont \phi \cons \kappa, \sigma, \synconflict \rcont \leadsto \lcont \kappa, \sigma, \synconflict \rcont$
   \end{enumerate}
   \caption{\label[figure]{fig_contsem} Continuation style semantics for $\lambda_d$.}
 \end{figure}
@@ -161,7 +161,23 @@ Continuations semantics is an alternative way in describing semantics. It provid
 
 To prove invariance of the computation if we swap differents exceptions in a default term, we need to be able to use have general rules of computation. This requires technical lemmas about inversion of the stack.
 
-The first one is the following:
+The first one is the following lemma, stating we can append any stack by an other stack. This is fairly useful to show theorems working on empty stacks, and then lifting them to arbitrary stacks.
+
+\begin{lemma}
+If $s_1 \leadsto s_2$, then $s_1' \leadsto s_2'$ where $s_i' = \mathtt{with\_stack} s_i (\mathtt{stack}(s_i) ++ \kappa)$.
+\begin{lemma}
+\begin{proof}
+  The proof is straight forward by taking a look to all the cases.
+\end{proof}
+
+The inverse lemma does not hold in whole generality. Indeed, if the top of the stack may be modified at any point rules of kind bla. Hence, we only need to prove the following lemma stating that if the bottom of the stack is unchanged, then we can apply the rule without the bottom of the stack. In particular, this means
+
+\begin{lemma}
+  If $s_1 \leadsto s_2$
+
+\end{lemma}
+
+
 
 \begin{lemma}
   Let $x, k_1, \sigma_1, \sigma_2, v_3$ such that $\leval x, [k_1], \sigma_1 \reval \leadsto^* \lcont [], \sigma_3, v_3 \rcont$. Then, there exists $v_2, \sigma_2$ such that $\leval x, [], \sigma_1 \reval \leadsto^* \lcont [], \sigma_2, v_2 \rcont$.
@@ -170,8 +186,6 @@ The first one is the following:
 \begin{proof}
   Since $\mathtt{List.length}(\mathtt{stack} \leval x, [k], \sigma_1 \reval) = 1$ and $\mathtt{List.length} (\lcont [], \sigma_3, v_3 \rcont) = 0$, there is an $s_2 \leadsto s_2'$ first in the sequence $\leval x, [k_1], \sigma_1 \reval \leadsto^* \lcont [], \sigma_3, v_3 \rcont$ such that $\mathtt{List.length}(\mathtt{stack}(s_2)) \geq 1$ and $\mathtt{List.length}(\mathtt{stack}(s_2')) = 0$. Since stack size vary by one at most and is deacreasing, we know $s_2$ is in the form $\lcont [k_2], \sigma_2, v_2 \rcont$. Finally, since $s_2 \leadsto s_2'$ is the first, the stack size between $\leval x, [k_1], \sigma_1 \reval$ and $\lcont [k_2], \sigma_2, v_2 \rcont$ is always greater than one. Hence $k_1 = k_2$ and $\leval x, [], \sigma_1 \reval \leadsto^* \lcont [], \sigma_2, v_2 \rcont$. This concludes the proof.
 \end{proof}
-
-
 
 
 \printbibliography
