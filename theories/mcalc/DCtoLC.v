@@ -44,53 +44,80 @@ Proof. autosubst. Qed.
 
 (** Definition of the translation as a program fixpoint. *)
 
+Inductive purity := pure | impure.
 
-Definition trans_ctx := var -> bool.
+Definition trans_ctx := var -> purity.
 
-(* Defintion mmap t f := MBind arg (f (D.Var 0)) *)
+Definition is_pure (Delta: trans_ctx) t :=
+  match t with
+  | D.Var x => Delta x
+  | D.Lam _ => pure
+  | D.App _e1 _e2 => impure
+  | D.Default _es _ej _ec => impure
+  | D.Const _ => pure
+  | D.Empty => impure
+  | D.Conflict => impure
+  end.
 
 (* begin snippet dc2lc_trans *)
 Fixpoint trans (Delta: trans_ctx) t { struct t } :=
   match t with
   | D.Var x =>
-    if Delta x
+    if is_pure Delta t 
     then monad_return (L.EVar x)
     else L.EVar x
   
   | D.Lam t =>
-    monad_return (L.ELam (trans (true .: Delta) t))
-  
-  | D.App (D.Lam body) arg => (* let arg in body *)
-    monad_bind (trans Delta arg) (trans (true .: Delta) body)
-  (* | D.App () =>
-    MBind (trans Delta arg) (monad_return (L.EOp op) ) *)
-  | D.App (D.Var f) arg =>
-    if Delta f
-    then (monad_bind (trans Delta arg)
-      (L.EApp (lift 1 (L.EVar f)) (L.EVar 0))
-    )
-    else (monad_bind (L.EVar f)
-      (monad_bind (lift 1 (trans Delta arg))
-        (L.EApp (lift 1 (L.EVar 0)) (L.EVar 0))
-      )
-    )
-  (* | D.App f arg =>
-    monad_bind (trans Delta f) (monad_bind (lift 1 (trans Delta arg)) (L.EApp (lift 1 (L.EVar 0)) (L.EVar 0))) *)
+    (L.ELam (trans (pure .: Delta) t))
+
+  | D.App f arg =>
+    let f' := trans Delta f in
+    let arg' := trans Delta arg in
+    match (is_pure Delta f, is_pure Delta arg) with
+    | (pure, pure) => (L.EApp f' arg')
+    | (impure, pure) => monad_bind f' (L.EApp (L.EVar 0) (lift 1 arg'))
+    | (pure, impure) => monad_bind arg' (L.EApp (lift 1 f') (L.EVar 0))
+    | (impure, impure) => monad_bind f' (monad_bind (lift 1 arg') (L.EApp (lift 1 (L.EVar 0)) (L.EVar 0)))
+    end
+
   | D.Default es ej ec =>
     monad_handle
-      (List.map (trans Delta) es)
-      (trans Delta ej)
-      (trans Delta ec)
+      (List.map (fun ei => if is_pure Delta ei then monad_return (trans Delta ei) else trans Delta ei) es)
+      (if is_pure Delta ej then monad_return (trans Delta ej) else trans Delta ej)
+      (if is_pure Delta ec then monad_return (trans Delta ec) else trans Delta ec)
+
   | D.Const b =>
-    monad_return (L.OConst b)
+    L.OConst b
+
   | Empty =>
     monad_empty
   | Conflict => L.EPanic EConflict
-  | D.App _ _ => L.EPanic ECompile
-  (* | D.BinOp op t1 t2 => L.EPanic L.ECompile*)
   end.
 (* end snippet dc2lc_trans *)
 
+(* optimisation is optional result. *)
+(* Fixpoint cutting Delta t {struct t} : D.term * list D.term := . *)
+
+Require Import MySequences.
+Require Import DCReduction.
+
+
+
+Theorem safe_optimization:
+  forall t Delta,
+  is_pure (pure .: Delta) t = pure ->
+  forall s v,
+  is_value_res v ->
+  star cbv (D.App (D.Lam t) s) v <->
+  star cbv t.[s/] v.
+Proof.
+  admit "This theorem is not true at all. Counter example :
+    [ (Lam x)[x |-> Empty] ] vs [ let x = Empty in Lam y. x ]
+
+  The first reduces to [Lam y. Empty], while the second one reduces to [Empty]. Both terms are terminals.
+  ".
+Abort.
+  
 
 (** translation correction *)
 

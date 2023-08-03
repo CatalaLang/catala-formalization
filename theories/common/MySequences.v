@@ -3,6 +3,10 @@
     some improvements and additions by François Pottier. *)
 
 Require Import Classical.
+Require Import Relation_Operators.
+Require Import Operators_Properties.
+
+
 Set Implicit Arguments.
 
 Section SEQUENCES.
@@ -22,6 +26,69 @@ Inductive star R : A -> A -> Prop :=
     forall a b c,
     R a b -> star R b c -> star R a c.
 
+
+
+    Lemma star_is_clos_trans_1n:
+    forall R a b,
+    star R a b <-> clos_refl_trans_1n A R a b.
+  Proof.
+    split; induction 1; econstructor; eauto.
+  Qed.
+  
+  Theorem star_ind_clos_refl_trans
+    : forall (R : A -> A -> Prop) (P : A -> A -> Prop),
+      (forall x y : A, R x y -> P x y) ->
+      (forall x : A, P x x) ->
+      (forall x y z : A,
+      star R x y ->
+      P x y -> star R y z -> P y z -> P x z) ->
+      forall x a : A, star R x a -> P x a.
+  Proof.
+    setoid_rewrite star_is_clos_trans_1n.
+    setoid_rewrite <-clos_rt_rt1n_iff.
+    intros ? ? ? ? ? ? ?.
+    induction 1; eauto.
+  Qed.
+  
+  Theorem star_ind_1n
+    : forall (R : A -> A -> Prop) (P : A -> A -> Prop),
+      (forall x : A, P x x) ->
+      (forall x y z : A,
+      R x y -> star R y z -> P y z -> P x z) ->
+      forall x a : A, star R x a -> P x a.
+  Proof.
+    setoid_rewrite star_is_clos_trans_1n.
+    intros ? ? ? ? ? ?.
+    induction 1; eauto.
+  Qed.
+  
+  Theorem star_ind_n1
+    : forall (R : A -> A -> Prop) (x : A) (P : A -> Prop),
+      P x ->
+      (forall y z : A, R y z -> star R x y -> P y -> P z) ->
+      forall a : A, star R x a -> P a
+  .
+  Proof.
+    setoid_rewrite star_is_clos_trans_1n.
+    setoid_rewrite <-clos_rt_rt1n_iff.
+    setoid_rewrite clos_rt_rtn1_iff.
+    intros ? ? ? ? ? ?.
+    induction 1; eauto.
+  Qed.
+  
+  
+  Theorem star_step_1n:
+    forall R x y z,  R x y -> star R y z -> star R x z.
+  Proof.
+    eapply star_step.
+  Qed.
+  
+  Theorem star_step_n1:
+    forall R x y z,  R y z -> star R x y -> star R x z.
+  Proof.
+    intros ? ? ? ? ?.
+    induction 1; econstructor; eauto; econstructor. 
+  Qed.
 Hint Constructors star : star.
 
 Lemma star_refl_eq:
