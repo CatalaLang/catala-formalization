@@ -202,13 +202,10 @@ Require Import FunInd.
 (******************************************************************************)
 
 
+
+Section SUBSTITUTION.
+
 (* The goal of this part is to prove a substitution lemma for trans *)
-
-Hypothesis iota_equality: forall t1 t2,
-  EMatch (EVariantSome t1) EVariantNone t2 = t2.[t1/].
-
-Hypothesis eta_equality: forall t1 t2,
-  EApp (ELam t1) t2 = t1.[t2/].
 
 Lemma trans_te_renaming:
   forall Delta t u,
@@ -272,7 +269,6 @@ Proof.
     { induction ts; asimpl; inverts_Forall; repeat f_equal; eauto. }
 Qed.
 
-
 Lemma trans_te_renaming_0:
   forall Gamma t T u,
   trans Gamma t = u ->
@@ -281,6 +277,13 @@ Proof.
   intros.
   eapply trans_te_renaming; eauto.
 Qed.
+
+Hypothesis iota_equality: forall t1 t2,
+  (* match Some t1 with None => None | Some x => t2  = t2.[x |-> t1] *)
+  EMatch (EVariantSome t1) EVariantNone t2 = t2.[t1/].
+
+Hypothesis eta_equality: forall t1 t2,
+  EApp (ELam t1) t2 = t1.[t2/].
 
 Theorem trans_te_substitution:
   forall t Delta,
@@ -442,42 +445,64 @@ Proof.
 Qed.
 
 Lemma trans_te_substitution_0:
-  forall Delta t1 t2 u1 u2,
-  trans Delta t1 = u1 ->
-  trans Delta t2 = u2 ->
-  trans Delta t1.[t2/] = u1.[u2/].
-  (* this is not true. *)
+  forall b Delta t1 t2,
+  (exists (Gamma : tyenv) (T : ty), jt Gamma t1 T) ->
+  (exists (Gamma : tyenv) (T : ty), jt Gamma t1.[t2/] T) ->
+  is_value_res t2 ->
+  is_nerror t2 ->
+  trans (b .: Delta) t1.[t2/] = (trans (b .: Delta) t1).[(trans (b .: Delta) t2)/].
 Proof.
-  admit.
+  intros.
+  eapply trans_te_substitution; eauto.
+  {
+    induction x; simpl; eauto.
+  }
+
 Abort.
 
+End SUBSTITUTION.
 
-Require Import LCReduction.
+Section Correctness.
 
-Definition dcbv := DCReduction.cbv.
-Definition lcbv := LCReduction.cbv.
+  Require Import DCReduction.
+  Require Import LCReduction.
 
-Inductive no_compile_error: term -> Prop :=
-.
+  Definition dcbv := DCReduction.cbv.
+  Definition lcbv := LCReduction.cbv.
 
+  Reserved Notation "'nce' t" (at level 80).
+  Print L.term.
+  Print L.except.
 
-Declare Scope latex_scope.
+  Inductive no_compile_error: L.term -> Prop :=
+  | NCE_App: forall t1 t2,
+    nce t1 -> nce t2 -> nce (EApp t1 t2)
+  | NCE_Var: forall x,
+    nce (EVar x)
+  | NCE_Lam: forall t,
+    nce t -> nce (ELam t)
+  | NCE_Op: forall op,
+    nce (EOp op)
+  | NCE_Match: forall arg tnone tsome,
+    nce arg ->
+    nce tnone ->
+    nce tsome ->
+    nce (EMatch arg tnone tsome)
+  | NCE_None:
+    nce EVariantNone
+  | Nce_Some: forall t,
+    nce t ->
+    nce EVariantSome t
+  | Nce_Panic_Conflict:
+    nce (EPanic EConflict)
+  | Nce_Panic_NoValueProvided:
+    nce (EPanic ENoValueProvided)
 
-Notation "'\left\llbracket' t '\right\rrbracket^{' Delta '}'" := (trans Delta t) : latex_scope.
+  where "'nce' t" := (no_compile_error t)
+  .
 
-Notation "'\mathtt{true}'" := (true): latex_scope.
-Notation "'\mathtt{false}'" := (false): latex_scope.
-Notation "t '.\left[' sigma '\right]'" := (t.[sigma]) (at level 100, no associativity): latex_scope.
-
-Notation "a '\to' b" := (lcbv a b) (at level 100, no associativity): latex_scope.
-Notation "a '\to^*' b" := (star lcbv a b) (at level 100, no associativity): latex_scope.
-
-Notation "'\synreturn' t" := (monad_return t) (at level 100): latex_scope.
-
-Open Scope latex_scope.
-
-Print Scopes.
-
+Require Import MySequences.
+Require Import MyRelations.
 
 Lemma bind_ret_star_cbv v t:
   LCValues.is_value v ->
@@ -490,36 +515,6 @@ Proof.
   unfold monad_bind, monad_return.
   eapply RedEMatchSomeV; asimpl; try eauto.
 Qed.
-
-Lemma trans_te_substitution_0_true (t v: DCSyntax.term) v' Delta:
-
-  trans (fun i => true) v = EVariantSome v' ->
-  (trans (true .: Delta) t).[v'/] = trans Delta t.[v/].
-  (* This is an instance of the more general substitution lemma *)
-Proof.
-  intros.
-  asimpl.
-  rewrite trans_te_substitution.
-Admitted.
-
-Lemma trans_te_substitution_0_false (t v: DCSyntax.term) Delta:
-  (trans (false .: Delta) t).[(trans (fun i => true) v)/] = trans Delta (t.[v/]).
-  (* This is an instance of the more general *)
-Proof.
-  intros.
-  asimpl.
-Admitted.
-
-
-
-
-Lemma trans_correct_bind_const Delta b t:
-  (monad_bind (monad_return (L.OConst b)) (trans (true .: Delta) t)) = (trans Delta t).[EOp (L.OConst b)/].
-Proof.
-  unfold monad_bind, monad_return.
-  
-Admitted.
-
 
 
 Tactic Notation "consider" uconstr(E) :=
@@ -551,12 +546,12 @@ Proof.
   intros Hjt Delta Hcompil Hdcbv.
   revert Hdcbv Gamma T Hjt Delta Hcompil.
 
-  induction 1; tryfalse; intros; unpack.
+  induction 1; tryfalse; intros; unpack; try solve [repeat eexists; eauto].
   * subst; eexists; split.
     2:{ eapply star_refl. }
     simpl.
     induction v; tryfalse.
-    - admit "Variable should not be values. Hence this case should not arise.".
+    - admit "Variable should not be values. Hence this case should not arise. (Problem in red specification)".
     - admit "More complicated version of the next case.".
     - asimpl.
       eapply star_one.
@@ -565,8 +560,8 @@ Proof.
       + trivial.
       + reflexivity.
       + unfold LCValues.is_value, LCValues.if_value; simpl.
-        admit "Error: OConst should be a value in LCValues.".
-      + eapply trans_te_substitution_0_true.
+        admit "Error: OConst should be a value in LCValues. (specification issue)".
+      + rewrite trans_te_substitution with (Const b .: ids).
         asimpl; eauto. 
   * inv jt.
     assert (no_compile_error (trans Delta t1)). { admit. }

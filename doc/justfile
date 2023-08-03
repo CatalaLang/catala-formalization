@@ -1,0 +1,2 @@
+build:
+  latexmk -synctex=1 -interaction=nonstopmode -file-line-error -recorder -output-directory="_build"  "document.tex" -pdfxe -pv -shell-escape

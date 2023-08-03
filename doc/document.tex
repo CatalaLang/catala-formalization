@@ -1,0 +1,134 @@
+% -*- coding: utf-8; -*-
+% vim: set fileencoding=utf-8 :
+\documentclass{scrartcl}
+%% First parameter: the language is 'english'.
+%% Second parameter: use 'submission' for initial submission, remove it for camera-ready (see 5.1)
+
+\usepackage[backend=biber]{biblatex}
+\addbibresource{biblio.bib}
+
+
+%
+% Packages and Commands specific to article (see 3)
+%
+% These ones  are used in the guide, replace with your own.
+% 
+\usepackage{multicol}
+\usepackage{mathpartir}
+\usepackage{nicefrac}
+\usepackage{subcaption}
+\usepackage{amsthm}
+\usepackage{cleveref}
+\newcommand{\limply}{\Rightarrow}
+\input{catala_notations.tex}
+
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+
+\theoremstyle{definition}
+\newtheorem{example}{Example}
+
+
+\newcommand{\leval}{\left\langle\!\!\left\langle}
+\newcommand{\reval}{\right\rangle\!\!\right\rangle}
+\newcommand{\lcont}{\left[\!\!\left[}
+\newcommand{\rcont}{\right]\!\!\right]}
+\newcommand{\cons}{:\!:}
+
+
+\begin{document}
+
+\section{Elimination of the default calculus}
+
+\subsection{Pure and Impure terms}
+
+
+\begin{figure}
+    \begin{mathpar}
+        \inferrule[$\triangleright$-Var]{\cdot}{\Delta \triangleright \overline{x} : \Delta(x)}
+
+        \inferrule[$\triangleright$-Lam]{(x: \synpure) \synenvcons \Delta \triangleright e : \synimpure}{\Delta \triangleright \synlambda x. e: \synpure}
+
+        \inferrule[$\triangleright$-App]{
+            \Delta \triangleright e_1: p_1 \\
+            \Delta \triangleright e_2: p_2
+        }{
+            \Delta \triangleright e_1 e_2: \synimpure
+        }
+
+        \inferrule[$\triangleright$-SubTyping]{
+            \Delta \triangleright e: \synpure
+        }{
+            \Delta \triangleright e: \synimpure
+        }
+
+        \inferrule[$\triangleright$-Default]{
+            \Delta \triangleright es: \synimpure \\
+            \Delta \triangleright e_j: p_j \\
+            \Delta \triangleright e_c: \synimpure
+        }{
+            \Delta \triangleright \synlangle es \synmid e_j \synjust e_c \synrangle : \synimpure
+        }
+
+        \inferrule[$\triangleright$-Binop]{
+            \Delta \triangleright e_1: p_1 \\
+            \Delta \triangleright e_2: p_2
+        }{
+            \Delta \triangleright e_1 + e_2 : \texttt{least\_pure}(p_1, p_2)
+        }
+    \end{mathpar}
+    \caption{\label{judgment:ispure}Rules for the $\Delta \triangleright e : p$ judgment, where $\Delta$ is a function from variables to $\synispure$, $e$ is a term and $p$ is a $\synispure$. Remember that $\synispure$ is a inductive with two cases: $\synpure$ and $\synimpure$.}
+\end{figure}
+
+\begin{theorem}[Soundness of $\Delta \triangleright e : p$]
+    Suppose $e$ is well-typed.
+
+    If $\Delta \triangleright e : \synpure$, then for all environment $\sigma$ such $(\forall x, \Delta x = \synpure \limply \sigma x \neq \synempty)$, then $e.[\sigma] \not\to^* \synempty$ and $e.[\sigma] \not\to^* \synconflict$.
+\end{theorem}
+
+\begin{proof}
+    By preservation of $\Delta \triangleright e : p$. By typing progress, there is a suck term in the form ... (TODO)
+\end{proof}
+
+\begin{theorem}[Completeness of $\Delta \triangleright e: p$]
+    Given an relation $R$ between function from variable to $\synispure$, term and $\synispure$ such that the soundness theorem holds. Then the relation must satisfy all the axioms in \cref{judgment:ispure}.
+\end{theorem}
+
+\begin{proof}
+    This theorem is not true, since the lambda rule we are conservative and force the return argument to be $\synimpure$.
+\end{proof}
+
+
+Given this theorem, we can now define the \emph{translation of catala without exceptions}.
+
+\subsection{Translation without exceptions}
+
+\begin{lemma}[Cut theorem for optimization]
+    If $\Delta, x: \synpure \triangleright t : \synpure$, then $\synlet x = s \synin t \Downarrow v$ if and only if $t.[x \mapsto s] \Downarrow v$.
+\end{lemma}
+
+\begin{example}
+    The subterm $s$ is underlined in the following terms
+    \begin{enumerate}
+        \item $1 + \underline{\synempty} + 2 + 3 = \synlet x = \synempty \synin 1 + x + 2 + 3$
+        \item $1 + \underline{1} + 2 + 3 = \synlet x = \synempty \synin 1 + x + 3 + 5$
+        \item The theorem cannot be applied for $\synlangle 1, 1 \synmid  \syntrue \synjust \underline{\synempty} \synrangle$ since an default term is always impure.
+    \end{enumerate}
+\end{example}
+
+
+Translation
+
+\begin{figure}
+    \begin{mathpar}
+
+    \end{mathpar}
+\end{figure}
+
+
+\end{document}
+
+% Local Variables:
+% TeX-engine: luatex
+% End:
