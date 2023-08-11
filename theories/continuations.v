@@ -26,7 +26,7 @@ Inductive cont :=
   | CAppR (t2: term) (* [\square t2] *)
   | CBinopL (op: op) (v1: value) (* [op t1 \square] *)
   | CBinopR (op: op) (t2: term) (* [op \square t2] *)
-  | CClosure (t_cl: {bind term}) (sigma_cl: var -> value)
+  | CClosure (t_cl: {bind term}) (sigma_cl: list value)
     (* [Clo(x, t_cl, sigma_cl) \sigma] Since we are using De Bruijn indices, there is no variable x. *)
   | CDefault (o: option value) (ts: list term) (tj: term) (tc: term)
     (* [Def(o, ts, tj, tc)] *)
@@ -35,18 +35,19 @@ Inductive cont :=
 .
 
 Inductive state :=
-  | mode_eval (e: term) (stack: list cont) (env: var -> value)
-  | mode_cont (stack: list cont) (env: var -> value) (result: result)
+  | mode_eval (e: term) (stack: list cont) (env: list value)
+  | mode_cont (stack: list cont) (env: list value) (result: result)
 .
 
 Inductive cred: state -> state -> Prop :=
   | cred_var:
     (* $\leval \synvar x, \kappa, \sigma \reval \leadsto \lcont\kappa, \sigma, \sigma(x) \rcont$ *)
 
-    forall x kappa sigma,
+    forall x kappa sigma v,
+    List.nth_error sigma x = Some v ->
     cred
       (mode_eval (Var x) kappa sigma)
-      (mode_cont kappa sigma (RValue (sigma x)))
+      (mode_cont kappa sigma (RValue v))
 
   | cred_app:
     (* $\leval e_1\ e_2, \kappa, \sigma \reval \leadsto \leval e_1, (\square\ e_2) \cons \kappa, \sigma \reval $ *)
@@ -74,7 +75,7 @@ Inductive cred: state -> state -> Prop :=
     forall tcl sigmacl kappa sigma v, 
     cred
       (mode_cont ((CClosure tcl sigmacl)::kappa) sigma (RValue v))
-      (mode_eval tcl kappa  (v .: sigmacl))
+      (mode_eval tcl kappa  (v :: sigmacl))
 
 
   | cred_default:
@@ -246,6 +247,7 @@ Declare Scope latex.
   Notation "'{\lcont'  kappa ,  sigma ,  v  '\rcont}'" := (mode_cont kappa sigma  v) (in custom latex): latex.
   Notation "'{' s1  '\leadsto^*' s2 '}'" := (star cred s1 s2) (in custom latex): latex.
   Notation "'{' s1  '\leadsto' s2 '}'" := (cred s1 s2) (in custom latex): latex.
+
 
 Section CRED_PROPERTIES.
 
@@ -480,6 +482,7 @@ Theorem cred_progress s:
 Proof.
   induction s.
   * induction e; try solve [left; eexists; econstructor].
+    - admit alain "If a variable is not defined, then it might be an issue".
     - admit alain "todo: add an interpretation for free variables".
   * match goal with [v: list cont |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
     match goal with [v: cont |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
@@ -503,6 +506,7 @@ Theorem cred_deterministic (s s1' s2': state):
 Proof.
   induction 1; inversion 1; subst; eauto.
   (* All the cases are quite the same: we know the top of the stack is not an Default, but the top of the stack is a default. Hence there is a contradiction. *)
+  * rewrite H in H5; inj; eauto.
   * specialize H4 with o (th::ts) tj tc. destruct H4. eauto.
   * specialize H4 with (Some v) ([]) tj tc. destruct H4. eauto.
   * specialize H4 with None [] tj tc. destruct H4. eauto.

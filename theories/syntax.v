@@ -21,7 +21,7 @@ Inductive term :=
 with value :=
     | Bool (b: bool)
     | Int (i: Z)
-    | Closure (t: term) (sigma: var -> value)
+    | Closure (t: term) (sigma: list value)
 .
 
 Definition get_op op i1 i2:=
