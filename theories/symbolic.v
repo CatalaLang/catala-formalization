@@ -9,7 +9,8 @@ Inductive sym_expr :=
   | Sint (i: Z)
   | Svar (s : string)
   | Sop (o : op) (e1 e2 : sym_expr)
-  | Sclo (t: term) (sigma: var -> sym_expr).
+  | Sclo (t: term) (sigma: var -> sym_expr)
+  .
 
 Inductive sym_result :=
   | SRexpr (e : sym_expr)
@@ -36,7 +37,7 @@ Fixpoint eval_sym_expr (e : sym_expr) (env : string -> value) : value :=
 
 (** Symbolic continuations *)
 Inductive sym_cont :=
-  | SCAppL (t1 : term) (* [ t1 \square ] *)
+  (* | SCAppL (t1 : term) (* [ t1 \square ] *) *)
   | SCAppR (t2 : term) (* [ \square t2 ] *)
   | SCClosure (t_cl: {bind term}) (sigma_cl: var -> sym_expr)
   | SCDefault (o : option sym_expr) (ts: list term) (tj: term) (tc: term)
@@ -182,7 +183,7 @@ Inductive sym_cred: sym_state -> sym_state -> Prop :=
           (sym_mode_cont (k::kappa) phi sigma SRconflict)
           (sym_mode_cont kappa phi sigma SRconflict)
 
-  | sym_cred_confict_intro:
+  (* | sym_cred_confict_intro:
       forall kappa phi sigma,
       sym_cred
           (sym_mode_eval Conflict kappa phi sigma)
@@ -192,7 +193,7 @@ Inductive sym_cred: sym_state -> sym_state -> Prop :=
       forall kappa phi sigma,
       sym_cred
           (sym_mode_eval Empty kappa phi sigma)
-          (sym_mode_cont kappa phi sigma SRempty)
+          (sym_mode_cont kappa phi sigma SRempty) *)
   .
 
 Definition concretize_env (env : string -> value) (ctx : var -> sym_expr) :=
@@ -202,7 +203,7 @@ Notation "env • ctx" := (concretize_env env ctx) (at level 80).
 
 Definition concretize_cont (env : string -> value) (k : sym_cont) :=
   match k with
-  | SCAppL t => CAppL t
+  (* | SCAppL t => CAppL t *)
   | SCAppR t => CAppR t
   | SCClosure t ctx => CClosure t (env • ctx)
   | SCDefault None l t1 t2 => CDefault None l t1 t2
@@ -264,8 +265,8 @@ Definition similar_env (env0 : string -> value) (env1 : var -> value) (env2 : va
     with respect to an assignement of free variables
 *)
 Inductive similar_cont (env : string -> value) : cont -> sym_cont -> Prop :=
-    | similar_cont_CAppL t :
-        similar_cont env (CAppL t) (SCAppL t)
+    (* | similar_cont_CAppL t :
+        similar_cont env (CAppL t) (SCAppL t) *)
 
     | similar_cont_CAppR t :
         similar_cont env (CAppR t) (SCAppR t)
@@ -343,10 +344,12 @@ Theorem sym_cred_complete:
 Proof.
   intros * Hclo Hsim1 Hred.
   induction Hred.
-  - inversion Hsim1; subst.
+  { inversion Hsim1; subst.
     now repeat econstructor.
-  - inversion Hsim1; subst.
+  }
+  { inversion Hsim1; subst.
     now repeat econstructor.
+  }
   - inversion Hsim1; subst.
     repeat econstructor; eauto.
     unfold similar_value. simpl.
@@ -426,11 +429,11 @@ Proof.
     inversion H2; subst.
     inversion H5; subst.
     now repeat econstructor.
-  - inversion Hsim1; subst.
-    now repeat econstructor.
-  - inversion Hsim1; subst.
-    now repeat econstructor.
-Qed.
+  - admit arthur "todo : fix".
+  - admit arthur "todo : fix".
+  - admit arthur "todo : fix".
+  - admit arthur "todo : fix".
+Admitted.
 
 
 Theorem sym_creds_complete:
@@ -443,10 +446,10 @@ Theorem sym_creds_complete:
         similar env s2 sym_s2 /\ star sym_cred sym_s1 sym_s2.
 Proof.
   intros s1 s2 H.
-  induction H using star_ind_rev; intros.
+  induction H using star_ind_n1; intros.
   - eauto with sequences.
   - specialize (IHstar _ _ H1 H2) as [sym_s2 [Hs2_1 Hs2_2]].
-    epose proof (sym_cred_complete _ _ _ _ H1 Hs2_1 H0) as [sym_s3 [Hs3_1 Hs3_2]].
+    epose proof (sym_cred_complete _ _ _ _ H1 Hs2_1 H) as [sym_s3 [Hs3_1 Hs3_2]].
     eexists. split; cycle 1.
     eapply star_trans; eauto.
     eapply star_one; eauto.
@@ -491,13 +494,10 @@ Proof.
     destruct b; simpl in *; try easy.
     econstructor.
   - simpl in *.
-    destruct eval_sym_expr.
-    + destruct b; simpl in *; try easy.
-      econstructor.
-    + simpl in *.
-      admit arthur "Problem de typage: suppose v is of type bool".
-    + simpl in *.
-      admit arthur "Problem de typage: suppose v is of type bool".
+    assert (exists b, eval_sym_expr v env = Bool b) as [b Hb] by admit arthur.
+    rewrite Hb in *.
+    destruct b; simpl in *; try easy.
+    econstructor.
   - simpl in *.
     econstructor.
     intros.
