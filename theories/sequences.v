@@ -373,27 +373,39 @@ Proof.
 Qed.
 
 Lemma takewhile:
-  forall R p a c,
+  forall R U a c,
   star R a c ->
-  p c = false ->
-  star (fun a b => R a b /\ p a = false) a c /\ p a = false \/
-  exists b,
-  star (fun a b => R a b /\ p a = true) a b
-  /\ star R b c
-  /\ p b = false.
+  star (fun a b => R a b /\ U a b = true) a c \/
+  exists b b',
+  star (fun a b => R a b /\ U a b = true) a b
+  /\ star R b' c
+  /\ R b b'
+  /\ U b b' = false.
 Proof.
   induction 1.
   * intros; left; econstructor; eauto using star_refl.
-  * intros Hc; destruct (IHstar Hc) as [[Hb1 Hb2]|[b' [Hb1 [Hb2 Hb3]]]];
-    remember (p a) as ret; induction ret.
-    - right.
-      exists b; repeat split; eauto.
-      eapply star_one; eauto.
-    - left; repeat split; eauto; econstructor; eauto.
-    - right; exists b'; repeat split; eauto.
-      econstructor; eauto.
-    - right; exists a; repeat split; eauto; econstructor; eauto.
+  * destruct IHstar; remember (U a b) as ret; induction ret.
+    - left; eapply star_step; eauto.
+    - right; exists a, b; repeat split; eauto; econstructor; eauto.
+    - destruct H1 as [x [x' [H1 [H2 [H3 H4]]]]].
+      right; exists x, x'; repeat split; eauto.
+      eapply star_step; eauto.
+    - right; exists a, b; repeat split; eauto; econstructor; eauto.
 Qed.
+
+Lemma takewhile_Prop:
+  forall R U a c,
+  (forall x y, {U x y}+{~ U x y}) ->
+  star R a c ->
+  star (fun a b => R a b /\ U a b) a c \/
+  exists b b',
+  star (fun a b => R a b /\ U a b) a b
+  /\ star R b' c
+  /\ R b b'
+  /\ ~ U b b'.
+Proof.
+  admit.
+Admitted.
 
 
 
