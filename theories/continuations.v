@@ -28,6 +28,7 @@ Inductive cont :=
   | CBinopR (op: op) (t2: term) (* [op \square t2] *)
   | CClosure (t_cl: {bind term}) (sigma_cl: list value)
     (* [Clo(x, t_cl, sigma_cl) \sigma] Since we are using De Bruijn indices, there is no variable x. *)
+  | CReturn (sigma: list value) (* call return *)
   | CDefault (o: option value) (ts: list term) (tj: term) (tc: term)
     (* [Def(o, ts, tj, tc)] *)
   | CDefaultBase (tc: term)
@@ -72,10 +73,16 @@ Inductive cred: state -> state -> Prop :=
 
   | cred_beta:
     (* $\lcont(Clo(x, t_{cl}, \sigma_{cl})\ \square) \cons \kappa, \sigma, v \rcont \leadsto \leval t_{cl}, \kappa, (x\mapsto v) \cons\sigma_{cl} \reval$ *)
-    forall tcl sigmacl kappa sigma v, 
+    forall t_cl sigma_cl kappa sigma v, 
     cred
-      (mode_cont ((CClosure tcl sigmacl)::kappa) sigma (RValue v))
-      (mode_eval tcl kappa  (v :: sigmacl))
+      (mode_cont ((CClosure t_cl sigma_cl)::kappa) sigma (RValue v))
+      (mode_eval t_cl (CReturn sigma::kappa)  (v :: sigma_cl))
+    
+  | cred_return:
+    forall sigma_cl kappa sigma v, 
+    cred
+      (mode_cont (CReturn sigma::kappa) sigma_cl (RValue v))
+      (mode_cont kappa sigma (RValue v))
 
 
   | cred_default:
@@ -202,18 +209,21 @@ Declare Scope latex.
 
   Notation "'\ident{' x '}'" := (x) (x ident, in custom latex at level 0): latex.
 
-  Notation "'\synpunct{[]}" := (@nil _) (in custom latex): latex.
+  Notation "'\synpunct{[]}'" := (@nil _) (in custom latex): latex.
   Notation "'{' x '\syncons' l '}'" := (@cons _ x l) (in custom latex): latex.
   Notation "'{' '[' x ']' '}'" := ([x]) (in custom latex): latex.
+  Notation "'{' '[' x ';'  y ']' '}'" := ([x; y]) (in custom latex): latex.
 
   Notation "'{' \synnone '}'" := None (in custom latex): latex.
   Notation "'{' '\synsome(' v ')' '}'" := (Some v) (in custom latex): latex.
 
   (* Terms *)
-  Notation "'{' '\overline{\synvar{' x '}}' '}'" := (Var x) (in custom latex): latex.
+  Notation "'{' '\overline{\synvar{' x '}}' '}'" := (Var x) (in custom latex, x constr ): latex.
   Notation "'{' '\synvar{' x '}' '}'" := (FreeVar x) (in custom latex): latex.
   Notation "'{' t1  t2 '}'" := (App t1 t2) (in custom latex): latex.
-  Notation "'{' '\synlambda.' t '}'" := (Lam t) (in custom latex): latex.
+  Notation "'{' ( '\synlambda.' t ) '}'" := (Lam t) (in custom latex): latex.
+  Notation "'{' \synlet t2 \syn in t1 '}'" := (App (Lam t1) t2) (in custom latex): latex.
+
   Notation "'{' '\synlangle' ts '\synmid' tj '\synjust' tc '\synrangle' '}'" :=  (Default ts tj tc) (in custom latex): latex.
   Notation "'{' '\ghostvalue' v '}'" := (Value (v)) (in custom latex): latex.
   Notation "'{' t1 '\synpunct{' op '}' t2 '}'" := (Binop op t1 t2) (in custom latex): latex.
@@ -225,6 +235,7 @@ Declare Scope latex.
   Notation "'{' v1 '\synpunct{' op '}' '\square' '}'" := (CBinopL op v1) (in custom latex): latex.
   Notation "'{' '\synCClo(' t_cl ','  sigma_cl ')' '}'" := (CClosure t_cl sigma_cl) (in custom latex): latex.
   Notation "'{' '\synDef(' o ',' ts ','  tj ','  tc ')' '}'" := (CDefault o ts tj tc) (in custom latex): latex.
+  Notation "'{' '\synReturn(' sigma ')' '}'" := (CReturn sigma) (in custom latex): latex.
   Notation "'{' '\synlangle' '\square' '\synjust' tc '\synrangle' '}'" := (CDefaultBase tc) (in custom latex): latex.
 
 
@@ -232,9 +243,11 @@ Declare Scope latex.
   Notation "\syntrue" := true (in custom latex): latex.
   Notation "\synfalse" := false (in custom latex): latex.
   Notation "'{' \ghostbool b '}'" := (Bool b) (in custom latex): latex.
-  Notation "'{' \ghostint i '}'" := (Int i) (in custom latex): latex.
+  Notation "'{' \ghostint i '}'" := (Int i) (in custom latex, i constr): latex.
   (* Notation "'{' '\synClo(' t ','  sigma ')' '}'" := (VClosure t sigma) (in custom latex): latex. *)
   (* Notation "'{' '\ghostvvalue'  v '}'" := (VValue v) (in custom latex): latex. *)
+
+  Notation "+" := Add (in custom latex): latex.
 
 
   (* Results *)
@@ -247,6 +260,34 @@ Declare Scope latex.
   Notation "'{\lcont'  kappa ,  sigma ,  v  '\rcont}'" := (mode_cont kappa sigma  v) (in custom latex): latex.
   Notation "'{' s1  '\leadsto^*' s2 '}'" := (star cred s1 s2) (in custom latex): latex.
   Notation "'{' s1  '\leadsto' s2 '}'" := (cred s1 s2) (in custom latex): latex.
+
+
+Require Import Coq.ZArith.ZArith.
+
+
+Example wtf:
+exists sigma', 
+  star cred
+  (mode_eval
+    (* \synlet 5 \synin (\synlet 3 \synin \bar 0) +\ bar 0*)
+    (App
+      (Lam
+        (Binop
+          Add
+          (App (Lam (Var 0)) (Value (Int 3%Z)))
+          (Var 0)
+        )
+      )
+      (Value (Int 5%Z))
+    )
+    []
+    []
+  )
+  (mode_cont [] sigma' (RValue (Int 8%Z)))
+  .
+Proof.
+  repeat econstructor.
+Qed.
 
 
 Section CRED_PROPERTIES.

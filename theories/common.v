@@ -136,3 +136,13 @@ Proof.
   eauto.
 Qed.
 
+
+Theorem Forall2_nth_error_Some {A B} F l1 l2:
+  Forall2 F l1 l2 ->
+  forall k (x: A) (y: B),
+    nth_error l1 k = Some x ->
+    nth_error l2 k = Some y ->
+    F x y.
+Proof.
+  induction 1, k; simpl; intros; inj; eauto.
+Qed.
