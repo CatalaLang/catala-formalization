@@ -18,10 +18,16 @@ Inductive term :=
     | Value (v: value)
     | Binop (op: op) (t1 t2: term)
 
+    | Match_ (u t1: term) (t2: {bind term})
+    | ENone
+    | ESome (t: term)
+
 with value :=
     | Bool (b: bool)
     | Int (i: Z)
     | Closure (t: term) (sigma: list value)
+    | VNone
+    | VSome (v: value)
 .
 
 Definition get_op op i1 i2:=

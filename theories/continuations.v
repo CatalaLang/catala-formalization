@@ -33,6 +33,10 @@ Inductive cont :=
     (* [Def(o, ts, tj, tc)] *)
   | CDefaultBase (tc: term)
     (* [ <| \square :- tc >] *)
+  
+  | CMatch (t1 t2: term)
+    (* [ match \square with None -> t1 | Some -> t2 end ] *)
+  | CSome
 .
 
 Inductive state :=
@@ -197,6 +201,37 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont (CBinopL op v1 :: kappa) sigma (RValue v2))
       (mode_cont kappa sigma (RValue v))
+
+  | cred_match:
+    forall u t1 t2 kappa sigma,
+    cred
+      (mode_eval (Match_ u t1 t2) kappa sigma)
+      (mode_eval u ((CMatch t1 t2)::kappa) sigma)
+  | cred_match_none:
+    forall t1 t2 kappa sigma,
+    cred
+      (mode_cont ((CMatch t1 t2)::kappa) sigma (RValue VNone))
+      (mode_eval t1 kappa sigma)
+  | cred_match_some:
+    forall t1 t2 kappa sigma v,
+    cred
+      (mode_cont ((CMatch t1 t2)::kappa) sigma (RValue (VSome (v))))
+      (mode_eval t2 kappa (v::sigma))
+  | cred_enone:
+    forall kappa sigma,
+    cred
+      (mode_eval ENone kappa sigma)
+      (mode_cont kappa sigma (RValue VNone))
+  | cred_esome_intro:
+    forall t kappa sigma,
+    cred
+      (mode_eval (ESome t) kappa sigma)
+      (mode_eval t (CSome::kappa) sigma)
+  | cred_esome_elim:
+    forall v kappa sigma,
+    cred
+      (mode_cont (CSome::kappa) sigma (RValue v))
+      (mode_cont kappa sigma (RValue (VSome v)))
 .
 
 
@@ -518,7 +553,7 @@ Qed.
 (* PROPERTIES OF CRED *)
 
 
-Theorem cred_progress s:
+(* Theorem cred_progress s:
   (exists s', cred s s') \/ stack s = [].
 Proof.
   induction s.
@@ -540,7 +575,7 @@ Proof.
     - admit alain "typing error on the function application.".
     - admit alain "typing error on the justification".
     - admit alain "typing error on the justification".
-Abort.
+Abort. *)
 
 Theorem cred_deterministic (s s1' s2': state):
   cred s s1' -> cred s s2' -> s1' = s2'.
@@ -566,7 +601,6 @@ Proof.
   repeat intro.
   inversion H.
 Qed.
-
 
 
 End CRED_PROPERTIES.
