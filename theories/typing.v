@@ -158,19 +158,19 @@ Inductive jt_conts: (string -> option type) -> list type -> list type -> list co
 .
 
 
-Inductive jt_state: (string -> option type) -> state -> type -> Prop :=
+Inductive jt_state: (string -> option type) -> list type -> state -> type -> Prop :=
   | JTmode_eval:
     forall Delta Gamma1 Gamma2 t T1 T2 kappa sigma,
       List.Forall2 (jt_value Delta) sigma Gamma1 ->
       jt_term Delta Gamma1 t T1 ->
       jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
-      jt_state Delta (mode_eval t kappa sigma) T2
+      jt_state Delta Gamma2 (mode_eval t kappa sigma) T2
   | JTmode_cont:
     forall Delta Gamma1 Gamma2 r T1 T2 kappa sigma,
       List.Forall2 (jt_value Delta) sigma Gamma1 ->
       jt_result Delta r T1 ->
       jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
-      jt_state Delta (mode_cont kappa sigma r) T2
+      jt_state Delta Gamma2 (mode_cont kappa sigma r) T2
 .
 
 Ltac inv_jt :=
@@ -226,9 +226,9 @@ Ltac inv_jt :=
   | [h: jt_cont _ _ _ (CMatch _ _) _ _ |- _] =>
     inversion h; clear h; subst
 
-  | [h: jt_state _ (mode_eval _ _ _) _ |- _] =>
+  | [h: jt_state _ _ (mode_eval _ _ _) _ |- _] =>
     inversion h; clear h; subst
-  | [h: jt_state _ (mode_cont _ _ _) _ |- _] =>
+  | [h: jt_state _ _ (mode_cont _ _ _) _ |- _] =>
     inversion h; clear h; subst
 
   | [h: jt_conts _ _ _ nil _ _ |- _] =>
@@ -258,9 +258,9 @@ Qed.
 
 Theorem preservation s1 s2:
   cred s1 s2 ->
-  forall Delta T,
-  jt_state Delta s1 T ->
-  jt_state Delta s2 T.
+  forall Delta Gamma T,
+  jt_state Delta Gamma s1 T ->
+  jt_state Delta Gamma s2 T.
 Proof.
   induction 1; intros; try solve [repeat inv_jt; repeat econstructor; eauto].
   * match goal with [_: context[Var _]|- context[RValue _] ] => idtac end.
@@ -268,7 +268,7 @@ Proof.
     eapply common.Forall2_nth_error_Some; eauto.
   * (* Returning an REmpty: this cause a problem with CReturn. *)
     induction phi; try solve [repeat inv_jt; repeat econstructor; eauto].
-    { now pose proof H0 sigma0.  }
+    { now pose proof H0 sigma0. }
   * (* Returning an Conflict *)
     induction phi; try solve [repeat inv_jt; repeat econstructor; eauto].
     { now pose proof H sigma0. }
@@ -278,4 +278,3 @@ Proof.
     induction v1; induction v2; induction op; simpl in *; inj; tryfalse;
     eauto; repeat econstructor; eauto.
 Qed.
-

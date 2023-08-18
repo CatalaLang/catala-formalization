@@ -77,17 +77,16 @@ Inductive cred: state -> state -> Prop :=
 
   | cred_beta:
     (* $\lcont(Clo(x, t_{cl}, \sigma_{cl})\ \square) \cons \kappa, \sigma, v \rcont \leadsto \leval t_{cl}, \kappa, (x\mapsto v) \cons\sigma_{cl} \reval$ *)
-    forall t_cl sigma_cl kappa sigma v, 
+    forall t_cl sigma_cl kappa sigma v,
     cred
       (mode_cont ((CClosure t_cl sigma_cl)::kappa) sigma (RValue v))
       (mode_eval t_cl (CReturn sigma::kappa)  (v :: sigma_cl))
 
   | cred_return:
-    forall sigma_cl kappa sigma r, 
+    forall sigma_cl kappa sigma r,
     cred
       (mode_cont (CReturn sigma::kappa) sigma_cl r)
       (mode_cont kappa sigma r)
-
 
   | cred_default:
     (* $\leval \synlangle es \synmid e_j \synjust e_c \synrangle, \kappa, \sigma \reval \leadsto \lcont (\mathtt{Def}(\synnone, es, e_j, e_c)) \cons \kappa, \sigma, \synempty \rcont$ *)
