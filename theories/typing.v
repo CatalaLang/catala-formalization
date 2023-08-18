@@ -250,12 +250,6 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   end.
 
-Lemma nth_error_Some_nonempty {A}:
-  forall l x (v: A), nth_error l x = Some v -> l <> nil.
-Proof.
-  intros; induction l; induction x; eauto; repeat intro; tryfalse.
-Qed.
-
 Theorem preservation s1 s2:
   cred s1 s2 ->
   forall Delta Gamma T,

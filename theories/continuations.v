@@ -580,19 +580,22 @@ Abort. *)
 Theorem cred_deterministic (s s1' s2': state):
   cred s s1' -> cred s s2' -> s1' = s2'.
 Proof.
-  admit alain "to fix because the proof is not well written".
-  (* induction 1; inversion 1; subst; eauto.
+  induction 1; inversion 1; subst; eauto.
   (* All the cases are quite the same: we know the top of the stack is not an Default, but the top of the stack is a default. Hence there is a contradiction. *)
   * rewrite H in H5; inj; eauto.
+  * now pose proof H6 sigma.
+  * now pose proof H5 sigma.
   * specialize H4 with o (th::ts) tj tc. destruct H4. eauto.
   * specialize H4 with (Some v) ([]) tj tc. destruct H4. eauto.
   * specialize H4 with None [] tj tc. destruct H4. eauto.
+  * now pose proof H0 sigma0.
   * specialize H with o (th::ts) tj tc. destruct H. eauto.
   * specialize H with (Some v) ([]) tj tc. destruct H. eauto.
   * specialize H with None [] tj tc. destruct H. eauto.
+  * now pose proof H sigma0.
   * rewrite <- H in H7.
-    injection H7; intros; subst; eauto. *)
-Admitted.
+    injection H7; intros; subst; eauto.
+Qed.
 
 Theorem cred_stack_empty_irred:
   forall sigma v,
