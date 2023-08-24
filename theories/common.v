@@ -99,6 +99,16 @@ Proof.
   }
 Qed.
 
+Lemma lastn_append {A}:
+  forall k (l: list A),
+    lastn 1 l = k::nil ->
+    exists l', l = l' ++ k::nil.
+Proof.
+  (* intros k l.
+  rewrite lastn_def_firstn.
+  intros.
+  cut (rev (rev (firstn 1 (rev l))) = rev (k :: nil) ); swap 1 2; [|intro]. *)
+Admitted.
 
 
 (* Such that [l = lastn n l ++ firstn n l] *)
@@ -127,13 +137,43 @@ Proof.
 Qed.
 
 
-Theorem append_droplastn_lastn {A} n (l: list A):
+Lemma lastn1_length1 {A}:
+  forall k (kappa: list A),
+    lastn 1 kappa = cons k nil ->
+    1 <= Datatypes.length kappa.
+Proof.
+  intros k kappa Hk.
+  replace 1 with (List.length (lastn 1 kappa)).
+  { rewrite length_lastn. eapply PeanoNat.Nat.le_min_r. }
+  rewrite Hk; eauto.
+Qed.
+
+Theorem split_droplastn_lastn {A} n (l: list A):
   l = droplastn n l ++ lastn n l
 .
 Proof.
   unfold lastn, droplastn.
   rewrite firstn_skipn.
   eauto.
+Qed.
+
+
+Theorem Forall2_nth_error_Some_left {A B} F l1 l2:
+  Forall2 F l1 l2 ->
+  forall k (x: A),
+    nth_error l1 k = Some x ->
+    exists (y: B), nth_error l2 k = Some y.
+Proof.
+  induction 1, k; simpl; intros; inj; eauto.
+Qed.
+
+Theorem Forall2_nth_error_Some_right {A B} F l1 l2:
+  Forall2 F l1 l2 ->
+  forall k (y: A),
+    nth_error l2 k = Some y ->
+    exists (x: B), nth_error l1 k = Some x.
+Proof.
+  induction 1, k; simpl; intros; inj; eauto.
 Qed.
 
 

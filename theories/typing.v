@@ -22,10 +22,10 @@ Inductive jt_term:
     forall Delta Gamma x T,
       Some T = List.nth_error Gamma x ->
       jt_term Delta Gamma (Var x) T
-  | JTFreeVar:
+  (* | JTFreeVar:
     forall Delta Gamma x T,
       Some T = Delta x ->
-      jt_term Delta Gamma (FreeVar x) T
+      jt_term Delta Gamma (FreeVar x) T *)
   | JTApp:
     forall Delta Gamma t1 t2 T1 T2,
       jt_term Delta Gamma t1 (TFun T1 T2) ->
@@ -206,6 +206,14 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   | [h: jt_value _ VNone _ |- _] =>
     inversion h; clear h; subst
+  | [h: jt_value _ _ (TOption _) |- _] =>
+    inversion h; clear h; subst
+  | [h: jt_value _ _ (TFun _ _) |- _] =>
+    inversion h; clear h; subst
+  | [h: jt_value _ _ (TBool) |- _] =>
+    inversion h; clear h; subst
+  | [h: jt_value _ _ (TInteger) |- _] =>
+    inversion h; clear h; subst
 
   | [h: jt_cont _ _ _ (CAppR _) _ _ |- _] =>
     inversion h; clear h; subst
@@ -271,4 +279,34 @@ Proof.
     repeat inv_jt.
     induction v1; induction v2; induction op; simpl in *; inj; tryfalse;
     eauto; repeat econstructor; eauto.
+Qed.
+
+
+Theorem progress s1:
+  forall Delta Gamma T,
+    jt_state Delta Gamma s1 T ->
+    (exists s2, cred s1 s2) \/ (is_mode_cont s1 = true /\ stack s1 = nil).
+Proof.
+  induction s1 as [t kappa env|kappa env r]; intros; repeat inv_jt.
+  { left.
+    induction t.
+    all: repeat inv_jt.
+    all: try solve [eexists; econstructor].
+    { symmetry in H2.
+      destruct (common.Forall2_nth_error_Some_right _ _ _ H5 _ _ H2).
+      eexists; econstructor; eauto.
+    }
+  }
+  { induction kappa as [|cont kappa].
+    { right; simpl; eauto. }
+    { left; induction cont; induction r.
+      all: try match goal with [o: option value |- _ ] => induction o end.
+      all: try match goal with [ts: list term |- _ ] => induction ts end.
+      all: repeat inv_jt.
+      all: try match goal with [b: bool |- _ ] => induction b end.
+      all: try solve [repeat inv_jt; eexists; econstructor; repeat intro; inj].
+      { induction op; simpl in *; inj; repeat inv_jt.
+        all: eexists; econstructor; simpl; eauto. }
+    }
+  }
 Qed.

@@ -2,6 +2,8 @@ Require Export Autosubst.Autosubst.
 Require Import String.
 Require Import Coq.ZArith.ZArith.
 
+Require Import tactics.
+
 Inductive op :=
     | Add
     | Eq
@@ -13,7 +15,8 @@ Inductive term :=
     | App (t1 t2: term)
     | Lam (t: {bind term})
     | Default (ts: list term) (tj tc: term)
-        (* induction principle is not strong enought on the default. But this is known. *)
+    | Empty
+    | Conflict
 
     | Value (v: value)
     | Binop (op: op) (t1 t2: term)
@@ -25,10 +28,23 @@ Inductive term :=
 with value :=
     | Bool (b: bool)
     | Int (i: Z)
-    | Closure (t: term) (sigma: list value)
+    | Closure (t: {bind term}) (sigma: list value)
     | VNone
     | VSome (v: value)
 .
+
+#[export] Instance Ids_term : Ids term. derive. Defined.
+#[export] Instance Rename_term : Rename term. derive. Defined.
+#[export] Instance Subst_term : Subst term. derive. Defined.
+#[export] Instance SubstLemmas_term : SubstLemmas term. derive. Qed.
+
+Lemma ids_inj:
+    forall x y, ids x = ids y -> x = y.
+intros; inj; eauto.
+Qed.
+
+
+
 
 Definition get_op op i1 i2:=
     match op, i1, i2 with

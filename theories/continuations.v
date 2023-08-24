@@ -6,6 +6,8 @@ Require Import sequences common.
 Require Import Coq.Arith.Arith.
 Require Import Bool.
 
+Require Import String.
+
 
 (* Proof automation. ZifyBool is needed for operators such as [_ <=? _] *)
 Require Import Lia ZifyBool.
@@ -33,7 +35,6 @@ Inductive cont :=
     (* [Def(o, ts, tj, tc)] *)
   | CDefaultBase (tc: term)
     (* [ <| \square :- tc >] *)
-  
   | CMatch (t1 t2: term)
     (* [ match \square with None -> t1 | Some -> t2 end ] *)
   | CSome
@@ -60,7 +61,7 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_eval (App t1 t2) kappa sigma)
       (mode_eval t1 ((CAppR t2) :: kappa) sigma)
-  
+
   | cred_clo:
     (* $\leval \lambda x. t, \kappa, \sigma \reval \leadsto \lcont\kappa, \sigma, Clo (x, t, \sigma) \rcont$ *)
     forall t kappa sigma,
@@ -76,7 +77,6 @@ Inductive cred: state -> state -> Prop :=
       (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
 
   | cred_beta:
-    (* $\lcont(Clo(x, t_{cl}, \sigma_{cl})\ \square) \cons \kappa, \sigma, v \rcont \leadsto \leval t_{cl}, \kappa, (x\mapsto v) \cons\sigma_{cl} \reval$ *)
     forall t_cl sigma_cl kappa sigma v,
     cred
       (mode_cont ((CClosure t_cl sigma_cl)::kappa) sigma (RValue v))
@@ -165,7 +165,7 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont (phi::kappa) sigma RConflict)
       (mode_cont kappa sigma RConflict)
 
-  (* | cred_confict_intro:
+  | cred_confict_intro:
     forall kappa sigma,
     cred
       (mode_eval Conflict kappa sigma)
@@ -175,7 +175,7 @@ Inductive cred: state -> state -> Prop :=
     forall kappa sigma,
     cred
       (mode_eval Empty kappa sigma)
-      (mode_cont kappa sigma REmpty) *)
+      (mode_cont kappa sigma REmpty)
 
   | cred_value_intro:
     forall v kappa sigma,
@@ -215,8 +215,8 @@ Inductive cred: state -> state -> Prop :=
   | cred_match_some:
     forall t1 t2 kappa sigma v,
     cred
-      (mode_cont ((CMatch t1 t2)::kappa) sigma (RValue (VSome (v))))
-      (mode_eval t2 (CReturn sigma:: kappa) (v::sigma))
+      (mode_cont ((CMatch t1 t2) :: kappa) sigma (RValue (VSome (v))))
+      (mode_eval t2 (CReturn sigma :: kappa) (v::sigma))
   | cred_enone:
     forall kappa sigma,
     cred
@@ -257,7 +257,7 @@ Declare Scope latex.
   Notation "'{' '\synvar{' x '}' '}'" := (FreeVar x) (in custom latex): latex.
   Notation "'{' t1  t2 '}'" := (App t1 t2) (in custom latex): latex.
   Notation "'{' ( '\synlambda.' t ) '}'" := (Lam t) (in custom latex): latex.
-  Notation "'{' \synlet t2 \syn in t1 '}'" := (App (Lam t1) t2) (in custom latex): latex.
+  Notation "'{' \synlet t2 \synin t1 '}'" := (App (Lam t1) t2) (in custom latex): latex.
 
   Notation "'{' '\synlangle' ts '\synmid' tj '\synjust' tc '\synrangle' '}'" :=  (Default ts tj tc) (in custom latex): latex.
   Notation "'{' '\ghostvalue' v '}'" := (Value (v)) (in custom latex): latex.
@@ -552,49 +552,19 @@ Qed.
 
 (* PROPERTIES OF CRED *)
 
-
-(* Theorem cred_progress s:
-  (exists s', cred s s') \/ stack s = [].
-Proof.
-  induction s.
-  * induction e; try solve [left; eexists; econstructor].
-    - admit alain "If a variable is not defined, then it might be an issue".
-    - admit alain "todo: add an interpretation for free variables".
-  * match goal with [v: list cont |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
-    match goal with [v: cont |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
-    match goal with [v: result |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
-    match goal with [v: option value |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
-    match goal with [v: list term |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
-    repeat match goal with [v: value |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
-    match goal with [v: bool |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end;
-    match goal with [v: op |- _] => induction v; try solve [left; eexists; econstructor|simpl; eauto] | _ => idtac end.
-    all: try solve[left; eexists; econstructor; repeat intro; discriminate].
-    all: match goal with [ |- context[CBinopL] ] => left; eexists; econstructor; try solve [simpl; eauto]; admit alain "typing error on the operator"| _ => idtac end.
-    - admit alain "typing error on the function application.".
-    - admit alain "typing error on the function application.".
-    - admit alain "typing error on the function application.".
-    - admit alain "typing error on the justification".
-    - admit alain "typing error on the justification".
-Abort. *)
-
 Theorem cred_deterministic (s s1' s2': state):
   cred s s1' -> cred s s2' -> s1' = s2'.
 Proof.
-  induction 1; inversion 1; subst; eauto.
-  (* All the cases are quite the same: we know the top of the stack is not an Default, but the top of the stack is a default. Hence there is a contradiction. *)
-  * rewrite H in H5; inj; eauto.
-  * now pose proof H6 sigma.
-  * now pose proof H5 sigma.
-  * specialize H4 with o (th::ts) tj tc. destruct H4. eauto.
-  * specialize H4 with (Some v) ([]) tj tc. destruct H4. eauto.
-  * specialize H4 with None [] tj tc. destruct H4. eauto.
-  * now pose proof H0 sigma0.
-  * specialize H with o (th::ts) tj tc. destruct H. eauto.
-  * specialize H with (Some v) ([]) tj tc. destruct H. eauto.
-  * specialize H with None [] tj tc. destruct H. eauto.
-  * now pose proof H sigma0.
-  * rewrite <- H in H7.
-    injection H7; intros; subst; eauto.
+  induction 1; inversion 1; subst; try solve [eauto|congruence].
+  (* What is left is cases involving the [cred_empty] and [cred_conflict] rules. Since congrugence don't go inside the forall, it does not handle those cases correctly. *)
+  all: try match goal with
+    [h: context [CReturn _ <> CReturn _] |- _ ] =>
+      epose proof h _ as tmp; exfalso; apply tmp; eauto
+    end.
+  all: try match goal with
+    [h: context [CDefault _ _ _ _ <> CDefault _ _ _ _] |- _ ] =>
+    epose proof h _ _ _ _ as tmp; exfalso; apply tmp; eauto
+    end.
 Qed.
 
 Theorem cred_stack_empty_irred:
@@ -605,6 +575,79 @@ Proof.
   repeat intro.
   inversion H.
 Qed.
+
+
+Theorem cred_stack_sub:
+  forall a b k,
+    cred a b ->
+    lastn 1 (stack a) = [k] ->
+    lastn 1 (stack a) = lastn 1 (stack b) ->
+    cred (with_stack a (droplastn 1 (stack a))) (with_stack b (droplastn 1 (stack b))).
+Proof.
+  induction 1; simpl; try econstructor; eauto; intros.
+  all: try solve [rewrite droplastn_cons; try solve [
+      econstructor
+      |eapply lastn1_length1; eauto
+    ]].
+  all: induction kappa;
+    try solve [
+     repeat rewrite lastn_def_firstn in *; simpl in *; inj
+    | repeat rewrite lastn_cons in * by (simpl; lia);
+      remember (a::kappa) as kappa';
+      repeat rewrite droplastn_cons; try solve [econstructor|eapply lastn1_length1; eauto]
+    ].
+  1:{
+    repeat rewrite lastn_def_firstn in *.
+    unfold droplastn in *.
+    simpl in *; inj.
+    exfalso.
+    eapply fuck_stdlib; eauto.
+  }
+  
+Admitted.
+
+Theorem creds_stack_sub:
+  forall s1 s2 k,
+    lastn 1 (stack s1) = [k] ->
+    star (fun s1 s2 => cred s1 s2 /\ lastn 1 (stack s1) = lastn 1 (stack s2))
+      s1 s2
+    ->
+      star cred
+        (with_stack s1 (droplastn 1 (stack s1)))
+        (with_stack s2 (droplastn 1 (stack s2))).
+Proof.
+  intros s1 s2 k Hk.
+  induction 1; unpack; econstructor.
+  { eapply cred_stack_sub; eauto. }
+  { eapply IHstar.
+    rewrite Hk in *; eauto.
+  }
+Qed.
+
+Theorem cred_stack_:
+  forall a b k,
+    lastn 1 (stack a) = [k] ->
+    lastn 1 (stack a) <> lastn 1 (stack b) ->
+    cred a b ->
+    is_mode_cont a = true.
+Proof.
+  intros a b k Hk Hab Hred.
+  pose proof lastn1_length1 _ _ Hk.
+  revert Hred Hab; induction 1.
+  all: simpl; subst; eauto; rewrite lastn_cons; eauto.
+Qed.
+
+Theorem cred_stack_drop:
+  forall t k env env' env'' r' r'',
+    star cred
+      (mode_eval t [k] env)
+      (mode_cont [] env' r')
+    ->
+    star cred
+      (mode_eval t [] env)
+      (mode_cont [] env'' r'').
+Proof.
+Abort.
 
 
 End CRED_PROPERTIES.
