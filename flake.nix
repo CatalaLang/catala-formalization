@@ -24,6 +24,7 @@
           inputsFrom = [ packages.catala ];
           buildInputs = [
             self_pkgs.coqPackages.serapi
+            python3.pkgs.pwntools
             python3.pkgs.alectryon
             python3.pkgs.rich
             pkgs.texlive.combined.scheme-full

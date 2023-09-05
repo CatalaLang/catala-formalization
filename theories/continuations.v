@@ -23,31 +23,32 @@ Inductive result :=
   | RConflict
 .
 
+(* App (Var 0) (up t2) *)
+
 Inductive cont :=
   (* | CAppL (t1: term) (* [t1 \square] *) *) (* cannot happend*)
   | CAppR (t2: term) (* [\square t2] *)
   | CBinopL (op: op) (v1: value) (* [op t1 \square] *)
   | CBinopR (op: op) (t2: term) (* [op \square t2] *)
   | CClosure (t_cl: {bind term}) (sigma_cl: list value)
-    (* [Clo(x, t_cl, sigma_cl) \sigma] Since we are using De Bruijn indices, there is no variable x. *)
+    (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices, there is no variable x. *)
   | CReturn (sigma: list value) (* call return *)
   | CDefault (o: option value) (ts: list term) (tj: term) (tc: term)
     (* [Def(o, ts, tj, tc)] *)
   | CDefaultBase (tc: term)
     (* [ <| \square :- tc >] *)
-  | CMatch (t1 t2: term)
+  | CMatch (t1: term) (t2: {bind term})
     (* [ match \square with None -> t1 | Some -> t2 end ] *)
   | CSome
 .
 
 Inductive state :=
-  | mode_eval (e: term) (stack: list cont) (env: list value)
-  | mode_cont (stack: list cont) (env: list value) (result: result)
+  | mode_eval (e: term) (kappa: list cont) (env: list value)
+  | mode_cont (kappa: list cont) (env: list value) (result: result)
 .
 
 Inductive cred: state -> state -> Prop :=
   | cred_var:
-    (* $\leval \synvar x, \kappa, \sigma \reval \leadsto \lcont\kappa, \sigma, \sigma(x) \rcont$ *)
 
     forall x kappa sigma v,
     List.nth_error sigma x = Some v ->
@@ -56,21 +57,18 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont kappa sigma (RValue v))
 
   | cred_app:
-    (* $\leval e_1\ e_2, \kappa, \sigma \reval \leadsto \leval e_1, (\square\ e_2) \cons \kappa, \sigma \reval $ *)
     forall t1 t2 kappa sigma,
     cred
       (mode_eval (App t1 t2) kappa sigma)
       (mode_eval t1 ((CAppR t2) :: kappa) sigma)
 
   | cred_clo:
-    (* $\leval \lambda x. t, \kappa, \sigma \reval \leadsto \lcont\kappa, \sigma, Clo (x, t, \sigma) \rcont$ *)
     forall t kappa sigma,
     cred
       (mode_eval (Lam t) kappa sigma)
       (mode_cont kappa sigma (RValue (Closure t sigma)))
 
   | cred_arg:
-    (* $\lcont (\square\ e_2) \cons \kappa, \sigma, Clo (x, t_{cl}, \sigma_{cl}) \rcont \leadsto \leval e_2, (Clo(x, t_{cl}, \sigma_{cl})\ \square) \cons \kappa, \sigma \reval$ *)
     forall t2 kappa sigma tcl sigmacl,
     cred
       (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl)))
@@ -89,67 +87,58 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont kappa sigma r)
 
   | cred_default:
-    (* $\leval \synlangle es \synmid e_j \synjust e_c \synrangle, \kappa, \sigma \reval \leadsto \lcont (\mathtt{Def}(\synnone, es, e_j, e_c)) \cons \kappa, \sigma, \synempty \rcont$ *)
     forall ts tj tc kappa sigma,
     cred
       (mode_eval (Default ts tj tc) kappa sigma)
       (mode_cont ((CDefault None ts tj tc)::kappa) sigma REmpty)
 
   | cred_defaultunpack:
-    (* $\lcont \mathtt{Def}(o, e_h \cons es, e_j, e_c) \cons \kappa, \sigma, \synempty \rcont \leadsto \leval e_h, \mathtt{Def}(o, es, e_j, e_c) \cons \kappa, \sigma \reval$ *)
     forall o th ts tj tc kappa sigma,
     cred
       (mode_cont ((CDefault o (th::ts) tj tc)::kappa) sigma REmpty)
       (mode_eval th ((CDefault o ts tj tc)::kappa) sigma)
 
   | cred_defaultnone:
-    (* $\lcont \mathtt{Def}(\synnone, e_h \cons es, e_j, e_c) \cons \kappa, \sigma, v \rcont \leadsto \leval e_h, \mathtt{Def}(\synsome(v), es, e_j, e_c) \cons \kappa, \sigma \reval$ *)
+  
     forall ts tj tc kappa sigma v,
     cred
       (mode_cont ((CDefault None ts tj tc)::kappa) sigma (RValue v))
       (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma REmpty)
 
   | cred_defaultconflict:
-    (* $\lcont \mathtt{Def}(\synsome(v), es, e_j, e_c) \cons \kappa, \sigma, v' \rcont \leadsto \lcont \mathtt{Def}(\synsome(v), es, e_j, e_c)  \cons \kappa, \sigma, \synconflict \rcont$ *)
     forall ts tj tc kappa sigma v v',
     cred
       (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma (RValue v'))
       (mode_cont kappa sigma RConflict)
 
   | cred_defaultvalue:
-    (* $\lcont \mathtt{Def}(\synsome(v), [], e_j, e_c) \cons \kappa, \sigma, \synempty \rcont \leadsto \lcont \kappa, \sigma, v \rcont$ *)
     forall v tj tc kappa sigma,
     cred
       (mode_cont ((CDefault (Some v) [] tj tc)::kappa) sigma REmpty)
       (mode_cont kappa sigma (RValue v))
 
   (* | cred_defaultnonefinal: (* not needed *)
-    (* $\lcont \mathtt{Def}(\synnone, [], e_j, e_c) \cons \kappa, \sigma, v \rcont \leadsto \lcont \kappa, \sigma, v \rcont$ \hfill $v \neq \synempty, \synconflict$ *)
     todo *)
 
   | cred_defaultbase:
-    (* $\lcont \mathtt{Def}(\synnone, [], e_j, e_c) \cons \kappa, \sigma, \synempty \rcont \leadsto \leval e_j, \synlanglemid \square \synjust e_c \synrangle \cons \kappa, \sigma \reval$ *)
     forall tj tc kappa sigma,
     cred
       (mode_cont ((CDefault None [] tj tc)::kappa) sigma REmpty)
       (mode_eval tj ((CDefaultBase tc)::kappa) sigma)
 
   | cred_defaultbasetrue:
-    (* $\lcont \synlanglemid \square \synjust e_c \synrangle \cons \kappa, \sigma, \syntrue \rcont \leadsto \leval e_c, \kappa, \sigma \reval$ *)
     forall tc kappa sigma,
     cred
       (mode_cont ((CDefaultBase tc)::kappa) sigma (RValue (Bool true)))
       (mode_eval tc kappa sigma)
 
   | cred_defaultbasefalse:
-    (* $\lcont \synlanglemid \square \synjust e_c \synrangle \cons \kappa, \sigma, \synfalse \rcont \leadsto \lcont \kappa, \sigma, \synempty \rcont$ *)
     forall tc kappa sigma,
     cred
       (mode_cont ((CDefaultBase tc)::kappa) sigma (RValue (Bool false)))
       (mode_cont kappa sigma REmpty)
 
   | cred_empty:
-    (* $\lcont \phi \cons \kappa, \sigma, \synempty \rcont \leadsto \lcont \kappa, \sigma, \synempty \rcont$ \hfill $\forall o\ es\ e_j\ e_c,\ \phi \neq \mathtt{Def}(o, es, e_j, ec)$ *)
     forall phi kappa sigma,
     (forall o ts tj tc, phi <> CDefault o ts tj tc) ->
     (forall sigma', phi <> CReturn sigma') ->
@@ -158,7 +147,6 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont kappa sigma REmpty)
 
   | cred_conflict:
-    (* $\lcont \phi \cons \kappa, \sigma, \synconflict \rcont \leadsto \lcont \kappa, \sigma, \synconflict \rcont$ *)
     forall phi kappa sigma,
     (forall sigma', phi <> CReturn sigma') ->
     cred
@@ -248,6 +236,9 @@ Declare Scope latex.
   Notation "'{' x '\syncons' l '}'" := (@cons _ x l) (in custom latex): latex.
   Notation "'{' '[' x ']' '}'" := ([x]) (in custom latex): latex.
   Notation "'{' '[' x ';'  y ']' '}'" := ([x; y]) (in custom latex): latex.
+  Notation "'{' '[' x ';'  y ']' '}'" := ([x; y]) (in custom latex): latex.
+  Notation "'{' '[' x ';'  y ';' z ']' '}'" := ([x; y; z]) (in custom latex): latex.
+  Notation "'{' '[' x ';'  y ';' z ';' w ']' '}'" := ([x; y; z; w]) (in custom latex): latex.
 
   Notation "'{' \synnone '}'" := None (in custom latex): latex.
   Notation "'{' '\synsome(' v ')' '}'" := (Some v) (in custom latex): latex.
@@ -268,7 +259,7 @@ Declare Scope latex.
   Notation "'{' '\square' '\synpunct{' op '}' e2 '}'" := (CBinopR op e2) (in custom latex): latex.
   Notation "'{' '\square' e2 '}'" := (CAppR e2) (in custom latex): latex.
   Notation "'{' v1 '\synpunct{' op '}' '\square' '}'" := (CBinopL op v1) (in custom latex): latex.
-  Notation "'{' '\synCClo(' t_cl ','  sigma_cl ')' '}'" := (CClosure t_cl sigma_cl) (in custom latex): latex.
+  Notation "'{' '\synCClo(' t_cl ','  sigma_cl ')' '\square' '}'" := (CClosure t_cl sigma_cl) (in custom latex): latex.
   Notation "'{' '\synDef(' o ',' ts ','  tj ','  tc ')' '}'" := (CDefault o ts tj tc) (in custom latex): latex.
   Notation "'{' '\synReturn(' sigma ')' '}'" := (CReturn sigma) (in custom latex): latex.
   Notation "'{' '\synlangle' '\square' '\synjust' tc '\synrangle' '}'" := (CDefaultBase tc) (in custom latex): latex.
@@ -279,7 +270,7 @@ Declare Scope latex.
   Notation "\synfalse" := false (in custom latex): latex.
   Notation "'{' \ghostbool b '}'" := (Bool b) (in custom latex): latex.
   Notation "'{' \ghostint i '}'" := (Int i) (in custom latex, i constr): latex.
-  (* Notation "'{' '\synClo(' t ','  sigma ')' '}'" := (VClosure t sigma) (in custom latex): latex. *)
+  Notation "'{' '\synClo(' t ','  sigma ')' '}'" := (Closure t sigma) (in custom latex): latex.
   (* Notation "'{' '\ghostvvalue'  v '}'" := (VValue v) (in custom latex): latex. *)
 
   Notation "+" := Add (in custom latex): latex.
@@ -295,6 +286,9 @@ Declare Scope latex.
   Notation "'{\lcont'  kappa ,  sigma ,  v  '\rcont}'" := (mode_cont kappa sigma  v) (in custom latex): latex.
   Notation "'{' s1  '\leadsto^*' s2 '}'" := (star cred s1 s2) (in custom latex): latex.
   Notation "'{' s1  '\leadsto' s2 '}'" := (cred s1 s2) (in custom latex): latex.
+
+
+(* Open Scope latex. *)
 
 
 Require Import Coq.ZArith.ZArith.
@@ -321,7 +315,25 @@ exists sigma',
   (mode_cont [] sigma' (RValue (Int 8%Z)))
   .
 Proof.
-  repeat econstructor.
+  exists [].
+  try eapply star_step; [econstructor; simpl; eauto|]. match goal with [|- star cred ?x _] => idtac x end.
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  try eapply star_step; [econstructor; simpl; eauto|].
+  eapply star_refl.
 Qed.
 
 
@@ -362,6 +374,15 @@ Definition append_stack s kappa2 :=
   end
 .
 
+Definition append_env s sigma2 :=
+  match s with
+  | mode_eval t kappa sigma1 =>
+    mode_eval t kappa (sigma1 ++ sigma2)
+  | mode_cont kappa sigma1 v =>
+    mode_cont kappa (sigma1 ++ sigma2) v
+  end
+.
+
 Theorem append_stack_def s kappa:
   append_stack s kappa = with_stack s (stack s ++ kappa).
 Proof.
@@ -389,6 +410,18 @@ Proof.
   induction 1; intros.
   * eauto with sequences.
   * eapply star_step; eauto using append_stack_stable.
+Qed.
+
+Theorem append_stack_all_cont kappa sigma r:
+  mode_cont kappa sigma r = append_stack (mode_cont [] sigma r) kappa.
+Proof.
+  simpl; eauto.
+Qed.
+
+Theorem append_stack_all_eval t kappa sigma:
+  mode_eval t kappa sigma = append_stack (mode_eval t [] sigma) kappa.
+Proof.
+  simpl; eauto.
 Qed.
 
 Theorem cred_append_stack_inv s s' n:
@@ -651,3 +684,9 @@ Abort.
 
 
 End CRED_PROPERTIES.
+
+
+(* Decreasing measure *)
+
+Hypothesis measure: state -> nat.
+Hypothesis measure_decrease: forall s1 s2, cred s1 s2 -> measure s2 < measure s1.

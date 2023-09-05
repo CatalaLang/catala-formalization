@@ -1,7 +1,7 @@
 Require Import String.
 Require Import List.
 
-Require Import syntax continuations tactics.
+Require Import syntax continuations tactics sequences.
 
 Inductive type :=
 | TBool
@@ -310,3 +310,27 @@ Proof.
     }
   }
 Qed.
+
+Theorem correct s1:
+  forall Delta Gamma T,
+    jt_state Delta Gamma s1 T ->
+    exists s2,
+      star cred s1 s2 /\
+      is_mode_cont s2 = true /\
+      stack s2 = nil /\
+      jt_state Delta Gamma s2 T
+    .
+Proof.
+  induction s1 using (Wf_nat.induction_ltof1 _ continuations.measure).
+  unfold Wf_nat.ltof in H.
+  intros ? ? ? HT.
+  destruct (progress _ _ _ _ HT).
+  * unpack.
+    edestruct (H x).
+    { eapply continuations.measure_decrease; eauto. }
+    { eapply preservation; eauto. }
+    { unpack. eexists; eauto with sequences. }
+  * unpack; eexists; repeat split; try eapply star_refl; eauto.
+Qed.
+
+

@@ -85,4 +85,11 @@ Ltac injections :=
 (* source : LibTactics.v from Arthur Chargeraux *)
 Tactic Notation "tryfalse" := try solve [exfalso; solve [assumption | discriminate | congruence]].
 
-Tactic Notation "tryfalse" tactic(cont) := try solve [exfalso; solve [assumption | discriminate | congruence | cont]].
+Tactic Notation "tryfalse" tactic(cont) := try solve [
+    exfalso; solve [
+      assumption |
+      discriminate |
+      congruence |
+      cont
+    ]
+  ].

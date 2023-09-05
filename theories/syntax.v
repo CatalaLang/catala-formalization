@@ -1,4 +1,5 @@
 Require Export Autosubst.Autosubst.
+Require Export AutosubstExtra.
 Require Import String.
 Require Import Coq.ZArith.ZArith.
 
