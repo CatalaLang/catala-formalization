@@ -316,7 +316,8 @@ exists sigma',
   .
 Proof.
   exists [].
-  try eapply star_step; [econstructor; simpl; eauto|]. match goal with [|- star cred ?x _] => idtac x end.
+  try eapply star_step; [econstructor; simpl; eauto|].
+  match goal with [|- star cred ?x _] => idtac x end.
   try eapply star_step; [econstructor; simpl; eauto|].
   try eapply star_step; [econstructor; simpl; eauto|].
   try eapply star_step; [econstructor; simpl; eauto|].
@@ -335,7 +336,6 @@ Proof.
   try eapply star_step; [econstructor; simpl; eauto|].
   eapply star_refl.
 Qed.
-
 
 Section CRED_PROPERTIES.
 

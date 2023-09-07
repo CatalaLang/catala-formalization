@@ -140,15 +140,19 @@ Definition env s:=
   end
 .
 
+
+
 Lemma equiv_append_stack:
   forall s1 s2,
+  env s1 = [] ->
+  env s2 = [] ->
   equiv s1 s2 ->
   forall kappa,
   equiv (append_stack s1 kappa) (append_stack s2 kappa).
 Proof.
-  intros s1 s2.
+  intros s1 s2 Hs1 Hs2.
   induction 1; intros.
-  { eapply EQ_trans; eauto. }
+  { eapply EQ_trans; eauto. admit alain. }
   { eapply EQ_relf; eauto. }
   { eapply EQ_sym; eauto. }
   { simpl in *; subst. }
@@ -157,6 +161,47 @@ Proof.
   }
 Admitted.
 
+Inductive match_conf : state -> term -> Prop :=
+  | match_conf_intro: forall s t,
+      t = apply_state s ->
+      match_conf s t.
+
+Remark red_apply_cont:
+  forall k c1 s1 c2 s2,
+    sred c1.[subst_of_env s1] c2.[subst_of_env s2] ->
+    sred (let (c1', s1') := apply_cont k (c1,s1) in c1'.[subst_of_env s1]) (let (c2', s2') := apply_cont k (c2, s2) in c2'.[subst_of_env s2]).
+Proof.
+  induction k; intros; cbn.
+Qed.
+
+Theorem simulation_cred_sred s1 s2:
+  cred s1 s2 ->
+  forall t1, match_conf s1 t1 ->
+  exists t2,
+    (plus sred t1 t2)
+  /\ match_conf s2 t2.
+Proof.
+  destruct 1; intros T1 MC; inversion MC; subst; cbn.
+
+
+Theorem simulation_red_cont t1 t2:
+  sred t1 t2 ->
+  forall s1, match_conf s1 t1 ->
+  exists s2,
+    (plus cred s1 s2 (*\/ (star step s1 s2 /\ rmeasure C1' < rmeasure C1)%nat*))
+  /\ match_conf s2 t2.
+Proof.
+  induction 1.
+  { inversion 1; subst.
+
+  }
+
+  
+  induction 1.
+
+    equiv s2 (mode_eval t2 [] []).
+
+
 Theorem sred_cred t1 t2 :
   sred t1 t2 ->
     exists s2,
@@ -164,7 +209,7 @@ Theorem sred_cred t1 t2 :
     equiv s2 (mode_eval t2 [] []).
 Proof.
   induction 1.
-  {
+  { (* Case Beta *)
     eexists; split.
     { repeat (eapply star_step; [solve [econstructor]|]).
       eapply star_refl.
@@ -176,7 +221,7 @@ Proof.
     simpl; eauto.
     eapply subst_env_0.
   }
-  {
+  { (* AppL *)
     unpack.
     eexists; split.
     { repeat (eapply star_step; [solve [econstructor]|]).
@@ -187,7 +232,7 @@ Proof.
     { eapply EQ_trans. eapply equiv_append_stack. eauto. simpl.
       eapply EQ_sym. eapply EQ_step. econstructor. }
   }
-  {
+  { (* AppR *)
     unpack; eexists; split.
     { repeat (eapply star_step; [solve [econstructor]|]).
       rewrite append_stack_all_eval.
@@ -207,5 +252,4 @@ Proof.
     { repeat (eapply star_step; [solve [econstructor]|]). admit alain. }
   }
   { induction ti; simpl in *; tryfalse.
-
-  }
+Abort.
