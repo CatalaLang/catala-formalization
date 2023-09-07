@@ -1,24 +1,6 @@
 Require Import syntax continuations small_step sequences tactics.
 Import List.ListNotations.
 
-Definition subst_of_env sigma :=
-  fun n =>
-  match List.nth_error sigma n with
-  | None => ids (n - List.length sigma)
-  | Some t => Value t
-  end
-.
-
-Lemma subst_env_0: forall t v, t.[subst_of_env [v]] = t.[Value v/].
-Proof.
-  intros.
-  repeat f_equal.
-  eapply FunctionalExtensionality.functional_extensionality.
-  unfold subst_of_env.
-  induction x; simpl; eauto.
-  induction x; simpl; eauto.
-Qed.
-
 Definition apply_cont
   (k: cont)
   (param1: term * list value)
@@ -50,7 +32,7 @@ Definition apply_conts
   (kappa: list cont)
   (t: term)
   (sigma: list value): term * list value :=
-  List.fold_right apply_cont (t, sigma) kappa.
+  List.fold_right apply_cont (t.[subst_of_env sigma], sigma) kappa.
 
 Definition apply_return (r: result) :=
   match r with
@@ -139,27 +121,6 @@ Definition env s:=
   | mode_cont _ sigma _ => sigma
   end
 .
-
-
-
-Lemma equiv_append_stack:
-  forall s1 s2,
-  env s1 = [] ->
-  env s2 = [] ->
-  equiv s1 s2 ->
-  forall kappa,
-  equiv (append_stack s1 kappa) (append_stack s2 kappa).
-Proof.
-  intros s1 s2 Hs1 Hs2.
-  induction 1; intros.
-  { eapply EQ_trans; eauto. admit alain. }
-  { eapply EQ_relf; eauto. }
-  { eapply EQ_sym; eauto. }
-  { simpl in *; subst. }
-  { eapply EQ_step.
-    eapply append_stack_stable; eauto.
-  }
-Admitted.
 
 Inductive match_conf : state -> term -> Prop :=
   | match_conf_intro: forall s t,

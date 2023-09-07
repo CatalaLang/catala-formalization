@@ -10,31 +10,43 @@ Definition is_value v :=
     | _ => False
     end.
 
-Inductive sred: term * list value -> term * list value -> Prop :=
+Definition subst_of_env sigma :=
+  fun n =>
+  match List.nth_error sigma n with
+  | None => ids (n - List.length sigma)
+  | Some t => Value t
+  end
+.
+
+Lemma subst_env_0: forall t v, t.[subst_of_env [v]] = t.[Value v/].
+Proof.
+  intros.
+  repeat f_equal.
+  eapply FunctionalExtensionality.functional_extensionality.
+  unfold subst_of_env.
+  induction x; simpl; eauto.
+  induction x; simpl; eauto.
+Qed.
+
+Inductive sred: term -> term -> Prop :=
   | sred_beta:
-    forall t v sigma sigma',
+    forall t v sigma',
       sred
-        (App (Value (Closure t sigma')) (Value v), sigma)
-        (t, v :: sigma')
+        (App (Value (Closure t sigma')) (Value v))
+        (t.[subst_of_env (v :: sigma')])
 
   | sred_lam:
-    forall t sigma,
+    forall t,
       sred
-        (Lam t, sigma)
-        (Value (Closure t sigma), sigma)
+        (Lam t)
+        (Value (Closure t []))
 
-  | sred_var:
-    forall x v sigma,
-      Some v = List.nth_error sigma x ->
-      sred
-        (Var x, sigma)
-        (Value v, sigma)
   | sred_app_left:
-    forall t1 t2 u s1 s2,
-      sred (t1, s1) (t2, s2) ->
+    forall t1 t2 u,
+      sred (t1) (t2) ->
       sred
-        (App t1 u, s1)
-        (App t2 u, s2)
+        (App t1 u)
+        (App t2 u)
   (* | sred_app_left_conflict:
       forall t sigma,
         sred
@@ -47,11 +59,11 @@ Inductive sred: term * list value -> term * list value -> Prop :=
         (Empty) *)
 
   | sred_app_right:
-    forall t sigma u1 u2 s1 s2,
-      sred (u1, s1) (u2, s2) ->
+    forall t u1 u2 sigma,
+      sred (u1) (u2) ->
       sred
-        (App (Value (Closure t sigma)) u1, s1)
-        (App (Value (Closure t sigma)) u2, s2)
+        (App (Value (Closure t sigma)) u1)
+        (App (Value (Closure t sigma)) u2)
   (* | sred_app_right_conflict:
     forall u,
       sred (App Conflict u) Conflict
