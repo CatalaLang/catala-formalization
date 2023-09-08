@@ -139,7 +139,7 @@ Inductive match_conf : state -> term -> Prop :=
       match_conf s t.
 
 
-Notation "'sred'  t1  t2" :=
+Notation "'sred' t1 t2" :=
   (sred t1 t2) (
   at level 50,
   t1 at level 3,
@@ -147,7 +147,7 @@ Notation "'sred'  t1  t2" :=
   only printing,
   format "'sred'  '[hv' t1  '/' t2 ']'"
 ).
-Notation "'star'  'sred'  t1  t2" :=
+Notation "'star' 'sred' t1 t2" :=
   (star sred t1 t2) (
   at level 50,
   t1 at level 3,
@@ -155,7 +155,7 @@ Notation "'star'  'sred'  t1  t2" :=
   only printing,
   format "'star'  'sred'  '[hv' t1  '/' t2 ']'"
 ).
-Notation "'plus'  'sred'  t1  t2" :=
+Notation "'plus' 'sred' t1 t2" :=
   (plus sred t1 t2) (
   at level 50,
   t1 at level 3,
@@ -163,8 +163,7 @@ Notation "'plus'  'sred'  t1  t2" :=
   only printing,
   format "'plus'  'sred'  '[hv' t1  '/' t2 ']'"
 ).
-
-Notation "'cred'  t1  t2" :=
+Notation "'cred' t1 t2" :=
   (cred t1 t2) (
   at level 50,
   t1 at level 3,
@@ -172,7 +171,7 @@ Notation "'cred'  t1  t2" :=
   only printing,
   format "'cred'  '[hv' t1  '/' t2 ']'"
 ).
-Notation "'star'  'cred'  t1  t2" :=
+Notation "'star' 'cred' t1 t2" :=
   (star cred t1 t2) (
   at level 50,
   t1 at level 3,
@@ -180,7 +179,7 @@ Notation "'star'  'cred'  t1  t2" :=
   only printing,
   format "'star'  'cred'  '[hv' t1  '/' t2 ']'"
 ).
-Notation "'plus'  'cred'  t1  t2" :=
+Notation "'plus' 'cred' t1 t2" :=
   (plus cred t1 t2) (
   at level 50,
   t1 at level 3,
@@ -189,15 +188,13 @@ Notation "'plus'  'cred'  t1  t2" :=
   format "'plus'  'cred'  '[hv' t1  '/' t2 ']'"
 ).
 
-
-
 Remark red_apply_cont:
   forall k c1 s1 c2 s2,
     sred c1.[subst_of_env s1] c2.[subst_of_env s2] ->
     sred
-      (let (c1', s1') := apply_cont k (c1, s1) in
+      (let (c1', s1') := apply_cont (c1, s1) k in
         c1'.[subst_of_env s1])
-      (let (c2', s2') := apply_cont k (c2, s2) in
+      (let (c2', s2') := apply_cont (c2, s2) k in
         c2'.[subst_of_env s2]).
 Proof.
   induction k; intros; cbn.
@@ -217,12 +214,21 @@ Lemma inversion_App_apply_state:
     (exists e1 t_cl sigma_cl kappa1 kappa2 sigma,
       s = mode_eval e1 (kappa1 ++ (CClosure t_cl sigma_cl) :: kappa2) sigma
       /\ List.Forall (fun k => exists sigma', k = CReturn sigma') kappa2
+    ) \/
+    (exists e1 e2 kappa1 kappa2 sigma,
+      s = mode_cont (kappa1 ++ (CAppR e2) :: kappa2) sigma e1
+      /\ List.Forall (fun k => exists sigma', k = CReturn sigma') kappa2
+    ) \/
+    (exists e1 t_cl sigma_cl kappa1 kappa2 sigma,
+      s = mode_cont (kappa1 ++ (CClosure t_cl sigma_cl) :: kappa2) sigma e1
+      /\ List.Forall (fun k => exists sigma', k = CReturn sigma') kappa2
     )
 .
 Proof.
   intros.
   induction s.
-  { induction kappa using List.rev_ind.
+  { (* mode_eval *)
+    induction kappa using List.rev_ind.
     {
       match goal with [_: context [ mode_eval ?_t _ ?_env] |- _] =>
         rename _t into e;
@@ -239,14 +245,118 @@ Proof.
       { left. repeat econstructor. }
     }
     { match goal with [_h: cont |- _] => rename _h into k end.
-      induction k.
-      { simpl in H.
-        unfold apply_conts in H.
-        rewrite List.fold_right_app in H.
+      induction k;
+        simpl in H;
+        unfold apply_conts in H;
+        rewrite List.fold_left_app in H;
+        remember (List.fold_left apply_cont kappa (e.[subst_of_env env0], env0)) as y;
+        induction y;
+        simpl in H; inj
+        .
+      { right; left.
+        repeat econstructor.
+      }
+      { right; right; left.
+        repeat econstructor.
+      }
+      { destruct IHkappa as [H1|[H2|[H3|[H4|H5]]]].
+        { subst; simpl.
+          unfold apply_conts.
+          rewrite <- Heqy; eauto.
+        }
+        { left.
+          unpack; inj.
+          repeat econstructor.
+          eapply List.Forall_app; eauto.
+        }
+        { right; left.
+          unpack; inj.
+          rewrite <- List.app_assoc.
+          rewrite <- List.app_comm_cons.
+          repeat econstructor.
+          eapply List.Forall_app; eauto.
+        }
+        { right; right; left.
+          unpack; inj.
+          rewrite <- List.app_assoc.
+          rewrite <- List.app_comm_cons.
+          repeat econstructor.
+          eapply List.Forall_app; eauto.
+        }
+        { unpack; inj. }
+        { unpack; inj. }
+      }
+      { induction o; inj. }
     }
   }
+  { (* mode_cont *)
+    induction kappa using List.rev_ind.
+    {
+      match goal with [_: context [ mode_cont _ ?_env ?_t] |- _] =>
+        rename _t into e;
+        rename _env into sigma
+      end
+      .
+      induction e; try solve [exfalso; simpl in *; inj].
+    }
+    { match goal with [_h: cont |- _] => rename _h into k end.
+      induction k.
+      all: simpl in H.
+      all: unfold apply_conts in H.
+      all: rewrite List.fold_left_app in H.
+      all: remember (List.fold_left apply_cont kappa (apply_return result, env0)) as y.
+      all: induction y.
+      all: simpl in H; inj.
+      { right; right; right; left.
+        repeat econstructor.
+      }
+      { right; right; right; right.
+        repeat econstructor.
+      }
+      { destruct IHkappa as [H1|[H2|[H3|[H4|H5]]]].
+        { subst; simpl.
+          unfold apply_conts.
+          rewrite <- Heqy; eauto.
+        }
+        all: try solve [unpack; inj].
+        { right; right; right; left.
+          unpack; inj.
+          rewrite <- List.app_assoc.
+          rewrite <- List.app_comm_cons.
+          repeat econstructor.
+          eapply List.Forall_app; eauto.
+        }
+        { right; right; right; right.
+          unpack; inj.
+          rewrite <- List.app_assoc.
+          rewrite <- List.app_comm_cons.
+          repeat econstructor.
+          eapply List.Forall_app; eauto.
+        }
+      }
+      { induction o; inj. }
+    }
+  }
+Qed.
 
-
+Lemma apply_conts_returns t kappa sigma:
+  List.Forall (fun k => exists sigma', k = CReturn sigma') kappa ->
+  apply_state (mode_eval t kappa sigma) = t.[subst_of_env sigma].
+Proof.
+  induction kappa using List.rev_ind.
+  { eauto. }
+  { intros; unpack; subst.
+    simpl; unfold apply_conts.
+    rewrite List.fold_left_app.
+    remember (List.fold_left apply_cont kappa (t.[subst_of_env sigma], sigma)) as y; induction y; simpl.
+    simpl in IHkappa.
+    unfold apply_conts in IHkappa.
+    rewrite <- Heqy in IHkappa.
+    simpl in IHkappa.
+    eapply IHkappa.
+    eauto.
+  }
+Qed.
 
 Theorem simulation_sred_cred s1 s2:
   sred s1 s2 ->
