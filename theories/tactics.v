@@ -8,7 +8,9 @@ Tactic Notation "admit" "arthur" string(x):= admit.
 Tactic Notation "admit" "alain" := admit.
 Tactic Notation "admit" "alain" string(x):= admit.
 
-Tactic Notation "admit" := fail.
+Tactic Notation "admit" := admit.
+Tactic Notation "admit" string(x):= admit.
+
 
 Ltac inj :=
   repeat match goal with

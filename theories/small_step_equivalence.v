@@ -2,8 +2,8 @@ Require Import syntax continuations small_step sequences tactics.
 Import List.ListNotations.
 
 Definition apply_cont
-  (k: cont)
   (param1: term * list value)
+  (k: cont)
   : term * list value :=
   let '(t, sigma) := param1 in
   match k with
@@ -32,7 +32,18 @@ Definition apply_conts
   (kappa: list cont)
   (t: term)
   (sigma: list value): term * list value :=
-  List.fold_right apply_cont (t.[subst_of_env sigma], sigma) kappa.
+  List.fold_left apply_cont kappa (t, sigma).
+
+Example test1:
+  forall t1 t2 t3,
+    fst (apply_conts [CBinopR Add t1; CAppR t2] t3 [])
+    = App (Binop Add t3 t1) t2.
+Proof.
+  intros.
+  unfold apply_conts.
+  simpl; repeat rewrite subst_env_nil.
+  eauto.
+Qed.
 
 Definition apply_return (r: result) :=
   match r with
@@ -44,7 +55,7 @@ Definition apply_return (r: result) :=
 Definition apply_state (s: state): term :=
   match s with
   | mode_eval t stack env =>
-    fst (apply_conts stack t env)
+    fst (apply_conts stack t.[subst_of_env env] env)
   | mode_cont stack env r =>
     fst (apply_conts stack (apply_return r) env)
   end.
@@ -127,13 +138,145 @@ Inductive match_conf : state -> term -> Prop :=
       t = apply_state s ->
       match_conf s t.
 
+
+Notation "'sred'  t1  t2" :=
+  (sred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'sred'  '[hv' t1  '/' t2 ']'"
+).
+Notation "'star'  'sred'  t1  t2" :=
+  (star sred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'star'  'sred'  '[hv' t1  '/' t2 ']'"
+).
+Notation "'plus'  'sred'  t1  t2" :=
+  (plus sred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'plus'  'sred'  '[hv' t1  '/' t2 ']'"
+).
+
+Notation "'cred'  t1  t2" :=
+  (cred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'cred'  '[hv' t1  '/' t2 ']'"
+).
+Notation "'star'  'cred'  t1  t2" :=
+  (star cred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'star'  'cred'  '[hv' t1  '/' t2 ']'"
+).
+Notation "'plus'  'cred'  t1  t2" :=
+  (plus cred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'plus'  'cred'  '[hv' t1  '/' t2 ']'"
+).
+
+
+
 Remark red_apply_cont:
   forall k c1 s1 c2 s2,
     sred c1.[subst_of_env s1] c2.[subst_of_env s2] ->
-    sred (let (c1', s1') := apply_cont k (c1,s1) in c1'.[subst_of_env s1]) (let (c2', s2') := apply_cont k (c2, s2) in c2'.[subst_of_env s2]).
+    sred
+      (let (c1', s1') := apply_cont k (c1, s1) in
+        c1'.[subst_of_env s1])
+      (let (c2', s2') := apply_cont k (c2, s2) in
+        c2'.[subst_of_env s2]).
 Proof.
   induction k; intros; cbn.
-Qed.
+Abort.
+
+Lemma inversion_App_apply_state:
+  forall t1 t2 s,
+    App t1 t2 = apply_state s ->
+    (exists e1 e2 sigma kappa,
+      s = mode_eval (App e1 e2) kappa sigma
+      /\ List.Forall (fun k => exists sigma', k = CReturn sigma') kappa
+    ) \/
+    (exists e1 e2 kappa1 kappa2 sigma,
+      s = mode_eval e1 (kappa1 ++ (CAppR e2) :: kappa2) sigma
+      /\ List.Forall (fun k => exists sigma', k = CReturn sigma') kappa2
+    ) \/
+    (exists e1 t_cl sigma_cl kappa1 kappa2 sigma,
+      s = mode_eval e1 (kappa1 ++ (CClosure t_cl sigma_cl) :: kappa2) sigma
+      /\ List.Forall (fun k => exists sigma', k = CReturn sigma') kappa2
+    )
+.
+Proof.
+  intros.
+  induction s.
+  { induction kappa using List.rev_ind.
+    {
+      match goal with [_: context [ mode_eval ?_t _ ?_env] |- _] =>
+        rename _t into e;
+        rename _env into sigma
+      end
+      .
+      induction e; try solve [exfalso; simpl in *; inj].
+      { exfalso;
+        simpl in *.
+        unfold subst_of_env in *.
+        remember (List.nth_error sigma x) as o.
+        induction o; simpl in *; inj.
+      }
+      { left. repeat econstructor. }
+    }
+    { match goal with [_h: cont |- _] => rename _h into k end.
+      induction k.
+      { simpl in H.
+        unfold apply_conts in H.
+        rewrite List.fold_right_app in H.
+    }
+  }
+
+
+
+Theorem simulation_sred_cred s1 s2:
+  sred s1 s2 ->
+  forall t1, match_conf t1 s1 ->
+  exists t2,
+    (plus cred t1 t2)
+  /\ match_conf t2 s2.
+Proof.
+  destruct 1; intros T1 MC; inversion MC; subst; cbn.
+  3: { }
+
+  { admit. }
+  { induction T1.
+    { induction e.
+      { induction kappa; simpl in H.
+        { (* impossible since subst_of_env is always a value or a variable. *)
+          unfold subst_of_env in H.
+          exfalso. remember (List.nth_error env0 x) as o. induction o; inj.
+        }
+        { (* impossible since apply_cont cannot produce a lambda. *)
+          remember (apply_conts kappa (Var x) env0) as y.
+          induction y as [y1 y2].
+          induction a; try solve [exfalso; simpl in H; inj].
+          * admit "I don't understand this case.".
+          * induction o; exfalso; simpl in H; inj.
+        }
+      }
+    }
+  }
+
 
 Theorem simulation_cred_sred s1 s2:
   cred s1 s2 ->

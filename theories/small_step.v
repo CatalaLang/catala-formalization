@@ -18,6 +18,18 @@ Definition subst_of_env sigma :=
   end
 .
 
+Lemma subst_env_nil:
+  forall t, t.[subst_of_env []] = t.
+Proof.
+  assert (subst_of_env [] = ids).
+  { eapply FunctionalExtensionality.functional_extensionality.
+    induction x; eauto.
+  }
+  rewrite H.
+  asimpl; eauto.
+Qed.
+
+
 Lemma subst_env_0: forall t v, t.[subst_of_env [v]] = t.[Value v/].
 Proof.
   intros.
@@ -111,14 +123,4 @@ Inductive sred: term -> term -> Prop :=
     forall ts tc,
       List.Forall (eq Empty) ts ->
       sred (Default ts Conflict tc) Empty *)
-.
-
-
-
-Definition subst_of_env sigma :=
-  fun n =>
-  match List.nth_error sigma n with
-  | None => ids n
-  | Some t => Value t
-  end
 .
