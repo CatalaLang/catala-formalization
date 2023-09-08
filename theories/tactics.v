@@ -14,18 +14,57 @@ Tactic Notation "admit" string(x):= admit.
 
 Ltac inj :=
   repeat match goal with
-    [h: _ = _ |- _] =>
+    | [h: _ = _ |- _] =>
         try discriminate h;
         try (injection h; intros; subst; clear h)
     end.
 
+Require Import List.
+Import List.ListNotations.
+
 Ltac unpack :=
     repeat match goal with
      [h: _ /\ _ |- _ ] =>
-        destruct h
+      destruct h
     |[h: exists _, _ |- _] =>
-        destruct h
+      destruct h
+    |[h: List.Forall _ (_ :: _) |- _] =>
+      inversion h;
+      subst;
+      clear h
+    |[h: List.Forall _ (_ ++ _) |- _] =>
+      rewrite List.Forall_app in h;
+      destruct h
     end.
+
+Section unpack_tests.
+  Example unpacking_forall_ex1 {A} (P: A -> Prop) l1 l2:
+    List.Forall P (l1 ++ l2)
+    ->
+    List.Forall P l1 /\ List.Forall P l2.
+  Proof.
+    intros.
+    unpack; eauto.
+  Qed.
+
+  Example unpacking_forall_ex2 {A} (P: A -> Prop) x l1 l2:
+    List.Forall P (l1 ++ x :: l2)
+    ->
+    List.Forall P l1 /\ List.Forall P l2 /\ P x.
+  Proof.
+    intros.
+    unpack; eauto.
+  Qed.
+
+  Example unpacking_forall_ex3 {A} (P: A -> Prop) x l1 l2:
+    List.Forall P (l1 ++ [x] ++ l2)
+    ->
+    List.Forall P l1 /\ List.Forall P l2 /\ P x.
+  Proof.
+    intros.
+    unpack; eauto.
+  Qed.
+End unpack_tests.
 
 (* -------------------------------------------------------------------------- *)
 
