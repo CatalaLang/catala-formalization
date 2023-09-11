@@ -428,18 +428,20 @@ Proof.
   * exists (Binop op (Value v1) c1); repeat econstructor.
   * exists (Binop op c1 t2); repeat econstructor.
   * exists (App (Value (Closure t_cl sigma_cl)) c1); repeat econstructor.
-  * exists (c1.[subst_of_env sigma0]). repeat econstructor.
-    reflexivity.
-Lemma apply_conts_inversion:
-  forall kappa c1 sigma,
-  exists t1 sigma',
-  (t1.[subst_of_env sigma'], sigma') = apply_conts kappa c1.[subst_of_env sigma] sigma.
-Proof.
-  induction kappa using List.rev_ind; repeat econstructor.
-  repeat econstructor.
-
-
-
+  * exists (c1.[subst_of_env sigma0]). exists sigma.
+    intros.
+    f_equal.
+    assert (Hclosed: closed c1.[subst_of_env sigma0]).
+    { eapply subst_env_fv_closed; eauto. }
+    rewrite (closed_unaffected_regular _ _ Hclosed); eauto.
+    eapply subst_env_regular.
+  * induction o.
+    exists (Default (c1 :: Value a :: ts) tj tc); repeat econstructor.
+    exists (Default (c1 :: ts) tj tc); repeat econstructor.
+  * exists (Default [] c1 tc); repeat econstructor.
+  * exists (Match_ c1 t1 t2); repeat econstructor.
+  * exists (ESome c1); repeat econstructor.
+Qed.
 
 Remark red_apply_conts:
   forall kappa c1 c2 sigma,

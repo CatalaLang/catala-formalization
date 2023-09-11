@@ -59,20 +59,35 @@ Proof.
 Qed.
 
 
-Lemma subst_env_fv_closed:
+Lemma subst_env_fv_sub:
   forall sigma t k,
     fv k t ->
-    fv (k - List.length sigma) (t.[subst_of_env sigma]).
+    fv (k-List.length sigma) (t.[subst_of_env sigma]).
 Proof.
-  induction sigma; unfold closed.
+  induction sigma.
   * rewrite subst_env_nil.
-    asimpl; intros.
-    replace (k - 0) with k; eauto.
-    lia.
+    intros; asimpl.
+    replace (k - 0) with k.
+    all: eauto; lia.
   * rewrite subst_env_cons.
+    intros.
+    asimpl.
+    replace t.[Value a .: subst_of_env sigma] with (t.[Value a/].[subst_of_env sigma]) by autosubst.
     
 
+Admitted.
 
+Lemma subst_env_fv_closed:
+  forall sigma t,
+    fv (List.length sigma) t ->
+    closed (t.[subst_of_env sigma]).
+Proof.
+  unfold closed.
+  intros.
+  replace 0 with (length sigma - length sigma) by lia.
+  eapply subst_env_fv_sub.
+  eauto.
+Qed.
 
 Inductive sred: term -> term -> Prop :=
   | sred_beta:
