@@ -1,3 +1,15 @@
+Require Export Arith.
+Require Import Arith.Compare_dec.
+Require Import Arith.Peano_dec.
+Require Export Psatz.
+
+Require Import Nat.
+
+Require Import Arith.Peano_dec.
+
+Require Import Decidable PeanoNat.
+Require Eqdep_dec.
+
 (* -------------------------------------------------------------------------- *)
 
 (* Source: Myself. *)
@@ -119,6 +131,45 @@ Ltac injections :=
   end;
   (* Pop all of the hypotheses that have been set aside above. *)
   pop_until_mark.
+
+(* -------------------------------------------------------------------------- *)
+
+(* The following incantations are suppose to allow [eauto with lia] to solve
+   goals of the form [_ < _] or [_ <= _]. *)
+
+Global Hint Extern 1 (_ <  _) => lia : lia.
+Global Hint Extern 1 (_ <= _) => lia : lia.
+
+Global Hint Resolve Nat.succ_lt_mono : lia.
+
+(* -------------------------------------------------------------------------- *)
+
+(* [dblib_by_cases] simplifies goals in which a decidable integer comparison
+  appears. *)
+
+Ltac dblib_intro_case_clear :=
+  let h := fresh in
+  intro h; case h; clear h.
+
+
+Ltac dblib_inspect_cases :=
+  match goal with
+  | |- context [le_gt_dec ?n ?n'] =>
+      case (le_gt_dec n n')
+  | h: context [le_gt_dec ?n ?n'] |- _ =>
+      revert h; case (le_gt_dec n n'); intro h
+  | |- context [Nat.eq_dec ?n ?n'] =>
+      case (Nat.eq_dec n n')
+  | h: context [Nat.eq_dec ?n ?n'] |- _ =>
+      revert h; case (Nat.eq_dec n n'); intro h
+  | |- context [(lt_eq_lt_dec ?n ?n')] =>
+      case (lt_eq_lt_dec n n'); [ dblib_intro_case_clear | idtac ]
+  | h: context [(lt_eq_lt_dec ?n ?n')] |- _ =>
+      revert h; case (lt_eq_lt_dec n n'); [ dblib_intro_case_clear | idtac ]; intro h
+  end.
+
+Ltac dblib_by_cases :=
+  repeat dblib_inspect_cases; try solve [ intros; exfalso; lia ]; intros.
 
 
 (* -------------------------------------------------------------------------- *)

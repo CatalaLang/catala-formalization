@@ -95,11 +95,11 @@ Definition subst_of_env sigma :=
   | Some t => Value t
   end
 .
-Search (?x = S ?x).
 
 Require Import tactics.
 Require Import sequences typing.
 
+(*
 Theorem correction_continuations:
   forall s1 s2,
   (exists GGamma Gamma T, jt_state GGamma Gamma s1 T) ->
@@ -175,3 +175,4 @@ Proof.
     all: admit alain.
   }
 Admitted.
+*)

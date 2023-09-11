@@ -17,9 +17,9 @@ Definition apply_cont
     (App (Value (Closure t_cl sigma_cl)) t, sigma)
   | CReturn sigma' => (t, sigma')
   | CDefault (Some v) ts tj tc =>
-    (Default (t::(Value v)::ts)..[subst_of_env sigma] tj.[subst_of_env sigma] tc.[subst_of_env sigma], sigma)
+    (Default (t::((Value v)::ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma], sigma)
   | CDefault None ts tj tc =>
-    (Default (t::ts)..[subst_of_env sigma] tj.[subst_of_env sigma] tc.[subst_of_env sigma], sigma)
+    (Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma], sigma)
   | CDefaultBase tc =>
     (Default nil t tc.[subst_of_env sigma], sigma)
   | CMatch t1 t2 =>
@@ -41,7 +41,7 @@ Example test1:
 Proof.
   intros.
   unfold apply_conts.
-  simpl; repeat rewrite subst_env_nil.
+  simpl; repeat rewrite subst_env_nil; asimpl.
   eauto.
 Qed.
 
@@ -358,15 +358,181 @@ Proof.
   }
 Qed.
 
-Theorem simulation_sred_cred s1 s2:
-  sred s1 s2 ->
-  forall t1, match_conf t1 s1 ->
-  exists t2,
-    (plus cred t1 t2)
-  /\ match_conf t2 s2.
+
+Lemma subst_of_env_nil_id:
+  subst_of_env [] = ids.
 Proof.
-  destruct 1; intros T1 MC; inversion MC; subst; cbn.
-  3: { }
+  eapply FunctionalExtensionality.functional_extensionality.
+  induction x; asimpl; eauto.
+Qed.
+
+
+Lemma sred_DefaultE_first:
+forall ti ti' ts2 tj tc,
+  sred ti ti' ->
+  sred (Default (ti::ts2) tj tc) (Default (ti'::ts2) tj tc).
+Proof.
+  intros.
+  replace (ti :: ts2) with ([] ++ ti :: ts2); eauto.
+  replace (ti' :: ts2) with ([] ++ ti' :: ts2); eauto.
+  econstructor; eauto.
+Qed.
+
+Remark red_apply_cont_easy:
+  forall k c1 c2,
+  sred c1 c2 ->
+  let '(t1, _) := (apply_cont (c1, []) k) in
+  let '(t2, _) := (apply_cont (c2, []) k) in
+  sred t1 t2.
+Proof.
+  induction k; intros.
+  all: try solve [ simpl; try econstructor; eauto ].
+  { induction o.
+    all: unfold apply_cont.
+    all: rewrite subst_of_env_nil_id.
+    all: eapply sred_DefaultE_first.
+    all: asimpl; eauto.
+  }
+Qed.
+
+Remark red_apply_cont:
+  forall k c1 c2 sigma,
+  sred c1.[subst_of_env sigma] c2.[subst_of_env sigma] ->
+  forall t1 t2 sigma1 sigma2,
+  (t1, sigma1) = (apply_cont (c1.[subst_of_env sigma], sigma) k) ->
+  (t2, sigma2) = (apply_cont (c2.[subst_of_env sigma], sigma) k) ->
+  sred t1 t2.
+Proof.
+  induction k; intros.
+  all: try solve [ simpl in *; inj; try econstructor; eauto ].
+  {
+    induction o.
+    all: unfold apply_cont in *; inj.
+    all: eapply sred_DefaultE_first.
+    all: asimpl; eauto.
+  }
+Qed.
+
+Require Import Autosubst_FreeVars.
+
+Lemma apply_cont_inversion:
+  forall k c1 sigma,
+    fv (List.length sigma) c1 ->
+    exists t1 sigma',
+    fv (List.length sigma') t1 ->
+    (t1.[subst_of_env sigma'], sigma') =
+      apply_cont (c1.[subst_of_env sigma], sigma) k.
+Proof.
+  induction k; simpl; intros.
+  * exists (App c1 t2); asimpl; repeat econstructor.
+  * exists (Binop op (Value v1) c1); repeat econstructor.
+  * exists (Binop op c1 t2); repeat econstructor.
+  * exists (App (Value (Closure t_cl sigma_cl)) c1); repeat econstructor.
+  * exists (c1.[subst_of_env sigma0]). repeat econstructor.
+    reflexivity.
+Lemma apply_conts_inversion:
+  forall kappa c1 sigma,
+  exists t1 sigma',
+  (t1.[subst_of_env sigma'], sigma') = apply_conts kappa c1.[subst_of_env sigma] sigma.
+Proof.
+  induction kappa using List.rev_ind; repeat econstructor.
+  repeat econstructor.
+
+
+
+
+Remark red_apply_conts:
+  forall kappa c1 c2 sigma,
+  sred c1.[subst_of_env sigma] c2.[subst_of_env sigma] ->
+  forall t1 t2 sigma1 sigma2,
+  (t1, sigma1) = (apply_conts kappa c1.[subst_of_env sigma] sigma) ->
+  (t2, sigma2) = (apply_conts kappa c2.[subst_of_env sigma] sigma) ->
+  sred t1 t2.
+Proof.
+  induction kappa using List.rev_ind; intros.
+  { simpl in *; inj; eauto. }
+  { eapply red_apply_cont.
+    eapply IHkappa.
+    eapply H.
+    unfold apply_conts in *.
+    repeat rewrite List.fold_left_app in *.
+    simpl in *.
+    remember (List.fold_left apply_cont kappa (c1.[subst_of_env sigma], sigma)) as y1.
+    remember (List.fold_left apply_cont kappa (c2.[subst_of_env sigma], sigma)) as y2.
+    induction y1; induction y2.
+    assert (sred a.[subst_of_env sigma] a0.[subst_of_env sigma]).
+    { eapply red_apply_cont; eauto. }
+    { eapply IHkappa. eapply H2. }
+    simpl List.fold_left.
+  }
+  all: try solve [ simpl; try econstructor; eauto ].
+  {
+    induction o.
+    all: unfold apply_cont.
+    all: eapply sred_DefaultE_first.
+    all: asimpl; eauto.
+  }
+Qed.
+
+
+Theorem simulation_cred_sred s1 s2:
+  cred s1 s2 ->
+  forall t1, match_conf s1 t1 ->
+  exists t2,
+    (plus sred t1 t2)
+  /\ match_conf s2 t2.
+Proof.
+  induction 1; intros s1 MC; inversion MC; subst; cbn.
+  (* Binops cases are 20, 21, 22. *)
+  20:{
+    econstructor; split.
+    simpl.
+  }
+
+(* simplified version without anything but binary operators. *)
+Theorem simulation_sred_cred t1 t2:
+  sred t1 t2 ->
+  forall s1, match_conf s1 t1 ->
+  exists s2,
+    (plus cred s1 s2)
+  /\ match_conf s2 t2.
+Proof.
+  induction 1; intros s1 MC; inversion MC; subst; cbn.
+  * induction s1.
+    induction kappa using List.rev_ind.
+
+Theorem simulation_sred_cred t1 t2:
+  sred t1 t2 ->
+  forall s1, match_conf s1 t1 ->
+  exists s2,
+    (plus cred s1 s2)
+  /\ match_conf s2 t2.
+Proof.
+  induction 1; intros s1 MC; inversion MC; subst; cbn.
+  3: {
+    destruct (inversion_App_apply_state _ _ _ H0) as [h|[h|[h|[h|h]]]];
+    unpack; inj; subst.
+    { repeat match goal with
+      | [h: list value |- _] =>
+        progress (rename h into sigma)
+      | [h: list cont |- _] =>
+        progress (rename h into kappa)
+      end.
+      rewrite apply_conts_returns in *; eauto.
+      asimpl in H0; inj; rename x into t1.
+      assert (match_conf (mode_eval t1 kappa sigma) t1.[subst_of_env sigma]).
+      { repeat econstructor; rewrite apply_conts_returns; eauto. }
+      rename x0 into u.
+      destruct (IHsred _ H0) as [s2 [? ?]].
+      exists (mode_eval t2 ((CAppR u) :: kappa) sigma); split.
+      { eapply plus_left. { econstructor. }
+        admit.
+      } 
+
+       }  ; asimpl in *; inj.
+    { simpl in *.    }
+
+  }
 
   { admit. }
   { induction T1.

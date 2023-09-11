@@ -1,6 +1,9 @@
 Require Import syntax sequences.
 Import List.ListNotations.
+Require Import Autosubst_FreeVars.
 Open Scope list.
+
+Require Import tactics.
 
 Definition is_value v :=
     match v with
@@ -18,27 +21,58 @@ Definition subst_of_env sigma :=
   end
 .
 
-Lemma subst_env_nil:
-  forall t, t.[subst_of_env []] = t.
+Theorem subst_env_nil:
+  subst_of_env [] = ids.
 Proof.
-  assert (subst_of_env [] = ids).
-  { eapply FunctionalExtensionality.functional_extensionality.
-    induction x; eauto.
-  }
-  rewrite H.
-  asimpl; eauto.
+  eapply FunctionalExtensionality.functional_extensionality.
+  induction x; eauto.
 Qed.
 
+Lemma subst_env_cons v sigma:
+  subst_of_env (v :: sigma) = (Value v) .: subst_of_env sigma.
+Proof.
+  eapply FunctionalExtensionality.functional_extensionality.
+  induction x; asimpl; eauto.
+Qed.
+
+Theorem subst_env_regular:
+  forall sigma,
+  regular (subst_of_env sigma).
+Proof.
+  intros.
+  exists (length sigma), 0.
+  eapply FunctionalExtensionality.functional_extensionality.
+  unfold subst_of_env; intros; asimpl.
+  destruct (List.nth_error_None sigma (length sigma + x)) as [_ H].
+  rewrite H.
+  f_equal.
+  all: lia.
+Qed.
 
 Lemma subst_env_0: forall t v, t.[subst_of_env [v]] = t.[Value v/].
 Proof.
   intros.
-  repeat f_equal.
-  eapply FunctionalExtensionality.functional_extensionality.
-  unfold subst_of_env.
-  induction x; simpl; eauto.
-  induction x; simpl; eauto.
+  repeat progress (
+    try rewrite subst_env_nil;
+    try rewrite subst_env_cons;
+    try reflexivity).
 Qed.
+
+
+Lemma subst_env_fv_closed:
+  forall sigma t k,
+    fv k t ->
+    fv (k - List.length sigma) (t.[subst_of_env sigma]).
+Proof.
+  induction sigma; unfold closed.
+  * rewrite subst_env_nil.
+    asimpl; intros.
+    replace (k - 0) with k; eauto.
+    lia.
+  * rewrite subst_env_cons.
+    
+
+
 
 Inductive sred: term -> term -> Prop :=
   | sred_beta:
@@ -46,19 +80,51 @@ Inductive sred: term -> term -> Prop :=
       sred
         (App (Value (Closure t sigma')) (Value v))
         (t.[subst_of_env (v :: sigma')])
-
   | sred_lam:
     forall t,
       sred
         (Lam t)
         (Value (Closure t []))
-
   | sred_app_left:
     forall t1 t2 u,
       sred (t1) (t2) ->
       sred
         (App t1 u)
         (App t2 u)
+
+   | sred_app_right:
+    forall t u1 u2 sigma,
+      sred (u1) (u2) ->
+      sred
+        (App (Value (Closure t sigma)) u1)
+        (App (Value (Closure t sigma)) u2)
+  | sred_binop_left:
+    forall op t1 t2 u,
+      sred (t1) (t2) ->
+      sred
+        (Binop op t1 u)
+        (Binop op t2 u)
+  | sred_binop_right:
+    forall op v u1 u2,
+      sred (u1) (u2) ->
+      sred
+        (Binop op (Value v) u1)
+        (Binop op (Value v) u2)
+  | sred_binop_finish:
+    forall op v v1 v2,
+    Some v = get_op op v1 v2 ->
+    sred
+      (Binop op (Value v1) (Value v2))
+      (Value v)
+  
+
+  (** Conflict & Empty handling *)
+  (* | sred_app_right_conflict:
+    forall u,
+      sred (App Conflict u) Conflict
+  | sred_app_right_empty:
+    forall u,
+      sred (App Empty u) Empty *)
   (* | sred_app_left_conflict:
       forall t sigma,
         sred
@@ -70,20 +136,7 @@ Inductive sred: term -> term -> Prop :=
         (App (Value (Closure t sigma)) Empty)
         (Empty) *)
 
-  | sred_app_right:
-    forall t u1 u2 sigma,
-      sred (u1) (u2) ->
-      sred
-        (App (Value (Closure t sigma)) u1)
-        (App (Value (Closure t sigma)) u2)
-  (* | sred_app_right_conflict:
-    forall u,
-      sred (App Conflict u) Conflict
-  | sred_app_right_empty:
-    forall u,
-      sred (App Empty u) Empty *)
-
-  (* | sred_defaultConflict:
+  | sred_defaultConflict:
     forall ts ts1 ti ts2 tj ts3 tjust tcons,
       List.Forall is_value ts ->
       ti <> Empty ->
@@ -122,5 +175,26 @@ Inductive sred: term -> term -> Prop :=
   | sred_DefaultJConflict:
     forall ts tc,
       List.Forall (eq Empty) ts ->
-      sred (Default ts Conflict tc) Empty *)
+      sred (Default ts Conflict tc) Empty
+
+  | sred_match_cond:
+    forall u1 u2 t1 t2,
+      sred u1 u2 ->
+      sred (Match_ u1 t1 t2) (Match_ u2 t1 t2)
+  | sred_match_None:
+    forall t1 t2,
+      sred (Match_ (Value (VNone)) t1 t2) t1
+  | sred_match_Some:
+    forall v t1 t2,
+      sred (Match_ (Value (VSome v)) t1 t2) t2.[Value v/]
+
+  | sred_None:
+    sred ENone (Value VNone)
+  | sred_Some_context:
+    forall t1 t2,
+      sred t1 t2 ->
+      sred (ESome t1) (ESome t2)
+  | sred_Some:
+    forall v,
+      sred (ESome (Value v)) (Value (VSome v))
 .

@@ -1,0 +1,23 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "dune-build",
+            "command": "dune", // Replace this with your external command
+            "args": [
+                "build"
+            ], // Arguments for the external command
+            "type": "shell",
+            "problemMatcher": [],
+        },
+        {
+            "dependsOn": "dune-build",
+            "label": "coq-reload",
+            "command": "${command:extension.coq.reset}",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+        }
+    ]
+}
