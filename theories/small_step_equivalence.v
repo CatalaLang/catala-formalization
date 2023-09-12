@@ -430,28 +430,61 @@ Inductive fv_cont: nat -> cont -> Prop :=
     fv_cont k (CBinopR op t2)
 | fv_CClosure (t_cl: {bind term}) (sigma_cl: list value):
   forall k, fv (S k) t_cl -> fv_cont (k - (List.length sigma_cl)) (CClosure t_cl sigma_cl)
-| CReturn (sigma: list value):
+| fv_CReturn (sigma: list value):
   forall k,
     fv_cont k (CReturn sigma)
-| CDefault (o: option value) (ts: list term) (tj: term) (tc: term):
+| fv_CDefault (o: option value) (ts: list term) (tj: term) (tc: term):
   forall k,
     (* fv k o -> *)
     (List.Forall (fv k) ts ) ->
     (fv k tj) ->
     (fv k tc) ->
     fv_cont k (CDefault o ts tj tc)
-| CDefaultBase (tc: term):
+| fv_CDefaultBase (tc: term):
   forall k,
     fv k tc ->
     fv_cont k (CDefaultBase tc)
-| CMatch (t1: term) (t2: {bind term}):
+| fv_CMatch (t1: term) (t2: {bind term}):
   forall k,
     fv k t1 ->
     fv (S k) t2 ->
     fv_cont k (CMatch t1 t2)
-| CSome:
+| fv_CSome:
   forall k, fv_cont k (CSome)
 .
+
+
+(** Defintion of free variables for a list of continuation. The main
+    difficulity in this definition is the handling of CReturn. Here we choose
+    to consider CReturn as an binder for the rest of the continuations. Hence, if [fv_conts (k + List.length sigma) conts] then [fv_conts k (CReturn sigma :: conts)].
+
+*)
+Inductive fv_conts: nat -> list cont -> Prop :=
+| fv_nil:
+  forall k,
+    fv_conts k []
+| fv_cons cont conts:
+  forall k,
+    (forall sigma, cont <> CReturn sigma) ->
+    fv_cont k cont ->
+    fv_conts k conts ->
+    fv_conts k (cont :: conts)
+| fv_cons_CReturn sigma conts:
+  forall k,
+    fv_cont k (CReturn sigma) ->
+    fv_conts (k + List.length sigma) conts ->
+    fv_conts k (CReturn sigma :: conts)
+.
+
+Lemma fv_conts_append kappa:
+  forall k cont,
+    fv_conts k (kappa++[cont])-> fv_conts k kappa.
+Proof.
+  induction kappa; asimpl.
+  * econstructor.
+  * intros; induction a; inversion H; subst; clear H.
+    all: try solve [econstructor; eauto].
+Qed.
 
 Lemma apply_cont_inversion:
   forall k c1 sigma,
@@ -490,19 +523,25 @@ Qed.
 Lemma apply_conts_inversion:
   forall kappa c1 sigma,
     fv (List.length sigma) c1 ->
+    fv_conts (List.length sigma) kappa ->
     exists t1 sigma',
     fv (List.length sigma') t1 /\
     (t1.[subst_of_env sigma'], sigma') =
       apply_conts kappa (c1.[subst_of_env sigma]) sigma.
 Proof.
-  induction kappa using List.rev_ind; intros.
+  (* induction kappa using List.rev_ind; intros.
   { asimpl; eauto. }
   { unfold apply_conts in *; rewrite List.fold_left_app; simpl.
-    specialize (IHkappa c1 sigma H).
+    pose proof (fv_conts_append _ _ _ H0).
+    specialize (IHkappa c1 sigma H H1).
     unpack.
+    rewrite <- H3.
+    rename x1 into sigma''.
+    pose proof (apply_cont_inversion x x0.[subst_of_env sigma''] sigma'').
     rewrite 
     remember (List.fold_left apply_cont kappa (c1.[subst_of_env sigma], sigma)) as y; induction y as [y1 y2].
-    admit.
+    admit. *)
+Admitted.
 
 Remark red_apply_conts:
   forall kappa c1 c2 sigma,
