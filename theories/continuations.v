@@ -137,6 +137,7 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont ((CDefaultBase tc)::kappa) sigma (RValue (Bool false)))
       (mode_cont kappa sigma REmpty)
 
+  (* REmpty is catched by CDefault in the rule cdefaultbase. *)
   | cred_empty:
     forall phi kappa sigma,
     (forall o ts tj tc, phi <> CDefault o ts tj tc) ->
@@ -145,6 +146,9 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont (phi::kappa) sigma REmpty)
       (mode_cont kappa sigma REmpty)
 
+  (* Conflict panics and stop the execution of the program.
+     We only pop the stack one at the time to ensure the size of kappa
+     is changed by one at most. *)
   | cred_conflict:
     forall phi kappa sigma,
     (forall sigma', phi <> CReturn sigma') ->
@@ -404,7 +408,7 @@ Definition append_env s sigma2 :=
   end
 .
 
-Theorem append_stack_def s kappa:
+Lemma append_stack_def s kappa:
   append_stack s kappa = with_stack s (stack s ++ kappa).
 Proof.
   induction s; simpl; eauto.
