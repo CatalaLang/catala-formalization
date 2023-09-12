@@ -222,3 +222,30 @@ Inductive sred: term -> term -> Prop :=
     forall v,
       sred (ESome (Value v)) (Value (VSome v))
 .
+
+
+
+Notation "'sred' t1 t2" :=
+  (sred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'sred'  '[hv' t1  '/' t2 ']'"
+).
+Notation "'star' 'sred' t1 t2" :=
+  (star sred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'star'  'sred'  '[hv' t1  '/' t2 ']'"
+).
+Notation "'plus' 'sred' t1 t2" :=
+  (plus sred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'plus'  'sred'  '[hv' t1  '/' t2 ']'"
+).

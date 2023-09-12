@@ -30,13 +30,12 @@ Definition apply_cont
 
 Definition apply_conts
   (kappa: list cont)
-  (t: term)
-  (sigma: list value): term * list value :=
-  List.fold_left apply_cont kappa (t, sigma).
+  : term * list value -> term * list value :=
+  List.fold_left apply_cont kappa.
 
 Example test1:
   forall t1 t2 t3,
-    fst (apply_conts [CBinopR Add t1; CAppR t2] t3 [])
+    fst (apply_conts [CBinopR Add t1; CAppR t2] (t3,[]))
     = App (Binop Add t3 t1) t2.
 Proof.
   intros.
@@ -52,79 +51,24 @@ Definition apply_return (r: result) :=
   | RConflict => Conflict
   end.
 
-Definition apply_state (s: state): term :=
+Definition apply_state_aux (s: state): term * list value :=
   match s with
   | mode_eval t stack env =>
-    fst (apply_conts stack t.[subst_of_env env] env)
+    (apply_conts stack (t.[subst_of_env env], env))
   | mode_cont stack env r =>
-    fst (apply_conts stack (apply_return r) env)
+    (apply_conts stack ((apply_return r),env))
   end.
 
+Definition apply_state (s: state): term :=
+  fst (apply_state_aux s).
 
-Definition subst_cont
-  (k: cont)
-  (sigma: list value): cont :=
-  match k with
-  | CAppR t2 => CAppR t2.[subst_of_env sigma]
-  | CBinopL op v1 => CBinopL op v1
-  | CBinopR op t2 => CBinopR op t2.[subst_of_env sigma]
-  | CClosure t_cl sigma_cl => CClosure t_cl sigma_cl
-  | CReturn sigma' => CReturn sigma'
-  | CDefault (Some v) ts tj tc =>
-    CDefault
-      (Some v)
-      ts..[subst_of_env sigma]
-      tj.[subst_of_env sigma]
-      tc.[subst_of_env sigma]
-  | CDefault None ts tj tc =>
-    CDefault
-      None
-      ts..[subst_of_env sigma]
-      tj.[subst_of_env sigma]
-      tc.[subst_of_env sigma]
-  | CDefaultBase tc =>
-    CDefaultBase tc.[subst_of_env sigma]
-  | CMatch t1 t2 =>
-    CMatch t1.[subst_of_env sigma] t2.[up (subst_of_env sigma)]
-  | CSome => CSome
-  end
-.
+(* Require Import Coq.Arith.Arith.
+Require Import Coq.ZArith.ZArith.
 
-Fixpoint subst_conts
-  (kappa: list cont)
-  (sigma: list value): list cont :=
-  match kappa with
-  | (CReturn sigma) :: t =>
-    t
-  | h :: t =>
-    subst_cont h sigma :: subst_conts t sigma
-  | [] =>
-    []
-  end
-.
+Goal forall x, x = apply_state (mode_eval (Var 0) [CReturn [Int 5]; CBinopR Add (Var 0); CReturn []]
+[Int 3; Int 5]) -> True.
+simpl;unfold subst_of_env;simpl. *)
 
-Inductive equiv: state -> state -> Prop :=
-| EQ_trans:
-  forall s1 s2 s3,
-    equiv s1 s2 -> equiv s2 s3 -> equiv s1 s3
-| EQ_relf:
-  forall s1,
-     equiv s1 s1
-| EQ_sym:
-  forall s1 s2,
-    equiv s1 s2 -> equiv s2 s1
-| EQ_subst_env_eval:
-  forall t kappa env,
-    equiv
-      (mode_eval t kappa env)
-      (mode_eval t.[subst_of_env env] (subst_conts kappa env) [])
-| EQ_step:
-  forall s1 s2,
-    cred s1 s2 -> equiv s1 s2
-  (* forall t t' k kappa env,
-    cred (mode_eval t kappa env) (mode_eval t' (k::kappa) env) ->
-    equiv (mode_eval t kappa env) (mode_eval t' (k :: kappa) env) *)
-.
 
 Definition env s:=
   match s with
@@ -138,56 +82,6 @@ Inductive match_conf : state -> term -> Prop :=
       t = apply_state s ->
       match_conf s t.
 
-
-Notation "'sred' t1 t2" :=
-  (sred t1 t2) (
-  at level 50,
-  t1 at level 3,
-  t2 at level 3,
-  only printing,
-  format "'sred'  '[hv' t1  '/' t2 ']'"
-).
-Notation "'star' 'sred' t1 t2" :=
-  (star sred t1 t2) (
-  at level 50,
-  t1 at level 3,
-  t2 at level 3,
-  only printing,
-  format "'star'  'sred'  '[hv' t1  '/' t2 ']'"
-).
-Notation "'plus' 'sred' t1 t2" :=
-  (plus sred t1 t2) (
-  at level 50,
-  t1 at level 3,
-  t2 at level 3,
-  only printing,
-  format "'plus'  'sred'  '[hv' t1  '/' t2 ']'"
-).
-Notation "'cred' t1 t2" :=
-  (cred t1 t2) (
-  at level 50,
-  t1 at level 3,
-  t2 at level 3,
-  only printing,
-  format "'cred'  '[hv' t1  '/' t2 ']'"
-).
-Notation "'star' 'cred' t1 t2" :=
-  (star cred t1 t2) (
-  at level 50,
-  t1 at level 3,
-  t2 at level 3,
-  only printing,
-  format "'star'  'cred'  '[hv' t1  '/' t2 ']'"
-).
-Notation "'plus' 'cred' t1 t2" :=
-  (plus cred t1 t2) (
-  at level 50,
-  t1 at level 3,
-  t2 at level 3,
-  only printing,
-  format "'plus'  'cred'  '[hv' t1  '/' t2 ']'"
-).
-
 Remark red_apply_cont:
   forall k c1 s1 c2 s2,
     sred c1.[subst_of_env s1] c2.[subst_of_env s2] ->
@@ -200,7 +94,11 @@ Proof.
   induction k; intros; cbn.
 Abort.
 
-Lemma inversion_App_apply_state:
+
+Lemma match_conf_coherent:
+
+
+(* Lemma inversion_App_apply_state:
   forall t1 t2 s,
     App t1 t2 = apply_state s ->
     (exists e1 e2 sigma kappa,
@@ -356,10 +254,10 @@ Proof.
     eapply IHkappa.
     eauto.
   }
-Qed.
+Qed. *)
 
 
-Lemma subst_of_env_nil_id:
+(* Lemma subst_of_env_nil_id:
   subst_of_env [] = ids.
 Proof.
   eapply FunctionalExtensionality.functional_extensionality.
@@ -556,6 +454,9 @@ Proof.
   { unfold apply_conts in *.
     repeat rewrite List.fold_left_app in *.
     simpl in *.
+    (* match goal with
+    [h: _ = apply_cont _ _ => destruct]
+    apply_conts_inversion.
     remember (List.fold_left apply_cont kappa (c1.[subst_of_env sigma], sigma)) as y1.
     remember (List.fold_left apply_cont kappa (c2.[subst_of_env sigma], sigma)) as y2.
     induction y1; induction y2.
@@ -574,10 +475,11 @@ Proof.
     all: eapply sred_DefaultE_first.
     all: asimpl; eauto.
   }
-Qed.
+Qed. *)
+Admitted.
 
 
-Theorem simulation_cred_sred s1 s2:
+(* Theorem simulation_cred_sred s1 s2:
   cred s1 s2 ->
   forall t1, match_conf s1 t1 ->
   exists t2,
@@ -601,7 +503,7 @@ Theorem simulation_sred_cred t1 t2:
 Proof.
   induction 1; intros s1 MC; inversion MC; subst; cbn.
   * induction s1.
-    induction kappa using List.rev_ind.
+    induction kappa using List.rev_ind. *) *)
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
@@ -610,7 +512,52 @@ Theorem simulation_sred_cred t1 t2:
     (plus cred s1 s2)
   /\ match_conf s2 t2.
 Proof.
-  induction 1; intros s1 MC; inversion MC; subst; cbn.
+  induction 1; intros s1 MC; inversion MC; subst; clear MC; cbn.
+  3:{
+    induction s1.
+    induction kappa using List.rev_ind.
+    { simpl in H0.
+      induction e; try solve [exfalso; simpl in *; inj].
+      { unfold subst_of_env in *. admit. }
+      { asimpl in *.
+        inj.
+        clear IHe1 IHe2.
+        assert (MCe1: match_conf (mode_eval e1 [] env0) e1.[subst_of_env env0]).
+        { econstructor; simpl; eauto. }
+        destruct (IHsred _ MCe1); unpack.
+        rename x into s2.
+        exists (append_stack s2 [CAppR e2]); repeat split.
+        { eapply plus_left. { econstructor. }
+          replace (mode_eval e1 [CAppR e2] env0) with (append_stack (mode_eval e1 [] env0) [CAppR e2]). 2:{ simpl; eauto. }
+          eapply append_stack_stable_star.
+          eapply plus_star; eauto.
+        }
+        { assert (
+            forall s kappa,
+          (apply_state_aux (append_stack s kappa)) = (apply_conts kappa (apply_state_aux s))).
+          { admit. }
+          rewrite H2.
+          asimpl.
+          f_equal.
+          { inversion H1; subst; eauto. }
+
+          }
+      }
+
+
+
+
+      assert 
+    }
+  }
+Theorem simulation_sred_cred t1 t2:
+  sred t1 t2 ->
+  forall s1, match_conf s1 t1 ->
+  exists s2,
+    (plus cred s1 s2)
+  /\ match_conf s2 t2.
+Proof.
+  induction 1; intros s1 MC; inversion MC; subst; clear MC; cbn.
   3: {
     destruct (inversion_App_apply_state _ _ _ H0) as [h|[h|[h|[h|h]]]];
     unpack; inj; subst.
@@ -628,7 +575,7 @@ Proof.
       destruct (IHsred _ H0) as [s2 [? ?]].
       exists (mode_eval t2 ((CAppR u) :: kappa) sigma); split.
       { eapply plus_left. { econstructor. }
-        admit.
+        
       } 
 
        }  ; asimpl in *; inj.

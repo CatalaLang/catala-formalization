@@ -26,12 +26,13 @@ Inductive result :=
 (* App (Var 0) (up t2) *)
 
 Inductive cont :=
-  (* | CAppL (t1: term) (* [t1 \square] *) *) (* cannot happend*)
   | CAppR (t2: term) (* [\square t2] *)
+  | CClosure (t_cl: {bind term}) (sigma_cl: list value)
+  (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices,
+     there is no variable x. *)
+
   | CBinopL (op: op) (v1: value) (* [op t1 \square] *)
   | CBinopR (op: op) (t2: term) (* [op \square t2] *)
-  | CClosure (t_cl: {bind term}) (sigma_cl: list value)
-    (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices, there is no variable x. *)
   | CReturn (sigma: list value) (* call return *)
   | CDefault (o: option value) (ts: list term) (tj: term) (tc: term)
     (* [Def(o, ts, tj, tc)] *)
@@ -49,7 +50,6 @@ Inductive state :=
 
 Inductive cred: state -> state -> Prop :=
   | cred_var:
-
     forall x kappa sigma v,
     List.nth_error sigma x = Some v ->
     cred
@@ -99,7 +99,6 @@ Inductive cred: state -> state -> Prop :=
       (mode_eval th ((CDefault o ts tj tc)::kappa) sigma)
 
   | cred_defaultnone:
-  
     forall ts tj tc kappa sigma v,
     cred
       (mode_cont ((CDefault None ts tj tc)::kappa) sigma (RValue v))
@@ -288,54 +287,76 @@ Declare Scope latex.
   Notation "'{' s1  '\leadsto' s2 '}'" := (cred s1 s2) (in custom latex): latex.
 
 
-(* Open Scope latex. *)
+Notation "'cred' t1 t2" :=
+  (cred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'cred'  '[hv' t1  '/' t2 ']'"
+).
+Notation "'star' 'cred' t1 t2" :=
+  (star cred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'star'  'cred'  '[hv' t1  '/' t2 ']'"
+).
+Notation "'plus' 'cred' t1 t2" :=
+  (plus cred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'plus'  'cred'  '[hv' t1  '/' t2 ']'"
+).
 
-
-Require Import Coq.ZArith.ZArith.
-
-
-Example wtf:
-exists sigma', 
-  star cred
-  (mode_eval
-    (* \synlet 5 \synin (\synlet 3 \synin \bar 0) +\ bar 0*)
-    (App
-      (Lam
-        (Binop
-          Add
-          (App (Lam (Var 0)) (Value (Int 3%Z)))
-          (Var 0)
+Section CRED_EXAMPLES.
+  Require Import Coq.ZArith.ZArith.
+  Example wtf:
+  exists sigma',
+    star cred
+    (mode_eval
+      (* \synlet 5 \synin (\synlet 3 \synin \bar 0) +\ bar 0*)
+      (App
+        (Lam
+          (Binop
+            Add
+            (App (Lam (Var 0)) (Value (Int 3%Z)))
+            (Var 0)
+          )
         )
+        (Value (Int 5%Z))
       )
-      (Value (Int 5%Z))
+      []
+      []
     )
-    []
-    []
-  )
-  (mode_cont [] sigma' (RValue (Int 8%Z)))
-  .
-Proof.
-  exists [].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  match goal with [|- star cred ?x _] => idtac x end.
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  try eapply star_step; [econstructor; simpl; eauto|].
-  eapply star_refl.
-Qed.
+    (mode_cont [] sigma' (RValue (Int 8%Z)))
+    .
+  Proof.
+    repeat econstructor.
+    (* (* step by step for demonstration purpose. *)
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    try eapply star_step; [econstructor; simpl; eauto|].
+    eapply star_refl. *)
+  Qed.
+
+End CRED_EXAMPLES.
 
 Section CRED_PROPERTIES.
 
