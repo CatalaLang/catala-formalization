@@ -34,7 +34,13 @@ with value :=
   | VSome (v: value)
 .
 
+Require Import Autosubst_FreeVars.
 #[export] Instance Ids_term : Ids term. derive. Defined.
+#[export] Instance Idslemmas_term : IdsLemmas term.
+  econstructor.
+  unfold ids, Ids_term.
+  intros; inj; eauto.
+Defined.
 #[export] Instance Rename_term : Rename term. derive. Defined.
 #[export] Instance Subst_term : Subst term. derive. Defined.
 #[export] Instance SubstLemmas_term : SubstLemmas term. derive. Qed.

@@ -58,7 +58,6 @@ Proof.
     try reflexivity).
 Qed.
 
-
 Lemma subst_env_fv_sub:
   forall sigma t k,
     fv k t ->
@@ -73,9 +72,19 @@ Proof.
     intros.
     asimpl.
     replace t.[Value a .: subst_of_env sigma] with (t.[Value a/].[subst_of_env sigma]) by autosubst.
-    
-
-Admitted.
+    replace (k - S (length sigma)) with (pred k - (length sigma)) by lia.
+    eapply IHsigma.
+    { induction k; asimpl; eauto.
+      { replace 0 with (0 - 1) by lia.
+        eapply fv_closed_kregular_subst; eauto.
+        { induction x; asimpl; unfold closed; fv; lia. }
+      }
+      { replace k with (S k - 1) by lia.
+        eapply fv_closed_kregular_subst; eauto.
+        { induction x; asimpl; unfold closed; fv; lia. }
+      }
+    }
+Qed.
 
 Lemma subst_env_fv_closed:
   forall sigma t,

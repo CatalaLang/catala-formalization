@@ -196,6 +196,34 @@ The inverse lemma does not hold in whole generality. Indeed, if the top of the s
 \[{{\lcont {{ \synReturn( \sigma) } \syncons \kappa}, \sigma_{cl}, {v} \rcont} \leadsto {\lcont \kappa, \sigma, {v} \rcont}}\]
 
 
+\[{{\lcont {{ \synCClo( t_{cl}, \sigma_{cl}) } \syncons \kappa}, \sigma, {v} \rcont} \leadsto {\leval t_{cl}, {{ \synReturn( \sigma) } \syncons \kappa}, {v \syncons \sigma_{cl}} \reval}}\]
+
+
+
+
+\begin{align}
+           & {\leval { \synlet { \ghostvalue { \ghostint 5}} \synin {{ \synlet { \ghostvalue { \ghostint 3}} \synin { \overline{\synvar{ 0}} }} \synpunct{ +} { \overline{\synvar{ 0}} }}}, \synpunct{[]}, \synpunct{[]} \reval}                         \\
+  \leadsto & {\leval { ( \synlambda. {{ \synlet { \ghostvalue { \ghostint 3}} \synin { \overline{\synvar{ 0}} }} \synpunct{ +} { \overline{\synvar{ 0}} }}) }, { [{ \square { \ghostvalue { \ghostint 5}}}] }, \synpunct{[]} \reval}                     \\
+  \leadsto & {\lcont { [{ \square { \ghostvalue { \ghostint 5}}}] }, \synpunct{[]}, {{ \synClo( {{ \synlet { \ghostvalue { \ghostint 3}} \synin { \overline{\synvar{ 0}} }} \synpunct{ +} { \overline{\synvar{ 0}} }}, \synpunct{[]}) }} \rcont}         \\
+  \leadsto & {\leval { \ghostvalue { \ghostint 5}}, { [{ \synCClo( {{ \synlet { \ghostvalue { \ghostint 3}} \synin { \overline{\synvar{ 0}} }} \synpunct{ +} { \overline{\synvar{ 0}} }}, \synpunct{[]}) \square }] }, \synpunct{[]} \reval}             \\
+  \leadsto & {\lcont { [{ \synCClo( {{ \synlet { \ghostvalue { \ghostint 3}} \synin { \overline{\synvar{ 0}} }} \synpunct{ +} { \overline{\synvar{ 0}} }}, \synpunct{[]}) \square }] }, \synpunct{[]}, {{ \ghostint 5}} \rcont}                          \\
+  \leadsto & {\leval {{ \synlet { \ghostvalue { \ghostint 3}} \synin { \overline{\synvar{ 0}} }} \synpunct{ +} { \overline{\synvar{ 0}} }}, { [{ \synReturn( \synpunct{[]}) }] }, { [{ \ghostint 5}] } \reval}                                           \\
+  \leadsto & {\leval { \synlet { \ghostvalue { \ghostint 3}} \synin { \overline{\synvar{ 0}} }}, { [{ \square \synpunct{ +} { \overline{\synvar{ 0}} }}; { \synReturn( \synpunct{[]}) }] }, { [ { \ghostint 5}] } \reval}                                \\
+  \leadsto & {\leval { ( \synlambda. { \overline{\synvar{ 0}} }) }, { [{ \square { \ghostvalue { \ghostint 3}}}; { \square \synpunct{ +} { \overline{\synvar{ 0}} }}; { \synReturn( \synpunct{[]}) }] }, { [ { \ghostint 5}] } \reval}                   \\
+  \leadsto & {\lcont { [{ \square { \ghostvalue { \ghostint 3}}}; { \square \synpunct{ +} { \overline{\synvar{ 0}} }}; { \synReturn( \synpunct{[]}) }] }, { [{ \ghostint 5}] }, {{ \synClo( { \overline{\synvar{ 0}} }, { [{ \ghostint 5}] }) }} \rcont} \\
+  \leadsto & {\leval { \ghostvalue { \ghostint 3}}, { [{ \synCClo( { \overline{\synvar{ 0}} }, { [{ \ghostint 5}] }) \square }; { \square \synpunct{ +} { \overline{\synvar{ 0}} }}; { \synReturn( \synpunct{[]}) }] }, { [ { \ghostint 5}] } \reval}    \\
+  \leadsto & {\lcont { [{ \synCClo( { \overline{\synvar{ 0}} }, { [{ \ghostint 5}] }) \square }; { \square \synpunct{ +} { \overline{\synvar{ 0}} }}; { \synReturn( \synpunct{[]}) }] }, { [{ \ghostint 5}] }, {{ \ghostint 3}} \rcont}                  \\
+  \leadsto & {\leval { \overline{\synvar{ 0}} }, { [{ \synReturn( { [{ \ghostint 5}] }) }; { \square \synpunct{ +} { \overline{\synvar{ 0}} }}; { \synReturn( \synpunct{[]}) }] }, { [{ \ghostint 3}; { \ghostint 5}] } \reval}                          \\
+  \leadsto & {\lcont { [{ \synReturn( { [{ \ghostint 5}] }) }; { \square \synpunct{ +} { \overline{\synvar{ 0}} }}; { \synReturn( \synpunct{[]}) }] }, { [{ \ghostint 3}; { \ghostint 5}] }, { { \ghostint 3}} \rcont}                                   \\
+  \leadsto & {\lcont { [{ \square \synpunct{ +} { \overline{\synvar{ 0}} }}; { \synReturn( \synpunct{[]}) }] }, { [{ \ghostint 5}] }, {{ \ghostint 3}} \rcont}                                                                                           \\
+  \leadsto & {\leval { \overline{\synvar{ 0}} }, { [{{ \ghostint 3} \synpunct{ +} \square }; { \synReturn( \synpunct{[]}) }] }, { [ { \ghostint 5}] } \reval}                                                                                            \\
+  \leadsto & {\lcont { [{{ \ghostint 3} \synpunct{ +} \square }; { \synReturn( \synpunct{[]}) }] }, { [{ \ghostint 5}] }, {{ \ghostint 5}} \rcont}                                                                                                       \\
+  \leadsto & {\lcont { [{ \synReturn( \synpunct{[]}) }] }, { [{ \ghostint 5}] }, {{ \ghostint 8}} \rcont}                                                                                                                                                \\
+  \leadsto & {\lcont \synpunct{[]}, \synpunct{[]}, { { \ghostint 8}} \rcont}
+\end{align}
+
+Different presentations of the things leads to complications.
+
 \printbibliography
 \end{document}
 

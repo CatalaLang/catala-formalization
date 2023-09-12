@@ -275,6 +275,22 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(* If some term [t] has free variables under [i], and we substitute it with a
+   closed [sigma] that is [k]-regular then [t.[sigma]] has free variables under
+   [i-k].*)
+
+Lemma fv_closed_kregular_subst:
+  forall i k t sigma,
+  fv i t ->
+  (ren (+k) >> sigma = ren (+0)) ->
+  (forall x, x < k -> closed (sigma x)) ->
+  fv (i - k) t.[sigma].
+Proof.
+Admitted.
+
+
+(* -------------------------------------------------------------------------- *)
+
 (* These little lemmas may be occasionally useful. *)
 
 Lemma use_fv_length_cons:
