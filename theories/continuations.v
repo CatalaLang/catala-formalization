@@ -706,18 +706,96 @@ Proof.
   all: intros; solve [ inj | tryfalse | eauto].
 Qed.
 
+Hypothesis eq_dec_cont: forall (x y : cont), {x = y}+{x <> y}.
+
+
 Theorem cred_stack_drop:
-  forall t k env env' env'' r' r'',
+  forall t k env env'' r'',
     star cred
       (mode_eval t [k] env)
-      (mode_cont [] env' r')
+      (mode_cont [] env'' r'')
     ->
+    exists env' r',
     star cred
       (mode_eval t [] env)
-      (mode_cont [] env'' r'').
+      (mode_cont [] env' r').
 Proof.
-Abort.
+  intros.
+  remember (mode_eval t [k] env) as s1.
+  remember (mode_cont [] env'' r'') as s3.
+  destruct (takewhile (fun s s' => RMicromega.sumboolb (List.list_eq_dec eq_dec_cont (lastn 1 (stack s1)) (lastn 1 (stack s')))) H)
+  as [Htakewhile| (s2 & s2' & Hs1s2 & Hs2's3 & Hs2s2' & Hs2')].
+  { exfalso.
+    induction Htakewhile using star_ind_n1.
+    { subst; inj. }
+    { unpack; subst; simpl in *; inj. }
+  }
+  { assert (Hs2: lastn 1 (stack s2) = lastn 1 (stack s1)). {
+      induction Hs1s2 using star_ind_n1.
+      { eauto. }
+      { unpack.
+        remember (List.list_eq_dec eq_dec_cont (lastn 1 (stack s1)) (lastn 1 (stack z))) as b; induction b; simpl in *; tryfalse; eauto.
+      }
+    }
 
+    assert (Hs2'_tmp: lastn 1 (stack s2) <> lastn 1 (stack s2')). {
+      clear - Hs2 Hs2'.
+      remember (List.list_eq_dec eq_dec_cont (lastn 1 (stack s1)) (lastn 1 (stack s2'))) as b; induction b; simpl in *; tryfalse; eauto.
+      rewrite Hs2; eauto.
+    }
+    clear Hs2'; rename Hs2'_tmp into Hs2'.
+
+    assert (Hs1s2_tmp: star (fun s s' => cred s s' /\ lastn 1 (stack s1) = lastn 1 (stack s')) s1 s2). {
+      clear -Hs1s2.
+      induction Hs1s2 using star_ind_n1.
+      { econstructor. }
+      { eapply star_step_n1.
+        2: { eapply IHHs1s2. }
+        { unpack.
+          remember (List.list_eq_dec eq_dec_cont (lastn 1 (stack s1)) (lastn 1 (stack z))) as cond; induction cond; simpl in *; inj.
+          repeat split; eauto.
+        }
+      }
+    }
+    clear Hs1s2; rename Hs1s2_tmp into Hs1s2.
+
+    assert (Hs1s2_tmp: star (fun s1 s2 => cred s1 s2 /\ lastn 1 (stack s1) = lastn 1 (stack s2)) s1 s2). {
+      clear -Hs1s2.
+      induction Hs1s2 using star_ind_n1.
+      { econstructor. }
+      { eapply star_step_n1.
+        2: { eapply IHHs1s2. }
+        { unpack.
+          assert (Hy: (lastn 1 (stack s1)) = (lastn 1 (stack y))).
+          { clear - Hs1s2.
+            induction Hs1s2 using star_ind_n1; unpack; eauto.
+          }
+          repeat split; congruence.
+        }
+      }
+    }
+    clear Hs1s2; rename Hs1s2_tmp into Hs1s2.
+
+    rewrite Heqs1 in Hs2; simpl in Hs2; rewrite lastn1_one in Hs2.
+    epose proof (cred_stack_lastn1_change_is_mode_cont _ _ _ Hs2 Hs2' Hs2s2').
+    epose proof (cred_stack_lastn1_change_sizeone _ _ _ Hs2s2' Hs2 Hs2').
+    induction s2; subst; simpl in *. { tryfalse. }
+
+    subst.
+    exists env0, result0.
+    remember (mode_eval t [k] env) as s1.
+    remember (mode_cont [k] env0 result0) as s2.
+    replace (mode_eval t [] env) with (with_stack s1 (droplastn 1 (stack s1))).
+    replace (mode_cont [] env0 result0) with (with_stack s2 (droplastn 1 (stack s2))).
+    all: try solve [unfold with_stack; unfold droplastn; subst; simpl; eauto].
+
+    assert (lastn 1 (stack s1) = [k]).
+    { subst; simpl; rewrite lastn1_one; eauto. }
+    eapply creds_stack_sub; eauto.
+  }
+Qed.
+
+Print Assumptions cred_stack_drop.
 
 End CRED_PROPERTIES.
 
