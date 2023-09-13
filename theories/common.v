@@ -1,6 +1,8 @@
 Require Import Lists.List.
 Require Import Lia.
 Require Import tactics.
+Import List.ListNotations.
+
 
 
 (** Definition of [lastn n l]: gives the last [n] elements of a list [l]. *)
@@ -99,16 +101,36 @@ Proof.
   }
 Qed.
 
-Lemma lastn_append {A}:
-  forall k (l: list A),
-    lastn 1 l = k::nil ->
-    exists l', l = l' ++ k::nil.
+Lemma lastn1_append {A}:
+  forall (l: list A) k,
+    lastn 1 (l ++ [k]) = [k].
 Proof.
-  (* intros k l.
-  rewrite lastn_def_firstn.
   intros.
-  cut (rev (rev (firstn 1 (rev l))) = rev (k :: nil) ); swap 1 2; [|intro]. *)
-Admitted.
+  rewrite lastn_def_firstn.
+  rewrite rev_unit; simpl.
+  eauto.
+Qed.
+
+Lemma lastn1_one {A}:
+  forall k: A,
+    lastn 1 [k] = [k].
+Proof.
+  intros.
+  rewrite lastn_def_firstn.
+  simpl.
+  eauto.
+Qed.
+
+Lemma lastn1_nil {A}:
+  lastn 1 ([]: list A) = [].
+Proof.
+  intros.
+  rewrite lastn_def_firstn.
+  simpl.
+  eauto.
+Qed.
+
+
 
 
 (* Such that [l = lastn n l ++ firstn n l] *)

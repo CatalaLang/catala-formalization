@@ -634,7 +634,7 @@ Proof.
   inversion H.
 Qed.
 
-Theorem cred_stack_sub:
+Lemma cred_stack_sub:
   forall a b k,
     cred a b ->
     lastn 1 (stack a) = [k] ->
@@ -676,7 +676,7 @@ Proof.
   }
 Qed.
 
-Theorem cred_stack_:
+Lemma cred_stack_lastn1_change_is_mode_cont:
   forall a b k,
     lastn 1 (stack a) = [k] ->
     lastn 1 (stack a) <> lastn 1 (stack b) ->
@@ -687,6 +687,23 @@ Proof.
   pose proof lastn1_length1 _ _ Hk.
   revert Hred Hab; induction 1.
   all: simpl; subst; eauto; rewrite lastn_cons; eauto.
+Qed.
+
+Lemma cred_stack_lastn1_change_sizeone:
+  forall a b k,
+    cred a b ->
+    lastn 1 (stack a) = [k] ->
+    lastn 1 (stack a) <> lastn 1 (stack b) ->
+    stack a = [k].
+Proof.
+  induction 1.
+  all: simpl; subst; eauto.
+  all: induction kappa using List.rev_ind.
+  all: repeat rewrite List.app_comm_cons.
+  all: repeat rewrite lastn1_append.
+  all: repeat rewrite lastn1_one.
+  all: repeat rewrite lastn1_nil.
+  all: intros; solve [ inj | tryfalse | eauto].
 Qed.
 
 Theorem cred_stack_drop:
