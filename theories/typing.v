@@ -1,7 +1,7 @@
 Require Import String.
 Require Import List.
-
 Require Import syntax continuations tactics sequences.
+Import List.ListNotations.
 
 Inductive type :=
 | TBool
@@ -173,6 +173,10 @@ Inductive jt_state: (string -> option type) -> list type -> state -> type -> Pro
       jt_state Delta Gamma2 (mode_cont kappa sigma r) T2
 .
 
+(* This tactic is used to automaticaly break down judgements types in smaller 
+   elements, without .
+*)
+
 Ltac inv_jt :=
   match goal with
   | [h: jt_term _ _ (Var _) _ |- _] =>
@@ -258,6 +262,10 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   end.
 
+Section Examples.
+
+End Examples.
+
 Theorem preservation s1 s2:
   cred s1 s2 ->
   forall Delta Gamma T,
@@ -311,7 +319,7 @@ Proof.
   }
 Qed.
 
-Theorem correct s1:
+Theorem correctness_technical s1:
   forall Delta Gamma T,
     jt_state Delta Gamma s1 T ->
     exists s2,
@@ -334,3 +342,23 @@ Proof.
 Qed.
 
 
+Theorem correctness:
+  forall Delta t T,
+    jt_term Delta [] t T ->
+    exists r sigma,
+      star cred
+        (mode_eval t [] [])
+        (mode_cont [] sigma r)
+.
+Proof.
+  intros.
+  destruct correctness_technical with
+    (mode_eval t [] [])
+    Delta
+    ([]: list type)
+    T
+  as (s2 & H1 & H2 & H3 & H4).
+  { repeat econstructor; eauto. }
+  induction s2; simpl in *; subst; inj.
+  repeat eexists; eauto.
+Qed.
