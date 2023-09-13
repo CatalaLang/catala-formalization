@@ -634,35 +634,29 @@ Proof.
   inversion H.
 Qed.
 
-
 Theorem cred_stack_sub:
   forall a b k,
     cred a b ->
     lastn 1 (stack a) = [k] ->
     lastn 1 (stack a) = lastn 1 (stack b) ->
-    cred (with_stack a (droplastn 1 (stack a))) (with_stack b (droplastn 1 (stack b))).
+    cred
+      (with_stack a (droplastn 1 (stack a)))
+      (with_stack b (droplastn 1 (stack b))).
 Proof.
-  induction 1; simpl; try econstructor; eauto; intros.
-  all: try solve [rewrite droplastn_cons; try solve [
-      econstructor
-      |eapply lastn1_length1; eauto
-    ]].
+  (* By induction on [cred a b]. *)
+  induction 1.
+  (* First filter: rules that don't modify the stack. *)
+  all: simpl; try econstructor; eauto; intros.
   all: induction kappa;
     try solve [
-     repeat rewrite lastn_def_firstn in *; simpl in *; inj
+    repeat rewrite lastn_def_firstn in *; simpl in *; inj
     | repeat rewrite lastn_cons in * by (simpl; lia);
       remember (a::kappa) as kappa';
-      repeat rewrite droplastn_cons; try solve [econstructor|eapply lastn1_length1; eauto]
+      repeat rewrite droplastn_cons by (subst; simpl; lia);
+      try solve [econstructor; eauto|eapply lastn1_length1; eauto]
     ].
-  1:{
-    repeat rewrite lastn_def_firstn in *.
-    unfold droplastn in *.
-    simpl in *; inj.
-    exfalso.
-    eapply fuck_stdlib; eauto.
-  }
-  
-Admitted.
+  { inj; exfalso; eapply fuck_stdlib; eauto. }
+Qed.
 
 Theorem creds_stack_sub:
   forall s1 s2 k,
