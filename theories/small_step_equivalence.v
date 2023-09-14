@@ -143,69 +143,32 @@ Proof.
   { induction 1; simpl; intros; subst; simpl.
     all: tryfalse.
     all: eauto. }
-  { induction 1.
-    all: try solve [simpl; intros; subst; eauto].
-    all: try solve [
-      match goal with 
-      | [|- context[snd (apply_state_aux ?_s1) = snd (apply_state_aux (?_s2))]] =>
-        remember _s1 as s1;
-        remember _s2 as s2;
-        rewrite Heqs1, Heqs2
-      end;
-      assert (Hcred: cred (with_stack s1 kappa) (with_stack s2 kappa)); try (subst; econstructor; eauto);
-      (specialize (IHkappa _ _ Hcred); subst; simpl in *);
-      intros; subst; unfold apply_conts in *; repeat rewrite List.fold_left_app; simpl;
-      match goal with 
-      | [|- context[snd (apply_cont (?_y1) _) = snd (apply_cont (?_y2) _)]] =>
-        remember _y1 as y1;
-        remember _y2 as y2;
-        induction y1; induction y2
-      end;
-      induction x; simpl; eauto;
-      induction o; simpl; eauto
-    ].
-    (* 
-    17: {
-      (* simplfy apply_conts. *)
-      all: match goal with 
-      | [|- context[snd (apply_state_aux ?_s1) = snd (apply_state_aux (?_s2))]] =>
-        remember _s1 as s1;
-        remember _s2 as s2;
-        rewrite Heqs1, Heqs2
-      end.
-      assert (Hcred: cred (with_stack s1 kappa) (with_stack s2 kappa)); try (subst; econstructor; eauto).
-      try (specialize (IHkappa _ _ Hcred); subst; simpl in *.
-      intros; subst; unfold apply_conts in *; repeat rewrite List.fold_left_app; simpl.
-      match goal with 
-      | [|- context[snd (apply_cont (?_y1) _) = snd (apply_cont (?_y2) _)]] =>
-        remember _y1 as y1;
-        remember _y2 as y2;
-        induction y1; induction y2
-      end.
-      induction x; simpl; eauto.
-      induction o; simpl; eauto.
-    } *)
-    1: {
-      all: match goal with 
-      | [|- context[snd (apply_state_aux ?_s1) = snd (apply_state_aux (?_s2))]] =>
-        remember _s1 as s1;
-        remember _s2 as s2;
-        rewrite Heqs1, Heqs2
-      end.
-      intros.
-      assert (Hcred: cred (with_stack s1 kappa) (with_stack s2 kappa)).
-      { simpl in Heqkappa. }
-      try (specialize (IHkappa _ _ Hcred); subst; simpl in *).
-      intros; subst; unfold apply_conts in *; repeat rewrite List.fold_left_app; simpl.
-      match goal with 
-      | [|- context[snd (apply_cont (?_y1) _) = snd (apply_cont (?_y2) _)]] =>
-        remember _y1 as y1;
-        remember _y2 as y2;
-        induction y1; induction y2
-      end.
-      induction x; simpl; eauto.
-      induction o; simpl; eauto.
+  { intros s1 s2.
+    rewrite (with_stack_stack s1) at 3.
+    rewrite (with_stack_stack s2) at 2.
+    induction 1; simpl stack; intros.
+    all: try match goal with [o: option value |- _] => induction o end.
+    all: try solve [ simpl; eapply snd_appply_conts_inj; simpl; eauto].
+    { simpl; eapply snd_appply_conts_inj; induction phi; simpl; eauto.
+      { exfalso. eapply H0; eauto. }
+      { exfalso. eapply H; eauto. }
     }
+    { simpl; eapply snd_appply_conts_inj; induction phi; simpl; eauto.
+      { exfalso. eapply H; eauto. }
+      { induction o; simpl; eauto. }
+    }
+  }
+Qed.
+
+Lemma creds_apply_state_sigma_stable s1 s2:
+  star cred s1 s2 ->
+  snd (apply_state_aux s1) = snd (apply_state_aux s2).
+Proof.
+  induction 1 using star_ind_n1; eauto.
+  rewrite IHstar.
+  rewrite (cred_apply_state_sigma_stable _ _ H).
+  eauto.
+Qed.
 
     induction x; simpl.
     induction a.
