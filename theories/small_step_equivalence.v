@@ -133,6 +133,50 @@ Proof.
   }
 Qed.
 
+Lemma with_stack_append_stack_cons:
+  forall s k kappa,
+  with_stack s (k :: kappa) = append_stack (with_stack s [k]) kappa.
+Proof.
+  intros.
+  induction s; simpl; eauto.
+Qed.
+
+
+Lemma with_stack_append_stack_app:
+  forall s kappa1 kappa2,
+  with_stack s (kappa1 ++ kappa2) =
+    append_stack (with_stack s kappa1) kappa2.
+Proof.
+  intros.
+  induction s; simpl; eauto.
+Qed.
+
+
+Lemma with_stack_stack: forall s, s = with_stack s (stack s).
+Proof.
+  induction s; simpl; eauto.
+Qed.
+
+Lemma snd_appply_conts_inj:
+  forall x1 x2,
+    snd x1 = snd x2 ->
+    forall kappa,
+    snd (apply_conts kappa x1) = snd (apply_conts kappa x2).
+Proof.
+  intros.
+  induction x1, x2; induction kappa using List.rev_ind.
+  { simpl in *; eauto. }
+  { unfold apply_conts in *; repeat rewrite List.fold_left_app; simpl.
+    remember (List.fold_left apply_cont kappa (a, b)) as y1.
+    remember (List.fold_left apply_cont kappa (t, l)) as y2.
+    induction y1, y2; simpl in IHkappa.
+    induction x.
+    all: unfold apply_cont; simpl in *; eauto; simpl.
+    { induction o; simpl; eauto. }
+  }
+Qed.
+
+
 Lemma cred_apply_state_sigma_stable s1 s2:
   cred s1 s2 ->
   snd (apply_state_aux s1) = snd (apply_state_aux s2).
@@ -170,14 +214,25 @@ Proof.
   eauto.
 Qed.
 
-    induction x; simpl.
-    induction a.
-    { induction 1; simpl; intros; subst; simpl; tryfalse. }
-    induction 1; simpl; intros; subst; tryfalse; eauto. }
 
-  induction 1.
-  asimpl.
-Admitted.
+Theorem simulation_sred_cred t1 t2:
+  sred t1 t2 ->
+  forall s1, match_conf s1 t1 ->
+  exists s2,
+    (plus cred s1 s2)
+  /\ match_conf s2 t2.
+Proof.
+  intros Hred s1 MC.
+  remember (stack s1) as kappa.
+  induction kappa using List.rev_ind.
+  { generalize dependent s1.
+    induction Hred.
+    3: {
+      induction s1; inversion 1; intros; repeat (simpl in *; subst).
+
+
+    }
+ }
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
@@ -189,40 +244,43 @@ Proof.
   induction 1; intros s1 MC; inversion MC; subst; clear MC; cbn.
   3:{
     induction s1.
-    induction kappa using List.rev_ind.
-    { simpl in H0.
-      induction e; try solve [exfalso; simpl in *; inj].
-      { unfold subst_of_env in *. admit. }
-      { asimpl in *.
-        inj.
-        clear IHe1 IHe2.
-        assert (MCe1: match_conf (mode_eval e1 [] env0) e1.[subst_of_env env0]).
-        { econstructor; simpl; eauto. }
-        destruct (IHsred _ MCe1); unpack.
-        rename x into s2.
-        exists (append_stack s2 [CAppR e2]); repeat split.
-        { eapply plus_left. { econstructor. }
-          replace (mode_eval e1 [CAppR e2] env0) with (append_stack (mode_eval e1 [] env0) [CAppR e2]). 2:{ simpl; eauto. }
-          eapply append_stack_stable_star.
-          eapply plus_star; eauto.
+    {
+      { simpl in H0.
+        induction e; try solve [exfalso; simpl in *; inj].
+        { exfalso.
+          unfold subst_of_env in *.
+          asimpl in *.
+          remember (List.nth_error env0 x) as o.
+          induction o; inj.
         }
-        { rewrite apply_state_append_stack.
-          asimpl.
-          inversion H1; subst; clear H1; eauto.
-          remember (apply_state_aux s2) as y; induction y; simpl.
-          repeat f_equal.
-          eapply cred_apply_state_sigma_stable.
-        }
-
+        { asimpl in *.
+          inj.
+          clear IHe1 IHe2.
+          assert (MCe1: match_conf (mode_eval e1 [] env0) e1.[subst_of_env env0]).
+          { econstructor; simpl; eauto. }
+          destruct (IHsred _ MCe1); unpack.
+          rename x into s2.
+          exists (append_stack s2 [CAppR e2]); repeat split.
+          { eapply plus_left. { econstructor. }
+            replace (mode_eval e1 [CAppR e2] env0) with (append_stack (mode_eval e1 [] env0) [CAppR e2]). 2:{ simpl; eauto. }
+            eapply append_stack_stable_star.
+            eapply plus_star; eauto.
           }
+          { rewrite apply_state_append_stack.
+            asimpl.
+            inversion H1; subst; clear H1; eauto.
+            remember (apply_state_aux s2) as y; induction y; simpl.
+            repeat f_equal.
+            replace env0 with (snd (apply_state_aux (mode_eval e1 [] env0))).
+            replace b with (snd (apply_state_aux s2)).
+            eapply creds_apply_state_sigma_stable; eauto with sequences.
+            all: try rewrite <- Heqy; simpl; eauto.
+          }
+        }
       }
-
-
-
-
-      assert 
     }
   }
+Admitted.
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
   forall s1, match_conf s1 t1 ->
