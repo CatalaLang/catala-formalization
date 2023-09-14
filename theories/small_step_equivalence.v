@@ -49,7 +49,7 @@ Definition apply_state_aux (s: state): term * list value :=
   end.
 
 (* We use an notation to be apple to simplify this definition. *)
-Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50).
+Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
 
 Inductive match_conf : state -> term -> Prop :=
   | match_conf_intro: forall s t,
@@ -214,6 +214,17 @@ Proof.
   eauto.
 Qed.
 
+Lemma subst_of_env_Value_Var:
+  forall env x,
+    (exists y, subst_of_env env x = Var y) \/
+    (exists v, subst_of_env env x = Value v).
+Proof.
+  unfold subst_of_env.
+  intros env x.
+  remember (List.nth_error env x) as o; induction o.
+  { right; eexists; eauto. }
+  { left; eexists; eauto. }
+Qed.
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
@@ -229,8 +240,52 @@ Proof.
     induction Hred.
     3: {
       induction s1; inversion 1; intros; repeat (simpl in *; subst).
+      { match goal with
+        | [h: _ = ?e.[subst_of_env ?env] |- _ ] =>
+          induction e; asimpl in h; inj;
+          try solve
+          [ clear -h;
+            match goal with [ _: context [subst_of_env ?env ?x] |- _] =>
+              destruct (subst_of_env_Value_Var env x) end;
+            unpack; congruence
+          ]
+        end.
 
+        (* apply induction hypothesis. *)
+        destruct IHHred with ((mode_eval e1 [] env0)) as (s2 & Hs1s2 & MCs2).
+        { econstructor; simpl; eauto. }
+        { simpl; eauto. }
 
+        (* This is the new term. *)
+        exists (append_stack s2 [CAppR e2]); split.
+        { (* Let us first prove it is indeed the successor of s1. *)
+          eapply plus_left. { econstructor. }
+          match goal with
+            [h: plus cred ?s1 ?s2 |- star cred ?s1' (append_stack ?s2 ?kappa)] =>
+              replace s1' with (append_stack s1 kappa);
+              try solve [simpl; eauto]
+          end.
+          eapply append_stack_stable_star; eauto with sequences.
+        }
+        { (* Then let us show it is indeed linked to our new term. This is
+             thanks to our previous lemma about stability of the environement upon reduction. *)
+          inversion MCs2; subst; clear MCs2.
+          econstructor.
+          rewrite apply_state_append_stack.
+          simpl; unfold apply_cont.
+          rewrite (surjective_pairing (apply_state_aux s2)); simpl.
+          repeat f_equal.
+          match goal with
+            [h: plus cred ?s1 ?s2 |- ?env = snd (apply_state_aux ?s2)] =>
+              replace env with (snd (apply_state_aux s1));
+              try solve [simpl; eauto]
+          end.
+          eapply creds_apply_state_sigma_stable; eauto with sequences.
+        }
+      }
+      { (* It is not possible for an empty list to have such a case. *)
+        induction result; unfold apply_return in *; inj.
+      }
     }
  }
 
