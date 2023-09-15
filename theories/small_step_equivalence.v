@@ -390,6 +390,11 @@ Proof.
         induction result; unfold apply_return in *; inj.
       }
     }
+    1-4: admit "those cases should be very similar to the context one just before".
+    { admit "need a mega lemma about Default ts tjust tcons". }
+
+
+
     all: admit "for now...".
   }
   {
