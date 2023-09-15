@@ -87,21 +87,6 @@ Definition env s:=
   end
 .
 
-
-
-(* Remark red_apply_cont:
-  forall k c1 s1 c2 s2,
-    sred c1.[subst_of_env s1] c2.[subst_of_env s2] ->
-    sred
-      (let (c1', s1') := apply_cont (c1, s1) k in
-        c1'.[subst_of_env s1])
-      (let (c2', s2') := apply_cont (c2, s2) k in
-        c2'.[subst_of_env s2]).
-Proof.
-  induction k; intros; cbn.
-Abort. *)
-
-
 Lemma match_conf_coherent:
   forall t sigma,
     match_conf (mode_eval t [] sigma) t.[subst_of_env sigma].
@@ -176,6 +161,38 @@ Proof.
   }
 Qed.
 
+Lemma apply_conts_app:
+  forall kappa1 kappa2 p,
+    apply_conts (kappa1 ++ kappa2) p
+    = apply_conts kappa2 (apply_conts kappa1 p).
+Proof.
+  intros.
+  unfold apply_conts.
+  rewrite List.fold_left_app; eauto.
+Qed.
+
+Lemma apply_conts_cons:
+  forall k kappa p,
+    apply_conts (k :: kappa) p
+    = apply_conts kappa (apply_cont p k).
+Proof.
+  intros.
+  unfold apply_conts.
+  simpl; eauto.
+Qed.
+
+Lemma apply_conts_nil:
+  forall p,
+    apply_conts [] p = p.
+Proof.
+  intros.
+  unfold apply_conts.
+  simpl; eauto.
+Qed.
+
+#[global]
+Hint Rewrite apply_conts_app apply_conts_cons apply_conts_nil : apply_conts.
+
 
 Lemma cred_apply_state_sigma_stable s1 s2:
   cred s1 s2 ->
@@ -235,12 +252,15 @@ Theorem simulation_sred_cred t1 t2:
 Proof.
   intros Hred s1 MC.
   remember (stack s1) as kappa.
+  generalize dependent s1.
+  generalize dependent t2.
+  generalize dependent t1.
   induction kappa using List.rev_ind.
-  { generalize dependent s1.
-    induction Hred.
+  { induction 1.
     3: {
       induction s1; inversion 1; intros; repeat (simpl in *; subst).
-      { match goal with
+      { (* eval mode *)
+        match goal with
         | [h: _ = ?e.[subst_of_env ?env] |- _ ] =>
           induction e; asimpl in h; inj;
           try solve
@@ -287,7 +307,25 @@ Proof.
         induction result; unfold apply_return in *; inj.
       }
     }
- }
+    all: admit "for now...".
+  }
+  {
+    induction 1.
+    3: {
+      match goal with [x: cont |- _] => induction x end;
+      induction s1; inversion 1; intros;
+      repeat (simpl in *; autorewrite with apply_conts in *; subst).
+      all: match goal with
+        | [ h: context [apply_cont (apply_conts ?kappa ?p)] |- _] =>
+          rewrite (surjective_pairing (apply_conts kappa p)) in h;
+          unfold apply_cont in h;
+          simpl in h;
+          inj
+        end.
+      
+    }
+  }
+}
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
