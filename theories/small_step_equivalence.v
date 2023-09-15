@@ -299,9 +299,47 @@ Proof.
   generalize dependent s1.
   generalize dependent t2.
   generalize dependent t1.
-  induction kappa using List.rev_ind.
+  induction kappa as [|k kappa] using List.rev_ind.
   { induction 1.
-    3: {
+    { induction s1; inversion 1; intros; repeat (simpl in *; subst).
+      {
+        exists (mode_eval t [CReturn env0] (v::sigma')); split.
+        { repeat match goal with
+          | [h: _ = ?e.[subst_of_env ?env] |- _ ] =>
+              destruct e; asimpl in h; inj;
+              try solve
+              [ clear -h;
+                match goal with [ _: context [subst_of_env ?env ?x] |- _] =>
+                  destruct (subst_of_env_Value_Var env x) end;
+                unpack; congruence
+              ];
+              clear h
+          end; inversion MC; subst; simpl in *; inj; repeat econstructor.
+          all: admit "trivial".
+        }
+        { econstructor; simpl; eauto. }
+      }
+      { induction result; simpl in *; inj. }
+    }
+    { induction s1; inversion 1; intros; repeat (simpl in *; subst).
+      { repeat match goal with
+        | [h: _ = ?e.[subst_of_env ?env] |- _ ] =>
+            destruct e; asimpl in h; inj;
+            try solve
+            [ clear -h;
+              match goal with [ _: context [subst_of_env ?env ?x] |- _] =>
+                destruct (subst_of_env_Value_Var env x) end;
+              unpack; congruence
+            ];
+            clear h
+        end; inversion MC; subst; clear MC; simpl in *; repeat inj.
+        exists (mode_cont [] env0 (RValue (Closure t0 env0))); split; repeat econstructor.
+        simpl.
+        admit "small problem here: because of the decision to store closures as equal modulo substition of their environement, there is an issue here.".
+      }
+      { induction result; inj. }
+    }
+    {
       induction s1; inversion 1; intros; repeat (simpl in *; subst).
       { (* eval mode *)
         match goal with
@@ -400,8 +438,8 @@ Proof.
         }
       }
       { process_induction.
-        inversion Hred.
-        destruct (IHkappa _ _ Hred s1)
+        assert (Hred': sred (App t1 u) (App t2 u)) by (econstructor; eauto).
+        destruct (IHkappa _ _ Hred' s1)
           as (s2 & Hs1s2 & Hs2);
           try solve [subst; econstructor; simpl; eauto].
         exists (append_stack s2 [k]); split.
@@ -411,31 +449,27 @@ Proof.
           rewrite apply_state_append_stack; simpl; rewrite Heqk.
           simpl_apply_cont.
           f_equal; eauto; do 2 f_equal.
-          eapply cred_plus_apply_state_sigma_stable_eq; eauto; subst; eauto.
         }
       }
-
-
-        2: {
-          econstructor.
-          
-          ; f_equal.
-          { inversion Hs2; subst; eauto. }
-          { replace (apply_conts kappa (e.[subst_of_env env0], env0))
-            with (apply_state_aux (mode_eval e kappa env0)) by eauto.
-            do 2 f_equal.
-            eapply creds_apply_state_sigma_stable; eauto with sequences.
-          }
-        }
-        { replace (mode_eval e (kappa ++ [CAppR t0]) env0) with (append_stack (mode_eval e (kappa) env0) [CAppR t0]) by eauto.
-          eapply append_stack_stable_plus; eauto with sequences.
-          f_equal.
+      { process_induction.
+        assert (Hred': sred (App t1 u) (App t2 u)) by (econstructor; eauto).
+        destruct (IHkappa _ _ Hred' s1)
+          as (s2 & Hs1s2 & Hs2);
+          try solve [subst; econstructor; simpl; eauto].
+        exists (append_stack s2 [k]); split.
+        { eapply append_stack_stable_plus; eauto with sequences. }
+        { econstructor.
+          inversion Hs2.
+          rewrite apply_state_append_stack; simpl; rewrite Heqk.
+          simpl_apply_cont.
+          f_equal; eauto; do 2 f_equal.
         }
       }
-      { destruct IHkappa. }
     }
+    all: admit.
   }
-}
+Admitted.
+
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
