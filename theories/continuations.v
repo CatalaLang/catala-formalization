@@ -437,6 +437,16 @@ Proof.
   * eapply star_step; eauto using append_stack_stable.
 Qed.
 
+Theorem append_stack_stable_plus s s':
+  plus cred s s'
+  ->
+  forall k,
+  plus cred (append_stack s k) (append_stack s' k).
+Proof.
+  induction 1; intros.
+  econstructor; try eapply append_stack_stable; try eapply append_stack_stable_star; eauto.
+Qed.
+
 Theorem append_stack_all_cont kappa sigma r:
   mode_cont kappa sigma r = append_stack (mode_cont [] sigma r) kappa.
 Proof.

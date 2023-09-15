@@ -315,6 +315,9 @@ Proof.
       match goal with [x: cont |- _] => induction x end;
       induction s1; inversion 1; intros;
       repeat (simpl in *; autorewrite with apply_conts in *; subst).
+
+      (* Getting rid of all the cases that are not real. *)
+      all: try match goal with [o: option value |- _] => induction o end.
       all: match goal with
         | [ h: context [apply_cont (apply_conts ?kappa ?p)] |- _] =>
           rewrite (surjective_pairing (apply_conts kappa p)) in h;
@@ -322,7 +325,32 @@ Proof.
           simpl in h;
           inj
         end.
-      
+      { destruct (IHkappa _ _ Hred (mode_eval e kappa env0))
+        as (s2 & Hs1s2 & Hs2);
+        try solve [econstructor; simpl; eauto].
+
+        exists (append_stack s2 [CAppR t0]); split.
+        2: {
+          econstructor.
+          rewrite apply_state_append_stack; simpl.
+          match goal with
+          | [ |- context [apply_cont (apply_state_aux ?s)]] =>
+            rewrite (surjective_pairing (apply_state_aux s));
+            unfold apply_cont;
+            simpl
+          end; f_equal.
+          { inversion Hs2; subst; eauto. }
+          { replace (apply_conts kappa (e.[subst_of_env env0], env0))
+            with (apply_state_aux (mode_eval e kappa env0)) by eauto.
+            do 2 f_equal.
+            eapply creds_apply_state_sigma_stable; eauto with sequences.
+          }
+        }
+        { replace (mode_eval e (kappa ++ [CAppR t0]) env0) with (append_stack (mode_eval e (kappa) env0) [CAppR t0]) by eauto.
+          eapply append_stack_stable_plus; eauto with sequences.
+        }
+      }
+      { destruct IHkappa. }
     }
   }
 }
