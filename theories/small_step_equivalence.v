@@ -231,6 +231,24 @@ Proof.
   eauto.
 Qed.
 
+Lemma creds_apply_state_sigma_stable_eq s1 s2 p1 p2:
+  p1 = apply_state_aux s1 ->
+  p2 = apply_state_aux s2 ->
+  star cred s1 s2 ->
+  snd p1 = snd p2.
+Proof.
+  intros; subst; eapply creds_apply_state_sigma_stable; eauto.
+Qed.
+
+Lemma cred_plus_apply_state_sigma_stable_eq s1 s2 p1 p2:
+  p1 = apply_state_aux s1 ->
+  p2 = apply_state_aux s2 ->
+  plus cred s1 s2 ->
+  snd p1 = snd p2.
+Proof.
+  intros; subst; eapply creds_apply_state_sigma_stable; eauto with sequences.
+Qed.
+
 Lemma subst_of_env_Value_Var:
   forall env x,
     (exists y, subst_of_env env x = Var y) \/
@@ -249,6 +267,32 @@ Theorem simulation_sred_cred t1 t2:
   exists s2,
     (plus cred s1 s2)
   /\ match_conf s2 t2.
+Ltac process_induction :=
+  match goal with
+  | [h: match_conf (mode_eval ?e (?kappa ++ [?_k]) ?env) _ |- _] =>
+    remember (mode_eval e kappa env) as s1;
+    remember _k as k;
+    replace (mode_eval e (kappa ++ [k]) env)
+      with (append_stack s1 [k])
+      by (subst; eauto)
+  | [h: match_conf (mode_cont (?kappa ++ [?_k]) ?env ?r) _ |- _] =>
+    remember (mode_cont kappa env r) as s1;
+    remember _k as k;
+    replace (mode_cont (kappa ++ [k]) env r)
+      with (append_stack s1 [k])
+      by (subst; eauto)
+  end.
+Ltac simpl_apply_cont :=
+  match goal with
+  | [ |- context [apply_cont (apply_state_aux ?s)]] =>
+    rewrite (surjective_pairing (apply_state_aux s));
+    unfold apply_cont;
+    simpl
+  | [ |- context [apply_cont (apply_conts ?a ?b)]] =>
+    rewrite (surjective_pairing (apply_conts a b));
+    unfold apply_cont;
+    simpl
+  end.
 Proof.
   intros Hred s1 MC.
   remember (stack s1) as kappa.
@@ -300,7 +344,8 @@ Proof.
               replace env with (snd (apply_state_aux s1));
               try solve [simpl; eauto]
           end.
-          eapply creds_apply_state_sigma_stable; eauto with sequences.
+          eapply creds_apply_state_sigma_stable_eq;
+          eauto with sequences.
         }
       }
       { (* It is not possible for an empty list to have such a case. *)
@@ -325,20 +370,56 @@ Proof.
           simpl in h;
           inj
         end.
-      { destruct (IHkappa _ _ Hred (mode_eval e kappa env0))
-        as (s2 & Hs1s2 & Hs2);
-        try solve [econstructor; simpl; eauto].
+      all: try solve [inversion Hred].
+      { process_induction.
+        destruct (IHkappa _ _ Hred s1)
+          as (s2 & Hs1s2 & Hs2);
+          try solve [subst; econstructor; simpl; eauto].
+        exists (append_stack s2 [k]); split.
+        { eapply append_stack_stable_plus; eauto with sequences. }
+        { econstructor.
+          inversion Hs2.
+          rewrite apply_state_append_stack; simpl; rewrite Heqk.
+          simpl_apply_cont.
+          f_equal; eauto; do 2 f_equal.
+          eapply cred_plus_apply_state_sigma_stable_eq; eauto; subst; eauto.
+        }
+      }
+      { process_induction.
+        destruct (IHkappa _ _ Hred s1)
+          as (s2 & Hs1s2 & Hs2);
+          try solve [subst; econstructor; simpl; eauto].
+        exists (append_stack s2 [k]); split.
+        { eapply append_stack_stable_plus; eauto with sequences. }
+        { econstructor.
+          inversion Hs2.
+          rewrite apply_state_append_stack; simpl; rewrite Heqk.
+          simpl_apply_cont.
+          f_equal; eauto; do 2 f_equal.
+          eapply cred_plus_apply_state_sigma_stable_eq; eauto; subst; eauto.
+        }
+      }
+      { process_induction.
+        inversion Hred.
+        destruct (IHkappa _ _ Hred s1)
+          as (s2 & Hs1s2 & Hs2);
+          try solve [subst; econstructor; simpl; eauto].
+        exists (append_stack s2 [k]); split.
+        { eapply append_stack_stable_plus; eauto with sequences. }
+        { econstructor.
+          inversion Hs2.
+          rewrite apply_state_append_stack; simpl; rewrite Heqk.
+          simpl_apply_cont.
+          f_equal; eauto; do 2 f_equal.
+          eapply cred_plus_apply_state_sigma_stable_eq; eauto; subst; eauto.
+        }
+      }
 
-        exists (append_stack s2 [CAppR t0]); split.
+
         2: {
           econstructor.
-          rewrite apply_state_append_stack; simpl.
-          match goal with
-          | [ |- context [apply_cont (apply_state_aux ?s)]] =>
-            rewrite (surjective_pairing (apply_state_aux s));
-            unfold apply_cont;
-            simpl
-          end; f_equal.
+          
+          ; f_equal.
           { inversion Hs2; subst; eauto. }
           { replace (apply_conts kappa (e.[subst_of_env env0], env0))
             with (apply_state_aux (mode_eval e kappa env0)) by eauto.
@@ -348,6 +429,7 @@ Proof.
         }
         { replace (mode_eval e (kappa ++ [CAppR t0]) env0) with (append_stack (mode_eval e (kappa) env0) [CAppR t0]) by eauto.
           eapply append_stack_stable_plus; eauto with sequences.
+          f_equal.
         }
       }
       { destruct IHkappa. }
