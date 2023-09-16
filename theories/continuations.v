@@ -805,12 +805,6 @@ Proof.
   }
 Qed.
 
-Print Assumptions cred_stack_drop.
-
 End CRED_PROPERTIES.
 
 
-(* Decreasing measure *)
-
-Hypothesis measure: state -> nat.
-Hypothesis measure_decrease: forall s1 s2, cred s1 s2 -> measure s2 < measure s1.

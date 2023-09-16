@@ -319,46 +319,53 @@ Proof.
   }
 Qed.
 
-Theorem correctness_technical s1:
-  forall Delta Gamma T,
-    jt_state Delta Gamma s1 T ->
-    exists s2,
-      star cred s1 s2 /\
-      is_mode_cont s2 = true /\
-      stack s2 = nil /\
-      jt_state Delta Gamma s2 T
-    .
-Proof.
-  induction s1 using (Wf_nat.induction_ltof1 _ continuations.measure).
-  unfold Wf_nat.ltof in H.
-  intros ? ? ? HT.
-  destruct (progress _ _ _ _ HT).
-  * unpack.
-    edestruct (H x).
-    { eapply continuations.measure_decrease; eauto. }
-    { eapply preservation; eauto. }
-    { unpack. eexists; eauto with sequences. }
-  * unpack; eexists; repeat split; try eapply star_refl; eauto.
-Qed.
+
+Module correctness.
+  Parameter measure: state -> nat.
+  Parameter measure_decrease: forall s1 s2, cred s1 s2 -> measure s2 < measure s1.
+
+  Theorem correctness_technical s1:
+    forall Delta Gamma T,
+      jt_state Delta Gamma s1 T ->
+      exists s2,
+        star cred s1 s2 /\
+        is_mode_cont s2 = true /\
+        stack s2 = nil /\
+        jt_state Delta Gamma s2 T
+      .
+  Proof.
+    induction s1 using (Wf_nat.induction_ltof1 _ continuations.measure).
+    unfold Wf_nat.ltof in H.
+    intros ? ? ? HT.
+    destruct (progress _ _ _ _ HT).
+    * unpack.
+      edestruct (H x).
+      { eapply continuations.measure_decrease; eauto. }
+      { eapply preservation; eauto. }
+      { unpack. eexists; eauto with sequences. }
+    * unpack; eexists; repeat split; try eapply star_refl; eauto.
+  Qed.
 
 
-Theorem correctness:
-  forall Delta t T,
-    jt_term Delta [] t T ->
-    exists r sigma,
-      star cred
-        (mode_eval t [] [])
-        (mode_cont [] sigma r)
-.
-Proof.
-  intros.
-  destruct correctness_technical with
-    (mode_eval t [] [])
-    Delta
-    ([]: list type)
-    T
-  as (s2 & H1 & H2 & H3 & H4).
-  { repeat econstructor; eauto. }
-  induction s2; simpl in *; subst; inj.
-  repeat eexists; eauto.
-Qed.
+  Theorem correctness:
+    forall Delta t T,
+      jt_term Delta [] t T ->
+      exists r sigma,
+        star cred
+          (mode_eval t [] [])
+          (mode_cont [] sigma r)
+  .
+  Proof.
+    intros.
+    destruct correctness_technical with
+      (mode_eval t [] [])
+      Delta
+      ([]: list type)
+      T
+    as (s2 & H1 & H2 & H3 & H4).
+    { repeat econstructor; eauto. }
+    induction s2; simpl in *; subst; inj.
+    repeat eexists; eauto.
+  Qed.
+
+End correctness.

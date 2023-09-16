@@ -261,6 +261,45 @@ Proof.
   { left; eexists; eauto. }
 Qed.
 
+Lemma subst_of_env_nil {ts' env}:
+  [] = ts'..[subst_of_env env] ->
+  ts' = [].
+Proof.
+  destruct ts'; asimpl; intros; inj; eauto.
+Qed.
+
+Lemma subst_of_env_cons {x xs ts' env}:
+  x :: xs = ts'..[subst_of_env env] ->
+  exists x' xs',
+       xs = xs'..[subst_of_env env]
+    /\ x  = x'.[subst_of_env env]
+    /\ ts' = x' :: xs'.
+Proof.
+  revert x xs env.
+  destruct ts'; asimpl; intros; inj.
+  repeat eexists.
+Qed.
+
+Lemma subst_of_env_app {ts1 ts2 ts' env}:
+  ts1 ++ ts2 = ts'..[subst_of_env env] ->
+  exists ts1' ts2',
+       ts1 = ts1'..[subst_of_env env]
+    /\ ts2 = ts2'..[subst_of_env env]
+    /\ ts' = ts1' ++ ts2'.
+Proof.
+  revert ts1 ts2 ts' env.
+  induction ts1.
+  { exists [], ts'; asimpl in *; repeat split; eauto. }
+  { intros ts2 ts' env.
+    rewrite <- List.app_comm_cons.
+    intro H; edestruct (subst_of_env_cons H); unpack;
+    repeat (asimpl in *; subst); injections.
+    edestruct (IHts1 _ _ _ H); unpack; repeat (asimpl in *; subst).
+    exists (x :: x1), x2.
+    repeat eexists.
+  }
+Qed.
+
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
   forall s1, match_conf s1 t1 ->
@@ -391,7 +430,110 @@ Proof.
       }
     }
     1-4: admit "those cases should be very similar to the context one just before".
-    { admit "need a mega lemma about Default ts tjust tcons". }
+    { (* Conflict *) 
+      admit "need a mega lemma about Default ts tjust tcons".
+    } {
+      induction ti; simpl in *; tryfalse; induction s1.
+      all: (
+        intros;
+        try induction result;
+        try destruct e;
+        inversion MC;
+        clear MC;
+        repeat (subst; simpl in *);
+        inj
+      ).
+      all: try solve [exfalso; unfold subst_of_env in H3; induction (List.nth_error env0 x); inj].
+      { generalize dependent ts2.
+        generalize dependent ts.
+        generalize dependent e1.
+        generalize dependent e2.
+        generalize dependent env0.
+        induction ts1; simpl in *.
+        { intros.
+          destruct (subst_of_env_cons H6); unpack; subst.
+          destruct x; asimpl in *; inj. 1:{ admit "trivial". }
+          exists (mode_cont [] env0 RConflict); split.
+          2: { econstructor; simpl; eauto. }
+          { eapply plus_left. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; repeat intro; inj. }
+            eapply star_refl.
+          }
+        }
+        { intros.
+          destruct (subst_of_env_cons H6); unpack; subst.
+          destruct x; asimpl in *; inj. 1:{ admit "trivial". }
+          destruct (IHts1 H10 env0 e2 e1 x0 ts2 H0); eauto; unpack.
+          exists x; split.
+          { eapply plus_left. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor. }
+            (* Here, [H] is [plus cred (mode_eval (Default x0 e1 e2) [] env0) x] hence, it must make at least one step. *)
+            inversion H; inversion H5; subst; eauto.
+          }
+          { eauto. }
+        }
+      }
+      { generalize dependent ts2.
+        generalize dependent ts.
+        generalize dependent e1.
+        generalize dependent e2.
+        generalize dependent env0.
+        induction ts1; induction ts2; simpl in *; intros.
+        all: repeat progress match goal with
+        | [h:  _ :: _ = _..[subst_of_env _] |- _] =>
+          destruct (subst_of_env_cons h);
+          unpack; subst;
+          asimpl in h;
+          clear h
+        | [h:  _ ++ _ = _..[subst_of_env _] |- _] =>
+          destruct (subst_of_env_app h);
+          unpack; subst;
+          asimpl in h;
+          clear h
+        | [h:  [] = _..[subst_of_env _] |- _] =>
+          destruct (subst_of_env_nil h);
+          unpack; subst;
+          asimpl in h;
+          clear h
+        | _ => subst
+        end.
+        1: { admit. }
+        1: { admit. }
+        1: { admit. }
+        1: { admit. }
+        2: { }
+        asimpl in H6.
+        { intros.
+          destruct (subst_of_env_cons H6); unpack; subst.
+          destruct x; asimpl in *; inj. 1:{ admit "trivial". }
+          exists (mode_cont [] env0 (Value v0)); split.
+          2: { econstructor; simpl; eauto. }
+          { eapply plus_left. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; repeat intro; inj. }
+            eapply star_refl.
+          }
+        }
+        { intros.
+          destruct (subst_of_env_cons H6); unpack; subst.
+          destruct x; asimpl in *; inj. 1:{ admit "trivial". }
+          destruct (IHts1 H10 env0 e2 e1 x0 ts2 H0); eauto; unpack.
+          exists x; split.
+          { eapply plus_left. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor. }
+            (* Here, [H] is [plus cred (mode_eval (Default x0 e1 e2) [] env0) x] hence, it must make at least one step. *)
+            inversion H; inversion H5; subst; eauto.
+          }
+          { eauto. }
+        }
+      }
+
+    }
 
 
 
