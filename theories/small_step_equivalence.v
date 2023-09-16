@@ -300,6 +300,123 @@ Proof.
   }
 Qed.
 
+Lemma subst_of_env_App {t1 t2 t' env}:
+  App t1 t2 = t'.[subst_of_env env] ->
+  exists (t1' t2': term),
+    t1 = t1'.[subst_of_env env]
+    /\ t2 = t2'.[subst_of_env env]
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
+
+Lemma subst_of_env_Lam {t t' env}:
+  Lam (t: {bind term}) = t'.[subst_of_env env] ->
+  exists (t1': {bind term}),
+    t = t1'.[up (subst_of_env env)]
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
+
+Lemma subst_of_env_Default {ts tj tc t' env}:
+  Default ts tj tc = t'.[subst_of_env env] ->
+  exists ts' tj' tc',
+    ts = ts'..[subst_of_env env]
+    /\ tj = tj'.[subst_of_env env]
+    /\ tc = tc'.[subst_of_env env]
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto.
+  { match goal with
+    | [h: _ = subst_of_env ?env ?x |- _ ] =>
+      unfold subst_of_env in h;
+      destruct (List.nth_error env x);
+      inj
+    end.
+  }
+  { repeat eexists. }
+Qed.
+
+
+Lemma subst_of_env_Binop {op t1 t2 t' env}:
+  Binop op t1 t2 = t'.[subst_of_env env] ->
+  exists (t1' t2': term),
+    t1 = t1'.[subst_of_env env]
+    /\ t2 = t2'.[subst_of_env env]
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
+
+Lemma subst_of_env_Match_ {u t1 t2 t' env}:
+  Match_ u t1 t2 = t'.[subst_of_env env] ->
+  exists u' t1' t2',
+    u = u'.[subst_of_env env]
+    /\ t1 = t1'.[subst_of_env env]
+    /\ t2 = t2'.[up (subst_of_env env)]
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto.
+  { match goal with
+    | [h: _ = subst_of_env ?env ?x |- _ ] =>
+      unfold subst_of_env in h;
+      destruct (List.nth_error env x);
+      inj
+    end.
+  }
+  { repeat eexists. }
+Qed.
+
+Lemma subst_of_env_ESome {t t' env}:
+  ESome t = t'.[subst_of_env env] ->
+  exists t1',
+    t = t1'.[subst_of_env env]
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
+
+
+
+Ltac lists := repeat progress match goal with
+| [h:  _ :: _ = _..[subst_of_env _] |- _] =>
+  destruct (subst_of_env_cons h); unpack; subst; clear h
+| [h:  _ ++ _ = _..[subst_of_env _] |- _] =>
+  destruct (subst_of_env_app h); unpack; subst; clear h
+| [h:  [] = _..[subst_of_env _] |- _] =>
+  destruct (subst_of_env_nil h); unpack; subst; clear h
+| [h: Default _ _ _ = _..[subst_of_env _] |- _] =>
+  destruct (subst_of_env_Default h); unpack; subst; clear h
+| _ => subst
+end.
+
+
+
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
   forall s1, match_conf s1 t1 ->
@@ -482,24 +599,7 @@ Proof.
         generalize dependent e2.
         generalize dependent env0.
         induction ts1; induction ts2; simpl in *; intros.
-        all: repeat progress match goal with
-        | [h:  _ :: _ = _..[subst_of_env _] |- _] =>
-          destruct (subst_of_env_cons h);
-          unpack; subst;
-          asimpl in h;
-          clear h
-        | [h:  _ ++ _ = _..[subst_of_env _] |- _] =>
-          destruct (subst_of_env_app h);
-          unpack; subst;
-          asimpl in h;
-          clear h
-        | [h:  [] = _..[subst_of_env _] |- _] =>
-          destruct (subst_of_env_nil h);
-          unpack; subst;
-          asimpl in h;
-          clear h
-        | _ => subst
-        end.
+        all: 
         1: { admit. }
         1: { admit. }
         1: { admit. }
