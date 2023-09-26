@@ -441,18 +441,19 @@ Proof.
   end.
 Qed.
 
-Lemma subst_of_env_Var {x t' env}:
+(* Lemma subst_of_env_Var {x t' env}:
   Var x = t'.[subst_of_env env] ->
   t' = Var (x - List.length env) /\ x >= List.length env.
 Proof.
-  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  destruct t'; asimpl; intros; tryfalse; inj; eauto.
+  unfold subst_of_env in H.
   match goal with
   | [h: _ = subst_of_env ?env ?x |- _ ] =>
     unfold subst_of_env in h;
     destruct (List.nth_error env x);
     inj
   end.
-Qed.
+Qed. *)
 
 
 
@@ -479,7 +480,28 @@ Definition count_f
   | y :: tl => let n := count_f tl in if p y then S n else n
   end.
 
-Search "neg" in Bool.
+Lemma count_f_app
+  {A}
+  (p: A -> bool)
+  (l1 l2: list A) :
+  count_f p (l1 ++ l2) = count_f p l1 + count_f p l2.
+Proof.
+  induction l1.
+  { simpl; eauto. }
+  { simpl; rewrite IHl1.
+    induction (p a); lia.
+  }
+Qed.
+
+Lemma count_f_cons
+  {A}
+  (p: A -> bool)
+  (a: A)
+  (l: list A) :
+  count_f p (a :: l) = let n := count_f p l in if p a then S n else n.
+Proof.
+  simpl; eauto.
+Qed.
 
 Lemma count_occ_decomp:
   forall [A : Type]
@@ -493,14 +515,13 @@ Lemma count_occ_decomp:
     List.forallb (fun x => negb (p x)) l1 = true /\
     count_f p l2 = n.
 Proof.
-  induction l.
-  { intros; simpl in *; inj. }
-  { intros; simpl in H.
-    induction (p a).
-  }
+Admitted.
 
+Parameter eqb_term: term -> term -> bool.
+Parameter eqb_term_ok: forall t1 t2, t1 = t2 <-> eqb_term t1 t2 = true.
 
-Goal forall ts ts1 ti ts2 tj ts3,
+(* It is always possible to get a smallest ti and tj. *)
+Lemma default_conflict_sort: forall ts ts1 ti ts2 tj ts3,
   List.Forall is_value ts ->
   ti <> Empty ->
   tj <> Empty ->
@@ -512,8 +533,57 @@ Goal forall ts ts1 ti ts2 tj ts3,
     tj <> Empty /\
     ts = ts1 ++ ti :: ts2 ++ tj :: ts3.
 Proof.
-  intros.
-  Search "count".
+  intros ts ts1 ti ts2 tj ts3 Hts Hti Htj Htseq.
+  assert (Hcount:
+    count_f (fun t => negb (eqb_term Empty t)) ts >= 2
+  ).
+  { rewrite Htseq.
+    assert (Hti': eqb_term Empty ti = false). { admit. }
+    assert (Htj': eqb_term Empty tj = false). { admit. }
+    repeat (
+      try rewrite count_f_app;
+      try rewrite count_f_cons;
+      try rewrite Hti';
+      try rewrite Htj';
+      simpl
+    ); lia.
+  }
+  assert (Hcount': exists n, count_f (fun t : term => negb (eqb_term Empty t)) ts = S (S n)).
+  { induction Hcount; eauto.
+    destruct IHHcount as [n Hn].
+    exists (S n); eauto.
+  }
+  clear Hcount; rename Hcount' into Hcount.
+  destruct Hcount as [n Hcount].
+
+  destruct (count_occ_decomp ts Hcount) as
+    (ts1' & ti' & ts2' & H1 & H2 & H3 & Hcount').
+  destruct (count_occ_decomp ts2' Hcount') as
+    (ts2'' & tj'' & ts3'' & H1' & H2' & H3' & _).
+
+  exists ts1', ti', ts2'', tj'', ts3''; repeat split.
+  { admit. } { admit. } { admit. } { admit. }
+  { clear Htseq. subst; eauto. }
+Admitted.
+
+
+Lemma default_head_empty:
+  forall ts1 o ts2 e1 e2 env0,
+  List.Forall (eq Empty) ts1 ->
+  star cred
+    (mode_cont [CDefault o (ts1 ++ ts2) e1 e2] env0 REmpty)
+    (mode_cont [CDefault o (ts2) e1 e2] env0 REmpty).
+Proof.
+  induction ts1; intros; unpack; simpl.
+  { econstructor. }
+  { eapply star_step. { econstructor. }
+    eapply star_step. { econstructor. }
+    eapply IHts1; eauto.
+  }
+Qed.
+
+
+
 
 
 Theorem simulation_sred_cred t1 t2:
@@ -651,8 +721,144 @@ Proof.
     }
     1-4: admit "those cases should be very similar to the context one just before".
     { (* Conflict *)
+      destruct (default_conflict_sort ts ts1 ti ts2 tj ts3) as (ts1' & ti' & ts2' & tj' & ts3' & Hts1 & Hts2 & Hti & Htj & Hts_eq); eauto.
+      clear H0 H1 H2 ts1 ts2 ts3 ti tj.
+      rename ts1' into ts1; rename ts2' into ts2; rename ts3' into ts3; rename ti' into ti; rename tj' into tj.
+      induction s1; inversion 1; intros; repeat (simpl in *; subst).
+      2: { intros; induction result; unfold apply_return in *; inj. }
+      { induction e; simpl in *; inj. { admit "trivially false, since match_conf var cannot be the same as a default.". }
+        exists (mode_cont [] env0 RConflict); split.
+        { (* need lemma to remove Empty from the computation. *)
+          eapply plus_left. { econstructor. }
+          unpack_subst_of_env_cons.
+          rename x into ts1, x0 into ts2, x4 into ts3, x1 into ti, x2 into tj, e1 into tjust, e2 into tcons, env0 into sigma.
 
-      admit "need a mega lemma about Default ts tjust tcons".
+          assert (Hts1': List.Forall (eq Empty) ts1). { admit "tendious ts1 manipulation, need a lemma for this". } clear Hts1; rename Hts1' into Hts1.
+          assert (Hts2': List.Forall (eq Empty) ts2). { admit "same as previous". } clear Hts2; rename Hts2' into Hts2.
+
+          eapply star_trans. { eapply default_head_empty; eauto. }
+          (* Three cases: ti is a variable, ti is a value, ti is conflict. *)
+          induction ti; simpl in *; tryfalse;
+          induction tj; simpl in *; tryfalse.
+
+          4: {
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; repeat intro; tryfalse. }
+            eapply star_refl.
+          }
+          4: {
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; repeat intro; tryfalse. }
+            eapply star_refl.
+          }
+          4: {
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; repeat intro; tryfalse. }
+            eapply star_refl.
+          }
+
+          { remember (List.nth_error sigma x) as o;
+            unfold subst_of_env in *; induction o.
+            2: {
+              exfalso; clear -H7 Heqo.
+              rewrite <- Heqo in H7; unfold ids, Ids_term in H7; simpl in H7; eauto.
+            }
+            remember (List.nth_error sigma x0) as o0;
+            unfold subst_of_env in *; induction o0.
+            2: {
+              exfalso; clear -H6 Heqo0.
+              unfold ids, Ids_term in H6; simpl in H6; eauto.
+            }
+
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor. }
+            eapply star_trans. { eapply default_head_empty; eauto. }
+
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor. }
+            eapply star_refl.
+          }
+          { remember (List.nth_error sigma x) as o;
+            unfold subst_of_env in *; induction o.
+            2: {
+              exfalso; clear -H7 Heqo.
+              rewrite <- Heqo in H7; unfold ids, Ids_term in H7; simpl in H7; eauto.
+            }
+
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor. }
+            eapply star_trans. { eapply default_head_empty; eauto. }
+
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; repeat intro; inj. }
+            eapply star_refl.
+          }
+          { remember (List.nth_error sigma x) as o;
+            unfold subst_of_env in *; induction o.
+            2: {
+              exfalso; clear -H7 Heqo.
+              rewrite <- Heqo in H7; unfold ids, Ids_term in H7; simpl in H7; eauto.
+            }
+
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor. }
+            eapply star_trans. { eapply default_head_empty; eauto. }
+
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor. }
+            eapply star_refl.
+          }
+          { remember (List.nth_error sigma x) as o;
+            unfold subst_of_env in *; induction o.
+            2: {
+              exfalso; clear -H6 Heqo.
+              rewrite <- Heqo in H6; unfold ids, Ids_term in H6; simpl in H6; eauto.
+            }
+
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor. }
+            eapply star_trans. { eapply default_head_empty; eauto. }
+
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor. }
+            eapply star_refl.
+          }
+          { eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor. }
+            eapply star_trans. { eapply default_head_empty; eauto. }
+
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; repeat intro; inj. }
+            eapply star_refl.
+          }
+          {
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor. }
+            eapply star_trans. { eapply default_head_empty; eauto. }
+
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor. }
+            eapply star_refl.
+          }
+        }
+
+        { econstructor; simpl; eauto. }
+      }
     } {
       induction ti; simpl in *; tryfalse; induction s1.
       all: (
