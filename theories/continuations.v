@@ -657,14 +657,15 @@ Proof.
   induction 1.
   (* First filter: rules that don't modify the stack. *)
   all: simpl; try econstructor; eauto; intros.
-  all: induction kappa;
-    try solve [
-    repeat rewrite lastn_def_firstn in *; simpl in *; inj
-    | repeat rewrite lastn_cons in * by (simpl; lia);
-      remember (a::kappa) as kappa';
-      repeat rewrite droplastn_cons by (subst; simpl; lia);
-      try solve [econstructor; eauto|eapply lastn1_length1; eauto]
-    ].
+  all: induction kappa.
+
+  (* Get rid of empty stacks when it is not supposed to be empty. *)
+  all: try solve [repeat rewrite lastn_def_firstn in *; simpl in *; inj].
+
+  all: repeat rewrite lastn_cons in * by (simpl; lia).
+  all: try remember (a::kappa) as kappa'.
+  all: repeat rewrite droplastn_cons by (subst; simpl; lia).
+  all: try solve [econstructor; eauto].
   { inj; exfalso; eapply fuck_stdlib; eauto. }
 Qed.
 

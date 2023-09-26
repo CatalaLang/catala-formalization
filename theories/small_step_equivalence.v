@@ -402,19 +402,118 @@ Proof.
 Qed.
 
 
+Lemma subst_of_env_Conflict {t' env}:
+  Conflict = t'.[subst_of_env env] ->
+  t' = Conflict.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
 
-Ltac lists := repeat progress match goal with
-| [h:  _ :: _ = _..[subst_of_env _] |- _] =>
-  destruct (subst_of_env_cons h); unpack; subst; clear h
-| [h:  _ ++ _ = _..[subst_of_env _] |- _] =>
-  destruct (subst_of_env_app h); unpack; subst; clear h
-| [h:  [] = _..[subst_of_env _] |- _] =>
-  destruct (subst_of_env_nil h); unpack; subst; clear h
-| [h: Default _ _ _ = _..[subst_of_env _] |- _] =>
-  destruct (subst_of_env_Default h); unpack; subst; clear h
-| _ => subst
-end.
+Lemma subst_of_env_Empty {t' env}:
+  Empty = t'.[subst_of_env env] ->
+  t' = Empty.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
 
+Lemma subst_of_env_ENone {t' env}:
+  ENone = t'.[subst_of_env env] ->
+  t' = ENone.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
+
+Lemma subst_of_env_Var {x t' env}:
+  Var x = t'.[subst_of_env env] ->
+  t' = Var (x - List.length env) /\ x >= List.length env.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
+
+
+
+Ltac unpack_subst_of_env_cons :=
+  repeat progress match goal with
+  | [h:  _ :: _ = _..[subst_of_env _] |- _] =>
+    destruct (subst_of_env_cons h); unpack; subst; clear h
+  | [h:  _ ++ _ = _..[subst_of_env _] |- _] =>
+    destruct (subst_of_env_app h); unpack; subst; clear h
+  | [h:  [] = _..[subst_of_env _] |- _] =>
+    destruct (subst_of_env_nil h); unpack; subst; clear h
+  | [h: Default _ _ _ = _.[subst_of_env _] |- _] =>
+    destruct (subst_of_env_Default h); unpack; subst; clear h
+  | _ => subst
+  end
+.
+
+Definition count_f
+  {A}
+  (p: A -> bool)
+  := fix count_f (l : list A) { struct l} : nat :=
+  match l with
+  | [] => 0
+  | y :: tl => let n := count_f tl in if p y then S n else n
+  end.
+
+Search "neg" in Bool.
+
+Lemma count_occ_decomp:
+  forall [A : Type]
+  [p: A -> bool]
+	(l : list A)
+  [n: nat],
+  count_f p l = S n ->
+  exists l1 x l2,
+    l1 ++ x :: l2 = l /\
+    p x = true /\
+    List.forallb (fun x => negb (p x)) l1 = true /\
+    count_f p l2 = n.
+Proof.
+  induction l.
+  { intros; simpl in *; inj. }
+  { intros; simpl in H.
+    induction (p a).
+  }
+
+
+Goal forall ts ts1 ti ts2 tj ts3,
+  List.Forall is_value ts ->
+  ti <> Empty ->
+  tj <> Empty ->
+  ts = ts1 ++ ti :: ts2 ++ tj :: ts3 ->
+  exists ts1 ti ts2 tj ts3,
+    List.Forall (eq Empty) ts1 /\
+    List.Forall (eq Empty) ts2 /\
+    ti <> Empty /\
+    tj <> Empty /\
+    ts = ts1 ++ ti :: ts2 ++ tj :: ts3.
+Proof.
+  intros.
+  Search "count".
 
 
 Theorem simulation_sred_cred t1 t2:
@@ -471,7 +570,11 @@ Proof.
               ];
               clear h
           end; inversion MC; subst; simpl in *; inj; repeat econstructor.
-          all: admit "trivial".
+          all: unfold subst_of_env in *.
+          all: match goal with [|- ?lhs = _] =>
+            induction lhs; repeat injections; inj; subst; eauto
+          end.
+          { unfold ids, Ids_term in *; tryfalse. }
         }
         { econstructor; simpl; eauto. }
       }
@@ -547,19 +650,24 @@ Proof.
       }
     }
     1-4: admit "those cases should be very similar to the context one just before".
-    { (* Conflict *) 
+    { (* Conflict *)
+
       admit "need a mega lemma about Default ts tjust tcons".
     } {
       induction ti; simpl in *; tryfalse; induction s1.
       all: (
         intros;
         try induction result;
-        try destruct e;
         inversion MC;
         clear MC;
         repeat (subst; simpl in *);
         inj
       ).
+      unpack_subst_of_env_cons.
+      match goal with
+      | [h: Default _ _ _ = _.[subst_of_env _] |- _] =>
+      destruct (subst_of_env_Default h); unpack; subst; clear h
+      end.
       all: try solve [exfalso; unfold subst_of_env in H3; induction (List.nth_error env0 x); inj].
       { generalize dependent ts2.
         generalize dependent ts.
