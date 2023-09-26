@@ -483,7 +483,7 @@ Ltac unpack_subst_of_env_cons :=
     induction o1 as [v|];
     tryfalse;
     repeat (injections; subst)
-  | _ => subst
+  | _ => repeat (simpl in *; injections; subst)
   end
 .
 
@@ -601,7 +601,6 @@ Qed.
 
 
 
-
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
   forall s1, match_conf s1 t1 ->
@@ -634,6 +633,16 @@ Ltac simpl_apply_cont :=
     unfold apply_cont;
     simpl
   end.
+Ltac cstep :=
+  match goal with
+  | [ |- plus cred ?s1 ?s2] =>
+    eapply plus_left; [solve [econstructor; eauto]|]
+  | [ |- star cred ?s1 ?s2] =>
+    eapply star_refl
+  | [ |- star cred ?s1 ?s2] =>
+    eapply star_step; [solve [econstructor; eauto]|]
+  end
+.
 Proof.
   intros Hred s1 MC.
   remember (stack s1) as kappa.
@@ -741,53 +750,10 @@ Proof.
       induction s1; intro MC; inversion MC; clear MC; intros; repeat (simpl in *; subst).
       { unpack_subst_of_env_cons.
         induction t1; induction t2; tryfalse.
-        { exists (mode_cont [] env0 (RValue v)); split.
-          2:{ econstructor; simpl; eauto. }
-          { unpack_subst_of_env_cons.
-            eapply plus_left. { econstructor. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_refl.
-          }
-        }
-        { unpack_subst_of_env_cons.
-          exists (mode_cont [] env0 (RValue v)); split.
-          2:{ econstructor; simpl; eauto. }
-          { eapply plus_left. { econstructor. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_refl.
-          }
-        }
-        { unpack_subst_of_env_cons.
-          exists (mode_cont [] env0 (RValue v)); split.
-          2:{ econstructor; simpl; eauto. }
-          { eapply plus_left. { econstructor. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_refl.
-          }
-        }
-        { unpack_subst_of_env_cons.
-          repeat (simpl in *; injections; subst).
-          exists (mode_cont [] env0 (RValue v)); split.
-          2:{ econstructor; simpl; eauto. }
-          { eapply plus_left. { econstructor. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_step. { econstructor; eauto. }
-            eapply star_refl.
-          }
-        }
-      }
-      { induction result; simpl in *; tryfalse. }
+        all: exists (mode_cont [] env0 (RValue v)); split.
+        all: try solve [ econstructor; simpl; eauto ].
+        all: unpack_subst_of_env_cons.
+        all: repeat cstep.
     }
     { (* Conflict *)
       destruct (default_conflict_sort ts ts1 ti ts2 tj ts3) as (ts1' & ti' & ts2' & tj' & ts3' & Hts1 & Hts2 & Hti & Htj & Hts_eq); eauto.
