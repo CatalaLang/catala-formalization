@@ -199,7 +199,7 @@ Inductive sred: term -> term -> Prop :=
   | sred_DefaultJConflict:
     forall ts tc,
       List.Forall (eq Empty) ts ->
-      sred (Default ts Conflict tc) Empty
+      sred (Default ts Conflict tc) Conflict
 
   | sred_match_cond:
     forall u1 u2 t1 t2,

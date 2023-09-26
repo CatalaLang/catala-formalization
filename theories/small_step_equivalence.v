@@ -356,6 +356,7 @@ Lemma subst_of_env_Binop {op t1 t2 t' env}:
   exists (t1' t2': term),
     t1 = t1'.[subst_of_env env]
     /\ t2 = t2'.[subst_of_env env]
+    /\ t' = (Binop op t1' t2')
 .
 Proof.
   destruct t'; asimpl; intros; tryfalse; inj; eauto;
@@ -459,7 +460,7 @@ Qed. *)
 
 Ltac unpack_subst_of_env_cons :=
   repeat progress match goal with
-  | [h:  _ :: _ = _..[subst_of_env _] |- _] =>
+  | [h:  ?x :: _ = _..[subst_of_env _] |- _] =>
     destruct (subst_of_env_cons h); unpack; subst; clear h
   | [h:  _ ++ _ = _..[subst_of_env _] |- _] =>
     destruct (subst_of_env_app h); unpack; subst; clear h
@@ -467,6 +468,21 @@ Ltac unpack_subst_of_env_cons :=
     destruct (subst_of_env_nil h); unpack; subst; clear h
   | [h: Default _ _ _ = _.[subst_of_env _] |- _] =>
     destruct (subst_of_env_Default h); unpack; subst; clear h
+  | [h: Binop _ _ _ = _.[subst_of_env _] |- _] =>
+    let t1 := fresh "t1" in
+    let t2 := fresh "t2" in
+    let Ht1 := fresh "Ht1" in
+    let Ht2 := fresh "Ht2" in
+    let Ht := fresh "Ht" in
+    destruct (subst_of_env_Binop h) as (t1 & t2 & Ht1 & Ht2 & Ht); subst; clear h
+  | [h: Value _ = (Var ?x).[subst_of_env ?sigma] |- _] =>
+    let o := fresh "o" in
+    let v := fresh "v" in
+    unfold subst_of_env in h; simpl in h;
+    remember (List.nth_error sigma x) as o1;
+    induction o1 as [v|];
+    tryfalse;
+    repeat (injections; subst)
   | _ => subst
   end
 .
@@ -668,8 +684,7 @@ Proof.
       }
       { induction result; inj. }
     }
-    {
-      induction s1; inversion 1; intros; repeat (simpl in *; subst).
+    { induction s1; inversion 1; intros; repeat (simpl in *; subst).
       { (* eval mode *)
         match goal with
         | [h: _ = ?e.[subst_of_env ?env] |- _ ] =>
@@ -719,7 +734,61 @@ Proof.
         induction result; unfold apply_return in *; inj.
       }
     }
-    1-4: admit "those cases should be very similar to the context one just before".
+    { admit "This is the right app context rule. It should be similar to the left app context rule just before". }
+    { admit "left binop context rule. same as just before". }
+    { admit "right binop context rule. same as just before". }
+    { (* binop *)
+      induction s1; intro MC; inversion MC; clear MC; intros; repeat (simpl in *; subst).
+      { unpack_subst_of_env_cons.
+        induction t1; induction t2; tryfalse.
+        { exists (mode_cont [] env0 (RValue v)); split.
+          2:{ econstructor; simpl; eauto. }
+          { unpack_subst_of_env_cons.
+            eapply plus_left. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_refl.
+          }
+        }
+        { unpack_subst_of_env_cons.
+          exists (mode_cont [] env0 (RValue v)); split.
+          2:{ econstructor; simpl; eauto. }
+          { eapply plus_left. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_refl.
+          }
+        }
+        { unpack_subst_of_env_cons.
+          exists (mode_cont [] env0 (RValue v)); split.
+          2:{ econstructor; simpl; eauto. }
+          { eapply plus_left. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_refl.
+          }
+        }
+        { unpack_subst_of_env_cons.
+          repeat (simpl in *; injections; subst).
+          exists (mode_cont [] env0 (RValue v)); split.
+          2:{ econstructor; simpl; eauto. }
+          { eapply plus_left. { econstructor. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_step. { econstructor; eauto. }
+            eapply star_refl.
+          }
+        }
+      }
+      { induction result; simpl in *; tryfalse. }
+    }
     { (* Conflict *)
       destruct (default_conflict_sort ts ts1 ti ts2 tj ts3) as (ts1' & ti' & ts2' & tj' & ts3' & Hts1 & Hts2 & Hti & Htj & Hts_eq); eauto.
       clear H0 H1 H2 ts1 ts2 ts3 ti tj.
@@ -740,26 +809,6 @@ Proof.
           (* Three cases: ti is a variable, ti is a value, ti is conflict. *)
           induction ti; simpl in *; tryfalse;
           induction tj; simpl in *; tryfalse.
-
-          4: {
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor; repeat intro; tryfalse. }
-            eapply star_refl.
-          }
-          4: {
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor; repeat intro; tryfalse. }
-            eapply star_refl.
-          }
-          4: {
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor; repeat intro; tryfalse. }
-            eapply star_refl.
-          }
-
           { remember (List.nth_error sigma x) as o;
             unfold subst_of_env in *; induction o.
             2: {
@@ -817,6 +866,24 @@ Proof.
             eapply star_step. { econstructor. }
             eapply star_refl.
           }
+          {
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; repeat intro; tryfalse. }
+            eapply star_refl.
+          }
+          {
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; repeat intro; tryfalse. }
+            eapply star_refl.
+          }
+          {
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor. }
+            eapply star_step. { econstructor; repeat intro; tryfalse. }
+            eapply star_refl.
+          }
           { remember (List.nth_error sigma x) as o;
             unfold subst_of_env in *; induction o.
             2: {
@@ -860,7 +927,19 @@ Proof.
         { econstructor; simpl; eauto. }
       }
     } {
-      induction ti; simpl in *; tryfalse; induction s1.
+      induction ti; tryfalse; induction s1; inversion 1; intros; repeat (simpl in *; subst).
+      2: { induction result; simpl in *; tryfalse. }
+      3: { induction result; simpl in *; tryfalse. }
+      { unpack_subst_of_env_cons.
+        rename x2 into ts1, x4 into ts2, x into ti, x0 into tjust, x1 into tcons.
+        induction ti; simpl in *; tryfalse. { unfold subst_of_env in *. induction (List.nth_error env0 x); inj. }
+
+        assert (Hts1: List.Forall (eq Empty) ts1). { admit "same as a previous case". }
+        exists (mode_cont [] env0 RConflict); split.
+        { }
+        { repeat econstructor; simpl; eauto. }
+
+        }
       all: (
         intros;
         try induction result;
@@ -870,7 +949,7 @@ Proof.
         inj
       ).
       unpack_subst_of_env_cons.
-      match goal with
+      all: try match goal with
       | [h: Default _ _ _ = _.[subst_of_env _] |- _] =>
       destruct (subst_of_env_Default h); unpack; subst; clear h
       end.
