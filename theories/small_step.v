@@ -162,7 +162,8 @@ Inductive sred: term -> term -> Prop :=
 
   | sred_defaultConflict:
     forall ts ts1 ti ts2 tj ts3 tjust tcons,
-      List.Forall is_value ts ->
+      List.Forall (eq Empty) ts1 ->
+      List.Forall (eq Empty) ts2 ->
       ti <> Empty ->
       tj <> Empty ->
       ts = (ts1 ++ ti::ts2++tj::ts3)%list ->
@@ -172,12 +173,17 @@ Inductive sred: term -> term -> Prop :=
       List.Forall (eq Empty) ts1 ->
       List.Forall (eq Empty) ts2 ->
       ti <> Empty ->
+      ti <> Conflict ->
       is_value ti ->
       sred (Default (ts1++ti::ts2) tjust tcons) ti
+  | sred_DefaultEConflict:
+    forall ts1 ts2 tjust tcons,
+      List.Forall (eq Empty) ts1 ->
+      sred (Default (ts1++Conflict::ts2) tjust tcons) Conflict
  | sred_DefaultE:
     forall ts1 ti ti' ts2 tj tc,
       sred ti ti' ->
-      (List.Forall is_value ts1) ->
+      (List.Forall is_value ts1) -> (* todo : ajout pas de conflit dans ts1. *)
       sred (Default (ts1++ti::ts2) tj tc) (Default (ts1++ti'::ts2) tj tc)
   | sred_DefaultJ:
     forall ts tj1 tj2 tc,
