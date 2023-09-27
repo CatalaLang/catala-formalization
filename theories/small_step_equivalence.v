@@ -780,6 +780,12 @@ Ltac simpl_apply_cont :=
     rewrite (surjective_pairing (apply_conts a b));
     unfold apply_cont;
     simpl
+  | [h: context [apply_cont (apply_state_aux ?s)] |- _ ] =>
+    rewrite (surjective_pairing (apply_state_aux s)) in h;
+    simpl in h
+  | [h: context [apply_cont (apply_conts ?a ?b)] |- _ ] =>
+    rewrite (surjective_pairing (apply_conts a b)) in h;
+    simpl in h
   end.
 Ltac cstep :=
   match goal with
@@ -965,7 +971,7 @@ Proof.
         {
           simpl.
           inversion Hs2; subst; clear Hs2; subst; simpl.
-          eapply match_conf_empty.
+          eapply match_conf_heads_empty.
           { econstructor.
             rewrite apply_state_append_stack; simpl.
             simpl; unfold apply_cont.
@@ -993,10 +999,8 @@ Proof.
             rewrite <- List.app_comm_cons.
             repeat cstep.
           }
-          {
-            simpl.
+          { asimpl.
             inversion Hs2; subst; clear Hs2; subst; simpl.
-            eapply match_conf_empty.
             { econstructor.
               rewrite apply_state_append_stack; simpl.
               simpl; unfold apply_cont.
@@ -1004,8 +1008,6 @@ Proof.
               assert (snd (apply_state_aux (mode_eval u [] env0)) = (snd (apply_state_aux s2))). { eapply creds_apply_state_sigma_stable_eq; eauto with sequences. }
               simpl in *; subst.
               admit "Error here : the match_conf invariant is not strong enought here: we need to be able to remove empty from the middle of the list.".
-            } {
-              admit "badly applied previous lemma".
             }
           }
         }
@@ -1264,6 +1266,14 @@ Proof.
     { admit. }
     { admit. }
     { admit. }
-    { admit. }
+    { induction k; induction s1; intro MC; inversion MC; clear MC;
+      intros;
+      repeat (simpl in *; autorewrite with apply_conts in *; subst).
+      all: simpl_apply_cont; try induction o; tryfalse.
+      { admit. }
+      { admit. }
+      { admit. }
+      { admit. }
+     }
   }
 Admitted.
