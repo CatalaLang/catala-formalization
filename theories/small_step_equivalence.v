@@ -767,7 +767,7 @@ Proof.
     all: try solve [induction result; simpl in *; tryfalse].
     (* unpack except in the conflict case: we need for now to not unpack here as we first need to modify slightly the definition. *)
     all: match goal with
-    | |- context [ _ ++ _ :: _ ++ _ :: _] => idtac
+    | [_:  context G [ _ ++ _ :: _ ++ _ :: _] |- _ ] => idtac
     | _ => unpack_subst_of_env_cons
     end
     .
@@ -868,30 +868,25 @@ Proof.
       all: repeat cstep.
     }
     { (* Conflict *)
-      admit.
-      (* destruct (default_conflict_sort ts ts1 ti ts2 tj ts3) as (ts1' & ti' & ts2' & tj' & ts3' & Hts1 & Hts2 & Hti & Htj & Hts_eq); eauto.
-      clear H0 H1 H2 ts1 ts2 ts3 ti tj.
+      destruct (default_conflict_sort (ts1 ++ ti :: ts2 ++ tj :: ts3) ts1 ti ts2 tj ts3) as (ts1' & ti' & ts2' & tj' & ts3' & Hts1 & Hts2 & Hti & Htj & Hts_eq); eauto.
+      repeat rewrite Hts_eq in *; clear Hts_eq.
+      clear H0 H1 ts1 ts2 ts3 ti tj.
       rename ts1' into ts1; rename ts2' into ts2; rename ts3' into ts3; rename ti' into ti; rename tj' into tj.
-      induction s1; inversion 1; intros; repeat (simpl in *; subst).
-      2: { intros; induction result; unfold apply_return in *; inj. }
-      {
-        unpack_subst_of_env_cons.
-        unpack.
-        exists (mode_cont [] env0 RConflict); split.
-        2: { econstructor; simpl; eauto. }
-        { (* need lemma to remove Empty from the computation. *)
-          rename
-            u   into ti,
-            u0 into tj.
+      unpack_subst_of_env_cons.
+      unpack.
+      exists (mode_cont [] env0 RConflict); split.
+      { rename
+          u   into ti,
+          u0 into tj.
 
-          induction ti; simpl in *; tryfalse;
-          induction tj; simpl in *; tryfalse.
-          (* Three cases: ti is a variable, ti is a value, ti is conflict. *)
+        induction ti; simpl in *; tryfalse;
+        induction tj; simpl in *; tryfalse.
+        (* Three cases: ti is a variable, ti is a value, ti is conflict. *)
 
-          all: unpack_subst_of_env_cons.
-          all: repeat cstep.
-        }
-      } *)
+        all: unpack_subst_of_env_cons.
+        all: repeat cstep.
+      }
+      { econstructor; simpl; eauto. }
     }
     { induction u; unpack_subst_of_env_cons; tryfalse.
       { exists (mode_cont [] env0 (RValue v)); split.
