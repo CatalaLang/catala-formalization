@@ -1010,13 +1010,33 @@ Proof.
     { admit. }
     { admit. }
     { admit. }
-    { admit. }
+    { destruct IHHred with (mode_eval u [] env0) as (s2 & Hs1s2 & Hs2).
+      { econstructor; simpl; eauto. }
+      { simpl; eauto. }
+
+      exists (append_stack s2 [CMatch t0 t3]); split.
+      { repeat cstep. }
+      { econstructor.
+        rewrite apply_state_append_stack; simpl.
+        rewrite (surjective_pairing (apply_state_aux s2)); simpl.
+        inversion Hs2; subst; clear Hs2.
+        repeat f_equal.
+        { replace env0 with (snd (apply_state_aux (mode_eval u [] env0)))
+          by (simpl; eauto).
+          eapply creds_apply_state_sigma_stable_eq; eauto with sequences.
+        }
+        { replace env0 with (snd (apply_state_aux (mode_eval u [] env0)))
+          by (simpl; eauto).
+          eapply creds_apply_state_sigma_stable_eq; eauto with sequences.
+        }
+      }
+    }
     { induction u; tryfalse; unpack_subst_of_env_cons.
-      { exists (mode_eval t0 [CReturn env0] (env0)); split.
+      { exists (mode_eval t0 [] (env0)); split.
         { repeat cstep. }
         { econstructor; asimpl; eauto. }
       }
-      { exists (mode_eval t0 [CReturn env0] (env0)); split.
+      { exists (mode_eval t0 [] (env0)); split.
         { repeat cstep. }
         { econstructor; asimpl; eauto. }
       }
