@@ -334,13 +334,13 @@ Module correctness.
         jt_state Delta Gamma s2 T
       .
   Proof.
-    induction s1 using (Wf_nat.induction_ltof1 _ continuations.measure).
+    induction s1 using (Wf_nat.induction_ltof1 _ measure).
     unfold Wf_nat.ltof in H.
     intros ? ? ? HT.
     destruct (progress _ _ _ _ HT).
     * unpack.
       edestruct (H x).
-      { eapply continuations.measure_decrease; eauto. }
+      { eapply measure_decrease; eauto. }
       { eapply preservation; eauto. }
       { unpack. eexists; eauto with sequences. }
     * unpack; eexists; repeat split; try eapply star_refl; eauto.
