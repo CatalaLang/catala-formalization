@@ -882,7 +882,7 @@ Proof.
         }
       }
     }
-    all: induction s1; intro MC; inversion MC; intros; repeat (simpl in *; subst).
+    all: induction s1; intro MC; inversion MC; clear MC; intros; repeat (simpl in *; subst).
     all: try solve [induction result; simpl in *; tryfalse].
     all: unpack_subst_of_env_cons.
 
@@ -916,109 +916,97 @@ Proof.
         destruct Htmp as (ts1 & ti & ts2 & Ht & Hts1 & Hti & Hts2).
         subst; unpack.
         unpack_subst_of_env_cons.
-        Search ((_ ++ _)..[_]).
+        asimpl in H; unpack.
         destruct ti; simpl in *; tryfalse.
-        exists (append_stack s2 [ CDefault Some ])
-      }
-
-      zero_one_two.
-    }
-    { eexists; split.
-    }
-    all: (
-      intros;
-      try induction result;
-      inversion MC;
-      clear MC;
-      repeat (subst; simpl in *);
-      inj
-    ); unpack_subst_of_env_cons.
-      all: try match goal with
-      | [h: Default _ _ _ = _.[subst_of_env _] |- _] =>
-      destruct (subst_of_env_Default h); unpack; subst; clear h
-      end.
-      all: try solve [exfalso; unfold subst_of_env in H3; induction (List.nth_error env0 x); inj].
-      { generalize dependent ts2.
-        generalize dependent ts.
-        generalize dependent e1.
-        generalize dependent e2.
-        generalize dependent env0.
-        induction ts1; simpl in *.
-        { intros.
-          destruct (subst_of_env_cons H6); unpack; subst.
-          destruct x; asimpl in *; inj. 1:{ admit "trivial". }
-          exists (mode_cont [] env0 RConflict); split.
-          2: { econstructor; simpl; eauto. }
-          { eapply plus_left. { econstructor. }
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor; repeat intro; inj. }
-            eapply star_refl.
+        { unpack_subst_of_env_cons.
+          exists (append_stack s2 [CDefault (Some v) ts tjust tcons]); split.
+          { rewrite <- List.app_assoc.
+            rewrite <- List.app_comm_cons.
+            repeat cstep.
+          }
+          {
+            simpl.
+            inversion Hs2; subst; clear Hs2; subst; simpl.
+            eapply match_conf_empty.
+            { econstructor.
+              rewrite apply_state_append_stack; simpl.
+              simpl; unfold apply_cont.
+              rewrite (surjective_pairing (apply_state_aux s2)); simpl.
+              assert (snd (apply_state_aux (mode_eval u [] env0)) = (snd (apply_state_aux s2))). { eapply creds_apply_state_sigma_stable_eq; eauto with sequences. }
+              simpl in *; subst.
+              admit "Error here : the match_conf invariant is not strong enought here: we need to be able to remove empty from the middle of the list.".
+            } {
+              admit "badly applied previous lemma".
+            }
           }
         }
-        { intros.
-          destruct (subst_of_env_cons H6); unpack; subst.
-          destruct x; asimpl in *; inj. 1:{ admit "trivial". }
-          destruct (IHts1 H10 env0 e2 e1 x0 ts2 H0); eauto; unpack.
-          exists x; split.
-          { eapply plus_left. { econstructor. }
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor. }
-            (* Here, [H] is [plus cred (mode_eval (Default x0 e1 e2) [] env0) x] hence, it must make at least one step. *)
-            inversion H; inversion H5; subst; eauto.
+        { unpack_subst_of_env_cons.
+          exists (mode_cont [] (env0) RConflict); split.
+          { rewrite <- List.app_assoc.
+            rewrite <- List.app_comm_cons.
+            repeat cstep.
           }
-          { eauto. }
+          { admit "does not work neither.". }
         }
-      }
-      { generalize dependent ts2.
-        generalize dependent ts.
-        generalize dependent e1.
-        generalize dependent e2.
-        generalize dependent env0.
-        induction ts1; induction ts2; simpl in *; intros.
-        all: 
-        1: { admit. }
-        1: { admit. }
-        1: { admit. }
-        1: { admit. }
-        2: { }
-        asimpl in H6.
-        { intros.
-          destruct (subst_of_env_cons H6); unpack; subst.
-          destruct x; asimpl in *; inj. 1:{ admit "trivial". }
-          exists (mode_cont [] env0 (Value v0)); split.
-          2: { econstructor; simpl; eauto. }
-          { eapply plus_left. { econstructor. }
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor; repeat intro; inj. }
-            eapply star_refl.
+        { unpack_subst_of_env_cons.
+          exists (append_stack s2 [CDefault (Some v) ts tjust tcons]); split.
+          { rewrite <- List.app_assoc.
+            rewrite <- List.app_comm_cons.
+            repeat cstep.
           }
-        }
-        { intros.
-          destruct (subst_of_env_cons H6); unpack; subst.
-          destruct x; asimpl in *; inj. 1:{ admit "trivial". }
-          destruct (IHts1 H10 env0 e2 e1 x0 ts2 H0); eauto; unpack.
-          exists x; split.
-          { eapply plus_left. { econstructor. }
-            eapply star_step. { econstructor. }
-            eapply star_step. { econstructor. }
-            (* Here, [H] is [plus cred (mode_eval (Default x0 e1 e2) [] env0) x] hence, it must make at least one step. *)
-            inversion H; inversion H5; subst; eauto.
+          {
+            simpl.
+            inversion Hs2; subst; clear Hs2; subst; simpl.
+            eapply match_conf_empty.
+            { econstructor.
+              rewrite apply_state_append_stack; simpl.
+              simpl; unfold apply_cont.
+              rewrite (surjective_pairing (apply_state_aux s2)); simpl.
+              assert (snd (apply_state_aux (mode_eval u [] env0)) = (snd (apply_state_aux s2))). { eapply creds_apply_state_sigma_stable_eq; eauto with sequences. }
+              simpl in *; subst.
+              admit "Error here : the match_conf invariant is not strong enought here: we need to be able to remove empty from the middle of the list.".
+            } {
+              admit "badly applied previous lemma".
+            }
           }
-          { eauto. }
         }
       }
-
+      {
+        assert (Htmp: exists ts1 ti ts2 tj ts3, ts1 ++ ti :: ts2 ++ tj :: ts3 = ts0 /\ List.Forall (eq Empty) ts1 /\ List.Forall (eq Empty) ts2 /\ ti <> Empty /\ tj <> Empty). { admit. }
+        destruct Htmp as (ts1 & ti & ts2 & tj & ts3 & Ht & Hts1 & Hts2 & Hti & Htj).
+        subst; asimpl in *.
+        unpack_subst_of_env_cons; unpack.
+        exists (mode_cont [] (env0) RConflict); split.
+        { induction ti; tryfalse;
+          induction tj; tryfalse.
+          all: unpack_subst_of_env_cons.
+          all: repeat progress (
+            try rewrite <- List.app_assoc;
+            rewrite <- List.app_comm_cons
+          ).
+          all: repeat cstep.
+        }
+        { admit "does not work neither.". }
+        }
     }
 
-
-
-    all: admit "for now...".
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
   }
   {
     induction 1.
-    3: {
+    { admit. }
+    { admit. }
+    {
       match goal with [x: cont |- _] => induction x end;
       induction s1; inversion 1; intros;
       repeat (simpl in *; autorewrite with apply_conts in *; subst).
@@ -1090,7 +1078,24 @@ Proof.
         }
       }
     }
-    all: admit.
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
   }
 Admitted.
 
