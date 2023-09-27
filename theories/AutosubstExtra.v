@@ -205,31 +205,6 @@ Global Hint Resolve scons_scomp : autosubst.
 
 
 (* -------------------------------------------------------------------------- *)
-(** autosubst and lists*)
-
-Lemma subst_app:
-  forall ts1 ts2 sigma,
-  ((ts1 ++ ts2)..[sigma] = ts1..[sigma] ++ ts2..[sigma])%list.
-Proof.
-  induction ts1; intros; asimpl; eauto.
-  * now rewrite IHts1.
-Qed.
-
-Lemma subst_cons:
-  forall ti ts sigma,
-  ((ti::ts)..[sigma] = (ti.[sigma] :: ts..[sigma]))%list.
-Proof.
-  autosubst.
-Qed.
-
-
-Global Hint Resolve
-  subst_app
-  subst_cons: autosubst.
-
-Global Hint Rewrite subst_app subst_cons: autosubst.
-
-(* -------------------------------------------------------------------------- *)
 (* 
 (* Autosubst support for coq-elpi *)
 
