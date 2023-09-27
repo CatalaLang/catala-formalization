@@ -64,13 +64,59 @@ Inductive match_conf : state -> term -> Prop :=
   (* | match_value:
     apply_state s = Value v' ->
     eq_value v v'  ->
-    match_conf s Value v *)
+    match_conf s (Value v) *)
 .
 
-Parameter match_conf_empty : forall {s ts1 ts2 tj tc},
-match_conf s (Default ts2 tj tc) ->
-List.Forall (eq Empty) ts1 ->
-match_conf s (Default (ts1++ts2) tj tc).
+Parameter match_conf_filter_empty :
+  forall {s ts tj tc},
+  match_conf s (Default (List.filter (fun ti => match ti with | Empty => false | _ => false end) ts) tj tc) ->
+  match_conf s (Default ts tj tc)
+  .
+Parameter match_conf_filter_empty' :
+  forall {s ts tj tc},
+  match_conf s (Default ts tj tc) ->
+  match_conf s (Default (List.filter (fun ti => match ti with | Empty => false | _ => false end) ts) tj tc)
+.
+
+Lemma match_conf_heads_empty:
+  forall {s ts1 ts2 tj tc},
+    match_conf s (Default ts2 tj tc) ->
+    List.Forall (eq Empty) ts1 ->
+    match_conf s (Default (ts1++ts2) tj tc).
+Proof.
+  intros.
+  assert (Hfilter:
+    (List.filter (fun ti => match ti with | Empty => false | _ => false end) ts2) =
+    (List.filter (fun ti => match ti with | Empty => false | _ => false end) (ts1++ts2))
+  ).
+  { induction ts1; simpl; unpack; eauto. }
+  eapply match_conf_filter_empty.
+  rewrite <- Hfilter.
+  eapply match_conf_filter_empty'.
+  eauto.
+Qed.
+
+Lemma match_conf_empty:
+  forall {s ts1 tj tc},
+    match_conf s (Default [] tj tc) ->
+    List.Forall (eq Empty) ts1 ->
+    match_conf s (Default ts1 tj tc).
+Proof.
+  intros.
+  replace ts1 with (ts1 ++ []) by (autorewrite with list; eauto).
+  eapply match_conf_heads_empty; eauto.
+Qed.
+
+Inductive eq_value: value -> value -> Prop :=
+  | eq_closure:
+    forall t sigma,
+      eq_value (Closure t sigma) (Closure t.[up (subst_of_env sigma)] [])
+.
+
+Parameter match_value: forall {s v v'},
+  match_conf s (Value v) ->
+  eq_value v v' ->
+  match_conf s (Value v').
 
 
 Section APPLY_EXAMPLES.
@@ -779,8 +825,11 @@ Proof.
     }
     { exists (mode_cont [] env0 (RValue (Closure t1 env0))); split.
       { repeat cstep. }
-      { econstructor; simpl.
-        admit "small problem here: because of the decision to store closures as equal modulo substition of their environement, there is an issue here.".
+      {
+        (* "small problem here: because of the decision to store closures as equal modulo substition of their environement, there is an issue here." *)
+        eapply match_value.
+        econstructor; simpl; eauto.
+        econstructor.
       }
     }
     { (* apply induction hypothesis. *)
@@ -910,7 +959,7 @@ Proof.
 
       remember (count_f (fun ti => negb (eqb_term Empty ti)) ts0).
       induction n as [|n _]; [|induction n as [|n _]].
-      { assert (List.Forall (eq Empty) ts0). { admit. }
+      { assert (List.Forall (eq Empty) ts0). { admit "list property". }
         exists (append_stack s2 [CDefault None ts tjust tcons]); split.
         { repeat cstep. }
         {
@@ -930,7 +979,9 @@ Proof.
           }
         }
       }
-      { assert (Htmp: exists ts1 ti ts2, ts1 ++ ti :: ts2 = ts0 /\ List.Forall (eq Empty) ts1 /\ List.Forall (eq Empty) ts2 /\ ti <> Empty). { admit. }
+      { assert (Htmp: exists ts1 ti ts2, ts1 ++ ti :: ts2 = ts0 /\ List.Forall (eq Empty) ts1 /\ List.Forall (eq Empty) ts2 /\ ti <> Empty). {
+          admit "list proprerty".
+        }
         destruct Htmp as (ts1 & ti & ts2 & Ht & Hts1 & Hti & Hts2).
         subst; unpack.
         unpack_subst_of_env_cons.
@@ -964,7 +1015,7 @@ Proof.
             rewrite <- List.app_comm_cons.
             repeat cstep.
           }
-          { admit "does not work neither.". }
+          { admit "same idea as the previous case.". }
         }
         { unpack_subst_of_env_cons.
           exists (append_stack s2 [CDefault (Some v) ts tjust tcons]); split.
