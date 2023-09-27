@@ -392,6 +392,7 @@ Lemma subst_of_env_Match_ {u t1 t2 t' env}:
     u = u'.[subst_of_env env]
     /\ t1 = t1'.[subst_of_env env]
     /\ t2 = t2'.[up (subst_of_env env)]
+    /\ t' = Match_ u' t1' t2'
 .
 Proof.
   destruct t'; asimpl; intros; tryfalse; inj; eauto.
@@ -408,10 +409,11 @@ Qed.
 Lemma subst_of_env_ESome {t t' env}:
   ESome t = t'.[subst_of_env env] ->
   exists t1',
-    t = t1'.[subst_of_env env]
+    t = t1'.[subst_of_env env] /\
+    t' = ESome t1'
 .
 Proof.
-  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  destruct t'; asimpl; intros; tryfalse; injections; eauto;
   match goal with
   | [h: _ = subst_of_env ?env ?x |- _ ] =>
     unfold subst_of_env in h;
@@ -515,6 +517,15 @@ Ltac unpack_subst_of_env_cons :=
     let Htcons := fresh "Htcons" in (* /\ tc = tc'.[subst_of_env env] *)
     let Ht := fresh "Ht" in         (* /\ t' = Default ts' tj' tc' *)
     destruct (subst_of_env_Default h) as (ts & tjust & tcons & Hts & Htjust & Hcons & Ht); subst; clear h
+  | [h: Match_ _ _ _ = _.[subst_of_env _] |- _] =>
+    let u := fresh "u" in
+    let t1 := fresh "t1" in
+    let t2 := fresh "t2" in
+    let Hu := fresh "Hu" in
+    let Ht1 := fresh "Ht1" in
+    let Ht2 := fresh "Ht2" in
+    let Ht := fresh "Ht" in
+    destruct (subst_of_env_Match_ h) as (u & t1 & t2 & Hu & Ht1 & Ht2 & Ht); subst; clear h
   | [h: Binop _ _ _ = _.[subst_of_env _] |- _] =>
     let t1 := fresh "t1" in
     let t2 := fresh "t2" in
@@ -529,14 +540,18 @@ Ltac unpack_subst_of_env_cons :=
     let Ht2 := fresh "Ht2" in
     let Ht := fresh "Ht" in
     destruct (subst_of_env_App h) as (t1 & t2 & Ht1 & Ht2 & Ht); subst; clear h
-  | [h: Conflict = _.[subst_of_env _] |- _] =>
+  | [h: ESome _ = _.[subst_of_env _] |- _] =>
+    let t1 := fresh "t1" in
+    let Ht1 := fresh "Ht1" in
     let Ht := fresh "Ht" in
+    destruct (subst_of_env_ESome h) as (t1 & Ht1 & Ht); subst; clear h
+  | [h: ENone = _.[subst_of_env _] |- _] =>
+    pose proof (subst_of_env_ENone h); subst; clear h
+  | [h: Conflict = _.[subst_of_env _] |- _] =>
     pose proof (subst_of_env_Conflict h); subst; clear h
   | [h: Empty = _.[subst_of_env _] |- _] =>
-    let Ht := fresh "Ht" in
     pose proof (subst_of_env_Empty h); subst; clear h
   | [h: List.Forall (eq Empty) _..[subst_of_env _] |- _] =>
-    let Ht := fresh "Ht" in
     pose proof (subst_of_env_Forall_Empty h); subst; clear h
 
   | [h: Value _ = (Var ?x).[subst_of_env ?sigma] |- _] =>
@@ -996,11 +1011,50 @@ Proof.
     { admit. }
     { admit. }
     { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
+    { induction u; tryfalse; unpack_subst_of_env_cons.
+      { exists (mode_eval t0 [CReturn env0] (env0)); split.
+        { repeat cstep. }
+        { econstructor; asimpl; eauto. }
+      }
+      { exists (mode_eval t0 [CReturn env0] (env0)); split.
+        { repeat cstep. }
+        { econstructor; asimpl; eauto. }
+      }
+    }
+    { induction u; tryfalse; unpack_subst_of_env_cons.
+      { exists (mode_eval t3 [CReturn env0] (v::env0)); split.
+        { repeat cstep. }
+        { econstructor; asimpl. rewrite subst_env_cons; eauto. }
+      }
+      { exists (mode_eval t3 [CReturn env0] (v::env0)); split.
+        { repeat cstep. }
+        { econstructor; asimpl. rewrite subst_env_cons; eauto. }
+      }
+    }
+    { exists (mode_cont [] env0 (RValue VNone)); split.
+      { repeat cstep. }
+      { econstructor; simpl; eauto. }
+    }
+    { destruct IHHred with (mode_eval t0 [] env0) as (s2 & Hs1s2 & Hs2).
+      { econstructor; simpl; eauto. }
+      { simpl; eauto. }
+
+      exists (append_stack s2 [CSome]); split.
+      { repeat cstep. }
+      { econstructor.
+        rewrite apply_state_append_stack; simpl.
+        rewrite (surjective_pairing (apply_state_aux s2)); simpl.
+        inversion Hs2; subst; clear Hs2.
+        eauto.
+      }
+    }
+    { induction t1; tryfalse; unpack_subst_of_env_cons.
+      all: exists (mode_cont [] env0 (RValue (VSome v0))); split.
+      { repeat cstep. }
+      { econstructor; simpl; eauto. }
+      { repeat cstep. }
+      { econstructor; simpl; eauto. }
+    }
   }
   {
     induction 1.
@@ -1098,184 +1152,3 @@ Proof.
     { admit. }
   }
 Admitted.
-
-
-Theorem simulation_sred_cred t1 t2:
-  sred t1 t2 ->
-  forall s1, match_conf s1 t1 ->
-  exists s2,
-    (plus cred s1 s2)
-  /\ match_conf s2 t2.
-Proof.
-  induction 1; intros s1 MC; inversion MC; subst; clear MC; cbn.
-  3:{
-    induction s1.
-    {
-      { simpl in H0.
-        induction e; try solve [exfalso; simpl in *; inj].
-        { exfalso.
-          unfold subst_of_env in *.
-          asimpl in *.
-          remember (List.nth_error env0 x) as o.
-          induction o; inj.
-        }
-        { asimpl in *.
-          inj.
-          clear IHe1 IHe2.
-          assert (MCe1: match_conf (mode_eval e1 [] env0) e1.[subst_of_env env0]).
-          { econstructor; simpl; eauto. }
-          destruct (IHsred _ MCe1); unpack.
-          rename x into s2.
-          exists (append_stack s2 [CAppR e2]); repeat split.
-          { eapply plus_left. { econstructor. }
-            replace (mode_eval e1 [CAppR e2] env0) with (append_stack (mode_eval e1 [] env0) [CAppR e2]). 2:{ simpl; eauto. }
-            eapply append_stack_stable_star.
-            eapply plus_star; eauto.
-          }
-          { rewrite apply_state_append_stack.
-            asimpl.
-            inversion H1; subst; clear H1; eauto.
-            remember (apply_state_aux s2) as y; induction y; simpl.
-            repeat f_equal.
-            replace env0 with (snd (apply_state_aux (mode_eval e1 [] env0))).
-            replace b with (snd (apply_state_aux s2)).
-            eapply creds_apply_state_sigma_stable; eauto with sequences.
-            all: try rewrite <- Heqy; simpl; eauto.
-          }
-        }
-      }
-    }
-  }
-Admitted.
-Theorem simulation_sred_cred t1 t2:
-  sred t1 t2 ->
-  forall s1, match_conf s1 t1 ->
-  exists s2,
-    (plus cred s1 s2)
-  /\ match_conf s2 t2.
-Proof.
-  induction 1; intros s1 MC; inversion MC; subst; clear MC; cbn.
-  3: {
-    destruct (inversion_App_apply_state _ _ _ H0) as [h|[h|[h|[h|h]]]];
-    unpack; inj; subst.
-    { repeat match goal with
-      | [h: list value |- _] =>
-        progress (rename h into sigma)
-      | [h: list cont |- _] =>
-        progress (rename h into kappa)
-      end.
-      rewrite apply_conts_returns in *; eauto.
-      asimpl in H0; inj; rename x into t1.
-      assert (match_conf (mode_eval t1 kappa sigma) t1.[subst_of_env sigma]).
-      { repeat econstructor; rewrite apply_conts_returns; eauto. }
-      rename x0 into u.
-      destruct (IHsred _ H0) as [s2 [? ?]].
-      exists (mode_eval t2 ((CAppR u) :: kappa) sigma); split.
-      { eapply plus_left. { econstructor. }
-        
-      } 
-
-       }  ; asimpl in *; inj.
-    { simpl in *.    }
-
-  }
-
-  { admit. }
-  { induction T1.
-    { induction e.
-      { induction kappa; simpl in H.
-        { (* impossible since subst_of_env is always a value or a variable. *)
-          unfold subst_of_env in H.
-          exfalso. remember (List.nth_error env0 x) as o. induction o; inj.
-        }
-        { (* impossible since apply_cont cannot produce a lambda. *)
-          remember (apply_conts kappa (Var x) env0) as y.
-          induction y as [y1 y2].
-          induction a; try solve [exfalso; simpl in H; inj].
-          * admit "I don't understand this case.".
-          * induction o; exfalso; simpl in H; inj.
-        }
-      }
-    }
-  }
-
-
-Theorem simulation_cred_sred s1 s2:
-  cred s1 s2 ->
-  forall t1, match_conf s1 t1 ->
-  exists t2,
-    (plus sred t1 t2)
-  /\ match_conf s2 t2.
-Proof.
-  destruct 1; intros T1 MC; inversion MC; subst; cbn.
-
-
-Theorem simulation_red_cont t1 t2:
-  sred t1 t2 ->
-  forall s1, match_conf s1 t1 ->
-  exists s2,
-    (plus cred s1 s2 (*\/ (star step s1 s2 /\ rmeasure C1' < rmeasure C1)%nat*))
-  /\ match_conf s2 t2.
-Proof.
-  induction 1.
-  { inversion 1; subst.
-
-  }
-
-  
-  induction 1.
-
-    equiv s2 (mode_eval t2 [] []).
-
-
-Theorem sred_cred t1 t2 :
-  sred t1 t2 ->
-    exists s2,
-    star cred (mode_eval t1 [] []) s2 /\
-    equiv s2 (mode_eval t2 [] []).
-Proof.
-  induction 1.
-  { (* Case Beta *)
-    eexists; split.
-    { repeat (eapply star_step; [solve [econstructor]|]).
-      eapply star_refl.
-    }
-    subst.
-    replace (t.[Value v/]) with (t.[subst_of_env [v]]).
-    replace ([]) with (subst_conts [CReturn []] [v]).
-    eapply EQ_subst_env_eval.
-    simpl; eauto.
-    eapply subst_env_0.
-  }
-  { (* AppL *)
-    unpack.
-    eexists; split.
-    { repeat (eapply star_step; [solve [econstructor]|]).
-      rewrite append_stack_all_eval.
-      eapply append_stack_stable_star.
-      eauto.
-    }
-    { eapply EQ_trans. eapply equiv_append_stack. eauto. simpl.
-      eapply EQ_sym. eapply EQ_step. econstructor. }
-  }
-  { (* AppR *)
-    unpack; eexists; split.
-    { repeat (eapply star_step; [solve [econstructor]|]).
-      rewrite append_stack_all_eval.
-      eapply append_stack_stable_star.
-      eauto.
-    }
-    { eapply EQ_trans. eapply equiv_append_stack. eauto. simpl.
-      eapply EQ_sym. eapply EQ_trans. eapply EQ_step.
-      econstructor.
-      eapply EQ_trans.
-      eapply EQ_step. econstructor.
-      eapply EQ_step. econstructor.
-    }
-  }
-  { (* DConflict case. *)
-    unpack; subst; eexists; split.
-    { repeat (eapply star_step; [solve [econstructor]|]). admit alain. }
-  }
-  { induction ti; simpl in *; tryfalse.
-Abort.
