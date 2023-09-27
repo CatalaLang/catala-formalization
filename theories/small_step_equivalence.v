@@ -71,7 +71,8 @@ Parameter match_conf_filter_empty :
   forall {s ts tj tc},
   match_conf s (Default (List.filter (fun ti => match ti with | Empty => false | _ => false end) ts) tj tc) ->
   match_conf s (Default ts tj tc)
-  .
+.
+
 Parameter match_conf_filter_empty' :
   forall {s ts tj tc},
   match_conf s (Default ts tj tc) ->
@@ -801,7 +802,6 @@ Ltac cstep :=
     eapply star_trans; [solve[eapply default_head_empty; eauto]|]
   | [ h: List.Forall (eq Empty) ?ts1 |- star cred (mode_cont (CDefault _ ?ts1 _ _::_) _ REmpty) _ ] =>
     eapply star_trans; [solve[replace ts1 with (ts1 ++ []) by eapply List.app_nil_r; eapply default_head_empty; eauto]|]
-
   | [h: plus cred ?s1 ?s2 |- star cred ?s1' (append_stack ?s2 ?kappa)] =>
     replace s1' with (append_stack s1 kappa); [| solve [simpl; eauto]];
     eapply append_stack_stable_star
@@ -1173,8 +1173,7 @@ Proof.
       { econstructor; simpl; eauto. }
     }
   }
-  {
-    induction 1.
+  { induction 1.
     { admit. }
     { admit. }
     {
