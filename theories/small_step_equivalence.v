@@ -1005,11 +1005,52 @@ Proof.
         }
     }
 
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
+    { destruct IHHred with (mode_eval tjust [] env0) as (s2 & Hs1s2 & Hs2).
+      { econstructor; simpl; eauto. }
+      { simpl; eauto. }
+
+      exists (append_stack s2 [CDefaultBase tcons]); split.
+      { repeat cstep. }
+      { econstructor.
+        rewrite apply_state_append_stack; simpl.
+        rewrite (surjective_pairing (apply_state_aux s2)); simpl.
+        inversion Hs2; subst; clear Hs2.
+        repeat f_equal.
+        { admit "require to use the match_empty constructor here.". }
+        { replace env0 with (snd (apply_state_aux (mode_eval tjust [] env0)))
+          by (simpl; eauto).
+          eapply creds_apply_state_sigma_stable_eq; eauto with sequences.
+        }
+      }
+    }
+    { induction tjust; tryfalse; eauto; unpack_subst_of_env_cons.
+      { exists (mode_eval tcons [] env0); split.
+        { repeat cstep. }
+        { econstructor; simpl; eauto. }
+      }
+      { exists (mode_eval tcons [] env0); split.
+        { repeat cstep. }
+        { econstructor; simpl; eauto. }
+      }
+    }
+    { induction tjust; tryfalse; eauto; unpack_subst_of_env_cons.
+      { exists (mode_cont [] env0 REmpty); split.
+        { repeat cstep. }
+        { econstructor; simpl; eauto. }
+      }
+      { exists (mode_cont [] env0 REmpty); split.
+        { repeat cstep. }
+        { econstructor; simpl; eauto. }
+      }
+    }
+    { exists (mode_cont [] env0 REmpty); split.
+      { repeat cstep. }
+      {econstructor; simpl; eauto. }
+    }
+    { exists (mode_cont [] env0 RConflict); split.
+      { repeat cstep. }
+      { econstructor; simpl; eauto. }
+    }
     { destruct IHHred with (mode_eval u [] env0) as (s2 & Hs1s2 & Hs2).
       { econstructor; simpl; eauto. }
       { simpl; eauto. }
