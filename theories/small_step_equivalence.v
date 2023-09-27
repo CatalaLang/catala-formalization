@@ -67,6 +67,11 @@ Inductive match_conf : state -> term -> Prop :=
     match_conf s Value v *)
 .
 
+Parameter match_conf_empty : forall {s ts1 ts2 tj tc},
+match_conf s (Default ts2 tj tc) ->
+List.Forall (eq Empty) ts1 ->
+match_conf s (Default (ts1++ts2) tj tc).
+
 
 Section APPLY_EXAMPLES.
   Require Import Coq.ZArith.ZArith.
@@ -316,6 +321,7 @@ Lemma subst_of_env_App {t1 t2 t' env}:
   exists (t1' t2': term),
     t1 = t1'.[subst_of_env env]
     /\ t2 = t2'.[subst_of_env env]
+    /\ t' = App t1' t2'
 .
 Proof.
   destruct t'; asimpl; intros; tryfalse; inj; eauto;
@@ -479,6 +485,7 @@ Proof.
 Qed.
 
 
+
 Ltac unpack_subst_of_env_cons :=
   repeat progress match goal with
   | [h:  ?x :: _ = _..[subst_of_env _] |- _] =>
@@ -515,6 +522,13 @@ Ltac unpack_subst_of_env_cons :=
     let Ht2 := fresh "Ht2" in
     let Ht := fresh "Ht" in
     destruct (subst_of_env_Binop h) as (t1 & t2 & Ht1 & Ht2 & Ht); subst; clear h
+  | [h: App _ _ = _.[subst_of_env _] |- _] =>
+    let t1 := fresh "t1" in
+    let t2 := fresh "t2" in
+    let Ht1 := fresh "Ht1" in
+    let Ht2 := fresh "Ht2" in
+    let Ht := fresh "Ht" in
+    destruct (subst_of_env_App h) as (t1 & t2 & Ht1 & Ht2 & Ht); subst; clear h
   | [h: Conflict = _.[subst_of_env _] |- _] =>
     let Ht := fresh "Ht" in
     pose proof (subst_of_env_Conflict h); subst; clear h
@@ -701,6 +715,8 @@ Ltac simpl_apply_cont :=
   end.
 Ltac cstep :=
   match goal with
+  | [h: plus cred ?s1 ?s2 |- star cred ?s1 ?s2] =>
+    eauto with sequences
   | [ |- plus cred ?s1 ?s2] =>
     eapply plus_left; [solve [econstructor; eauto]|]
   | [ |- star cred ?s1 ?s2] =>
@@ -711,6 +727,10 @@ Ltac cstep :=
     eapply star_trans; [solve[eapply default_head_empty; eauto]|]
   | [ h: List.Forall (eq Empty) ?ts1 |- star cred (mode_cont (CDefault _ ?ts1 _ _::_) _ REmpty) _ ] =>
     eapply star_trans; [solve[replace ts1 with (ts1 ++ []) by eapply List.app_nil_r; eapply default_head_empty; eauto]|]
+
+  | [h: plus cred ?s1 ?s2 |- star cred ?s1' (append_stack ?s2 ?kappa)] =>
+    replace s1' with (append_stack s1 kappa); [| solve [simpl; eauto]];
+    eapply append_stack_stable_star
 end
 .
 Proof.
@@ -765,32 +785,17 @@ Proof.
     }
     { induction s1; inversion 1; intros; repeat (simpl in *; subst).
       { (* eval mode *)
-        match goal with
-        | [h: _ = ?e.[subst_of_env ?env] |- _ ] =>
-          induction e; asimpl in h; inj;
-          try solve
-          [ clear -h;
-            match goal with [ _: context [subst_of_env ?env ?x] |- _] =>
-              destruct (subst_of_env_Value_Var env x) end;
-            unpack; congruence
-          ]
-        end.
+        unpack_subst_of_env_cons.
 
         (* apply induction hypothesis. *)
-        destruct IHHred with ((mode_eval e1 [] env0)) as (s2 & Hs1s2 & MCs2).
+        destruct IHHred with ((mode_eval t0 [] env0)) as (s2 & Hs1s2 & MCs2).
         { econstructor; simpl; eauto. }
         { simpl; eauto. }
 
         (* This is the new term. *)
-        exists (append_stack s2 [CAppR e2]); split.
+        exists (append_stack s2 [CAppR t3]); split.
         { (* Let us first prove it is indeed the successor of s1. *)
-          eapply plus_left. { econstructor. }
-          match goal with
-            [h: plus cred ?s1 ?s2 |- star cred ?s1' (append_stack ?s2 ?kappa)] =>
-              replace s1' with (append_stack s1 kappa);
-              try solve [simpl; eauto]
-          end.
-          eapply append_stack_stable_star; eauto with sequences.
+          repeat cstep.
         }
         { (* Then let us show it is indeed linked to our new term. This is
              thanks to our previous lemma about stability of the environement upon reduction. *)
@@ -882,10 +887,38 @@ Proof.
     all: unpack_subst_of_env_cons.
 
     { (* not so easy : we need to take a look into [count_f (neqb Empty) ts0]. If it is zero, the correct derivation is [CDefault (None, u' :: ?, ?, ?)]. If it is one, the correct deriviation is [CDefault (None, u' :: ?, ?, ?)]. If it is two, the correct deriviation is [RConflict]. *)
+
+      destruct IHHred with (mode_eval u [] env0) as (s2 & Hs1s2 & Hs2); try solve [simpl; econstructor; eauto].
+
       remember (count_f (fun ti => negb (eqb_term Empty ti)) ts0).
-      induction n; [|induction n].
+      induction n as [|n _]; [|induction n as [|n _]].
       { assert (List.Forall (eq Empty) ts0). { admit. }
-        exists mode_cont (CDefault None )
+        exists (append_stack s2 [CDefault None ts tjust tcons]); split.
+        { repeat cstep. }
+        {
+          simpl.
+          inversion Hs2; subst; clear Hs2; subst; simpl.
+          eapply match_conf_empty.
+          { econstructor.
+            rewrite apply_state_append_stack; simpl.
+            simpl; unfold apply_cont.
+            rewrite (surjective_pairing (apply_state_aux s2)); simpl.
+            assert (snd (apply_state_aux (mode_eval u [] env0)) = (snd (apply_state_aux s2))). { eapply creds_apply_state_sigma_stable_eq; eauto with sequences. }
+            simpl in *; subst.
+            repeat f_equal.
+          } {
+            clear -H0.
+            induction ts0; simpl; econstructor; unpack; subst; asimpl; eauto.
+          }
+        }
+      }
+      { assert (Htmp: exists ts1 ti ts2, ts1 ++ ti :: ts2 = ts0 /\ List.Forall (eq Empty) ts1 /\ List.Forall (eq Empty) ts2 /\ ti <> Empty). { admit. }
+        destruct Htmp as (ts1 & ti & ts2 & Ht & Hts1 & Hti & Hts2).
+        subst; unpack.
+        unpack_subst_of_env_cons.
+        Search ((_ ++ _)..[_]).
+        destruct ti; simpl in *; tryfalse.
+        exists (append_stack s2 [ CDefault Some ])
       }
 
       zero_one_two.
