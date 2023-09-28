@@ -8,8 +8,6 @@ Require Import tactics.
 Definition is_value v :=
     match v with
     | Value _ => True
-    | Empty => True
-    | Conflict => True
     | _ => False
     end.
 
@@ -140,16 +138,15 @@ Inductive sred: term -> term -> Prop :=
     sred
       (Binop op (Value v1) (Value v2))
       (Value v)
-  
 
   (** Conflict & Empty handling *)
-  (* | sred_app_right_conflict:
+  | sred_app_right_conflict:
     forall u,
       sred (App Conflict u) Conflict
   | sred_app_right_empty:
     forall u,
-      sred (App Empty u) Empty *)
-  (* | sred_app_left_conflict:
+      sred (App Empty u) Empty
+  | sred_app_left_conflict:
       forall t sigma,
         sred
           (App (Value (Closure t sigma)) Conflict)
@@ -158,33 +155,36 @@ Inductive sred: term -> term -> Prop :=
     forall t sigma,
       sred
         (App (Value (Closure t sigma)) Empty)
-        (Empty) *)
+        (Empty)
 
   | sred_defaultConflict:
-    forall ts ts1 ti ts2 tj ts3 tjust tcons,
+    forall ts ts1 vi ts2 vj ts3 tjust tcons,
       List.Forall (eq Empty) ts1 ->
       List.Forall (eq Empty) ts2 ->
-      ti <> Empty ->
-      tj <> Empty ->
-      ts = (ts1 ++ ti::ts2++tj::ts3)%list ->
+      ts = (ts1 ++ (Value vi) :: ts2 ++ (Value vj) :: ts3)%list ->
       sred (Default ts tjust tcons) Conflict
   | sred_DefaultEValue:
-    forall ts1 ti ts2 tjust tcons,
+    forall ts1 vi ts2 tjust tcons,
       List.Forall (eq Empty) ts1 ->
       List.Forall (eq Empty) ts2 ->
-      ti <> Empty ->
-      ti <> Conflict ->
-      is_value ti ->
-      sred (Default (ts1++ti::ts2) tjust tcons) ti
+      sred (Default (ts1++(Value vi)::ts2) tjust tcons) (Value vi)
   | sred_DefaultEConflict:
     forall ts1 ts2 tjust tcons,
       List.Forall (eq Empty) ts1 ->
       sred (Default (ts1++Conflict::ts2) tjust tcons) Conflict
- | sred_DefaultE:
+ | sred_DefaultE_empty:
     forall ts1 ti ti' ts2 tj tc,
       sred ti ti' ->
-      (List.Forall is_value ts1) -> (* todo : ajout pas de conflit dans ts1. *)
+      (List.Forall (eq Empty) ts1) ->
       sred (Default (ts1++ti::ts2) tj tc) (Default (ts1++ti'::ts2) tj tc)
+  | sred_DefaultE_one:
+    forall ts1 vi ts2 tj tj' ts3 tjust tcons,
+      sred tj tj' ->
+      (List.Forall (eq Empty) ts1) ->
+      (List.Forall (eq Empty) ts2) ->
+      sred
+        (Default (ts1++(Value vi)::ts2++tj::ts3) tjust tcons)
+        (Default (ts1++(Value vi)::ts2++tj'::ts3) tjust tcons)
   | sred_DefaultJ:
     forall ts tj1 tj2 tc,
       List.Forall (eq Empty) ts ->
@@ -206,7 +206,6 @@ Inductive sred: term -> term -> Prop :=
     forall ts tc,
       List.Forall (eq Empty) ts ->
       sred (Default ts Conflict tc) Conflict
-
   | sred_match_cond:
     forall u1 u2 t1 t2,
       sred u1 u2 ->
@@ -217,7 +216,6 @@ Inductive sred: term -> term -> Prop :=
   | sred_match_Some:
     forall v t1 t2,
       sred (Match_ (Value (VSome v)) t1 t2) t2.[Value v/]
-
   | sred_None:
     sred ENone (Value VNone)
   | sred_Some_context:
@@ -229,7 +227,92 @@ Inductive sred: term -> term -> Prop :=
       sred (ESome (Value v)) (Value (VSome v))
 .
 
+Lemma remove_head_empty {ts1 ts1' ti ti' ts2 ts2'}:
+  List.Forall (eq Empty) ts1 ->
+  List.Forall (eq Empty) ts1' ->
+  ti <> Empty ->
+  ti' <> Empty ->
+  ts1 ++ ti :: ts2 = ts1' ++ ti' :: ts2' ->
+  ts1 = ts1' /\ ti = ti' /\ ts2 = ts2'
+.
+Proof.
+  intros Hts1 Hts1'.
+  revert Hts1 ts1' Hts1' ts2 ts2' ti ti'.
+  induction 1; inversion 1; simpl.
+  { intros; injections; eauto.  }
+  { intros; injections; congruence. }
+  { intros; injections; congruence. }
+  { intros; injections.
+    destruct (IHHts1 _ H1 _ _ _ _ H3 H4 H5); unpack; subst.
+    eauto.
+   }
+Qed.
 
+Lemma sred_nonempty_conflict_value {ti ti'}:
+  sred ti ti' ->
+  ti <> Empty /\ ti <> Conflict /\ forall v, ti <> Value v.
+Proof.
+  intros Hsred; repeat split; repeat intro; subst; inversion Hsred.
+Qed.
+
+Lemma value_notempty vi:
+  Value vi <> Empty.
+Proof.
+  repeat intro; inj.
+Qed.
+
+Lemma conflict_notempty:
+  Conflict <> Empty.
+Proof.
+  repeat intro; inj.
+Qed.
+
+Import Learn.
+
+Theorem sred_deterministc:
+  forall t t1,
+    sred t t1 ->
+    forall t2,
+      sred t t2 ->
+      t1 = t2.
+Proof.
+  induction 1; inversion 1; simpl in *; subst; unpack; tryfalse; eauto; repeat f_equal.
+  all: repeat match goal with
+  (* handling of non-terminating terms. *)
+  | [h: sred Conflict _ |- _] => inversion h
+  | [h: sred Empty _ |- _] => inversion h
+  | [h: sred (Value _) _ |- _] => inversion h
+  | [h: sred ?t1 ?t2 |- _] =>
+    learn (sred_nonempty_conflict_value h)
+  | [_: context ti [Value ?vi] |- _ ] =>
+    learn (value_notempty vi)
+  | [_: context ti [Conflict] |- _ ] =>
+    learn conflict_notempty
+
+  (* apply induction hypothesis when possible. *)
+  | [
+    h1: sred ?t ?t1,
+    h2: sred ?t ?t2,
+    IHsred: forall t3, sred ?t _ -> _
+    |- _ ] =>
+    eapply IHsred; eauto
+
+  (* Main helper lemma: we can only take a look to the first non-empty term *)
+  | [
+    hts1: List.Forall (eq Empty) ?ts1,
+    hts1': List.Forall (eq Empty) ?ts1',
+    hti: ?ti <> Empty,
+    hti': ?ti' <> Empty,
+    h: ?ts1 ++ ?ti :: _ = ?ts1' ++ ?ti' :: _ |- _
+  ] =>
+    learn (remove_head_empty hts1 hts1' hti hti' h); unpack; subst
+
+  (* Simplify, substitute etc to continue the search by saturation*)
+  | _ => unpack; injections; subst; tryfalse; eauto
+  end.
+  (* one case left. *)
+  { rewrite <- H in H5; injections; eauto. }
+Qed.
 
 Notation "'sred' t1 t2" :=
   (sred t1 t2) (

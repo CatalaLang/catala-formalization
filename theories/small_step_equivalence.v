@@ -1,4 +1,5 @@
 Require Import syntax continuations small_step sequences tactics.
+Require Import Coq.ZArith.ZArith.
 Import List.ListNotations.
 
 Definition apply_cont
@@ -120,8 +121,9 @@ Parameter match_value: forall {s v v'},
   match_conf s (Value v').
 
 
+
 Section APPLY_EXAMPLES.
-  Require Import Coq.ZArith.ZArith.
+  
 
   Example test1:
     forall t1 t2 t3,
@@ -922,11 +924,30 @@ Proof.
       all: unpack_subst_of_env_cons.
       all: repeat cstep.
     }
+    { exists (mode_cont [] env0 RConflict); split.
+      { repeat cstep. }
+      { econstructor; simpl; eauto. }
+    }
+    { exists (mode_cont [] env0 REmpty); split.
+      { repeat cstep. }
+      { econstructor; simpl; eauto. }
+    }
+    { induction t1; unpack_subst_of_env_cons; tryfalse;
+      exists (mode_cont [] env0 RConflict); split.
+      { repeat cstep. }
+      { econstructor; simpl; eauto. }
+      { repeat cstep. }
+      { econstructor; simpl; eauto. }
+    }
+    { induction t1; unpack_subst_of_env_cons; tryfalse;
+      exists (mode_cont [] env0 REmpty); split.
+      { repeat cstep. }
+      { econstructor; simpl; eauto. }
+      { repeat cstep. }
+      { econstructor; simpl; eauto. }
+    }
+
     { (* Conflict *)
-      destruct (default_conflict_sort (ts1 ++ ti :: ts2 ++ tj :: ts3) ts1 ti ts2 tj ts3) as (ts1' & ti' & ts2' & tj' & ts3' & Hts1 & Hts2 & Hti & Htj & Hts_eq); eauto.
-      repeat rewrite Hts_eq in *; clear Hts_eq.
-      clear H0 H1 ts1 ts2 ts3 ti tj.
-      rename ts1' into ts1; rename ts2' into ts2; rename ts3' into ts3; rename ti' into ti; rename tj' into tj.
       unpack_subst_of_env_cons.
       unpack.
       exists (mode_cont [] env0 RConflict); split.
@@ -950,14 +971,14 @@ Proof.
           unfold subst_of_env; rewrite <- Heqo; eauto.
         }
       }
-      { exists (mode_cont [] env0 RConflict); split.
-        { repeat cstep. }
-        { econstructor; simpl; eauto. }
-      }
       { exists (mode_cont [] env0 (RValue v)); split.
         { repeat cstep. }
         { econstructor; simpl; eauto. }
       }
+    }
+    { exists (mode_cont [] env0 RConflict); split.
+      { repeat cstep. }
+      { econstructor; simpl; eauto. }
     }
 
     { (** not so easy : we need to take a look into [count_f (neqb Empty) ts0]. If it is zero, the correct derivation is [CDefault (None, u' :: ?, ?, ?)]. If it is one, the correct deriviation is [CDefault (None, u' :: ?, ?, ?)]. If it is two, the correct deriviation is [RConflict]. *)
