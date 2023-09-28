@@ -827,6 +827,28 @@ Proof.
   }
 Qed.
 
+Goal forall v kappa t env0,
+  Value v = fst (apply_conts kappa (t, env0)) ->
+  (exists x, t = Var x /\ Value v = subst_of_env env0 x) \/
+  (t = Value v)
+  .
+Proof.
+  induction kappa as [|k kappa] using List.rev_ind.
+  { induction t; asimpl; intros; inj; subst; eauto. }
+  { destruct t; induction k.
+    all: intros; try induction o; match_conf; inj.
+    { destruct (IHkappa (Var x) _ H); inj; unpack; injections; subst.
+      left; eexists; eauto.
+    }
+    all: try match goal with
+    | [h: Value _ = fst (apply_conts _ (?t, ?env)) |- _] =>
+      destruct (IHkappa t env); simpl; eauto
+    end.
+  }
+Qed.
+
+Goal 
+
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
   forall s1, match_conf s1 t1 ->
