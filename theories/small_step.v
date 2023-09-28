@@ -278,7 +278,7 @@ Theorem sred_deterministc:
 Proof.
   induction 1; inversion 1; simpl in *; subst; unpack; tryfalse; eauto; repeat f_equal.
   all: repeat match goal with
-  (* handling of non-terminating terms. *)
+  (* handling of non-terminating terms, putting them into a nice and easy form. *)
   | [h: sred Conflict _ |- _] => inversion h
   | [h: sred Empty _ |- _] => inversion h
   | [h: sred (Value _) _ |- _] => inversion h
@@ -310,7 +310,9 @@ Proof.
   (* Simplify, substitute etc to continue the search by saturation*)
   | _ => unpack; injections; subst; tryfalse; eauto
   end.
-  (* one case left. *)
+
+
+  (* After saturation, there is only one case left. *)
   { rewrite <- H in H5; injections; eauto. }
 Qed.
 
