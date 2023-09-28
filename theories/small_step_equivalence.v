@@ -286,7 +286,7 @@ Proof.
   }
 Qed.
 
-Lemma creds_apply_state_sigma_stable s1 s2:
+Lemma creds_apply_state_sigma_stable { s1 s2 }:
   star cred s1 s2 ->
   snd (apply_state_aux s1) = snd (apply_state_aux s2).
 Proof.
@@ -537,7 +537,6 @@ Proof.
 Qed.
 
 
-
 Ltac unpack_subst_of_env_cons :=
   repeat progress match goal with
   | [h:  ?x :: _ = _..[subst_of_env _] |- _] =>
@@ -750,7 +749,83 @@ Proof.
 Qed.
 
 
+Import Learn.
 
+Ltac cstep :=
+  match goal with
+  | [h: plus cred ?s1 ?s2 |- star cred ?s1 ?s2] =>
+    eapply (plus_star h)
+  | [h: plus cred ?s1 ?s2 |- plus cred ?s1 ?s2] =>
+    eauto
+  | [ |- plus cred ?s1 ?s2] =>
+    eapply plus_left; [solve [econstructor; eauto]|]
+  | [ h: plus cred ?s1 ?s2 |- _] =>
+    learn (plus_star h)
+  | [ |- star cred ?s1 ?s2] =>
+    eapply star_step; [solve [econstructor; eauto|econstructor; repeat intro; inj]|]
+  | [ h: List.Forall (eq Empty) ?ts1 |- star cred (mode_cont (CDefault _ (?ts1 ++ _) _ _::_) _ REmpty) _ ] =>
+    eapply star_trans; [solve[eapply default_head_empty; eauto]|]
+  | [ h: List.Forall (eq Empty) ?ts1 |- star cred (mode_cont (CDefault _ ?ts1 _ _::_) _ REmpty) _ ] =>
+    eapply star_trans; [solve[replace ts1 with (ts1 ++ []) by eapply List.app_nil_r; eapply default_head_empty; eauto]|]
+  | [h: star cred ?s1 ?s2 |- star cred ?s1' (append_stack ?s2 ?kappa)] =>
+    replace s1' with (append_stack s1 kappa); [| solve [simpl; eauto]];
+    eapply append_stack_stable_star
+  | [h: plus cred ?s1 ?s2 |- plus cred ?s1' (append_stack ?s2 ?kappa)] =>
+    replace s1' with (append_stack s1 kappa); [| solve [simpl; eauto]];
+    eapply append_stack_stable_plus
+  | [ |- star cred ?s1 ?s1] =>
+    eapply star_refl
+end.
+
+
+Ltac match_conf :=
+  repeat match goal with
+  | [ |- match_conf _ _ ] => econstructor
+  | [h: match_conf _ _ |- _ ] =>
+    inversion h; subst; clear h
+  | [ h: plus cred ?s1 ?s2 |- _] =>
+    learn (plus_star h)
+  | [ hs1s2: star cred (mode_eval ?t [] ?env) ?s2 |- _ ] =>
+    replace env with (snd (apply_state_aux (mode_eval t [] env))) by (simpl; eauto);
+    learn (creds_apply_state_sigma_stable hs1s2)
+  | [ |- context [apply_state_aux (append_stack _ _)]] =>
+    rewrite apply_state_append_stack
+  | [ |- context [let '(_, _) := ?p in _]] =>
+    rewrite (surjective_pairing p)
+  | [ |- context [apply_cont]] =>
+    unfold apply_cont
+  | [h: context [apply_state_aux (append_stack _ _)] |- _] =>
+    rewrite apply_state_append_stack in h
+  | [h: context [let '(_, _) := ?p in _] |- _] =>
+    rewrite (surjective_pairing p) in h
+  | [h: context [apply_cont] |- _] =>
+    unfold apply_cont in h
+  | [h: context [apply_conts (cons _ _) _] |- _] =>
+    simpl in h
+  | [h: context [apply_conts (app _ _) _] |- _] =>
+    rewrite apply_conts_app in h
+  | [h: context [fst (_, _)] |- _] =>
+    simpl in h
+  | _ => progress simpl; try solve [repeat f_equal; eauto]
+  | _ => progress injections
+  end.
+
+Goal forall v kappa result env0,
+  Value v = fst (apply_conts kappa (apply_return result, env0)) ->
+  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\
+  result = RValue v.
+Proof.
+  induction kappa as [|k kappa] using List.rev_ind.
+  { induction result; simpl; split; inj; subst; eauto. }
+  { induction result; induction k.
+    all: intros; try induction o; match_conf; inj.
+    { destruct (IHkappa (RValue v0) _ H); inj; split; eauto.
+      eapply List.Forall_app; eauto.
+    }
+    { destruct (IHkappa REmpty _ H); inj. }
+    { destruct (IHkappa RConflict _ H); inj. }
+  }
+Qed.
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
@@ -790,25 +865,10 @@ Ltac simpl_apply_cont :=
     rewrite (surjective_pairing (apply_conts a b)) in h;
     simpl in h
   end.
-Ltac cstep :=
-  match goal with
-  | [h: plus cred ?s1 ?s2 |- star cred ?s1 ?s2] =>
-    eauto with sequences
-  | [ |- plus cred ?s1 ?s2] =>
-    eapply plus_left; [solve [econstructor; eauto]|]
-  | [ |- star cred ?s1 ?s2] =>
-    eapply star_refl
-  | [ |- star cred ?s1 ?s2] =>
-    eapply star_step; [solve [econstructor; eauto|econstructor; repeat intro; inj]|]
-  | [ h: List.Forall (eq Empty) ?ts1 |- star cred (mode_cont (CDefault _ (?ts1 ++ _) _ _::_) _ REmpty) _ ] =>
-    eapply star_trans; [solve[eapply default_head_empty; eauto]|]
-  | [ h: List.Forall (eq Empty) ?ts1 |- star cred (mode_cont (CDefault _ ?ts1 _ _::_) _ REmpty) _ ] =>
-    eapply star_trans; [solve[replace ts1 with (ts1 ++ []) by eapply List.app_nil_r; eapply default_head_empty; eauto]|]
-  | [h: plus cred ?s1 ?s2 |- star cred ?s1' (append_stack ?s2 ?kappa)] =>
-    replace s1' with (append_stack s1 kappa); [| solve [simpl; eauto]];
-    eapply append_stack_stable_star
-end
-.
+
+
+Ltac aexists t :=
+  exists t; split; [repeat cstep|match_conf].
 Proof.
   intros Hred s1 MC.
   remember (stack s1) as kappa.
@@ -829,15 +889,14 @@ Proof.
       induction t2; tryfalse.
       all: exists (mode_eval t [CReturn env0] (v::sigma')); split.
       all: unpack_subst_of_env_cons.
-      all: try solve [econstructor; simpl; eauto | repeat cstep].
+      all: try solve [match_conf | repeat cstep].
     }
     { exists (mode_cont [] env0 (RValue (Closure t1 env0))); split.
       { repeat cstep. }
-      {
+      { eapply match_value.
+        { match_conf. }
+        { econstructor. }
         (* "small problem here: because of the decision to store closures as equal modulo substition of their environement, there is an issue here." *)
-        eapply match_value.
-        econstructor; simpl; eauto.
-        econstructor.
       }
     }
     { (* apply induction hypothesis. *)
@@ -850,18 +909,7 @@ Proof.
       { (* Then let us show it is indeed linked to our new term. This is
             thanks to our previous lemma about stability of the environement upon reduction. *)
         inversion MCs2; subst; clear MCs2.
-        econstructor.
-        rewrite apply_state_append_stack.
-        simpl; unfold apply_cont.
-        rewrite (surjective_pairing (apply_state_aux s2)); simpl.
-        repeat f_equal.
-        match goal with
-          [h: plus cred ?s1 ?s2 |- ?env = snd (apply_state_aux ?s2)] =>
-            replace env with (snd (apply_state_aux s1));
-            try solve [simpl; eauto]
-        end.
-        eapply creds_apply_state_sigma_stable_eq;
-        eauto with sequences.
+        match_conf.
       }
     }
     { destruct IHHred with (mode_eval t2 [] env0) as (s2 & Hs1s2 & Hs2).
@@ -873,11 +921,7 @@ Proof.
         all: repeat cstep.
       }
       { inversion Hs2; subst; clear Hs2.
-        econstructor.
-        rewrite apply_state_append_stack.
-        simpl; unfold apply_cont.
-        rewrite (surjective_pairing (apply_state_aux s2)); simpl.
-        repeat f_equal.
+        match_conf.
       }
     }
     { destruct IHHred with (mode_eval t0 [] env0) as (s2 & Hs1s2 & Hs2).
@@ -887,18 +931,7 @@ Proof.
       exists (append_stack s2 [CBinopR op t3]); split.
       { repeat cstep. }
       { inversion Hs2; subst; clear Hs2.
-        econstructor.
-        rewrite apply_state_append_stack.
-        simpl; unfold apply_cont.
-        rewrite (surjective_pairing (apply_state_aux s2)); simpl.
-        repeat f_equal.
-        match goal with
-          [h: plus cred ?s1 ?s2 |- ?env = snd (apply_state_aux ?s2)] =>
-            replace env with (snd (apply_state_aux s1));
-            try solve [simpl; eauto]
-        end.
-        eapply creds_apply_state_sigma_stable_eq;
-        eauto with sequences.
+        match_conf.
       }
     }
     { destruct IHHred with (mode_eval t2 [] env0) as (s2 & Hs1s2 & Hs2).
@@ -910,41 +943,35 @@ Proof.
         all: repeat cstep.
       }
       { inversion Hs2; subst; clear Hs2.
-        econstructor.
-        rewrite apply_state_append_stack.
-        simpl; unfold apply_cont.
-        rewrite (surjective_pairing (apply_state_aux s2)); simpl.
-        repeat f_equal.
+        match_conf.
       }
     }
     { (* binop *)
       induction t1; induction t2; tryfalse.
       all: exists (mode_cont [] env0 (RValue v)); split.
-      all: try solve [ econstructor; simpl; eauto ].
+      all: try solve [ match_conf ].
       all: unpack_subst_of_env_cons.
       all: repeat cstep.
     }
     { exists (mode_cont [] env0 RConflict); split.
       { repeat cstep. }
-      { econstructor; simpl; eauto. }
+      { match_conf. }
     }
     { exists (mode_cont [] env0 REmpty); split.
       { repeat cstep. }
-      { econstructor; simpl; eauto. }
+      { match_conf. }
     }
     { induction t1; unpack_subst_of_env_cons; tryfalse;
       exists (mode_cont [] env0 RConflict); split.
-      { repeat cstep. }
-      { econstructor; simpl; eauto. }
-      { repeat cstep. }
-      { econstructor; simpl; eauto. }
+      all: match_conf.
+      all: repeat cstep.
     }
     { induction t1; unpack_subst_of_env_cons; tryfalse;
       exists (mode_cont [] env0 REmpty); split.
       { repeat cstep. }
-      { econstructor; simpl; eauto. }
+      { match_conf. }
       { repeat cstep. }
-      { econstructor; simpl; eauto. }
+      { match_conf. }
     }
 
     { (* Conflict *)
@@ -957,147 +984,70 @@ Proof.
 
         induction ti; simpl in *; tryfalse;
         induction tj; simpl in *; tryfalse.
-        (* Three cases: ti is a variable, ti is a value, ti is conflict. *)
+        (* Two cases: ti is a variable, ti is a value. *)
 
         all: unpack_subst_of_env_cons.
         all: repeat cstep.
       }
-      { econstructor; simpl; eauto. }
+      { match_conf. }
     }
     { induction u; unpack_subst_of_env_cons; tryfalse.
       { exists (mode_cont [] env0 (RValue v)); split.
         { repeat cstep. }
-        { econstructor; simpl; eauto.
-          unfold subst_of_env; rewrite <- Heqo; eauto.
-        }
+        { match_conf. }
       }
       { exists (mode_cont [] env0 (RValue v)); split.
         { repeat cstep. }
-        { econstructor; simpl; eauto. }
+        { match_conf. }
       }
     }
     { exists (mode_cont [] env0 RConflict); split.
       { repeat cstep. }
-      { econstructor; simpl; eauto. }
+      { match_conf. }
     }
 
-    { (** not so easy : we need to take a look into [count_f (neqb Empty) ts0]. If it is zero, the correct derivation is [CDefault (None, u' :: ?, ?, ?)]. If it is one, the correct deriviation is [CDefault (None, u' :: ?, ?, ?)]. If it is two, the correct deriviation is [RConflict]. *)
-      destruct IHHred with (mode_eval u [] env0) as (s2 & Hs1s2 & Hs2); try solve [simpl; econstructor; eauto].
+    { destruct IHHred
+        with (mode_eval u [] env0)
+        as (s2 & Hs1s2 & Hs2);
+      try solve [simpl; econstructor; eauto].
 
-      remember (count_f (fun ti => negb (eqb_term Empty ti)) ts0).
-      induction n as [|n _]; [|induction n as [|n _]].
-      { assert (List.Forall (eq Empty) ts0). { admit "list property". }
-        exists (append_stack s2 [CDefault None ts tjust tcons]); split.
+      exists (append_stack s2 [CDefault None ts tjust tcons]); split.
+      { repeat cstep. }
+      { inversion Hs2; clear Hs2; subst.
+        match_conf.
+        admit "same issue as before.".
+      }
+    }
+    { unpack_subst_of_env_cons.
+      destruct IHHred
+        with (mode_eval u0 [] env0)
+        as (s2 & Hs1s2 & Hs2).
+      { match_conf. }
+      { simpl; eauto. }
+
+      induction u; unpack_subst_of_env_cons; tryfalse.
+      { exists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]); split.
         { repeat cstep. }
-        {
-          simpl.
-          inversion Hs2; subst; clear Hs2; subst; simpl.
-          eapply match_conf_heads_empty.
-          { econstructor.
-            rewrite apply_state_append_stack; simpl.
-            simpl; unfold apply_cont.
-            rewrite (surjective_pairing (apply_state_aux s2)); simpl.
-            assert (snd (apply_state_aux (mode_eval u [] env0)) = (snd (apply_state_aux s2))). { eapply creds_apply_state_sigma_stable_eq; eauto with sequences. }
-            simpl in *; subst.
-            repeat f_equal.
-          } {
-            clear -H0.
-            induction ts0; simpl; econstructor; unpack; subst; asimpl; eauto.
-          }
+        { match_conf.
+          admit "same issue as before".
         }
       }
-      { assert (Htmp: exists ts1 ti ts2, ts1 ++ ti :: ts2 = ts0 /\ List.Forall (eq Empty) ts1 /\ List.Forall (eq Empty) ts2 /\ ti <> Empty). {
-          admit "list proprerty".
-        }
-        destruct Htmp as (ts1 & ti & ts2 & Ht & Hts1 & Hti & Hts2).
-        subst; unpack.
-        unpack_subst_of_env_cons.
-        asimpl in H; unpack.
-        destruct ti; simpl in *; tryfalse.
-        { unpack_subst_of_env_cons.
-          exists (append_stack s2 [CDefault (Some v) ts tjust tcons]); split.
-          { rewrite <- List.app_assoc.
-            rewrite <- List.app_comm_cons.
-            repeat cstep.
-          }
-          { asimpl.
-            inversion Hs2; subst; clear Hs2; subst; simpl.
-            { econstructor.
-              rewrite apply_state_append_stack; simpl.
-              simpl; unfold apply_cont.
-              rewrite (surjective_pairing (apply_state_aux s2)); simpl.
-              assert (snd (apply_state_aux (mode_eval u [] env0)) = (snd (apply_state_aux s2))). { eapply creds_apply_state_sigma_stable_eq; eauto with sequences. }
-              simpl in *; subst.
-              admit "Error here : the match_conf invariant is not strong enought here: we need to be able to remove empty from the middle of the list.".
-            }
-          }
-        }
-        { unpack_subst_of_env_cons.
-          exists (mode_cont [] (env0) RConflict); split.
-          { rewrite <- List.app_assoc.
-            rewrite <- List.app_comm_cons.
-            repeat cstep.
-          }
-          { admit "same idea as the previous case.". }
-        }
-        { unpack_subst_of_env_cons.
-          exists (append_stack s2 [CDefault (Some v) ts tjust tcons]); split.
-          { rewrite <- List.app_assoc.
-            rewrite <- List.app_comm_cons.
-            repeat cstep.
-          }
-          {
-            simpl.
-            inversion Hs2; subst; clear Hs2; subst; simpl.
-            eapply match_conf_empty.
-            { econstructor.
-              rewrite apply_state_append_stack; simpl.
-              simpl; unfold apply_cont.
-              rewrite (surjective_pairing (apply_state_aux s2)); simpl.
-              assert (snd (apply_state_aux (mode_eval u [] env0)) = (snd (apply_state_aux s2))). { eapply creds_apply_state_sigma_stable_eq; eauto with sequences. }
-              simpl in *; subst.
-              admit "Error here : the match_conf invariant is not strong enought here: we need to be able to remove empty from the middle of the list.".
-            } {
-              admit "badly applied previous lemma".
-            }
-          }
+      { exists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]); split.
+        { repeat cstep. }
+        { match_conf.
+          admit "same issue as before".
         }
       }
-      {
-        assert (Htmp: exists ts1 ti ts2 tj ts3, ts1 ++ ti :: ts2 ++ tj :: ts3 = ts0 /\ List.Forall (eq Empty) ts1 /\ List.Forall (eq Empty) ts2 /\ ti <> Empty /\ tj <> Empty). { admit. }
-        destruct Htmp as (ts1 & ti & ts2 & tj & ts3 & Ht & Hts1 & Hts2 & Hti & Htj).
-        subst; asimpl in *.
-        unpack_subst_of_env_cons; unpack.
-        exists (mode_cont [] (env0) RConflict); split.
-        { induction ti; tryfalse;
-          induction tj; tryfalse.
-          all: unpack_subst_of_env_cons.
-          all: repeat progress (
-            try rewrite <- List.app_assoc;
-            rewrite <- List.app_comm_cons
-          ).
-          all: repeat cstep.
-        }
-        { admit "does not work neither.". }
-        }
     }
 
     { destruct IHHred with (mode_eval tjust [] env0) as (s2 & Hs1s2 & Hs2).
-      { econstructor; simpl; eauto. }
+      { match_conf. }
       { simpl; eauto. }
 
       exists (append_stack s2 [CDefaultBase tcons]); split.
       { repeat cstep. }
-      { econstructor.
-        rewrite apply_state_append_stack; simpl.
-        rewrite (surjective_pairing (apply_state_aux s2)); simpl.
-        inversion Hs2; subst; clear Hs2.
-        repeat f_equal.
-        { admit "require to use the match_empty constructor here.". }
-        { replace env0 with (snd (apply_state_aux (mode_eval tjust [] env0)))
-          by (simpl; eauto).
-          eapply creds_apply_state_sigma_stable_eq; eauto with sequences.
-        }
+      { match_conf.
+        admit "same issue as before".
       }
     }
     { induction tjust; tryfalse; eauto; unpack_subst_of_env_cons.
@@ -1134,29 +1084,18 @@ Proof.
 
       exists (append_stack s2 [CMatch t0 t3]); split.
       { repeat cstep. }
-      { econstructor.
-        rewrite apply_state_append_stack; simpl.
-        rewrite (surjective_pairing (apply_state_aux s2)); simpl.
-        inversion Hs2; subst; clear Hs2.
-        repeat f_equal.
-        { replace env0 with (snd (apply_state_aux (mode_eval u [] env0)))
-          by (simpl; eauto).
-          eapply creds_apply_state_sigma_stable_eq; eauto with sequences.
-        }
-        { replace env0 with (snd (apply_state_aux (mode_eval u [] env0)))
-          by (simpl; eauto).
-          eapply creds_apply_state_sigma_stable_eq; eauto with sequences.
-        }
+      { inversion Hs2; subst; clear Hs2.
+        match_conf.
       }
     }
     { induction u; tryfalse; unpack_subst_of_env_cons.
       { exists (mode_eval t0 [] (env0)); split.
         { repeat cstep. }
-        { econstructor; asimpl; eauto. }
+        { match_conf. }
       }
       { exists (mode_eval t0 [] (env0)); split.
         { repeat cstep. }
-        { econstructor; asimpl; eauto. }
+        { match_conf. }
       }
     }
     { induction u; tryfalse; unpack_subst_of_env_cons.
@@ -1179,11 +1118,8 @@ Proof.
 
       exists (append_stack s2 [CSome]); split.
       { repeat cstep. }
-      { econstructor.
-        rewrite apply_state_append_stack; simpl.
-        rewrite (surjective_pairing (apply_state_aux s2)); simpl.
-        inversion Hs2; subst; clear Hs2.
-        eauto.
+      { inversion Hs2; subst; clear Hs2.
+        match_conf.
       }
     }
     { induction t1; tryfalse; unpack_subst_of_env_cons.
@@ -1286,14 +1222,74 @@ Proof.
     { admit. }
     { admit. }
     { admit. }
-    { induction k; induction s1; intro MC; inversion MC; clear MC;
-      intros;
-      repeat (simpl in *; autorewrite with apply_conts in *; subst).
-      all: simpl_apply_cont; try induction o; tryfalse.
-      { admit. }
-      { admit. }
-      { admit. }
-      { admit. }
-     }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { induction s1;
+      intros MC; inversion MC; subst; clear MC; simpl;
+      intro Heq; rewrite <- Heq in *; clear Heq;
+      induction k; try induction o;
+      repeat rewrite append_stack_eval in *;
+      repeat rewrite append_stack_cont in *;
+      match_conf; tryfalse.
+      { assert (Hsred': sred (ESome t1) (ESome t2)). { econstructor; eauto. }
+        edestruct (IHkappa _ _ Hsred' (mode_eval e kappa env0)) as (s2 & Hs1s2 & Hs2).
+        { match_conf. }
+        { simpl; eauto. }
+
+        aexists (append_stack s2 [CReturn sigma]).
+      }
+      { injections.
+        edestruct (IHkappa _ _ Hred (mode_eval e kappa env0)) as (s2 & Hs1s2 & Hs2).
+        { match_conf. }
+        { simpl; eauto. }
+
+        aexists (append_stack s2 [CSome]).
+      }
+      { assert (Hsred': sred (ESome t1) (ESome t2)). { econstructor; eauto. }
+        edestruct (IHkappa _ _ Hsred' (mode_cont kappa env0 result)) as (s2 & Hs1s2 & Hs2).
+        { match_conf. }
+        { simpl; eauto. }
+
+        aexists (append_stack s2 [CReturn sigma]).
+      }
+      { injections.
+        edestruct (IHkappa _ _ Hred (mode_cont kappa env0 result)) as (s2 & Hs1s2 & Hs2).
+        { match_conf. }
+        { simpl; eauto. }
+
+        aexists (append_stack s2 [CSome]).
+      }
+    }
+    { induction s1;
+      intros MC; inversion MC; subst; clear MC; simpl;
+      intro Heq; rewrite <- Heq in *; clear Heq;
+      induction k; try induction o;
+      repeat rewrite append_stack_eval in *;
+      repeat rewrite append_stack_cont in *;
+      try solve [match_conf; tryfalse].
+      { assert (Hred': sred (ESome (Value v)) (Value (VSome v))). { econstructor; eauto. }
+
+        edestruct (IHkappa _ _ Hred' (mode_eval e kappa env0)) as (s2 & Hs1s2 & Hs2).
+        { match_conf. }
+        { simpl; eauto. }
+
+        aexists (append_stack s2 [CReturn sigma]).
+      }
+      { admit "impossible : [Value _ = apply_state_aux (mode_eval ...)] is not possible.".
+      }
+      { assert (Hred': sred (ESome (Value v)) (Value (VSome v))). { econstructor; eauto. }
+        edestruct (IHkappa _ _ Hred' (mode_cont kappa env0 result)) as (s2 & Hs1s2 & Hs2).
+        { match_conf. }
+        { simpl; eauto. }
+
+        aexists (append_stack s2 [CReturn sigma]).
+      }
+      { match_conf. injections; simpl in *.
+
+      }
+    }
   }
 Admitted.
