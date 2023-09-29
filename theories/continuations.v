@@ -447,14 +447,16 @@ Proof.
   econstructor; try eapply append_stack_stable; try eapply append_stack_stable_star; eauto.
 Qed.
 
-Theorem append_stack_all_cont kappa sigma r:
-  mode_cont kappa sigma r = append_stack (mode_cont [] sigma r) kappa.
+Theorem append_stack_cont kappa1 kappa2 sigma r:
+  mode_cont (kappa1++kappa2) sigma r
+  = append_stack (mode_cont kappa1 sigma r) kappa2.
 Proof.
   simpl; eauto.
 Qed.
 
-Theorem append_stack_all_eval t kappa sigma:
-  mode_eval t kappa sigma = append_stack (mode_eval t [] sigma) kappa.
+Theorem append_stack_eval t kappa1 kappa2 sigma:
+  mode_eval t (kappa1++kappa2) sigma
+  = append_stack (mode_eval t kappa1 sigma) kappa2.
 Proof.
   simpl; eauto.
 Qed.

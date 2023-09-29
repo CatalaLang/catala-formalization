@@ -779,7 +779,7 @@ end.
 
 
 Ltac match_conf :=
-  repeat match goal with
+  match goal with
   | [ |- match_conf _ _ ] => econstructor
   | [h: match_conf _ _ |- _ ] =>
     inversion h; subst; clear h
@@ -810,7 +810,7 @@ Ltac match_conf :=
   | _ => progress injections
   end.
 
-Goal forall v kappa result env0,
+Lemma value_apply_conts_inversion_cont: forall v kappa result env0,
   Value v = fst (apply_conts kappa (apply_return result, env0)) ->
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\
   result = RValue v.
@@ -818,7 +818,7 @@ Proof.
   induction kappa as [|k kappa] using List.rev_ind.
   { induction result; simpl; split; inj; subst; eauto. }
   { induction result; induction k.
-    all: intros; try induction o; match_conf; inj.
+    all: intros; try induction o; repeat match_conf; inj.
     { destruct (IHkappa (RValue v0) _ H); inj; split; eauto.
       eapply List.Forall_app; eauto.
     }
@@ -827,7 +827,9 @@ Proof.
   }
 Qed.
 
-Goal forall v kappa t env0,
+
+
+Lemma value_apply_conts_inversion_eval: forall v kappa t env0,
   Value v = fst (apply_conts kappa (t, env0)) ->
   (exists x, t = Var x /\ Value v = subst_of_env env0 x) \/
   (t = Value v)
@@ -846,8 +848,6 @@ Proof.
     end.
   }
 Qed.
-
-Goal 
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
