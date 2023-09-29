@@ -824,7 +824,7 @@ Proof.
   { injections; subst; eauto. }
 Qed.
 
-Lemma process_return: forall kappa1 kappa2 env0 result,
+Lemma process_return {kappa1 env0 result}: forall kappa2,
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa1 ->
   exists env1,
     star cred
@@ -875,11 +875,26 @@ Ltac cstep :=
       eapply star_trans; [solve [eapply process_return; eauto]]
   | [
     h: List.Forall (fun k => exists sigma, k = CReturn sigma) ?kappa1
-    |- star cred
-        (mode_cont (?kappa1 ++ _) _ _)
+    |- plus cred
+        (mode_cont (?kappa1 ++ ?kappa2) ?env ?r)
         _
     ] =>
-      eapply star_plus_trans; [solve [eapply process_return; eauto]]
+      let env' := fresh "env" in
+      let h' := fresh "h" in
+      destruct (@process_return _ env r kappa2 h) as (env' & h');
+      eapply (star_plus_trans h');
+      clear h'
+  | [
+    h: List.Forall (fun k => exists sigma, k = CReturn sigma) ?kappa1
+    |- star cred
+        (mode_cont (?kappa1 ++ ?kappa2) ?env ?r)
+        _
+    ] =>
+      let env' := fresh "env" in
+      let h' := fresh "h" in
+      destruct (@process_return _ env r kappa2 h) as (env' & h');
+      eapply (star_trans h');
+      clear h'
   | [
     h: List.Forall (eq Empty) ?ts1
     |- star cred (mode_cont (CDefault _ (?ts1 ++ _) _ _::_) _ REmpty) _
