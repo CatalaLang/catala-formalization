@@ -293,7 +293,7 @@ Proof.
   | [
     h1: sred ?t ?t1,
     h2: sred ?t ?t2,
-    IHsred: forall t3, sred ?t _ -> _
+    IHsred: forall t3, sred ?t t3 -> forall t4, sred ?t t4 -> t3 = t4
     |- _ ] =>
     eapply IHsred; eauto
 
@@ -310,7 +310,6 @@ Proof.
   (* Simplify, substitute etc to continue the search by saturation*)
   | _ => unpack; injections; subst; tryfalse; eauto
   end.
-
 
   (* After saturation, there is only one case left. *)
   { rewrite <- H in H5; injections; eauto. }

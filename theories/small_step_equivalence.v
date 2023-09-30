@@ -638,6 +638,8 @@ Ltac unpack_subst_of_env_cons :=
   end
 .
 
+(* -------------------------------------------------------------------------- *)
+
 Definition count_f
   {A}
   (p: A -> bool)
@@ -749,6 +751,7 @@ Proof.
   }
 Qed.
 
+(* -------------------------------------------------------------------------- *)
 
 Import Learn.
 
@@ -760,7 +763,6 @@ Ltac match_conf1 :=
   | [ h: plus cred ?s1 ?s2 |- _] =>
     learn (plus_star h)
   | [ hs1s2: star cred (mode_eval ?t [] ?env) ?s2 |- _ ] =>
-    replace env with (snd (apply_state_aux (mode_eval t [] env))) by (simpl; eauto);
     learn (creds_apply_state_sigma_stable hs1s2)
   | [ |- context [apply_state_aux (append_stack _ _)]] =>
     rewrite apply_state_append_stack
@@ -787,8 +789,7 @@ Ltac match_conf1 :=
 Lemma value_apply_conts_inversion_eval {v kappa t env0}:
   Value v = fst (apply_conts kappa (t, env0)) ->
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
-  (exists x, t = Var x /\ Value v = subst_of_env env0 x) \/
-  (t = Value v))
+  (Value v = t))
   .
 Proof.
   split; revert v kappa t env0 H.
@@ -815,44 +816,88 @@ Qed.
 Lemma value_apply_conts_inversion_cont {v kappa result env0}:
   Value v = fst (apply_conts kappa (apply_return result, env0)) ->
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\
-  result = RValue v.
+  RValue v = result.
 Proof.
   intros H.
-  destruct (value_apply_conts_inversion_eval H) as (Hkappa & [(x & Hx & Hv)|Hv]).
+  destruct (value_apply_conts_inversion_eval H) as (Hkappa & Hv).
   all: induction result; simpl in *.
   all: try congruence.
   { injections; subst; eauto. }
 Qed.
 
-Lemma process_return {kappa1 env0 result}: forall kappa2,
-  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa1 ->
-  exists env1,
-    star cred
-      (mode_cont (kappa1 ++ kappa2) env0 result)
-      (mode_cont kappa2 env1 result)
-  .
-Proof.
-  intros. revert env0.
-  induction H as [|? kappa1 [env1 Hk]]; simpl; subst.
-  { eexists; eapply star_refl. }
-  { destruct (IHForall env1).
-    eexists.
-    eapply star_step. { econstructor. }
-    eauto.
-  }
-Qed.
-
 Ltac match_conf :=
   repeat match goal with
   | [h: Value _ = fst (apply_conts _ (apply_return _, _)) |- _ ] =>
-    learn (value_apply_conts_inversion_cont h)
+    learn (value_apply_conts_inversion_cont h);
+    clear h
   | [h: Value _ = fst (apply_conts _ (_, _)) |- _ ] =>
-    learn (value_apply_conts_inversion_eval h)
-  | [h: _ \/ _ |- _] =>
-    destruct h
+    learn (value_apply_conts_inversion_eval h);
+    clear h
   | _ => progress match_conf1
   | _ => progress unpack
   end.
+
+
+(* -------------------------------------------------------------------------- *)
+
+
+Fixpoint last (l:list cont) (env0:list value) : list value :=
+match l with
+  | [] => env0
+  | [CReturn env1] => env1
+  | [_] => env0
+  | _ :: l => last l env0
+end.
+
+Lemma last_last:
+  forall l env0 env1,
+    last (l ++ [CReturn env0]) env1 = env0.
+Proof.
+  intro l; induction l as [|? l IHl]; intros; [ reflexivity | ].
+  simpl; rewrite IHl.
+  destruct l; simpl; case a; simpl; eauto.
+Qed.
+
+
+
+Lemma process_return {kappa1 env0 result}: forall kappa2,
+  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa1 ->
+  star cred
+    (mode_cont (kappa1 ++ kappa2) env0 result)
+    (mode_cont kappa2 (last kappa1 env0) result)
+  .
+Proof.
+  intros. revert env0.
+  induction H as [|? kappa1 [env1 Hk]]; subst.
+  { intros; eapply star_refl. }
+  { destruct H as [|? kappa1 [env2 Hk]]; subst; try solve [simpl; eauto]; intros.
+    { eapply star_step. { econstructor. }
+      simpl; eauto.
+    }
+    { replace
+        (last (CReturn env1 :: CReturn env2 :: kappa1) env0) with
+        (last (CReturn env2 :: kappa1) env0) by (simpl; eauto).
+      repeat rewrite <- List.app_comm_cons.
+      eapply star_step. { econstructor. }
+      replace
+        (last (CReturn env2 :: kappa1) env0) with
+        (last (CReturn env2 :: kappa1) env1); eauto.
+
+      { (* we need to know that if the last item is indeed an CReturn,
+           then the result of last (CRetrn env2 :: kappa1) env0 will nether be env0. *)
+        clear -H.
+        destruct kappa1 using List.rev_ind.
+        { eauto. }
+        { unpack; subst.
+          rewrite List.app_comm_cons.
+          repeat rewrite last_last; eauto.
+        }
+      }
+    }
+  }
+Qed.
+
+
 
 Ltac cstep :=
   match goal with
@@ -872,29 +917,21 @@ Ltac cstep :=
         (mode_cont (?kappa1 ++ _) _ _)
         _
     ] =>
-      eapply star_trans; [solve [eapply process_return; eauto]]
+      eapply star_trans; [solve [eapply process_return; eauto]|]
   | [
     h: List.Forall (fun k => exists sigma, k = CReturn sigma) ?kappa1
     |- plus cred
         (mode_cont (?kappa1 ++ ?kappa2) ?env ?r)
         _
     ] =>
-      let env' := fresh "env" in
-      let h' := fresh "h" in
-      destruct (@process_return _ env r kappa2 h) as (env' & h');
-      eapply (star_plus_trans h');
-      clear h'
+      eapply star_plus_trans; [solve [eapply process_return; eauto]|]
   | [
     h: List.Forall (fun k => exists sigma, k = CReturn sigma) ?kappa1
-    |- star cred
+    |- plus cred
         (mode_cont (?kappa1 ++ ?kappa2) ?env ?r)
         _
     ] =>
-      let env' := fresh "env" in
-      let h' := fresh "h" in
-      destruct (@process_return _ env r kappa2 h) as (env' & h');
-      eapply (star_trans h');
-      clear h'
+      eapply star_trans; [solve [eapply process_return; eauto]|]
   | [
     h: List.Forall (eq Empty) ?ts1
     |- star cred (mode_cont (CDefault _ (?ts1 ++ _) _ _::_) _ REmpty) _
@@ -915,6 +952,7 @@ Ltac cstep :=
     eapply star_refl
 end.
 
+(* -------------------------------------------------------------------------- *)
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
