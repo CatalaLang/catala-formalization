@@ -1279,6 +1279,9 @@ Proof.
         destruct (IHkappa _ _ Hred s1)
           as (s2 & Hs1s2 & Hs2);
           try solve [subst; econstructor; simpl; eauto].
+        aexists (append_stack s2 [k]).
+        { rewrite apply_state_append_stack in H. }
+        { f_equal. f_equal. f_equal. repeat f_equal. match_conf. }
         exists (append_stack s2 [k]); split.
         { eapply append_stack_stable_plus; eauto with sequences. }
         { econstructor.
@@ -1353,7 +1356,15 @@ Proof.
     { admit. }
     { admit. }
     { admit. }
-    { admit. }
+    { induction s1;
+      intros MC; inversion MC; subst; clear MC; simpl;
+      intro Heq; rewrite <- Heq in *; clear Heq;
+      induction k; try induction o;
+      repeat rewrite append_stack_eval in *;
+      repeat rewrite append_stack_cont in *;
+      match_conf; try solve [tryfalse].
+      { }
+    }
     { induction s1;
       intros MC; inversion MC; subst; clear MC; simpl;
       intro Heq; rewrite <- Heq in *; clear Heq;
@@ -1405,7 +1416,10 @@ Proof.
 
         aexists (append_stack s2 [CReturn sigma]).
       }
-      { admit.
+      {
+        induction e; match_conf; unpack_subst_of_env_cons; try congruence.
+        { aexists (mode_cont [] (last kappa env0) (RValue (VSome v0))). }
+        { aexists (mode_cont [] (last kappa env0) (RValue (VSome v0))). }
       }
       { assert (Hred': sred (ESome (Value v)) (Value (VSome v))). { econstructor; eauto. }
         edestruct (IHkappa _ _ Hred' (mode_cont kappa env0 result)) as (s2 & Hs1s2 & Hs2).
@@ -1415,9 +1429,7 @@ Proof.
         aexists (append_stack s2 [CReturn sigma]).
       }
       { match_conf; subst; simpl in *; try congruence; repeat injections.
-        eexists; split.
-        { repeat cstep. }
-
+        aexists (mode_cont [] (last kappa env0) (RValue (VSome v))).
       }
     }
   }
