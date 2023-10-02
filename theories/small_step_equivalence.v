@@ -1070,6 +1070,9 @@ Proof.
   all: aexists (append_stack s2 [CReturn sigma]).
 Qed.
 
+Inductive mark (P:Prop) :=
+| Mark (H:P).
+
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
   forall s1, match_conf s1 t1 ->
@@ -1387,11 +1390,12 @@ Proof.
         remember (mode_cont kappa env0 r) as s1
       end.
 
-    all: intros MC; inversion MC; subst; clear MC; simpl.
+    all: intros MC; inversion MC; clear MC; simpl.
     all:
       repeat rewrite append_stack_eval in *;
       repeat rewrite append_stack_cont in *;
-      match_conf; try solve [tryfalse]; subst.
+      match_conf; try solve [tryfalse].
+
     { induction e; match_conf; tryfalse.
       { unpack_subst_of_env_cons.
         induction t2; tryfalse.
@@ -1432,13 +1436,64 @@ Proof.
         aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
       }
     }
-    { aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v :: sigma_cl)).
+    { subst; aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v :: sigma_cl)).
     }
-    { match goal with
-      | [|- context [plus cred (mode_eval ?t (?kappa ++ [?k] ?env0)) _]] =>
-        idtac
-      end.
-      destruct (IHHred' ).
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CClosure t_cl sigma_cl]).
+    }
+    { admit.
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CClosure t_cl sigma_cl]).
+    }
+    { admit.
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CBinopR op0 t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { subst; inversion Hred'. }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CBinopR op0 t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_cont kappa env0 result)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CBinopL op0 v1]).
+    }
+    { admit. }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CBinopL op0 v1]).
     }
     { admit. }
     { admit. }
@@ -1449,96 +1504,706 @@ Proof.
     { admit. }
     { admit. }
     { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
+    { subst. destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
+    { destruct (IHkappa _ _ Hred' s1) as (s2 & Hs1s2 & Hs2);
+      try solve [subst; match_conf];
+      unpack_subst_of_env_cons.
+      aexists (append_stack s2 [CAppR t0]).
+      { do 3 f_equal.
+        replace (apply_conts _ _) with (apply_state_aux (mode_eval e kappa env0)) by (simpl; eauto).
+        eapply creds_apply_state_sigma_stable; eauto.
+      }
+    }
 Admitted.
