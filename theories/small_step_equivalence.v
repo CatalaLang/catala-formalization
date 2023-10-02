@@ -1369,19 +1369,29 @@ Proof.
       { econstructor; simpl; eauto. }
     }
   }
-  { induction 1.
+  {
+    intros t1 t2 Hred'.
+    assert (Hred: sred t1 t2) by eauto.
+    induction Hred'.
     all: induction s1; induction k; try induction o.
+
 
     (* Getting rid of all the CReturn cases*)
     all: try solve [intros; eapply induction_case_CReturn; eauto; econstructor; eauto].
     all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
+    all: intros MC Heqkappa; revert MC; simpl in Heqkappa; subst.
+    all: match goal with
+      | [|- context [mode_eval ?t (?kappa ++ [?k]) ?env0]] =>
+        remember (mode_eval t kappa env0) as s1
+      | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
+        remember (mode_cont kappa env0 r) as s1
+      end.
 
     all: intros MC; inversion MC; subst; clear MC; simpl.
-    all: intros; subst.
     all:
       repeat rewrite append_stack_eval in *;
       repeat rewrite append_stack_cont in *;
-      match_conf; try solve [tryfalse].
+      match_conf; try solve [tryfalse]; subst.
     { induction e; match_conf; tryfalse.
       { unpack_subst_of_env_cons.
         induction t2; tryfalse.
@@ -1412,8 +1422,7 @@ Proof.
         aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v0 :: sigma_cl)).
       }
     }
-    { induction result; simpl in *; try congruence; injections; subst.
-      unpack_subst_of_env_cons.
+    { unpack_subst_of_env_cons.
       induction t2; tryfalse.
       { rewrite last'_snd_apply_conts in *.
         unpack_subst_of_env_cons.
@@ -1423,108 +1432,13 @@ Proof.
         aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
       }
     }
-    { induction result; simpl in *; tryfalse; injections; subst. 
-      unpack_subst_of_env_cons.
-      aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v0 :: sigma_cl)).
+    { aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v :: sigma_cl)).
     }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    
-    { subst.
-      learn (lam_apply_conts_inversion_eval H); match_conf.
-      learn (subst_of_env_Lam H2); match_conf; subst.
-      aexists (mode_cont [] sigma (RValue (Closure x env0))).
-      { admit "same issue about lambda as in the initilization case.". }
-    }
-    { learn (lam_apply_conts_inversion_eval H); match_conf.
-      induction result; simpl in *; congruence.
-    }
-    }
-    {
-      match goal with [x: cont |- _] => induction x end;
-      induction s1; inversion 1; intros;
-      repeat (simpl in *; autorewrite with apply_conts in *; subst).
-
-      (* Getting rid of all the cases that are not real. *)
-      all: try match goal with [o: option value |- _] => induction o end.
-      all: match goal with
-        | [ h: context [apply_cont (apply_conts ?kappa ?p)] |- _] =>
-          rewrite (surjective_pairing (apply_conts kappa p)) in h;
-          unfold apply_cont in h;
-          simpl in h;
-          inj
-        end.
-      all: try solve [inversion Hred].
-      { process_induction.
-        destruct (IHkappa _ _ Hred s1)
-          as (s2 & Hs1s2 & Hs2);
-          try solve [subst; econstructor; simpl; eauto].
-        aexists (append_stack s2 [k]).
-        { do 3 f_equal.
-          eapply cred_plus_apply_state_sigma_stable_eq; eauto; subst; eauto.
-        }
-      }
-      { process_induction.
-        destruct (IHkappa _ _ Hred s1)
-          as (s2 & Hs1s2 & Hs2);
-          try solve [subst; econstructor; simpl; eauto].
-        exists (append_stack s2 [k]); split.
-        { eapply append_stack_stable_plus; eauto with sequences. }
-        { econstructor.
-          inversion Hs2.
-          rewrite apply_state_append_stack; simpl; rewrite Heqk.
-          simpl_apply_cont.
-          f_equal; eauto; do 2 f_equal.
-          eapply cred_plus_apply_state_sigma_stable_eq; eauto; subst; eauto.
-        }
-      }
-      { process_induction.
-        assert (Hred': sred (App t1 u) (App t2 u)) by (econstructor; eauto).
-        destruct (IHkappa _ _ Hred' s1)
-          as (s2 & Hs1s2 & Hs2);
-          try solve [subst; econstructor; simpl; eauto].
-        exists (append_stack s2 [k]); split.
-        { eapply append_stack_stable_plus; eauto with sequences. }
-        { econstructor.
-          inversion Hs2.
-          rewrite apply_state_append_stack; simpl; rewrite Heqk.
-          simpl_apply_cont.
-          f_equal; eauto; do 2 f_equal.
-        }
-      }
-      { process_induction.
-        assert (Hred': sred (App t1 u) (App t2 u)) by (econstructor; eauto).
-        destruct (IHkappa _ _ Hred' s1)
-          as (s2 & Hs1s2 & Hs2);
-          try solve [subst; econstructor; simpl; eauto].
-        exists (append_stack s2 [k]); split.
-        { eapply append_stack_stable_plus; eauto with sequences. }
-        { econstructor.
-          inversion Hs2.
-          rewrite apply_state_append_stack; simpl; rewrite Heqk.
-          simpl_apply_cont.
-          f_equal; eauto; do 2 f_equal.
-        }
-      }
-    }
-    {
-      induction result; simpl in *; try congruence; injections; subst.
-      unpack_subst_of_env_cons.
-      induction t2; tryfalse.
-      { rewrite last'_snd_apply_conts in *.
-        unpack_subst_of_env_cons.
-        aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
-      }
-      { simpl in *; injections; subst.
-        aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
-      }
+    { match goal with
+      | [|- context [plus cred (mode_eval ?t (?kappa ++ [?k] ?env0)) _]] =>
+        idtac
+      end.
+      destruct (IHHred' ).
     }
     { admit. }
     { admit. }
@@ -1546,81 +1460,85 @@ Proof.
     { admit. }
     { admit. }
     { admit. }
-    { induction s1;
-      intros MC; inversion MC; subst; clear MC; simpl;
-      intro Heq; rewrite <- Heq in *; clear Heq;
-      induction k; try induction o;
-      repeat rewrite append_stack_eval in *;
-      repeat rewrite append_stack_cont in *;
-      match_conf; try solve [tryfalse].
-      { admit. }
-    }
-    { induction s1;
-      intros MC; inversion MC; subst; clear MC; simpl;
-      intro Heq; rewrite <- Heq in *; clear Heq;
-      induction k; try induction o;
-      repeat rewrite append_stack_eval in *;
-      repeat rewrite append_stack_cont in *;
-      match_conf; tryfalse.
-      { assert (Hsred': sred (ESome t1) (ESome t2)). { econstructor; eauto. }
-        edestruct (IHkappa _ _ Hsred' (mode_eval e kappa env0)) as (s2 & Hs1s2 & Hs2).
-        { match_conf. }
-        { simpl; eauto. }
-
-        aexists (append_stack s2 [CReturn sigma]).
-      }
-      { injections.
-        edestruct (IHkappa _ _ Hred (mode_eval e kappa env0)) as (s2 & Hs1s2 & Hs2).
-        { match_conf. }
-        { simpl; eauto. }
-
-        aexists (append_stack s2 [CSome]).
-      }
-      { assert (Hsred': sred (ESome t1) (ESome t2)). { econstructor; eauto. }
-        edestruct (IHkappa _ _ Hsred' (mode_cont kappa env0 result)) as (s2 & Hs1s2 & Hs2).
-        { match_conf. }
-        { simpl; eauto. }
-
-        aexists (append_stack s2 [CReturn sigma]).
-      }
-      { injections.
-        edestruct (IHkappa _ _ Hred (mode_cont kappa env0 result)) as (s2 & Hs1s2 & Hs2).
-        { match_conf. }
-        { simpl; eauto. }
-
-        aexists (append_stack s2 [CSome]).
-      }
-    }
-    { induction s1;
-      intros MC; inversion MC; subst; clear MC; simpl;
-      intro Heq; rewrite <- Heq in *; clear Heq;
-      induction k; try induction o;
-      repeat rewrite append_stack_eval in *;
-      repeat rewrite append_stack_cont in *;
-      try solve [match_conf; tryfalse].
-      { assert (Hred': sred (ESome (Value v)) (Value (VSome v))). { econstructor; eauto. }
-
-        edestruct (IHkappa _ _ Hred' (mode_eval e kappa env0)) as (s2 & Hs1s2 & Hs2).
-        { match_conf. }
-        { simpl; eauto. }
-
-        aexists (append_stack s2 [CReturn sigma]).
-      }
-      {
-        induction e; match_conf; unpack_subst_of_env_cons; try congruence.
-        { aexists (mode_cont [] (last kappa env0) (RValue (VSome v0))). }
-        { aexists (mode_cont [] (last kappa env0) (RValue (VSome v0))). }
-      }
-      { assert (Hred': sred (ESome (Value v)) (Value (VSome v))). { econstructor; eauto. }
-        edestruct (IHkappa _ _ Hred' (mode_cont kappa env0 result)) as (s2 & Hs1s2 & Hs2).
-        { match_conf. }
-        { simpl; eauto. }
-
-        aexists (append_stack s2 [CReturn sigma]).
-      }
-      { match_conf; subst; simpl in *; try congruence; repeat injections.
-        aexists (mode_cont [] (last kappa env0) (RValue (VSome v))).
-      }
-    }
-  }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
 Admitted.
