@@ -753,6 +753,8 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
+(** Inversion lemmas when stack is filled. *)
+
 Import Learn.
 
 Ltac match_conf1 :=
@@ -825,6 +827,20 @@ Proof.
   { injections; subst; eauto. }
 Qed.
 
+Lemma lam_apply_conts_inversion_eval {kappa t t' env0}:
+  Lam t' = fst (apply_conts kappa (t, env0)) ->
+  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
+  (Lam t' = t)).
+Proof.
+Admitted.
+
+Lemma lam_apply_conts_inversion_cont {t' kappa result env0}:
+  Lam t' = fst (apply_conts kappa (apply_return result, env0)) ->
+  False.
+Proof.
+Admitted.
+
+
 Ltac match_conf :=
   repeat match goal with
   | [h: Value _ = fst (apply_conts _ (apply_return _, _)) |- _ ] =>
@@ -840,7 +856,42 @@ Ltac match_conf :=
 
 (* -------------------------------------------------------------------------- *)
 
+Fixpoint last' (l: list cont) (env0: list value) : list value :=
+  match l with
+  | [] => env0
+  | CReturn env1 :: l =>
+    last' l env1
+  | _ :: l =>
+    last' l env0
+  end.
 
+Lemma last'_last:
+  forall l env0 env1,
+    last' (l ++ [CReturn env0]) env1 = env0.
+Proof.
+  induction l.
+  { intros; reflexivity. }
+  { intros; simpl.
+    case a; intros; rewrite IHl; eauto.
+  }
+Qed.
+
+Lemma cred_process_return {kappa1 env0 result}: forall kappa2,
+  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa1 ->
+  star cred
+    (mode_cont (kappa1 ++ kappa2) env0 result)
+    (mode_cont kappa2 (last' kappa1 env0) result)
+  .
+Proof.
+  intros. revert env0.
+  induction H as [|? kappa1 [env1 Hk]]; subst; simpl; intros.
+  { eapply star_refl. }
+  { eapply star_step. { econstructor. }
+    eapply IHForall.
+  }
+Qed.
+
+(* 
 Fixpoint last (l:list cont) (env0:list value) : list value :=
 match l with
   | [] => env0
@@ -860,7 +911,7 @@ Qed.
 
 
 
-Lemma process_return {kappa1 env0 result}: forall kappa2,
+Lemma cred_process_return {kappa1 env0 result}: forall kappa2,
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa1 ->
   star cred
     (mode_cont (kappa1 ++ kappa2) env0 result)
@@ -895,6 +946,14 @@ Proof.
       }
     }
   }
+Qed. *)
+
+Lemma last'_snd_apply_conts :
+  forall kappa env0 t, (snd (apply_conts kappa (t, env0))) = (last' kappa env0).
+Proof.
+  induction kappa.
+  { simpl; eauto. }
+  { induction a; simpl; intros; try induction o; eapply IHkappa. }
 Qed.
 
 
@@ -917,21 +976,21 @@ Ltac cstep :=
         (mode_cont (?kappa1 ++ _) _ _)
         _
     ] =>
-      eapply star_trans; [solve [eapply process_return; eauto]|]
+      eapply star_trans; [solve [eapply cred_process_return; eauto]|]
   | [
     h: List.Forall (fun k => exists sigma, k = CReturn sigma) ?kappa1
     |- plus cred
         (mode_cont (?kappa1 ++ ?kappa2) ?env ?r)
         _
     ] =>
-      eapply star_plus_trans; [solve [eapply process_return; eauto]|]
+      eapply star_plus_trans; [solve [eapply cred_process_return; eauto]|]
   | [
     h: List.Forall (fun k => exists sigma, k = CReturn sigma) ?kappa1
     |- plus cred
         (mode_cont (?kappa1 ++ ?kappa2) ?env ?r)
         _
     ] =>
-      eapply star_trans; [solve [eapply process_return; eauto]|]
+      eapply star_trans; [solve [eapply cred_process_return; eauto]|]
   | [
     h: List.Forall (eq Empty) ?ts1
     |- star cred (mode_cont (CDefault _ (?ts1 ++ _) _ _::_) _ REmpty) _
@@ -1258,8 +1317,77 @@ Proof.
     }
   }
   { induction 1.
-    { admit. }
-    { admit. }
+    { induction s1;
+      intros MC; inversion MC; subst; clear MC; simpl;
+      intro Heq; rewrite <- Heq in *; clear Heq;
+      induction k; try induction o;
+      repeat rewrite append_stack_eval in *;
+      repeat rewrite append_stack_cont in *;
+      match_conf; try solve [tryfalse].
+      { induction e; match_conf; tryfalse.
+        { unpack_subst_of_env_cons.
+          induction t2; tryfalse.
+          { rewrite last'_snd_apply_conts in *.
+            unpack_subst_of_env_cons.
+            aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
+          }
+          { simpl in *; injections; subst.
+            aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
+          }
+        }
+        { unpack_subst_of_env_cons.
+          induction t2; tryfalse.
+          { rewrite last'_snd_apply_conts in *.
+            unpack_subst_of_env_cons.
+            aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
+          }
+          { simpl in *; injections; subst.
+            aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
+          }
+        }
+      }
+      { induction e; match_conf; tryfalse.
+        { unpack_subst_of_env_cons.
+          aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v0 :: sigma_cl)).
+        }
+        { unpack_subst_of_env_cons.
+          aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v0 :: sigma_cl)).
+        }
+      }
+      { admit "idk". }
+      { induction result; simpl in *; try congruence; injections; subst.
+        unpack_subst_of_env_cons.
+        induction t2; tryfalse.
+        { rewrite last'_snd_apply_conts in *.
+          unpack_subst_of_env_cons.
+          aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
+        }
+        { simpl in *; injections; subst.
+          aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
+        }
+      }
+      { induction result; simpl in *; tryfalse; injections; subst. 
+        unpack_subst_of_env_cons.
+        aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v0 :: sigma_cl)).
+      }
+      { admit "idk". }
+    }
+    { induction s1;
+      intros MC; inversion MC; subst; clear MC; simpl;
+      intro Heq; rewrite <- Heq in *; clear Heq;
+      induction k; try induction o;
+      repeat rewrite append_stack_eval in *;
+      repeat rewrite append_stack_cont in *;
+      match_conf; try solve [tryfalse].
+      { learn (lam_apply_conts_inversion_eval H); match_conf.
+        learn (subst_of_env_Lam H2); match_conf; subst.
+        aexists (mode_cont [] sigma (RValue (Closure x env0))).
+        { admit "same issue about lambda as in the initilization case.". }
+      }
+      { learn (lam_apply_conts_inversion_eval H); match_conf.
+        induction result; simpl in *; congruence.
+      }
+    }
     {
       match goal with [x: cont |- _] => induction x end;
       induction s1; inversion 1; intros;
@@ -1280,15 +1408,7 @@ Proof.
           as (s2 & Hs1s2 & Hs2);
           try solve [subst; econstructor; simpl; eauto].
         aexists (append_stack s2 [k]).
-        { rewrite apply_state_append_stack in H. }
-        { f_equal. f_equal. f_equal. repeat f_equal. match_conf. }
-        exists (append_stack s2 [k]); split.
-        { eapply append_stack_stable_plus; eauto with sequences. }
-        { econstructor.
-          inversion Hs2.
-          rewrite apply_state_append_stack; simpl; rewrite Heqk.
-          simpl_apply_cont.
-          f_equal; eauto; do 2 f_equal.
+        { do 3 f_equal.
           eapply cred_plus_apply_state_sigma_stable_eq; eauto; subst; eauto.
         }
       }
@@ -1363,7 +1483,7 @@ Proof.
       repeat rewrite append_stack_eval in *;
       repeat rewrite append_stack_cont in *;
       match_conf; try solve [tryfalse].
-      { }
+      { admit. }
     }
     { induction s1;
       intros MC; inversion MC; subst; clear MC; simpl;

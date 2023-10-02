@@ -4,6 +4,7 @@ Import List.ListNotations.
 Open Scope list_scope.
 Require Import sequences common.
 Require Import Coq.Arith.Arith.
+Require Import Coq.ZArith.ZArith.
 Require Import Bool.
 
 Require Import String.
@@ -317,7 +318,6 @@ Notation "'plus' 'cred' t1 t2" :=
 ).
 
 Section CRED_EXAMPLES.
-  Require Import Coq.ZArith.ZArith.
   Example wtf:
   exists sigma',
     star cred
