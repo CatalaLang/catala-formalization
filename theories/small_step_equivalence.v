@@ -1013,6 +1013,63 @@ end.
 
 (* -------------------------------------------------------------------------- *)
 
+Lemma match_conf_eval_app_CReturn {e kappa sigma env0 t}:
+  match_conf (mode_eval e (kappa ++ [CReturn sigma]) env0) t ->
+  match_conf (mode_eval e (kappa) env0) t.
+Proof.
+  intros MC; inversion MC; subst; clear MC.
+  econstructor.
+  simpl; rewrite apply_conts_app; simpl.
+  unfold apply_cont.
+  rewrite (surjective_pairing (apply_conts kappa (e.[subst_of_env env0], env0))); simpl.
+  eauto.
+Qed.
+
+Lemma match_conf_cont_app_CReturn {result kappa sigma env0 t}:
+  match_conf (mode_cont (kappa ++ [CReturn sigma]) env0 result) t ->
+  match_conf (mode_cont (kappa) env0 result) t.
+Proof.
+  intros MC; inversion MC; subst; clear MC.
+  econstructor.
+  simpl; rewrite apply_conts_app; simpl.
+  unfold apply_cont.
+  rewrite (surjective_pairing (apply_conts kappa _)); simpl.
+  eauto.
+Qed.
+
+Ltac aexists t :=
+  exists t; split; [repeat cstep|match_conf].
+
+Lemma induction_case_CReturn
+  (sigma: list value)
+  (kappa: list cont)
+  (IHkappa: forall t1 t2 : term,
+            sred t1 t2 ->
+            forall s1 : state,
+            match_conf s1 t1 ->
+            kappa = stack s1 ->
+            exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2):
+  forall t1 t2 : term,
+    sred t1 t2 ->
+    forall s1 : state,
+      match_conf s1 t1 ->
+      kappa ++ [CReturn sigma] = stack s1 ->
+      exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2
+.
+Proof.
+  intros t1 t2 Hsred.
+  (* In order to be able to apply the induction, we need to remember that t1 reduces to t2, even after the induction on it. *)
+  remember Hsred as Hsred'.
+  destruct Hsred; clear HeqHsred'.
+  all: intros s1 Hs1.
+  all: induction s1.
+  all: simpl; intros; subst.
+  all: learn (match_conf_eval_app_CReturn Hs1) +
+      learn (match_conf_cont_app_CReturn Hs1).
+  all: destruct (IHkappa _ _ Hsred' _ H) as (s2 & Hs1s2 & Hs2); [simpl; eauto|].
+  all: aexists (append_stack s2 [CReturn sigma]).
+Qed.
+
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
   forall s1, match_conf s1 t1 ->
@@ -1051,10 +1108,6 @@ Ltac simpl_apply_cont :=
     rewrite (surjective_pairing (apply_conts a b)) in h;
     simpl in h
   end.
-
-
-Ltac aexists t :=
-  exists t; split; [repeat cstep|match_conf].
 Proof.
   intros Hred s1 MC.
   remember (stack s1) as kappa.
@@ -1354,7 +1407,7 @@ Proof.
           aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v0 :: sigma_cl)).
         }
       }
-      { admit "idk". }
+      { have sred t1 t2. admit "idk". }
       { induction result; simpl in *; try congruence; injections; subst.
         unpack_subst_of_env_cons.
         induction t2; tryfalse.
@@ -1455,7 +1508,18 @@ Proof.
         }
       }
     }
-    { admit. }
+    {
+      induction result; simpl in *; try congruence; injections; subst.
+      unpack_subst_of_env_cons.
+      induction t2; tryfalse.
+      { rewrite last'_snd_apply_conts in *.
+        unpack_subst_of_env_cons.
+        aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
+      }
+      { simpl in *; injections; subst.
+        aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
+      }
+    }
     { admit. }
     { admit. }
     { admit. }
