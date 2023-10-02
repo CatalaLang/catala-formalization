@@ -159,9 +159,9 @@ Inductive sred: term -> term -> Prop :=
 
   | sred_defaultConflict:
     forall ts ts1 vi ts2 vj ts3 tjust tcons,
+      ts = (ts1 ++ (Value vi) :: ts2 ++ (Value vj) :: ts3)%list ->
       List.Forall (eq Empty) ts1 ->
       List.Forall (eq Empty) ts2 ->
-      ts = (ts1 ++ (Value vi) :: ts2 ++ (Value vj) :: ts3)%list ->
       sred (Default ts tjust tcons) Conflict
   | sred_DefaultEValue:
     forall ts1 vi ts2 tjust tcons,
