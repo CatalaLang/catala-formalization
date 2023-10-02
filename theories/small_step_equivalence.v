@@ -1370,46 +1370,20 @@ Proof.
     }
   }
   { induction 1.
-    { induction s1;
-      intros MC; inversion MC; subst; clear MC; simpl;
-      intro Heq; rewrite <- Heq in *; clear Heq;
-      induction k; try induction o;
+    all: induction s1; induction k; try induction o.
+
+    (* Getting rid of all the CReturn cases*)
+    all: try solve [intros; eapply induction_case_CReturn; eauto; econstructor; eauto].
+    all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
+
+    all: intros MC; inversion MC; subst; clear MC; simpl.
+    all: intros; subst.
+    all:
       repeat rewrite append_stack_eval in *;
       repeat rewrite append_stack_cont in *;
       match_conf; try solve [tryfalse].
-      { induction e; match_conf; tryfalse.
-        { unpack_subst_of_env_cons.
-          induction t2; tryfalse.
-          { rewrite last'_snd_apply_conts in *.
-            unpack_subst_of_env_cons.
-            aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
-          }
-          { simpl in *; injections; subst.
-            aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
-          }
-        }
-        { unpack_subst_of_env_cons.
-          induction t2; tryfalse.
-          { rewrite last'_snd_apply_conts in *.
-            unpack_subst_of_env_cons.
-            aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
-          }
-          { simpl in *; injections; subst.
-            aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
-          }
-        }
-      }
-      { induction e; match_conf; tryfalse.
-        { unpack_subst_of_env_cons.
-          aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v0 :: sigma_cl)).
-        }
-        { unpack_subst_of_env_cons.
-          aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v0 :: sigma_cl)).
-        }
-      }
-      { have sred t1 t2. admit "idk". }
-      { induction result; simpl in *; try congruence; injections; subst.
-        unpack_subst_of_env_cons.
+    { induction e; match_conf; tryfalse.
+      { unpack_subst_of_env_cons.
         induction t2; tryfalse.
         { rewrite last'_snd_apply_conts in *.
           unpack_subst_of_env_cons.
@@ -1419,27 +1393,59 @@ Proof.
           aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
         }
       }
-      { induction result; simpl in *; tryfalse; injections; subst. 
-        unpack_subst_of_env_cons.
+      { unpack_subst_of_env_cons.
+        induction t2; tryfalse.
+        { rewrite last'_snd_apply_conts in *.
+          unpack_subst_of_env_cons.
+          aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
+        }
+        { simpl in *; injections; subst.
+          aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
+        }
+      }
+    }
+    { induction e; match_conf; tryfalse.
+      { unpack_subst_of_env_cons.
         aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v0 :: sigma_cl)).
       }
-      { admit "idk". }
+      { unpack_subst_of_env_cons.
+        aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v0 :: sigma_cl)).
+      }
     }
-    { induction s1;
-      intros MC; inversion MC; subst; clear MC; simpl;
-      intro Heq; rewrite <- Heq in *; clear Heq;
-      induction k; try induction o;
-      repeat rewrite append_stack_eval in *;
-      repeat rewrite append_stack_cont in *;
-      match_conf; try solve [tryfalse].
-      { learn (lam_apply_conts_inversion_eval H); match_conf.
-        learn (subst_of_env_Lam H2); match_conf; subst.
-        aexists (mode_cont [] sigma (RValue (Closure x env0))).
-        { admit "same issue about lambda as in the initilization case.". }
+    { induction result; simpl in *; try congruence; injections; subst.
+      unpack_subst_of_env_cons.
+      induction t2; tryfalse.
+      { rewrite last'_snd_apply_conts in *.
+        unpack_subst_of_env_cons.
+        aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
       }
-      { learn (lam_apply_conts_inversion_eval H); match_conf.
-        induction result; simpl in *; congruence.
+      { simpl in *; injections; subst.
+        aexists (mode_eval t [CReturn (last' kappa env0)] (v0 :: sigma')).
       }
+    }
+    { induction result; simpl in *; tryfalse; injections; subst. 
+      unpack_subst_of_env_cons.
+      aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v0 :: sigma_cl)).
+    }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    
+    { subst.
+      learn (lam_apply_conts_inversion_eval H); match_conf.
+      learn (subst_of_env_Lam H2); match_conf; subst.
+      aexists (mode_cont [] sigma (RValue (Closure x env0))).
+      { admit "same issue about lambda as in the initilization case.". }
+    }
+    { learn (lam_apply_conts_inversion_eval H); match_conf.
+      induction result; simpl in *; congruence.
+    }
     }
     {
       match goal with [x: cont |- _] => induction x end;
