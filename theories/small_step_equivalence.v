@@ -744,7 +744,7 @@ Proof.
 Admitted.
 
 
-Lemma default_head_empty:
+Lemma cred_default_head_empty:
   forall ts1 o ts2 e1 e2 env0,
   List.Forall (eq Empty) ts1 ->
   star cred
@@ -855,6 +855,20 @@ Proof.
 Admitted.
 
 
+Lemma empty_apply_conts_inversion_eval {kappa t env0}:
+  Empty = fst (apply_conts kappa (t, env0)) ->
+  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
+  (Empty = t)).
+Proof.
+Admitted.
+
+Lemma conflict_apply_conts_inversion_eval {kappa t env0}:
+  Conflict = fst (apply_conts kappa (t, env0)) ->
+  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
+  (Conflict = t)).
+Proof.
+Admitted.
+
 Ltac match_conf :=
   repeat match goal with
   | [h: Value _ = fst (apply_conts _ (apply_return _, _)) |- _ ] =>
@@ -862,6 +876,12 @@ Ltac match_conf :=
     clear h
   | [h: Value _ = fst (apply_conts _ (_, _)) |- _ ] =>
     learn (value_apply_conts_inversion_eval h);
+    clear h
+  | [h: Conflict = fst (apply_conts _ (apply_return _, _)) |- _ ] =>
+    learn (conflict_apply_conts_inversion_eval h);
+    clear h
+  | [h: Empty = fst (apply_conts _ (_, _)) |- _ ] =>
+    learn (empty_apply_conts_inversion_eval h);
     clear h
   | _ => progress match_conf1
   | _ => progress unpack
@@ -1038,12 +1058,12 @@ Ltac cstep :=
     h: List.Forall (eq Empty) ?ts1
     |- star cred (mode_cont (CDefault _ (?ts1 ++ _) _ _::_) _ REmpty) _
     ] =>
-    eapply star_trans; [solve[eapply default_head_empty; eauto]|]
+    eapply star_trans; [solve[eapply cred_default_head_empty; eauto]|]
   | [
     h: List.Forall (eq Empty) ?ts1
     |- star cred (mode_cont (CDefault _ ?ts1 _ _::_) _ REmpty) _
     ] =>
-    eapply star_trans; [solve[replace ts1 with (ts1 ++ []) by eapply List.app_nil_r; eapply default_head_empty; eauto]|]
+    eapply star_trans; [solve[replace ts1 with (ts1 ++ []) by eapply List.app_nil_r; eapply cred_default_head_empty; eauto]|]
   | [h: star cred ?s1 ?s2 |- star cred ?s1' (append_stack ?s2 ?kappa)] =>
     replace s1' with (append_stack s1 kappa); [| solve [simpl; eauto]];
     eapply append_stack_stable_star
@@ -1506,7 +1526,7 @@ Proof.
         end.
       all: unpack_subst_of_env_cons.
       { admit. }
-      { admit. }
+      { aexists (mode_eval u2 [CClosure t sigma] (last' kappa env0)). }
       {
         destruct (IHkappa _ _ Hred s1') as (s2' & Hs1's2' & Hs2');
         try solve [unlock; subst; match_conf].
@@ -1638,6 +1658,7 @@ Proof.
         all: admit "same".
     }
     { admit "same". }
+    { admit "Default specific, skipping fow now". }
     { admit "Default specific, skipping for now". }
     { admit "Default specific, skipping for now". }
     { admit "Default specific, skipping for now". }
@@ -1646,8 +1667,38 @@ Proof.
     { admit "Default specific, skipping for now". }
     { admit "Default specific, skipping for now". }
     { admit "Default specific, skipping for now". }
-    { admit "Default specific, skipping for now". }
-    { admit "Default specific, skipping for now". }
+    { (* Conflict result in Default *)
+      all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
+      all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
+      all: intros s1; remember s1 as s1' eqn: Heqs1; lock Heqs1; induction s1'.
+      all: try (remember o as o' eqn: Heqo; lock Heqo; induction o').
+      all: try solve [intros; eapply induction_case_CReturn; eauto; econstructor; eauto].
+      all: intros MC Heqkappa; revert MC; simpl in Heqkappa; subst.
+      all: intros MC; inversion MC; clear MC; simpl; subst.
+      all: first [rewrite append_stack_eval in * | repeat rewrite append_stack_cont in *].
+      all: match_conf; try solve [tryfalse]; subst.
+      all: match goal with
+        | [|- context [mode_eval ?t (?kappa ++ [?k]) ?env0]] =>
+          remember (mode_eval t kappa env0) as s1'; lock Heqs1'
+        | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
+          remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
+        end.
+      all: repeat (unpack_subst_of_env_cons; unpack); tryfalse.
+      { match_conf; unpack_subst_of_env_cons.
+        aexists (mode_cont [] (last' kappa env0) RConflict).
+      }
+      { match_conf; unpack_subst_of_env_cons.
+        induction result; simpl in *; tryfalse.
+        aexists (mode_cont [] (last' kappa env0) RConflict).
+        { eapply star_plus_trans. {
+            replace ts0 with (ts0 ++ []).
+            eapply cred_default_head_empty.
+            all: eauto; try eapply List.app_nil_r.
+          }
+          repeat cstep.
+        }
+       }
+    }
     { (* match context rule *)
       all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
       all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
