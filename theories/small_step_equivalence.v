@@ -1525,8 +1525,37 @@ Proof.
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
       all: unpack_subst_of_env_cons.
-      { admit. }
-      { aexists (mode_eval u2 [CClosure t sigma] (last' kappa env0)). }
+      { induction e; tryfalse; match_conf; unpack_subst_of_env_cons.
+        { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+          as (s2' & Hs1's2' & Hs2');
+          try solve [unlock; subst; match_conf]; simpl.
+          { unlock; subst; match_conf.
+            rewrite last'_snd_apply_conts; eauto.
+          }
+          { admit. }
+
+          aexists (append_stack s2' [CClosure t sigma]).
+          { unfold subst_of_env; rewrite <- Heqo1; eauto. }
+        }
+        { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+          as (s2' & Hs1's2' & Hs2');
+          try solve [unlock; subst; match_conf]; simpl.
+          { unlock; subst; match_conf.
+            rewrite last'_snd_apply_conts; eauto.
+          }
+          { admit. }
+          aexists (append_stack s2' [CClosure t sigma]).
+        }
+      }
+      { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+          as (s2' & Hs1's2' & Hs2');
+          try solve [unlock; subst; match_conf]; simpl.
+        { unlock; subst; match_conf.
+          rewrite last'_snd_apply_conts; eauto.
+        }
+        { admit. }
+        aexists (append_stack s2' [CClosure t sigma]).
+      }
       {
         destruct (IHkappa _ _ Hred s1') as (s2' & Hs1's2' & Hs2');
         try solve [unlock; subst; match_conf].
@@ -1588,8 +1617,38 @@ Proof.
       { destruct (IHkappa _ _ Hred s1') as (s2' & Hs1's2' & Hs2');
         try solve [unlock; subst; match_conf].
         aexists (append_stack s2' [k]). }
-      { admit. }
-      { admit. }
+      { induction e; tryfalse; match_conf; unpack_subst_of_env_cons.
+        { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+          as (s2' & Hs1's2' & Hs2');
+          try solve [unlock; subst; match_conf]; simpl.
+          { unlock; subst; match_conf.
+            rewrite last'_snd_apply_conts; eauto.
+          }
+          { admit. }
+
+          aexists (append_stack s2' [CBinopL op0 v0]).
+          { unfold subst_of_env; rewrite <- Heqo1; eauto. }
+        }
+        { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+          as (s2' & Hs1's2' & Hs2');
+          try solve [unlock; subst; match_conf]; simpl.
+          { unlock; subst; match_conf.
+            rewrite last'_snd_apply_conts; eauto.
+          }
+          { admit. }
+
+          aexists (append_stack s2' [CBinopL op0 v0]).
+        }
+      }
+      { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+          as (s2' & Hs1's2' & Hs2');
+          try solve [unlock; subst; match_conf]; simpl.
+        { unlock; subst; match_conf.
+          rewrite last'_snd_apply_conts; eauto.
+        }
+        { admit. }
+        aexists (append_stack s2' [CBinopL op0 v]).
+      }
     }
     { (* Binop computation. *)
       all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
@@ -1658,7 +1717,7 @@ Proof.
         all: admit "same".
     }
     { admit "same". }
-    { admit "Default specific, skipping fow now". }
+    { admit "Default specific, skipping for now". }
     { admit "Default specific, skipping for now". }
     { admit "Default specific, skipping for now". }
     { admit "Default specific, skipping for now". }
