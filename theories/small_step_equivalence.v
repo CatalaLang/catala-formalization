@@ -1555,34 +1555,35 @@ Proof.
         end.
       all: unpack_subst_of_env_cons.
       { induction e; tryfalse; match_conf; unpack_subst_of_env_cons.
-        { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
-          as (s2' & Hs1's2' & Hs2');
-          try solve [unlock; subst; match_conf]; simpl.
+        { assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CAppR t2])).
+          { rewrite List.last_length; simpl; lia. }
+          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0))) as (s2' & Hs1s2' & Hs2');
+          simpl; eauto.
           { unlock; subst; match_conf.
             rewrite last'_snd_apply_conts; eauto.
           }
-          { admit. }
 
           aexists (append_stack s2' [CClosure t sigma]).
           { unfold subst_of_env; rewrite <- Heqo1; eauto. }
         }
-        { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
-          as (s2' & Hs1's2' & Hs2');
-          try solve [unlock; subst; match_conf]; simpl.
+        { assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CAppR t2])).
+          { rewrite List.last_length; simpl; lia. }
+          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0))) as (s2' & Hs1s2' & Hs2');
+          simpl; eauto.
           { unlock; subst; match_conf.
             rewrite last'_snd_apply_conts; eauto.
           }
-          { admit. }
           aexists (append_stack s2' [CClosure t sigma]).
         }
       }
-      { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
-          as (s2' & Hs1's2' & Hs2');
-          try solve [unlock; subst; match_conf]; simpl.
+      { assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CAppR t2])).
+        { rewrite List.last_length; simpl; lia. }
+        edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0))) as (s2' & Hs1s2' & Hs2');
+        simpl; eauto.
         { unlock; subst; match_conf.
           rewrite last'_snd_apply_conts; eauto.
         }
-        { admit. }
+
         aexists (append_stack s2' [CClosure t sigma]).
       }
       {
