@@ -1134,8 +1134,36 @@ Proof.
   all: aexists (append_stack s2 [CReturn sigma]).
 Qed.
 
-Inductive mark (P:Prop) :=
-| Mark (H:P).
+
+Require Import Wellfounded.
+
+(* Well founded version of the rev_ind lemma. *)
+Theorem rev_ind_wf {A}:
+  forall P:list A -> Prop,
+    P [] ->
+    (forall (x:A) (l:list A),
+      P l ->
+      (forall l', length l' < length (l ++ [x]) -> P l') ->
+      P (l ++ [x])) ->
+    forall l:list A, P l.
+Proof.
+  intros P Hnil Hcons l.
+  induction l as [l IHl] using (
+    well_founded_induction
+      (wf_inverse_image _ nat _ (@length _)
+      PeanoNat.Nat.lt_wf_0)).
+  induction l using List.rev_ind.
+  { eapply Hnil. }
+  { eapply Hcons.
+    { eapply IHl.
+      rewrite List.last_length; lia.
+    }
+    { intros.
+      eapply IHl.
+      rewrite List.last_length in *; lia.
+    }
+  }
+Qed.
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
@@ -1176,12 +1204,13 @@ Ltac simpl_apply_cont :=
     simpl in h
   end.
 Proof.
+
   intros Hred s1 MC.
   remember (stack s1) as kappa.
   generalize dependent s1.
   generalize dependent t2.
   generalize dependent t1.
-  induction kappa as [|k kappa] using List.rev_ind.
+  induction kappa as [|k kappa IHkappa IHkappa_wf] using rev_ind_wf.
   { induction 1.
     all: induction s1; intro MC; inversion MC; clear MC; intros; repeat (simpl in *; subst).
     all: try solve [induction result; simpl in *; tryfalse].
@@ -1618,35 +1647,40 @@ Proof.
         try solve [unlock; subst; match_conf].
         aexists (append_stack s2' [k]). }
       { induction e; tryfalse; match_conf; unpack_subst_of_env_cons.
-        { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+        {
+          assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CBinopR op0 t2])).
+          { rewrite List.last_length; simpl; lia. }
+          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0)))
           as (s2' & Hs1's2' & Hs2');
           try solve [unlock; subst; match_conf]; simpl.
           { unlock; subst; match_conf.
             rewrite last'_snd_apply_conts; eauto.
           }
-          { admit. }
 
           aexists (append_stack s2' [CBinopL op0 v0]).
           { unfold subst_of_env; rewrite <- Heqo1; eauto. }
         }
-        { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+        { assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CBinopR op0 t2])).
+          { rewrite List.last_length; simpl; lia. }
+          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0)))
           as (s2' & Hs1's2' & Hs2');
           try solve [unlock; subst; match_conf]; simpl.
           { unlock; subst; match_conf.
             rewrite last'_snd_apply_conts; eauto.
           }
-          { admit. }
 
           aexists (append_stack s2' [CBinopL op0 v0]).
         }
       }
-      { destruct (IHkappa _ _ Hred (mode_eval t2 [] (last' kappa env0)))
-          as (s2' & Hs1's2' & Hs2');
-          try solve [unlock; subst; match_conf]; simpl.
+      { assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CBinopR op0 t2])).
+        { rewrite List.last_length; simpl; lia. }
+        edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+        as (s2' & Hs1's2' & Hs2');
+        try solve [unlock; subst; match_conf]; simpl.
         { unlock; subst; match_conf.
           rewrite last'_snd_apply_conts; eauto.
         }
-        { admit. }
+
         aexists (append_stack s2' [CBinopL op0 v]).
       }
     }
