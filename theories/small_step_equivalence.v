@@ -846,21 +846,44 @@ Lemma lam_apply_conts_inversion_eval {kappa t t' env0}:
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
   (Lam t' = t)).
 Proof.
-Admitted.
-
-Lemma lam_apply_conts_inversion_cont {t' kappa result env0}:
-  Lam t' = fst (apply_conts kappa (apply_return result, env0)) ->
-  False.
-Proof.
-Admitted.
-
+  split; revert t' kappa t env0 H.
+  { induction kappa as [|k kappa] using List.rev_ind.
+    { econstructor. }
+    { induction k; try induction o.
+      all: intros; repeat match_conf1; inj.
+      { learn (IHkappa _ _ H); eapply List.Forall_app; eauto. }
+    }
+  }
+  { induction kappa as [|k kappa] using List.rev_ind.
+    { simpl; eauto. }
+    { induction k; try induction o.
+      all: intros; repeat match_conf1; inj.
+      { learn (IHkappa _ _ H); subst; eauto. }
+    }
+  }
+Qed.
 
 Lemma empty_apply_conts_inversion_eval {kappa t env0}:
   Empty = fst (apply_conts kappa (t, env0)) ->
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
   (Empty = t)).
 Proof.
-Admitted.
+  split; revert kappa t env0 H.
+  { induction kappa as [|k kappa] using List.rev_ind.
+    { econstructor. }
+    { induction k; try induction o.
+      all: intros; repeat match_conf1; inj.
+      { learn (IHkappa _ _ H); eapply List.Forall_app; eauto. }
+    }
+  }
+  { induction kappa as [|k kappa] using List.rev_ind.
+    { simpl; eauto. }
+    { induction k; try induction o.
+      all: intros; repeat match_conf1; inj.
+      { learn (IHkappa _ _ H); subst; eauto. }
+    }
+  }
+Qed.
 
 Lemma conflict_apply_conts_inversion_eval {kappa t env0}:
   Conflict = fst (apply_conts kappa (t, env0)) ->
@@ -2212,9 +2235,6 @@ Proof.
     }
   }
 Qed.
-
-
-
 
 
 Theorem simulation_cred_sred:
