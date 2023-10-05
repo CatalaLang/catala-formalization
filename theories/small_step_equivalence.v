@@ -1028,7 +1028,7 @@ Ltac cstep :=
   | [h: plus cred ?s1 ?s2 |- plus cred ?s1 ?s2] =>
     eauto
   | [ |- plus cred ?s1 ?s2] =>
-    eapply plus_left; [solve [econstructor; eauto]|]
+    eapply plus_left; [solve [econstructor; eauto|econstructor; repeat intro; inj]|]
   | [ h: plus cred ?s1 ?s2 |- _] =>
     learn (plus_star h)
   | [ |- star cred ?s1 ?s2] =>
@@ -1730,10 +1730,12 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      { admit "need the lemma about Conflcit = fst apply_conts indicating kappa = CReturn list and e = Conflict". }
-      { admit "need the lemma about Conflcit = fst apply_conts indicating kappa = CReturn list and e = Conflict". }
+      all: unpack_subst_of_env_cons.
+      { aexists (mode_cont [] (last' kappa env0) RConflict). }
+      { induction result; tryfalse.
+        aexists (mode_cont [] (last' kappa env0) RConflict).
+      }
     }
-    { admit "same with Empty". }
     { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
       all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
       all: intros s1; remember s1 as s1' eqn: Heqs1; lock Heqs1; induction s1'.
@@ -1749,9 +1751,70 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-        all: admit "same".
+      all: unpack_subst_of_env_cons.
+      { aexists (mode_cont [] (last' kappa env0) REmpty). }
+      { induction result; tryfalse.
+        aexists (mode_cont [] (last' kappa env0) REmpty).
+      }
     }
-    { admit "same". }
+    { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
+      all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
+      all: intros s1; remember s1 as s1' eqn: Heqs1; lock Heqs1; induction s1'.
+      all: try (remember o as o' eqn: Heqo; lock Heqo; induction o').
+      all: try solve [intros; eapply induction_case_CReturn; eauto; econstructor; eauto].
+      all: intros MC Heqkappa; revert MC; simpl in Heqkappa; subst.
+      all: intros MC; inversion MC; clear MC; simpl; subst.
+      all: first [rewrite append_stack_eval in * | repeat rewrite append_stack_cont in *].
+      all: match_conf; try solve [tryfalse]; subst.
+      all: match goal with
+        | [|- context [mode_eval ?t (?kappa ++ [?k]) ?env0]] =>
+          remember (mode_eval t kappa env0) as s1'; lock Heqs1'
+        | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
+          remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
+        end.
+      all: aexists (mode_cont [] (last' kappa env0) RConflict).
+      { induction e; tryfalse; induction t2; tryfalse; unpack_subst_of_env_cons.
+        all: repeat cstep.
+      }
+      { induction t2; tryfalse; unpack_subst_of_env_cons.
+        all: repeat cstep.
+      }
+      { induction e; tryfalse; unpack_subst_of_env_cons.
+        all: repeat cstep.
+      }
+      { induction result; tryfalse; unpack_subst_of_env_cons.
+        all: repeat cstep.
+      }
+    }
+    { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
+      all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
+      all: intros s1; remember s1 as s1' eqn: Heqs1; lock Heqs1; induction s1'.
+      all: try (remember o as o' eqn: Heqo; lock Heqo; induction o').
+      all: try solve [intros; eapply induction_case_CReturn; eauto; econstructor; eauto].
+      all: intros MC Heqkappa; revert MC; simpl in Heqkappa; subst.
+      all: intros MC; inversion MC; clear MC; simpl; subst.
+      all: first [rewrite append_stack_eval in * | repeat rewrite append_stack_cont in *].
+      all: match_conf; try solve [tryfalse]; subst.
+      all: match goal with
+        | [|- context [mode_eval ?t (?kappa ++ [?k]) ?env0]] =>
+          remember (mode_eval t kappa env0) as s1'; lock Heqs1'
+        | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
+          remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
+        end.
+      all: aexists (mode_cont [] (last' kappa env0) REmpty).
+      { induction e; tryfalse; induction t2; tryfalse; unpack_subst_of_env_cons.
+        all: repeat cstep.
+      }
+      { induction t2; tryfalse; unpack_subst_of_env_cons.
+        all: repeat cstep.
+      }
+      { induction e; tryfalse; unpack_subst_of_env_cons.
+        all: repeat cstep.
+      }
+      { induction result; tryfalse; unpack_subst_of_env_cons.
+        all: repeat cstep.
+      }
+    }
     { admit "Default specific, skipping for now". }
     { admit "Default specific, skipping for now". }
     { admit "Default specific, skipping for now". }
