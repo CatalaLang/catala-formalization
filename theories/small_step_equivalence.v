@@ -1041,35 +1041,7 @@ Qed.
 Ltac aexists t :=
   exists t; unlock; subst; split; [repeat cstep|match_conf].
 
-Lemma induction_case_CReturn
-  (sigma: list value)
-  (kappa: list cont)
-  (IHkappa: forall t1 t2 : term,
-            sred t1 t2 ->
-            forall s1 : state,
-            match_conf s1 t1 ->
-            kappa = stack s1 ->
-            exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2):
-  forall t1 t2 : term,
-    sred t1 t2 ->
-    forall s1 : state,
-      match_conf s1 t1 ->
-      kappa ++ [CReturn sigma] = stack s1 ->
-      exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2
-.
-Proof.
-  intros t1 t2 Hsred.
-  (* In order to be able to apply the induction, we need to remember that t1 reduces to t2, even after the induction on it. *)
-  remember Hsred as Hsred'.
-  destruct Hsred; clear HeqHsred'.
-  all: intros s1 Hs1.
-  all: induction s1.
-  all: simpl; intros; subst.
-  all: learn (match_conf_eval_app_CReturn Hs1) +
-      learn (match_conf_cont_app_CReturn Hs1).
-  all: destruct (IHkappa _ _ Hsred' _ H) as (s2 & Hs1s2 & Hs2); [simpl; eauto|].
-  all: aexists (append_stack s2 [CReturn sigma]).
-Qed.
+
 
 
 
@@ -1077,7 +1049,8 @@ Qed.
 
 Require Import Wellfounded.
 
-(* Well founded version of the rev_ind lemma. *)
+(* Well founded version of the rev_ind lemma. It provide both hypothesis: the well founded one ([forall l', length l' < length (l ++ [k]) -> P l']), and the [P l] one to prove [P (l ++ [k])]. This is usefull in the simulation proof because in some cases, we need to be able to apply the induction hypothesis on an empty list. *)
+
 Theorem rev_ind_wf {A}:
   forall P:list A -> Prop,
     P [] ->
@@ -1103,6 +1076,40 @@ Proof.
       rewrite List.last_length in *; lia.
     }
   }
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(** Actuall simulation lemmas for sred -> cred. We first prove the induction case when the last continuation is [CReturn]. *)
+
+Lemma induction_case_CReturn
+  (sigma: list value)
+  (kappa: list cont)
+  (IHkappa: forall t1 t2 : term,
+            sred t1 t2 ->
+            forall s1 : state,
+            match_conf s1 t1 ->
+            kappa = stack s1 ->
+            exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2):
+  forall t1 t2 : term,
+    sred t1 t2 ->
+    forall s1 : state,
+      match_conf s1 t1 ->
+      kappa ++ [CReturn sigma] = stack s1 ->
+      exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2
+.
+Proof.
+  intros t1 t2 Hsred.
+  (** In order to be able to apply the induction, we need to remember that t1 reduces to t2, even after the induction on it. *)
+  remember Hsred as Hsred'.
+  destruct Hsred; clear HeqHsred'.
+  all: intros s1 Hs1.
+  all: induction s1.
+  all: simpl; intros; subst.
+  all: learn (match_conf_eval_app_CReturn Hs1) +
+      learn (match_conf_cont_app_CReturn Hs1).
+  all: destruct (IHkappa _ _ Hsred' _ H) as (s2 & Hs1s2 & Hs2); [simpl; eauto|].
+  all: aexists (append_stack s2 [CReturn sigma]).
 Qed.
 
 Theorem simulation_sred_cred t1 t2:
