@@ -1072,6 +1072,9 @@ Proof.
 Qed.
 
 
+
+(* -------------------------------------------------------------------------- *)
+
 Require Import Wellfounded.
 
 (* Well founded version of the rev_ind lemma. *)
@@ -1108,40 +1111,8 @@ Theorem simulation_sred_cred t1 t2:
   exists s2,
     (plus cred s1 s2)
   /\ match_conf s2 t2.
-Ltac process_induction :=
-  match goal with
-  | [h: match_conf (mode_eval ?e (?kappa ++ [?_k]) ?env) _ |- _] =>
-    remember (mode_eval e kappa env) as s1;
-    remember _k as k;
-    replace (mode_eval e (kappa ++ [k]) env)
-      with (append_stack s1 [k])
-      by (subst; eauto)
-  | [h: match_conf (mode_cont (?kappa ++ [?_k]) ?env ?r) _ |- _] =>
-    remember (mode_cont kappa env r) as s1;
-    remember _k as k;
-    replace (mode_cont (kappa ++ [k]) env r)
-      with (append_stack s1 [k])
-      by (subst; eauto)
-  end.
-Ltac simpl_apply_cont :=
-  match goal with
-  | [ |- context [apply_cont (apply_state_aux ?s)]] =>
-    rewrite (surjective_pairing (apply_state_aux s));
-    unfold apply_cont;
-    simpl
-  | [ |- context [apply_cont (apply_conts ?a ?b)]] =>
-    rewrite (surjective_pairing (apply_conts a b));
-    unfold apply_cont;
-    simpl
-  | [h: context [apply_cont (apply_state_aux ?s)] |- _ ] =>
-    rewrite (surjective_pairing (apply_state_aux s)) in h;
-    simpl in h
-  | [h: context [apply_cont (apply_conts ?a ?b)] |- _ ] =>
-    rewrite (surjective_pairing (apply_conts a b)) in h;
-    simpl in h
-  end.
-Proof.
 
+Proof.
   intros Hred s1 MC.
   remember (stack s1) as kappa.
   generalize dependent s1.
