@@ -18,7 +18,7 @@ Definition apply_cont
     (App (Value (Closure t_cl sigma_cl)) t, sigma)
   | CReturn sigma' => (t, sigma')
   | CDefault (Some v) ts tj tc =>
-    (Default (t::((Value v)::ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma], sigma)
+    (Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma], sigma)
   | CDefault None ts tj tc =>
     (Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma], sigma)
   | CDefaultBase tc =>
@@ -648,7 +648,7 @@ Ltac unpack_subst_of_env_cons :=
 
 (* -------------------------------------------------------------------------- *)
 
-Definition count_f
+(* Definition count_f
   {A}
   (p: A -> bool)
   := fix count_f (l : list A) { struct l} : nat :=
@@ -741,7 +741,7 @@ Proof.
   exists ts1', ti', ts2'', tj'', ts3''; repeat split.
   { admit. } { admit. } { admit. } { admit. }
   { clear Htseq. subst; eauto. }
-Admitted.
+Admitted. *)
 
 
 Lemma cred_default_head_empty:
@@ -1211,7 +1211,9 @@ Proof.
   generalize dependent t2.
   generalize dependent t1.
   induction kappa as [|k kappa IHkappa IHkappa_wf] using rev_ind_wf.
-  { induction 1.
+  { intros t1 t2 Hred.
+    assert (Hred_current: sred t1 t2) by eauto.
+    induction Hred.
     all: induction s1; intro MC; inversion MC; clear MC; intros; repeat (simpl in *; subst).
     all: try solve [induction result; simpl in *; tryfalse].
     (* unpack except in the conflict case: we need for now to not unpack here as we first need to modify slightly the definition. *)
@@ -1347,11 +1349,10 @@ Proof.
         as (s2 & Hs1s2 & Hs2);
       try solve [simpl; econstructor; eauto].
 
-      exists (append_stack s2 [CDefault None ts tjust tcons]); split.
+      exists (append_stack s2 [CDefault None ts0 tjust tcons]); split.
       { repeat cstep. }
       { inversion Hs2; clear Hs2; subst.
         match_conf.
-        admit "same issue as before.".
       }
     }
     { unpack_subst_of_env_cons.
@@ -1362,26 +1363,18 @@ Proof.
       { simpl; eauto. }
 
       induction u; unpack_subst_of_env_cons; tryfalse.
-      { exists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]); split.
-        { repeat cstep. }
-        { match_conf.
-          admit "same issue as before".
-        }
-      }
-      { exists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]); split.
-        { repeat cstep. }
-        { match_conf.
-          admit "same issue as before".
-        }
-      }
+      { aexists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]). }
+      { aexists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]). }
     }
 
     { destruct IHHred with (mode_eval tjust [] env0) as (s2 & Hs1s2 & Hs2).
       { match_conf. }
       { simpl; eauto. }
 
-      exists (append_stack s2 [CDefaultBase tcons]); split.
-      { repeat cstep. }
+      exists (append_stack s2 [CDefaultBase tcons]); unlock; subst; split.
+      { repeat cstep.
+
+      }
       { match_conf.
         admit "same issue as before".
       }
@@ -1816,7 +1809,24 @@ Proof.
         all: repeat cstep.
       }
     }
-    { admit "Default specific, skipping for now". }
+    { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
+      all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
+      all: intros s1; remember s1 as s1' eqn: Heqs1; lock Heqs1; induction s1'.
+      all: try (remember o as o' eqn: Heqo; lock Heqo; induction o').
+      all: try solve [intros; eapply induction_case_CReturn; eauto; econstructor; eauto].
+      all: intros MC Heqkappa; revert MC; simpl in Heqkappa; subst.
+      all: intros MC; inversion MC; clear MC; simpl; subst.
+      all: first [rewrite append_stack_eval in * | repeat rewrite append_stack_cont in *].
+      all: match_conf; try solve [tryfalse]; subst.
+      all: match goal with
+        | [|- context [mode_eval ?t (?kappa ++ [?k]) ?env0]] =>
+          remember (mode_eval t kappa env0) as s1'; lock Heqs1'
+        | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
+          remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
+        end.
+      all: repeat (unpack_subst_of_env_cons; unpack); tryfalse.
+      all: admit.
+    }
     { admit "Default specific, skipping for now". }
     { admit "Default specific, skipping for now". }
     { admit "Default specific, skipping for now". }
@@ -2129,3 +2139,33 @@ Proof.
   }
 Admitted.
 
+
+Theorem simulation_cred_sred:
+  forall s1 s2,
+    cred s1 s2 ->
+    star sred (apply_state s1) (apply_state s2).
+Proof.
+  intros s1.
+  remember (stack s1) as kappa.
+  generalize dependent s1.
+  induction kappa.
+  {
+    induction 2; simpl in Heqkappa; subst.
+    all: tryfalse.
+    all: try solve [simpl; eauto with sequences].
+    { simpl. unfold subst_of_env. rewrite H; eauto with sequences. }
+    { simpl.
+      eapply star_step. { econstructor. }
+      (* value equality *)
+      admit.
+    }
+    { simpl.
+      (* problem: Default ts tj tc -> Defualt (Empty::ts) tj tc *)
+      admit.
+    }
+    { simpl.
+      eapply star_step. { econstructor. }
+      eapply star_refl.
+    }
+  }
+Admitted.

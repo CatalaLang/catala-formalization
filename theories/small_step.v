@@ -158,54 +158,40 @@ Inductive sred: term -> term -> Prop :=
         (Empty)
 
   | sred_defaultConflict:
-    forall ts ts1 vi ts2 vj ts3 tjust tcons,
-      ts = (ts1 ++ (Value vi) :: ts2 ++ (Value vj) :: ts3)%list ->
-      List.Forall (eq Empty) ts1 ->
-      List.Forall (eq Empty) ts2 ->
-      sred (Default ts tjust tcons) Conflict
+    forall ts vi vj tjust tcons,
+      sred (Default ((Value vi)::(Value vj)::ts) tjust tcons) Conflict
   | sred_DefaultEValue:
-    forall ts1 vi ts2 tjust tcons,
-      List.Forall (eq Empty) ts1 ->
-      List.Forall (eq Empty) ts2 ->
-      sred (Default (ts1++(Value vi)::ts2) tjust tcons) (Value vi)
+    forall vi tjust tcons,
+      sred (Default [Value vi] tjust tcons) (Value vi)
   | sred_DefaultEConflict:
-    forall ts1 ts2 tjust tcons,
-      List.Forall (eq Empty) ts1 ->
-      sred (Default (ts1++Conflict::ts2) tjust tcons) Conflict
+    forall ts2 tjust tcons,
+      sred (Default (Conflict::ts2) tjust tcons) Conflict
  | sred_DefaultE_empty:
-    forall ts1 ti ti' ts2 tj tc,
+    forall ti ti' ts2 tj tc,
       sred ti ti' ->
-      (List.Forall (eq Empty) ts1) ->
-      sred (Default (ts1++ti::ts2) tj tc) (Default (ts1++ti'::ts2) tj tc)
+      sred (Default (ti::ts2) tj tc) (Default (ti'::ts2) tj tc)
   | sred_DefaultE_one:
-    forall ts1 vi ts2 tj tj' ts3 tjust tcons,
+    forall vi tj tj' ts3 tjust tcons,
       sred tj tj' ->
-      (List.Forall (eq Empty) ts1) ->
-      (List.Forall (eq Empty) ts2) ->
       sred
-        (Default (ts1++(Value vi)::ts2++tj::ts3) tjust tcons)
-        (Default (ts1++(Value vi)::ts2++tj'::ts3) tjust tcons)
+        (Default ((Value vi)::tj::ts3) tjust tcons)
+        (Default ((Value vi)::tj'::ts3) tjust tcons)
   | sred_DefaultJ:
-    forall ts tj1 tj2 tc,
-      List.Forall (eq Empty) ts ->
+    forall tj1 tj2 tc,
       sred tj1 tj2 ->
-      sred (Default ts tj1 tc) (Default ts tj2 tc)
+      sred (Default [] tj1 tc) (Default [] tj2 tc)
   | sred_DefaultJTrue:
-    forall ts tc,
-      List.Forall (eq Empty) ts ->
-      sred (Default ts (Value (Bool true)) tc) tc
+    forall tc,
+      sred (Default [] (Value (Bool true)) tc) tc
   | sred_DefaultJFalse:
-    forall ts tc,
-      List.Forall (eq Empty) ts ->
-      sred (Default ts (Value (Bool false)) tc) Empty
+    forall tc,
+      sred (Default [] (Value (Bool false)) tc) Empty
   | sred_DefaultJEmpty:
-    forall ts tc,
-      List.Forall (eq Empty) ts ->
-      sred (Default ts Empty tc) Empty
+    forall tc,
+      sred (Default [] Empty tc) Empty
   | sred_DefaultJConflict:
-    forall ts tc,
-      List.Forall (eq Empty) ts ->
-      sred (Default ts Conflict tc) Conflict
+    forall tc,
+      sred (Default [] Conflict tc) Conflict
   | sred_match_cond:
     forall u1 u2 t1 t2,
       sred u1 u2 ->
