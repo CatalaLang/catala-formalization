@@ -555,7 +555,7 @@ Ltac unpack_subst_of_env_cons :=
     destruct (subst_of_env_app h) as (ts1 & ts2 & Hts1 & Hts2 & Hteq);
     subst; clear h
   | [h:  [] = _..[subst_of_env _] |- _] =>
-    destruct (subst_of_env_nil h); unpack; subst; clear h
+    rewrite (subst_of_env_nil h); unpack; subst; clear h
   | [h: Default _ _ _ = _.[subst_of_env _] |- _] =>
     let ts := fresh "ts" in
     let tjust := fresh "tjust" in
@@ -564,7 +564,7 @@ Ltac unpack_subst_of_env_cons :=
     let Htjust := fresh "Htjust" in (* /\ tj = tj'.[subst_of_env env] *)
     let Htcons := fresh "Htcons" in (* /\ tc = tc'.[subst_of_env env] *)
     let Ht := fresh "Ht" in         (* /\ t' = Default ts' tj' tc' *)
-    destruct (subst_of_env_Default h) as (ts & tjust & tcons & Hts & Htjust & Hcons & Ht); subst; clear h
+    destruct (subst_of_env_Default h) as (ts & tjust & tcons & Hts & Htjust & Hcons & Ht); injections; clear h
   
   | [h: Match_ _ _ _ = _.[subst_of_env _] |- _] =>
     let u := fresh "u" in
@@ -1213,15 +1213,14 @@ Proof.
   induction kappa as [|k kappa IHkappa IHkappa_wf] using rev_ind_wf.
   { intros t1 t2 Hred.
     assert (Hred_current: sred t1 t2) by eauto.
-    induction Hred.
+    induction Hred; subst.
     all: induction s1; intro MC; inversion MC; clear MC; intros; repeat (simpl in *; subst).
     all: try solve [induction result; simpl in *; tryfalse].
     (* unpack except in the conflict case: we need for now to not unpack here as we first need to modify slightly the definition. *)
     all: match goal with
     | [_:  context G [ _ ++ _ :: _ ++ _ :: _] |- _ ] => idtac
     | _ => unpack_subst_of_env_cons
-    end
-    .
+    end.
     { induction t1; tryfalse;
       induction t2; tryfalse.
       all: exists (mode_eval t [CReturn env0] (v::sigma')); split.
@@ -1238,7 +1237,7 @@ Proof.
       }
     }
     { (* apply induction hypothesis. *)
-      destruct IHHred with ((mode_eval t0 [] env0)) as (s2 & Hs1s2 & MCs2).
+      destruct (IHHred Hred) with ((mode_eval t0 [] env0)) as (s2 & Hs1s2 & MCs2).
       { econstructor; simpl; eauto. }
       { simpl; eauto. }
 
@@ -1250,7 +1249,7 @@ Proof.
         match_conf.
       }
     }
-    { destruct IHHred with (mode_eval t2 [] env0) as (s2 & Hs1s2 & Hs2).
+    { destruct (IHHred Hred) with (mode_eval t2 [] env0) as (s2 & Hs1s2 & Hs2).
       { econstructor; simpl; eauto. }
       { simpl; eauto. }
 
@@ -1262,7 +1261,7 @@ Proof.
         match_conf.
       }
     }
-    { destruct IHHred with (mode_eval t0 [] env0) as (s2 & Hs1s2 & Hs2).
+    { destruct (IHHred Hred) with (mode_eval t0 [] env0) as (s2 & Hs1s2 & Hs2).
       { econstructor; simpl; eauto. }
       { simpl; eauto. }
 
@@ -1272,7 +1271,7 @@ Proof.
         match_conf.
       }
     }
-    { destruct IHHred with (mode_eval t2 [] env0) as (s2 & Hs1s2 & Hs2).
+    { destruct (IHHred Hred) with (mode_eval t2 [] env0) as (s2 & Hs1s2 & Hs2).
       { econstructor; simpl; eauto. }
       { simpl; eauto. }
 
@@ -1339,45 +1338,30 @@ Proof.
         { match_conf. }
       }
     }
-    { exists (mode_cont [] env0 RConflict); split.
-      { repeat cstep. }
-      { match_conf. }
-    }
-
-    { destruct IHHred
+    { aexists (mode_cont [] env0 RConflict). }
+    { destruct (IHHred Hred)
         with (mode_eval u [] env0)
         as (s2 & Hs1s2 & Hs2);
       try solve [simpl; econstructor; eauto].
 
-      exists (append_stack s2 [CDefault None ts0 tjust tcons]); split.
-      { repeat cstep. }
-      { inversion Hs2; clear Hs2; subst.
-        match_conf.
-      }
+      aexists (append_stack s2 [CDefault None ts0 tjust tcons]).
     }
     { unpack_subst_of_env_cons.
-      destruct IHHred
+      destruct (IHHred Hred)
         with (mode_eval u0 [] env0)
         as (s2 & Hs1s2 & Hs2).
       { match_conf. }
       { simpl; eauto. }
 
-      induction u; unpack_subst_of_env_cons; tryfalse.
-      { aexists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]). }
-      { aexists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]). }
+      induction u; unpack_subst_of_env_cons; tryfalse;
+      aexists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]).
     }
-
-    { destruct IHHred with (mode_eval tjust [] env0) as (s2 & Hs1s2 & Hs2).
+    { destruct (IHHred Hred) with (mode_eval tjust [] env0) as (s2 & Hs1s2 & Hs2).
       { match_conf. }
       { simpl; eauto. }
 
-      exists (append_stack s2 [CDefaultBase tcons]); unlock; subst; split.
-      { repeat cstep.
+      aexists (append_stack s2 [CDefaultBase tcons]).
 
-      }
-      { match_conf.
-        admit "same issue as before".
-      }
     }
     { induction tjust; tryfalse; eauto; unpack_subst_of_env_cons.
       { exists (mode_eval tcons [] env0); split.
@@ -1407,7 +1391,7 @@ Proof.
       { repeat cstep. }
       { econstructor; simpl; eauto. }
     }
-    { destruct IHHred with (mode_eval u [] env0) as (s2 & Hs1s2 & Hs2).
+    { destruct (IHHred Hred) with (mode_eval u [] env0) as (s2 & Hs1s2 & Hs2).
       { econstructor; simpl; eauto. }
       { simpl; eauto. }
 
@@ -1441,7 +1425,7 @@ Proof.
       { repeat cstep. }
       { econstructor; simpl; eauto. }
     }
-    { destruct IHHred with (mode_eval t0 [] env0) as (s2 & Hs1s2 & Hs2).
+    { destruct (IHHred Hred) with (mode_eval t0 [] env0) as (s2 & Hs1s2 & Hs2).
       { econstructor; simpl; eauto. }
       { simpl; eauto. }
 
@@ -1853,28 +1837,7 @@ Proof.
       all: repeat (unpack_subst_of_env_cons; unpack); tryfalse.
       all: aexists (mode_eval tc0 [] (last' kappa env0)).
       all: try rewrite last'_snd_apply_conts; eauto.
-      { induction tj; tryfalse; unpack_subst_of_env_cons; match_conf;
-        induction e; unpack_subst_of_env_cons; tryfalse.
-        all: repeat cstep.
-      }
-      { induction tj; tryfalse; unpack_subst_of_env_cons; match_conf;
-        induction result; unpack_subst_of_env_cons; tryfalse.
-        { eapply star_plus_trans. { eapply cred_process_return; eauto. }
-          eapply star_plus_trans. {
-            replace ts0 with (ts0 ++ []) by eapply List.app_nil_r.
-            eapply cred_default_head_empty; eauto.
-          }
-          repeat cstep.
-        }
-        { eapply star_plus_trans. { eapply cred_process_return; eauto. }
-          eapply star_plus_trans. {
-            replace ts0 with (ts0 ++ []) by eapply List.app_nil_r.
-            eapply cred_default_head_empty; eauto.
-          }
-          repeat cstep.
-        }
-      }
-      { induction e; tryfalse; unpack_subst_of_env_cons.
+      { induction e; unpack_subst_of_env_cons; tryfalse.
         all: repeat cstep.
       }
     }
@@ -1895,28 +1858,6 @@ Proof.
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
       all: repeat (unpack_subst_of_env_cons; unpack); tryfalse.
-      { match_conf; unpack_subst_of_env_cons.
-        induction tj; tryfalse; unpack_subst_of_env_cons;
-        aexists (mode_cont [] (last' kappa env0) REmpty).
-      }
-      { induction tj; tryfalse; match_conf; unpack_subst_of_env_cons;
-        induction result; simpl in *; tryfalse;
-        aexists (mode_cont [] (last' kappa env0) REmpty).
-        { eapply star_plus_trans. {
-            replace ts0 with (ts0 ++ []).
-            eapply cred_default_head_empty.
-            all: eauto; try eapply List.app_nil_r.
-          }
-          repeat cstep.
-        }
-        { eapply star_plus_trans. {
-            replace ts0 with (ts0 ++ []).
-            eapply cred_default_head_empty.
-            all: eauto; try eapply List.app_nil_r.
-          }
-          repeat cstep.
-        }
-      }
       { induction e; tryfalse; unpack_subst_of_env_cons;
         aexists (mode_cont [] (last' kappa env0) REmpty).
       }
@@ -1945,17 +1886,6 @@ Proof.
       { match_conf; unpack_subst_of_env_cons.
         induction result; simpl in *; tryfalse.
         aexists (mode_cont [] (last' kappa env0) REmpty).
-        { eapply star_plus_trans. {
-            replace ts0 with (ts0 ++ []).
-            eapply cred_default_head_empty.
-            all: eauto; try eapply List.app_nil_r.
-          }
-          repeat cstep.
-        }
-      }
-      { aexists (mode_cont [] (last' kappa env0) REmpty). }
-      { induction result; tryfalse; simpl.
-        aexists (mode_cont [] (last' kappa env0) REmpty).
       }
     }
     { (* Conflict result in the condition of a default *)
@@ -1980,17 +1910,6 @@ Proof.
       }
       { match_conf; unpack_subst_of_env_cons.
         induction result; simpl in *; tryfalse.
-        aexists (mode_cont [] (last' kappa env0) RConflict).
-        { eapply star_plus_trans. {
-            replace ts0 with (ts0 ++ []).
-            eapply cred_default_head_empty.
-            all: eauto; try eapply List.app_nil_r.
-          }
-          repeat cstep.
-        }
-      }
-      { aexists (mode_cont [] (last' kappa env0) RConflict). }
-      { induction result; tryfalse; simpl.
         aexists (mode_cont [] (last' kappa env0) RConflict).
       }
     }

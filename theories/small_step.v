@@ -161,8 +161,9 @@ Inductive sred: term -> term -> Prop :=
     forall ts vi vj tjust tcons,
       sred (Default ((Value vi)::(Value vj)::ts) tjust tcons) Conflict
   | sred_DefaultEValue:
-    forall vi tjust tcons,
-      sred (Default [Value vi] tjust tcons) (Value vi)
+    forall vi ts tjust tcons,
+      ts = [] ->
+      sred (Default ((Value vi)::ts) tjust tcons) (Value vi)
   | sred_DefaultEConflict:
     forall ts2 tjust tcons,
       sred (Default (Conflict::ts2) tjust tcons) Conflict
@@ -179,19 +180,29 @@ Inductive sred: term -> term -> Prop :=
   | sred_DefaultJ:
     forall tj1 tj2 tc,
       sred tj1 tj2 ->
-      sred (Default [] tj1 tc) (Default [] tj2 tc)
+      forall ts,
+      ts = [] ->
+      sred (Default ts tj1 tc) (Default ts tj2 tc)
   | sred_DefaultJTrue:
     forall tc,
-      sred (Default [] (Value (Bool true)) tc) tc
+    forall ts,
+    ts = [] ->
+      sred (Default ts (Value (Bool true)) tc) tc
   | sred_DefaultJFalse:
     forall tc,
-      sred (Default [] (Value (Bool false)) tc) Empty
+    forall ts,
+    ts = [] ->
+      sred (Default ts (Value (Bool false)) tc) Empty
   | sred_DefaultJEmpty:
     forall tc,
-      sred (Default [] Empty tc) Empty
+    forall ts,
+    ts = [] ->
+      sred (Default ts Empty tc) Empty
   | sred_DefaultJConflict:
     forall tc,
-      sred (Default [] Conflict tc) Conflict
+    forall ts,
+    ts = [] ->
+      sred (Default ts Conflict tc) Conflict
   | sred_match_cond:
     forall u1 u2 t1 t2,
       sred u1 u2 ->
