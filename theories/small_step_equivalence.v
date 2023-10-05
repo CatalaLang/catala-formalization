@@ -913,18 +913,18 @@ Ltac match_conf :=
 
 (* -------------------------------------------------------------------------- *)
 
-Fixpoint last' (l: list cont) (env0: list value) : list value :=
+Fixpoint last (l: list cont) (env0: list value) : list value :=
   match l with
   | [] => env0
   | CReturn env1 :: l =>
-    last' l env1
+    last l env1
   | _ :: l =>
-    last' l env0
+    last l env0
   end.
 
-Lemma last'_last:
+Lemma last_last:
   forall l env0 env1,
-    last' (l ++ [CReturn env0]) env1 = env0.
+    last (l ++ [CReturn env0]) env1 = env0.
 Proof.
   induction l.
   { intros; reflexivity. }
@@ -937,7 +937,7 @@ Lemma cred_process_return {kappa1 env0 result}: forall kappa2,
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa1 ->
   star cred
     (mode_cont (kappa1 ++ kappa2) env0 result)
-    (mode_cont kappa2 (last' kappa1 env0) result)
+    (mode_cont kappa2 (last kappa1 env0) result)
   .
 Proof.
   intros. revert env0.
@@ -948,94 +948,8 @@ Proof.
   }
 Qed.
 
-(* 
-Fixpoint last (l:list cont) (env0:list value) : list value :=
-match l with
-  | [] => env0
-  | [CReturn env1] => env1
-  | [_] => env0
-  | _ :: l => last l env0
-end.
-
-Lemma last_last:
-  forall l env0 env1,
-    last (l ++ [CReturn env0]) env1 = env0.
-Proof.
-  intro l; induction l as [|? l IHl]; intros; [ reflexivity | ].
-  simpl; rewrite IHl.
-  destruct l; simpl; case a; simpl; eauto.
-Qed.
-
-
-
-Lemma cred_process_return {kappa1 env0 result}: forall kappa2,
-  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa1 ->
-  star cred
-    (mode_cont (kappa1 ++ kappa2) env0 result)
-    (mode_cont kappa2 (last kappa1 env0) result)
-  .
-Proof.
-  intros. revert env0.
-  induction H as [|? kappa1 [env1 Hk]]; subst.
-  { intros; eapply star_refl. }
-  { destruct H as [|? kappa1 [env2 Hk]]; subst; try solve [simpl; eauto]; intros.
-    { eapply star_step. { econstructor. }
-      simpl; eauto.
-    }
-    { replace
-        (last (CReturn env1 :: CReturn env2 :: kappa1) env0) with
-        (last (CReturn env2 :: kappa1) env0) by (simpl; eauto).
-      repeat rewrite <- List.app_comm_cons.
-      eapply star_step. { econstructor. }
-      replace
-        (last (CReturn env2 :: kappa1) env0) with
-        (last (CReturn env2 :: kappa1) env1); eauto.
-
-      { (* we need to know that if the last item is indeed an CReturn,
-           then the result of last (CRetrn env2 :: kappa1) env0 will nether be env0. *)
-        clear -H.
-        destruct kappa1 using List.rev_ind.
-        { eauto. }
-        { unpack; subst.
-          rewrite List.app_comm_cons.
-          repeat rewrite last_last; eauto.
-        }
-      }
-    }
-  }
-Qed. *)
-
-Inductive myeq {A : Type} (x : A) : A -> Prop := myeq_refl : myeq x x.
-
-Inductive locked (P: Prop) :=
-| Lock (H: P).
-
-Ltac lock_ident H :=
-  let tmp := fresh "tmp" in
-  rename H into tmp;
-  pose proof (Lock _ tmp) as H;
-  clear tmp
-.
-
-Ltac unlock_ident H :=
-  destruct H as [H].
-
-Ltac unlock :=
-  repeat match goal with
-  | [h: locked _ |- _ ] =>
-    unlock_ident h
-  end.
-
-Ltac msubst :=
-  unlock; subst.
-
-Tactic Notation "unlock" := unlock.
-Tactic Notation "unlock" ident(H) := unlock_ident H.
-Tactic Notation "lock" ident(H) := lock_ident H.
-
-
-Lemma last'_snd_apply_conts :
-  forall kappa env0 t, (snd (apply_conts kappa (t, env0))) = (last' kappa env0).
+Lemma last_snd_apply_conts :
+  forall kappa env0 t, (snd (apply_conts kappa (t, env0))) = (last kappa env0).
 Proof.
   induction kappa.
   { simpl; eauto. }
@@ -1095,7 +1009,7 @@ Ltac cstep :=
     eapply append_stack_stable_plus
   | [ |- star cred ?s1 ?s1] =>
     eapply star_refl
-  | _ => rewrite last'_snd_apply_conts in *
+  | _ => rewrite last_snd_apply_conts in *
 end.
 
 (* -------------------------------------------------------------------------- *)
@@ -1482,27 +1396,27 @@ Proof.
       all: intros MC; inversion MC; clear MC; simpl; subst.
       all: first [rewrite append_stack_eval in * | repeat rewrite append_stack_cont in *].
       all: match_conf; try solve [tryfalse]; subst.
-      { aexists (mode_eval t [CReturn (last' kappa env0)] (v :: sigma')).
+      { aexists (mode_eval t [CReturn (last kappa env0)] (v :: sigma')).
         induction e; tryfalse;
         induction t2; tryfalse;
         unpack_subst_of_env_cons.
-        all: repeat rewrite last'_snd_apply_conts in *.
+        all: repeat rewrite last_snd_apply_conts in *.
         all: unpack_subst_of_env_cons.
         all: repeat cstep.
       }
-      { aexists (mode_eval t [CReturn (last' kappa env0)] (v :: sigma')).
+      { aexists (mode_eval t [CReturn (last kappa env0)] (v :: sigma')).
         induction t2; tryfalse;
         unpack_subst_of_env_cons.
-        all: repeat rewrite last'_snd_apply_conts in *.
+        all: repeat rewrite last_snd_apply_conts in *.
         all: unpack_subst_of_env_cons.
         all: repeat cstep.
       }
-      { aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v :: sigma_cl)).
+      { aexists (mode_eval t_cl [CReturn (last kappa env0)] (v :: sigma_cl)).
         induction e; tryfalse;
         unpack_subst_of_env_cons.
         all: repeat cstep.
       }
-      { aexists (mode_eval t_cl [CReturn (last' kappa env0)] (v :: sigma_cl)). }
+      { aexists (mode_eval t_cl [CReturn (last kappa env0)] (v :: sigma_cl)). }
     }
     { (* Lam to closure *)
       all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
@@ -1558,10 +1472,10 @@ Proof.
       { induction e; tryfalse; match_conf; unpack_subst_of_env_cons.
         { assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CAppR t2])).
           { rewrite List.last_length; simpl; lia. }
-          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0))) as (s2' & Hs1s2' & Hs2');
+          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last kappa env0))) as (s2' & Hs1s2' & Hs2');
           simpl; eauto.
           { unlock; subst; match_conf.
-            rewrite last'_snd_apply_conts; eauto.
+            rewrite last_snd_apply_conts; eauto.
           }
 
           aexists (append_stack s2' [CClosure t sigma]).
@@ -1569,20 +1483,20 @@ Proof.
         }
         { assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CAppR t2])).
           { rewrite List.last_length; simpl; lia. }
-          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0))) as (s2' & Hs1s2' & Hs2');
+          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last kappa env0))) as (s2' & Hs1s2' & Hs2');
           simpl; eauto.
           { unlock; subst; match_conf.
-            rewrite last'_snd_apply_conts; eauto.
+            rewrite last_snd_apply_conts; eauto.
           }
           aexists (append_stack s2' [CClosure t sigma]).
         }
       }
       { assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CAppR t2])).
         { rewrite List.last_length; simpl; lia. }
-        edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0))) as (s2' & Hs1s2' & Hs2');
+        edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last kappa env0))) as (s2' & Hs1s2' & Hs2');
         simpl; eauto.
         { unlock; subst; match_conf.
-          rewrite last'_snd_apply_conts; eauto.
+          rewrite last_snd_apply_conts; eauto.
         }
 
         aexists (append_stack s2' [CClosure t sigma]).
@@ -1652,11 +1566,11 @@ Proof.
         {
           assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CBinopR op0 t2])).
           { rewrite List.last_length; simpl; lia. }
-          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last kappa env0)))
           as (s2' & Hs1's2' & Hs2');
           try solve [unlock; subst; match_conf]; simpl.
           { unlock; subst; match_conf.
-            rewrite last'_snd_apply_conts; eauto.
+            rewrite last_snd_apply_conts; eauto.
           }
 
           aexists (append_stack s2' [CBinopL op0 v0]).
@@ -1664,11 +1578,11 @@ Proof.
         }
         { assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CBinopR op0 t2])).
           { rewrite List.last_length; simpl; lia. }
-          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+          edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last kappa env0)))
           as (s2' & Hs1's2' & Hs2');
           try solve [unlock; subst; match_conf]; simpl.
           { unlock; subst; match_conf.
-            rewrite last'_snd_apply_conts; eauto.
+            rewrite last_snd_apply_conts; eauto.
           }
 
           aexists (append_stack s2' [CBinopL op0 v0]).
@@ -1676,11 +1590,11 @@ Proof.
       }
       { assert (Hlen: List.length ([]: list cont) < length (kappa ++ [CBinopR op0 t2])).
         { rewrite List.last_length; simpl; lia. }
-        edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last' kappa env0)))
+        edestruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval t2 [] (last kappa env0)))
         as (s2' & Hs1's2' & Hs2');
         try solve [unlock; subst; match_conf]; simpl.
         { unlock; subst; match_conf.
-          rewrite last'_snd_apply_conts; eauto.
+          rewrite last_snd_apply_conts; eauto.
         }
 
         aexists (append_stack s2' [CBinopL op0 v]).
@@ -1702,15 +1616,15 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      { aexists (mode_cont [] (last' kappa env0) (RValue v)).
+      { aexists (mode_cont [] (last kappa env0) (RValue v)).
         induction e; tryfalse; unpack_subst_of_env_cons; repeat cstep.
       }
-      { aexists (mode_cont [] (last' kappa env0) (RValue v)). }
-      { aexists (mode_cont [] (last' kappa env0) (RValue v)).
+      { aexists (mode_cont [] (last kappa env0) (RValue v)). }
+      { aexists (mode_cont [] (last kappa env0) (RValue v)).
         induction e; tryfalse; induction t2; tryfalse;  unpack_subst_of_env_cons.
         all: repeat cstep.
       }
-      { aexists (mode_cont [] (last' kappa env0) (RValue v)).
+      { aexists (mode_cont [] (last kappa env0) (RValue v)).
         induction t2; tryfalse; unpack_subst_of_env_cons.
         all: repeat cstep.
       }
@@ -1732,9 +1646,9 @@ Proof.
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
       all: unpack_subst_of_env_cons.
-      { aexists (mode_cont [] (last' kappa env0) RConflict). }
+      { aexists (mode_cont [] (last kappa env0) RConflict). }
       { induction result; tryfalse.
-        aexists (mode_cont [] (last' kappa env0) RConflict).
+        aexists (mode_cont [] (last kappa env0) RConflict).
       }
     }
     { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
@@ -1753,9 +1667,9 @@ Proof.
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
       all: unpack_subst_of_env_cons.
-      { aexists (mode_cont [] (last' kappa env0) REmpty). }
+      { aexists (mode_cont [] (last kappa env0) REmpty). }
       { induction result; tryfalse.
-        aexists (mode_cont [] (last' kappa env0) REmpty).
+        aexists (mode_cont [] (last kappa env0) REmpty).
       }
     }
     { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
@@ -1773,7 +1687,7 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      all: aexists (mode_cont [] (last' kappa env0) RConflict).
+      all: aexists (mode_cont [] (last kappa env0) RConflict).
       { induction e; tryfalse; induction t2; tryfalse; unpack_subst_of_env_cons.
         all: repeat cstep.
       }
@@ -1802,7 +1716,7 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      all: aexists (mode_cont [] (last' kappa env0) REmpty).
+      all: aexists (mode_cont [] (last kappa env0) REmpty).
       { induction e; tryfalse; induction t2; tryfalse; unpack_subst_of_env_cons.
         all: repeat cstep.
       }
@@ -1833,7 +1747,7 @@ Proof.
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
       all: repeat (unpack_subst_of_env_cons; unpack); tryfalse.
-      all: aexists (mode_cont [] (last' kappa env0) RConflict).
+      all: aexists (mode_cont [] (last kappa env0) RConflict).
       { induction e; tryfalse; unpack_subst_of_env_cons.
         all: repeat cstep.
       }
@@ -1858,8 +1772,8 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      all: rewrite last'_snd_apply_conts in *; unpack_subst_of_env_cons.
-      all: aexists (mode_cont [] (last' kappa env0) (RValue vi)).
+      all: rewrite last_snd_apply_conts in *; unpack_subst_of_env_cons.
+      all: aexists (mode_cont [] (last kappa env0) (RValue vi)).
       { induction e; unpack_subst_of_env_cons; tryfalse.
         all: repeat cstep.
       }
@@ -1879,9 +1793,9 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      all: rewrite last'_snd_apply_conts in *; unpack_subst_of_env_cons.
+      all: rewrite last_snd_apply_conts in *; unpack_subst_of_env_cons.
 
-      all: aexists (mode_cont [] (last' kappa env0) RConflict).
+      all: aexists (mode_cont [] (last kappa env0) RConflict).
       { induction result; tryfalse; repeat cstep. }
     }
     { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
@@ -1899,20 +1813,20 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      all: rewrite last'_snd_apply_conts in *; unpack_subst_of_env_cons.
+      all: rewrite last_snd_apply_conts in *; unpack_subst_of_env_cons.
 
       { destruct (IHkappa _ _ Hred s1') as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
         aexists (append_stack s2' [CDefault None ts tj0 tc0]).
         { repeat f_equal.
           all: rewrite <- (creds_apply_state_sigma_stable H).
-          all: simpl; rewrite last'_snd_apply_conts; eauto.
+          all: simpl; rewrite last_snd_apply_conts; eauto.
         }
       }
       { destruct (IHkappa _ _ Hred s1') as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
         aexists (append_stack s2' [CDefault None ts tj0 tc0]).
         { repeat f_equal.
           all: rewrite <- (creds_apply_state_sigma_stable H).
-          all: simpl; rewrite last'_snd_apply_conts; eauto.
+          all: simpl; rewrite last_snd_apply_conts; eauto.
         }
       }
     }
@@ -1932,18 +1846,18 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      all: rewrite last'_snd_apply_conts in *; unpack_subst_of_env_cons.
+      all: rewrite last_snd_apply_conts in *; unpack_subst_of_env_cons.
       { destruct (IHkappa _ _ Hred s1' ) as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
 
         aexists (append_stack s2' [CDefault (Some a) ts tj0 tc]).
         { repeat f_equal.
           all: rewrite <- (creds_apply_state_sigma_stable H).
-          all: simpl; rewrite last'_snd_apply_conts; eauto.
+          all: simpl; rewrite last_snd_apply_conts; eauto.
         }
       }
       { assert (Hlen: length ([]: list cont) < length (kappa ++ [CDefault None (u :: ts0) tj0 tc])). {simpl; rewrite List.last_length. lia. }
         induction e; tryfalse; unpack_subst_of_env_cons.
-        all: destruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval u [] (last' kappa env0))) as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
+        all: destruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval u [] (last kappa env0))) as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
         all: aexists (append_stack s2' [CDefault (Some v) ts0 tj0 tc]). 
         { repeat f_equal. unfold subst_of_env; rewrite <- Heqo1; eauto. }
       }
@@ -1953,11 +1867,11 @@ Proof.
         aexists (append_stack s2' [CDefault (Some a) ts tj0 tc]).
         { repeat f_equal.
           all: rewrite <- (creds_apply_state_sigma_stable H).
-          all: simpl; rewrite last'_snd_apply_conts; eauto.
+          all: simpl; rewrite last_snd_apply_conts; eauto.
         }
       }
       { assert (Hlen: length ([]: list cont) < length (kappa ++ [CDefault None (u :: ts0) tj0 tc])). {simpl; rewrite List.last_length. lia. }
-        destruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval u [] (last' kappa env0))) as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
+        destruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval u [] (last kappa env0))) as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
          aexists (append_stack s2' [CDefault (Some vi) ts0 tj0 tc]). 
       }
     }
@@ -1978,13 +1892,13 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      all: rewrite last'_snd_apply_conts in *; unpack_subst_of_env_cons.
+      all: rewrite last_snd_apply_conts in *; unpack_subst_of_env_cons.
       { destruct (IHkappa _ _ Hred s1' ) as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
 
         aexists (append_stack s2' [CDefaultBase tc0]).
         { repeat f_equal.
             all: rewrite <- (creds_apply_state_sigma_stable H).
-            all: simpl; rewrite last'_snd_apply_conts; eauto.
+            all: simpl; rewrite last_snd_apply_conts; eauto.
         }
       }
       { destruct (IHkappa _ _ Hred s1' ) as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
@@ -1992,7 +1906,7 @@ Proof.
         aexists (append_stack s2' [CDefaultBase tc0]).
         { repeat f_equal.
             all: rewrite <- (creds_apply_state_sigma_stable H).
-            all: simpl; rewrite last'_snd_apply_conts; eauto.
+            all: simpl; rewrite last_snd_apply_conts; eauto.
         }
       }
     }
@@ -2013,8 +1927,8 @@ Proof.
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
       all: repeat (unpack_subst_of_env_cons; unpack); tryfalse.
-      all: aexists (mode_eval tc0 [] (last' kappa env0)).
-      all: try rewrite last'_snd_apply_conts; eauto.
+      all: aexists (mode_eval tc0 [] (last kappa env0)).
+      all: try rewrite last_snd_apply_conts; eauto.
       { induction e; unpack_subst_of_env_cons; tryfalse.
         all: repeat cstep.
       }
@@ -2037,9 +1951,9 @@ Proof.
         end.
       all: repeat (unpack_subst_of_env_cons; unpack); tryfalse.
       { induction e; tryfalse; unpack_subst_of_env_cons;
-        aexists (mode_cont [] (last' kappa env0) REmpty).
+        aexists (mode_cont [] (last kappa env0) REmpty).
       }
-      { aexists (mode_cont [] (last' kappa env0) REmpty). }
+      { aexists (mode_cont [] (last kappa env0) REmpty). }
     }
     { (* Empty result in the condition of a default *)
       all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
@@ -2059,11 +1973,11 @@ Proof.
         end.
       all: repeat (unpack_subst_of_env_cons; unpack); tryfalse.
       { match_conf; unpack_subst_of_env_cons.
-        aexists (mode_cont [] (last' kappa env0) REmpty).
+        aexists (mode_cont [] (last kappa env0) REmpty).
       }
       { match_conf; unpack_subst_of_env_cons.
         induction result; simpl in *; tryfalse.
-        aexists (mode_cont [] (last' kappa env0) REmpty).
+        aexists (mode_cont [] (last kappa env0) REmpty).
       }
     }
     { (* Conflict result in the condition of a default *)
@@ -2084,11 +1998,11 @@ Proof.
         end.
       all: repeat (unpack_subst_of_env_cons; unpack); tryfalse.
       { match_conf; unpack_subst_of_env_cons.
-        aexists (mode_cont [] (last' kappa env0) RConflict).
+        aexists (mode_cont [] (last kappa env0) RConflict).
       }
       { match_conf; unpack_subst_of_env_cons.
         induction result; simpl in *; tryfalse.
-        aexists (mode_cont [] (last' kappa env0) RConflict).
+        aexists (mode_cont [] (last kappa env0) RConflict).
       }
     }
     { (* match context rule *)
@@ -2132,13 +2046,13 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      { aexists (mode_eval t0 [] (last' kappa env0)).
+      { aexists (mode_eval t0 [] (last kappa env0)).
         { induction e; tryfalse; unpack_subst_of_env_cons; repeat cstep. }
-        { rewrite last'_snd_apply_conts; eauto. }
+        { rewrite last_snd_apply_conts; eauto. }
       }
       {
-        aexists (mode_eval t0 [] (last' kappa env0)).
-        { rewrite last'_snd_apply_conts; eauto. }
+        aexists (mode_eval t0 [] (last kappa env0)).
+        { rewrite last_snd_apply_conts; eauto. }
       }
     }
     { (* match None *)
@@ -2157,15 +2071,15 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      { aexists (mode_eval t3 [CReturn (last' kappa env0)] (v :: last' kappa env0)).
+      { aexists (mode_eval t3 [CReturn (last kappa env0)] (v :: last kappa env0)).
         { induction e; tryfalse; unpack_subst_of_env_cons; repeat cstep. }
-        { rewrite last'_snd_apply_conts; asimpl.
+        { rewrite last_snd_apply_conts; asimpl.
           rewrite subst_env_cons; eauto.
         }
       }
       {
-        aexists (mode_eval t3 [CReturn (last' kappa env0)] (v :: last' kappa env0)).
-        { rewrite last'_snd_apply_conts; asimpl.
+        aexists (mode_eval t3 [CReturn (last kappa env0)] (v :: last kappa env0)).
+        { rewrite last_snd_apply_conts; asimpl.
           rewrite subst_env_cons; eauto.
         }
       }
@@ -2228,10 +2142,10 @@ Proof.
         | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
-      { aexists (mode_cont [] (last' kappa env0) (RValue (VSome v))).
+      { aexists (mode_cont [] (last kappa env0) (RValue (VSome v))).
         { induction e; tryfalse; unpack_subst_of_env_cons; repeat cstep. }
       }
-      { aexists (mode_cont [] (last' kappa env0) (RValue (VSome v))). }
+      { aexists (mode_cont [] (last kappa env0) (RValue (VSome v))). }
     }
   }
 Qed.

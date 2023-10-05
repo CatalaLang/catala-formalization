@@ -211,3 +211,32 @@ Module Learn.
 End Learn.
 
 (* -------------------------------------------------------------------------- *)
+
+(* Locking mechanism. This permit for instance to run subst and not rewrite an equality. It is particulary usefull in the small step equivalence to keep trace of some usefull states or subterms. *)
+
+Inductive locked (P: Prop) :=
+| Lock (H: P).
+
+Ltac lock_ident H :=
+  let tmp := fresh "tmp" in
+  rename H into tmp;
+  pose proof (Lock _ tmp) as H;
+  clear tmp
+.
+
+Ltac unlock_ident H :=
+  destruct H as [H].
+
+Ltac unlock :=
+  repeat match goal with
+  | [h: locked _ |- _ ] =>
+    unlock_ident h
+  end.
+
+Ltac msubst :=
+  unlock; subst.
+
+Tactic Notation "unlock" := unlock.
+Tactic Notation "unlock" ident(H) := unlock_ident H.
+Tactic Notation "lock" ident(H) := lock_ident H.
+
