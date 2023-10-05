@@ -23,8 +23,6 @@ Fixpoint monad_handle_zero ts tj tc: term :=
       (monad_handle_one ttail)
   end.
 
-
-
 Definition monad_handle ts tj tc: term :=
   monad_handle_zero ts tj tc
 .
@@ -87,14 +85,6 @@ Fixpoint trans (Delta: list pure) t { struct t } :=
 
 Require Import continuations.
 
-
-Definition subst_of_env sigma :=
-  fun n =>
-  match List.nth_error sigma n with
-  | None => ids n
-  | Some t => Value t
-  end
-.
 
 Require Import tactics.
 Require Import sequences typing.

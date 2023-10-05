@@ -1228,7 +1228,8 @@ Proof.
     }
     { exists (mode_cont [] env0 (RValue (Closure t1 env0))); split.
       { repeat cstep. }
-      { eapply match_value.
+      { (* There is an admit here. *)
+        eapply match_value.
         { match_conf. }
         { econstructor. }
         (* "small problem here: because of the decision to store closures as equal modulo substition of their environement, there is an issue here." *)
@@ -1945,9 +1946,6 @@ Proof.
       { aexists (mode_cont [] (last' kappa env0) REmpty). }
       { induction result; tryfalse; simpl.
         aexists (mode_cont [] (last' kappa env0) REmpty).
-        { eapply plus_left. { econstructor; repeat intro; tryfalse. }
-          cstep.
-        }
       }
     }
     { (* Conflict result in the condition of a default *)
@@ -1984,9 +1982,6 @@ Proof.
       { aexists (mode_cont [] (last' kappa env0) RConflict). }
       { induction result; tryfalse; simpl.
         aexists (mode_cont [] (last' kappa env0) RConflict).
-        { eapply plus_left. { econstructor; repeat intro; tryfalse. }
-          cstep.
-        }
       }
     }
     { (* match context rule *)
