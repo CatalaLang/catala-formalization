@@ -157,6 +157,23 @@ Inductive sred: term -> term -> Prop :=
         (App (Value (Closure t sigma)) Empty)
         (Empty)
 
+  | sred_binop_right_conflict:
+    forall op u,
+      sred (Binop op Conflict u) Conflict
+  | sred_binop_right_empty:
+    forall op u,
+      sred (Binop op Empty u) Empty
+  | sred_binop_left_conflict:
+      forall op v,
+        sred
+          (Binop op (Value v) Conflict)
+          Conflict
+  | sred_binop_left_empty:
+    forall op v,
+      sred
+        (Binop op (Value v) Empty)
+        (Empty)
+
   | sred_defaultConflict:
     forall ts vi vj tjust tcons,
       sred (Default ((Value vi)::(Value vj)::ts) tjust tcons) Conflict
@@ -164,10 +181,13 @@ Inductive sred: term -> term -> Prop :=
     forall vi ts tjust tcons,
       ts = [] ->
       sred (Default ((Value vi)::ts) tjust tcons) (Value vi)
-  | sred_DefaultEConflict:
+  | sred_DefaultE_zero_conflict:
     forall ts2 tjust tcons,
       sred (Default (Conflict::ts2) tjust tcons) Conflict
- | sred_DefaultE_empty:
+  | sred_DefaultE_one_conflict:
+    forall vi ts2 tjust tcons,
+      sred (Default ((Value vi)::Conflict::ts2) tjust tcons) Conflict
+  | sred_DefaultE_zero:
     forall ti ti' ts2 tj tc,
       sred ti ti' ->
       sred (Default (ti::ts2) tj tc) (Default (ti'::ts2) tj tc)
@@ -210,11 +230,25 @@ Inductive sred: term -> term -> Prop :=
   | sred_match_None:
     forall t1 t2,
       sred (Match_ (Value (VNone)) t1 t2) t1
+  | sred_match_conflict:
+    forall t1 t2,
+      sred
+        (Match_ Conflict t1 t2)
+        Conflict
+  | sred_match_empty:
+    forall t1 t2,
+    sred
+      (Match_ Empty t1 t2)
+      Empty
   | sred_match_Some:
     forall v t1 t2,
       sred (Match_ (Value (VSome v)) t1 t2) t2.[Value v/]
   | sred_None:
     sred ENone (Value VNone)
+  | sred_Some_conflict:
+    sred (ESome Conflict) Conflict
+  | sred_Some_empty:
+    sred (ESome Empty) Empty
   | sred_Some_context:
     forall t1 t2,
       sred t1 t2 ->
