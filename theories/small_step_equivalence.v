@@ -2171,7 +2171,7 @@ Proof.
   induction 1.
   { simpl; unfold subst_of_env; rewrite H; eauto with sequences. }
   { (* there is the need of something else here. *) admit. }
-  { simpl. }
+  { simpl. admit. }
 Abort.
 
 (* Idea: subtil lemma *)
