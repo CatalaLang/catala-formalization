@@ -1091,7 +1091,7 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (** Actuall simulation lemmas for sred -> cred. We first prove the induction case when the last continuation is [CReturn]. *)
-(* 
+
 Lemma induction_case_CReturn
   (sigma: list value)
   (kappa: list cont)
@@ -1235,6 +1235,10 @@ Proof.
       { repeat cstep. }
       { match_conf. }
     }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
 
     { (* Conflict *)
       unpack_subst_of_env_cons.
@@ -1264,6 +1268,7 @@ Proof.
       }
     }
     { aexists (mode_cont [] env0 RConflict). }
+    { admit. }
     { destruct (IHHred Hred)
         with (mode_eval u [] env0)
         as (s2 & Hs1s2 & Hs2);
@@ -1336,6 +1341,8 @@ Proof.
         { match_conf. }
       }
     }
+    { admit. }
+    { admit. }
     { induction u; tryfalse; unpack_subst_of_env_cons.
       { exists (mode_eval t3 [CReturn env0] (v::env0)); split.
         { repeat cstep. }
@@ -1350,6 +1357,8 @@ Proof.
       { repeat cstep. }
       { econstructor; simpl; eauto. }
     }
+    { admit. }
+    { admit. }
     { destruct (IHHred Hred) with (mode_eval t0 [] env0) as (s2 & Hs1s2 & Hs2).
       { econstructor; simpl; eauto. }
       { simpl; eauto. }
@@ -1718,6 +1727,10 @@ Proof.
         all: repeat cstep.
       }
     }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
     { (* Default intro Conflict *)
       all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
       all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
@@ -1786,6 +1799,7 @@ Proof.
       all: aexists (mode_cont [] (last kappa env0) RConflict).
       { induction result; tryfalse; repeat cstep. }
     }
+    { admit. }
     { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
       all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
       all: intros s1; remember s1 as s1' eqn: Heqs1; lock Heqs1; induction s1'.
@@ -2043,6 +2057,8 @@ Proof.
         { rewrite last_snd_apply_conts; eauto. }
       }
     }
+    { admit. }
+    { admit. }
     { (* match None *)
       all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
       all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
@@ -2089,6 +2105,8 @@ Proof.
           remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
         end.
     }
+    { admit. }
+    { admit. }
     { (* Some context rule *)
       all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
       all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
@@ -2136,7 +2154,7 @@ Proof.
       { aexists (mode_cont [] (last kappa env0) (RValue (VSome v))). }
     }
   }
-Qed. *)
+Admitted.
 
 
 (* -------------------------------------------------------------------------- *)
@@ -2256,36 +2274,5 @@ Proof.
     rewrite subst_env_cons.
     replace t2.[Value v .: subst_of_env sigma] with t2.[up (subst_of_env sigma)].[Value v/] by autosubst.
     econstructor.
-  }
-Admitted.
-
-(* idea: induction on the stack size of s1 to handle correctly the context rules. *)
-Theorem simulation_cred_sred:
-  forall s1 s2,
-    cred s1 s2 ->
-    star sred (apply_state s1) (apply_state s2).
-Proof.
-  intros s1.
-  remember (stack s1) as kappa.
-  generalize dependent s1.
-  induction kappa.
-  {
-    induction 2; simpl in Heqkappa; subst.
-    all: tryfalse.
-    all: try solve [simpl; eauto with sequences].
-    { simpl. unfold subst_of_env. rewrite H; eauto with sequences. }
-    { simpl.
-      eapply star_step. { econstructor. }
-      (* value equality *)
-      admit.
-    }
-    { simpl.
-      (* problem: Default ts tj tc -> Defualt (Empty::ts) tj tc *)
-      admit.
-    }
-    { simpl.
-      eapply star_step. { econstructor. }
-      eapply star_refl.
-    }
   }
 Admitted.
