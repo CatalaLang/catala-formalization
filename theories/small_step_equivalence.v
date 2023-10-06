@@ -2,6 +2,14 @@ Require Import syntax continuations small_step sequences tactics.
 Require Import Coq.ZArith.ZArith.
 Import List.ListNotations.
 
+
+
+(* -------------------------------------------------------------------------- *)
+
+(* Translating an term into an *)
+
+
+
 Definition apply_cont
   (param1: term * list value)
   (k: cont)
@@ -123,7 +131,6 @@ Parameter match_value: forall {s v v'},
 
 
 Section APPLY_EXAMPLES.
-  
 
   Example test1:
     forall t1 t2 t3,
@@ -144,6 +151,9 @@ Section APPLY_EXAMPLES.
   Qed.
 
 End APPLY_EXAMPLES.
+
+
+(* -------------------------------------------------------------------------- *)
 
 Definition env s:=
   match s with
@@ -296,23 +306,11 @@ Proof.
   eauto.
 Qed.
 
-Lemma creds_apply_state_sigma_stable_eq s1 s2 p1 p2:
-  p1 = apply_state_aux s1 ->
-  p2 = apply_state_aux s2 ->
-  star cred s1 s2 ->
-  snd p1 = snd p2.
-Proof.
-  intros; subst; eapply creds_apply_state_sigma_stable; eauto.
-Qed.
 
-Lemma cred_plus_apply_state_sigma_stable_eq s1 s2 p1 p2:
-  p1 = apply_state_aux s1 ->
-  p2 = apply_state_aux s2 ->
-  plus cred s1 s2 ->
-  snd p1 = snd p2.
-Proof.
-  intros; subst; eapply creds_apply_state_sigma_stable; eauto with sequences.
-Qed.
+(* -------------------------------------------------------------------------- *)
+
+
+(* Lemmas related to reducing substo_of_env_sthg *)
 
 Lemma subst_of_env_Value_Var:
   forall env x,
@@ -565,7 +563,7 @@ Ltac unpack_subst_of_env_cons :=
     let Htcons := fresh "Htcons" in (* /\ tc = tc'.[subst_of_env env] *)
     let Ht := fresh "Ht" in         (* /\ t' = Default ts' tj' tc' *)
     destruct (subst_of_env_Default h) as (ts & tjust & tcons & Hts & Htjust & Hcons & Ht); injections; clear h
-  
+
   | [h: Match_ _ _ _ = _.[subst_of_env _] |- _] =>
     let u := fresh "u" in
     let t1 := fresh "t1" in
@@ -647,6 +645,8 @@ Ltac unpack_subst_of_env_cons :=
 .
 
 (* -------------------------------------------------------------------------- *)
+
+(* The following dead code was related to an old version of the semantics that used the count of non-empty values inside the Default to reduce. *)
 
 (* Definition count_f
   {A}
@@ -890,7 +890,46 @@ Lemma conflict_apply_conts_inversion_eval {kappa t env0}:
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
   (Conflict = t)).
 Proof.
-Admitted.
+  split; revert kappa t env0 H.
+  { induction kappa as [|k kappa] using List.rev_ind.
+    { econstructor. }
+    { induction k; try induction o.
+      all: intros; repeat match_conf1; inj.
+      { learn (IHkappa _ _ H); eapply List.Forall_app; eauto. }
+    }
+  }
+  { induction kappa as [|k kappa] using List.rev_ind.
+    { simpl; eauto. }
+    { induction k; try induction o.
+      all: intros; repeat match_conf1; inj.
+      { learn (IHkappa _ _ H); subst; eauto. }
+    }
+  }
+Qed.
+
+Lemma match_conf_eval_app_CReturn {e kappa sigma env0 t}:
+  match_conf (mode_eval e (kappa ++ [CReturn sigma]) env0) t ->
+  match_conf (mode_eval e (kappa) env0) t.
+Proof.
+  intros MC; inversion MC; subst; clear MC.
+  econstructor.
+  simpl; rewrite apply_conts_app; simpl.
+  unfold apply_cont.
+  rewrite (surjective_pairing (apply_conts kappa (e.[subst_of_env env0], env0))); simpl.
+  eauto.
+Qed.
+
+Lemma match_conf_cont_app_CReturn {result kappa sigma env0 t}:
+  match_conf (mode_cont (kappa ++ [CReturn sigma]) env0 result) t ->
+  match_conf (mode_cont (kappa) env0 result) t.
+Proof.
+  intros MC; inversion MC; subst; clear MC.
+  econstructor.
+  simpl; rewrite apply_conts_app; simpl.
+  unfold apply_cont.
+  rewrite (surjective_pairing (apply_conts kappa _)); simpl.
+  eauto.
+Qed.
 
 Ltac match_conf :=
   repeat match goal with
@@ -956,8 +995,6 @@ Proof.
   { induction a; simpl; intros; try induction o; eapply IHkappa. }
 Qed.
 
-
-
 Ltac cstep :=
   match goal with
   | [h: plus cred ?s1 ?s2 |- star cred ?s1 ?s2] =>
@@ -1014,35 +1051,8 @@ end.
 
 (* -------------------------------------------------------------------------- *)
 
-Lemma match_conf_eval_app_CReturn {e kappa sigma env0 t}:
-  match_conf (mode_eval e (kappa ++ [CReturn sigma]) env0) t ->
-  match_conf (mode_eval e (kappa) env0) t.
-Proof.
-  intros MC; inversion MC; subst; clear MC.
-  econstructor.
-  simpl; rewrite apply_conts_app; simpl.
-  unfold apply_cont.
-  rewrite (surjective_pairing (apply_conts kappa (e.[subst_of_env env0], env0))); simpl.
-  eauto.
-Qed.
-
-Lemma match_conf_cont_app_CReturn {result kappa sigma env0 t}:
-  match_conf (mode_cont (kappa ++ [CReturn sigma]) env0 result) t ->
-  match_conf (mode_cont (kappa) env0 result) t.
-Proof.
-  intros MC; inversion MC; subst; clear MC.
-  econstructor.
-  simpl; rewrite apply_conts_app; simpl.
-  unfold apply_cont.
-  rewrite (surjective_pairing (apply_conts kappa _)); simpl.
-  eauto.
-Qed.
-
 Ltac aexists t :=
   exists t; unlock; subst; split; [repeat cstep|match_conf].
-
-
-
 
 
 (* -------------------------------------------------------------------------- *)
