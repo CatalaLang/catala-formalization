@@ -1091,7 +1091,7 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 
 (** Actuall simulation lemmas for sred -> cred. We first prove the induction case when the last continuation is [CReturn]. *)
-
+(* 
 Lemma induction_case_CReturn
   (sigma: list value)
   (kappa: list cont)
@@ -2136,7 +2136,7 @@ Proof.
       { aexists (mode_cont [] (last kappa env0) (RValue (VSome v))). }
     }
   }
-Qed.
+Qed. *)
 
 
 (* -------------------------------------------------------------------------- *)
@@ -2207,15 +2207,11 @@ Theorem simulation_cred_sred:
     star sred (apply_state s1) (apply_state s2).
 Proof.
   induction 1; try induction o.
-  all: simpl; try eapply star_refl.
+  all: simpl; try solve [eapply star_refl| eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
   { simpl; unfold subst_of_env; rewrite H; eauto with sequences. }
   { simpl. eapply sreds_apply_conts.
     eapply star_one.
     admit "lambda related issue".
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
-    econstructor.
   }
   { eapply sreds_apply_conts.
     eapply star_one.
@@ -2235,68 +2231,30 @@ Proof.
   }
   { eapply sreds_apply_conts.
     eapply star_one.
-    econstructor.
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
     admit "same: the reduction append an empty on the right hand side".
   }
   { eapply sreds_apply_conts.
     eapply star_one.
     admit "same: the reduction append an empty on the right hand side".
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
-    econstructor; eauto.
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
-    econstructor; eauto.
   }
   { induction phi; try induction o.
     all: try solve[eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
-    { eapply sreds_apply_conts.
-      eapply star_one.
-      admit "woups".
-    }
-    { admit "woups". }
-    { exfalso. 
+    { exfalso.
       eapply H0; eauto.
     }
     { exfalso; eapply H; eauto. }
     { exfalso; eapply H; eauto. }
-    { eapply sreds_apply_conts.
-      eapply star_one.
-      admit "woups".
-    }
-    { eapply sreds_apply_conts.
-      eapply star_one.
-      admit "woups".
-    }
   }
   { induction phi; try induction o.
-    all: admit "case Conflict propagation".
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
-    econstructor; eauto.
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
-    econstructor.
+    all: try solve[eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
+    { exfalso.
+      eapply H; eauto.
+    }
   }
   { eapply sreds_apply_conts.
     eapply star_one.
     rewrite subst_env_cons.
     replace t2.[Value v .: subst_of_env sigma] with t2.[up (subst_of_env sigma)].[Value v/] by autosubst.
-    econstructor.
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
-    econstructor.
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
     econstructor.
   }
 Admitted.
