@@ -1818,7 +1818,7 @@ Proof.
         }
       }
     }
-    { 
+    {
       all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
       all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
       all: intros s1; remember s1 as s1' eqn: Heqs1; lock Heqs1; induction s1'.
@@ -1860,7 +1860,7 @@ Proof.
       }
       { assert (Hlen: length ([]: list cont) < length (kappa ++ [CDefault None (u :: ts0) tj0 tc])). {simpl; rewrite List.last_length. lia. }
         destruct (IHkappa_wf [] Hlen _ _ Hred (mode_eval u [] (last kappa env0))) as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
-         aexists (append_stack s2' [CDefault (Some vi) ts0 tj0 tc]). 
+        aexists (append_stack s2' [CDefault (Some vi) ts0 tj0 tc]).
       }
     }
     { (* evaluate condition *)
@@ -2139,6 +2139,169 @@ Proof.
 Qed.
 
 
+(* -------------------------------------------------------------------------- *)
+
+
+(* Second side of the implication. *)
+
+(* Idea: bourrinage *)
+Theorem simulation_cred_sred:
+  forall s1 s2,
+    cred s1 s2 ->
+    star sred (apply_state s1) (apply_state s2).
+Proof.
+  induction 1.
+  { simpl; unfold subst_of_env; rewrite H; eauto with sequences. }
+  { (* there is the need of something else here. *) admit. }
+  { simpl. }
+Abort.
+
+(* Idea: subtil lemma *)
+
+Theorem sred_apply_conts: forall kappa t t' sigma,
+  sred t t' ->
+  sred
+    (fst (apply_conts kappa (t, sigma)))
+    (fst (apply_conts kappa (t', sigma)))
+.
+Proof.
+  induction kappa as [|k kappa] using List.rev_ind.
+  { simpl; eauto. }
+  { induction k; try induction o;
+    intros t t' env Htt'.
+    pose proof (IHkappa _ _ env Htt') as Hred_kappa.
+
+    all:
+      setoid_rewrite apply_conts_app;
+      simpl; unfold apply_cont;
+        repeat match goal with
+      | [ |- context [let '(_, _) := ?p in _]] =>
+        rewrite (surjective_pairing p)
+      | [h: context [let '(_, _) := ?p in _] |- _] =>
+        rewrite (surjective_pairing p) in h
+      end; simpl.
+
+    all: repeat rewrite last_snd_apply_conts.
+
+    all: try solve [econstructor; eauto].
+    { eapply IHkappa; eauto. }
+  }
+Qed.
+
+
+
+Theorem sreds_apply_conts: forall kappa t t' sigma,
+  star sred t t' ->
+  star sred
+    (fst (apply_conts kappa (t, sigma)))
+    (fst (apply_conts kappa (t', sigma)))
+.
+Proof.
+  induction 1; eauto using sred_apply_conts with sequences.
+Qed.
+
+
+Theorem simulation_cred_sred:
+  forall s1 s2,
+    cred s1 s2 ->
+    star sred (apply_state s1) (apply_state s2).
+Proof.
+  induction 1; try induction o.
+  all: simpl; try eapply star_refl.
+  { simpl; unfold subst_of_env; rewrite H; eauto with sequences. }
+  { simpl. eapply sreds_apply_conts.
+    eapply star_one.
+    admit "lambda related issue".
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    econstructor.
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    admit "issue related to Empty in right position".
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    admit "same: the reduction append an empty on the right hand side".
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    admit "same: the reduction append an empty on the right hand side".
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    admit "same: the reduction append an empty on the right hand side".
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    econstructor.
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    admit "same: the reduction append an empty on the right hand side".
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    admit "same: the reduction append an empty on the right hand side".
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    econstructor; eauto.
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    econstructor; eauto.
+  }
+  { induction phi; try induction o.
+    all: try solve[eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
+    { eapply sreds_apply_conts.
+      eapply star_one.
+      admit "woups".
+    }
+    { admit "woups". }
+    { exfalso. 
+      eapply H0; eauto.
+    }
+    { exfalso; eapply H; eauto. }
+    { exfalso; eapply H; eauto. }
+    { eapply sreds_apply_conts.
+      eapply star_one.
+      admit "woups".
+    }
+    { eapply sreds_apply_conts.
+      eapply star_one.
+      admit "woups".
+    }
+  }
+  { induction phi; try induction o.
+    all: admit "case Conflict propagation".
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    econstructor; eauto.
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    econstructor.
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    rewrite subst_env_cons.
+    replace t2.[Value v .: subst_of_env sigma] with t2.[up (subst_of_env sigma)].[Value v/] by autosubst.
+    econstructor.
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    econstructor.
+  }
+  { eapply sreds_apply_conts.
+    eapply star_one.
+    econstructor.
+  }
+Admitted.
+
+(* idea: induction on the stack size of s1 to handle correctly the context rules. *)
 Theorem simulation_cred_sred:
   forall s1 s2,
     cred s1 s2 ->
