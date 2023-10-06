@@ -82,7 +82,7 @@ Lemma fv_ids_eq:
 Proof.
   unfold fv. induction k; intros.
   (* Base case. *)
-  { asimpl. split; intros; elimtype False.
+  { asimpl. split; intros; exfalso.
     { eauto using ids_inj_False. }
     { lia. }
   }

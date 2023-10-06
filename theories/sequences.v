@@ -440,7 +440,7 @@ Proof.
   intros ? ? ? Hab Hirred Hab' Hirred'.
   destruct (star_star_inv Hab Hab') as [ Hbb' | Hbb' ];
   inversion Hbb'; subst;
-  solve [ eauto | elimtype False; eauto ].
+  solve [ eauto | exfalso; eauto ].
 Qed.
 
 Lemma infseq_star_inv:
