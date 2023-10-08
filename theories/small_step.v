@@ -174,51 +174,59 @@ Inductive sred: term -> term -> Prop :=
         (Binop op (Value v) Empty)
         (Empty)
 
-  | sred_defaultConflict:
+  | sred_default_Conflict:
     forall ts vi vj tjust tcons,
       sred (Default ((Value vi)::(Value vj)::ts) tjust tcons) Conflict
-  | sred_DefaultEValue:
+  | sred_default_E_value:
     forall vi ts tjust tcons,
       ts = [] ->
       sred (Default ((Value vi)::ts) tjust tcons) (Value vi)
-  | sred_DefaultE_zero_conflict:
+  | sred_default_E_zero_conflict:
     forall ts2 tjust tcons,
       sred (Default (Conflict::ts2) tjust tcons) Conflict
-  | sred_DefaultE_one_conflict:
+  | sred_default_E_one_conflict:
     forall vi ts2 tjust tcons,
       sred (Default ((Value vi)::Conflict::ts2) tjust tcons) Conflict
-  | sred_DefaultE_zero:
+  | sred_default_E_zero:
     forall ti ti' ts2 tj tc,
       sred ti ti' ->
       sred (Default (ti::ts2) tj tc) (Default (ti'::ts2) tj tc)
-  | sred_DefaultE_one:
+  | sred_default_E_one:
     forall vi tj tj' ts3 tjust tcons,
       sred tj tj' ->
       sred
         (Default ((Value vi)::tj::ts3) tjust tcons)
         (Default ((Value vi)::tj'::ts3) tjust tcons)
-  | sred_DefaultJ:
+  | sred_default_E_zero_empty:
+  forall ts2 tj tc,
+    sred (Default (Empty::ts2) tj tc) (Default ts2 tj tc)
+  | sred_default_E_one_empty:
+    forall vi ts3 tjust tcons,
+      sred
+        (Default ((Value vi)::Empty::ts3) tjust tcons)
+        (Default ((Value vi)::ts3) tjust tcons)
+  | sred_default_J:
     forall tj1 tj2 tc,
       sred tj1 tj2 ->
       forall ts,
       ts = [] ->
       sred (Default ts tj1 tc) (Default ts tj2 tc)
-  | sred_DefaultJTrue:
+  | sred_default_JTrue:
     forall tc,
     forall ts,
     ts = [] ->
       sred (Default ts (Value (Bool true)) tc) tc
-  | sred_DefaultJFalse:
+  | sred_default_JFalse:
     forall tc,
     forall ts,
     ts = [] ->
       sred (Default ts (Value (Bool false)) tc) Empty
-  | sred_DefaultJEmpty:
+  | sred_default_JEmpty:
     forall tc,
     forall ts,
     ts = [] ->
       sred (Default ts Empty tc) Empty
-  | sred_DefaultJConflict:
+  | sred_default_JConflict:
     forall tc,
     forall ts,
     ts = [] ->
