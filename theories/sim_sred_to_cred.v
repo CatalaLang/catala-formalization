@@ -1298,6 +1298,11 @@ Proof.
       induction u; unpack_subst_of_env_cons; tryfalse;
       aexists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]).
     }
+    { aexists (mode_cont [CDefault None ts0 tjust tcons] env0 REmpty). admit "???". }
+    { induction u; tryfalse; unpack_subst_of_env_cons.
+      { aexists (mode_cont [CDefault (Some v) ts tjust0 tcons0] env0 REmpty).  admit "???". }
+      { aexists (mode_cont [CDefault (Some v) ts tjust0 tcons0] env0 REmpty).  admit "???". }
+    }
     { destruct (IHHred Hred) with (mode_eval tjust [] env0) as (s2 & Hs1s2 & Hs2).
       { match_conf. }
       { simpl; eauto. }
@@ -1967,6 +1972,8 @@ Proof.
         aexists (append_stack s2' [CDefault (Some vi) ts0 tj0 tc]).
       }
     }
+    { admit. }
+    { admit. }
     { (* evaluate condition *)
       subst.
       all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
@@ -2299,13 +2306,14 @@ Proof.
       { aexists (mode_cont [] (last kappa env0) (RValue (VSome v))). }
     }
   }
-Qed.
+Admitted.
 
 
 (* -------------------------------------------------------------------------- *)
 
 
 (* Second side of the implication. *)
+
 
 (* Idea: bourrinage *)
 Theorem simulation_cred_sred:
