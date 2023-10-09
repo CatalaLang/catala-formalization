@@ -266,6 +266,98 @@ Inductive sred: term -> term -> Prop :=
       sred (ESome (Value v)) (Value (VSome v))
 .
 
+(* -------------------------------------------------------------------------- *)
+
+(* Lifting context rules to star. *)
+
+
+Lemma star_sred_app_left:
+    forall t1 t2 u,
+      star sred (t1) (t2) ->
+      star sred
+        (App t1 u)
+        (App t2 u).
+Proof.
+  induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+Qed.
+
+Lemma star_sred_app_right:
+  forall t u1 u2 sigma,
+    star sred (u1) (u2) ->
+    star sred
+      (App (Value (Closure t sigma)) u1)
+      (App (Value (Closure t sigma)) u2).
+Proof.
+  admit.
+Admitted.
+
+Lemma star_sred_binop_left:
+    forall op t1 t2 u,
+      star sred (t1) (t2) ->
+      star sred
+        (Binop op t1 u)
+        (Binop op t2 u).
+Proof.
+  induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+Qed.
+
+Lemma star_sred_binop_right:
+    forall op v u1 u2,
+      star sred (u1) (u2) ->
+      star sred
+        (Binop op (Value v) u1)
+        (Binop op (Value v) u2).
+Proof.
+  admit.
+Admitted.
+
+Lemma star_sred_default_E_zero:
+    forall ti ti' ts2 tj tc,
+      star sred ti ti' ->
+      star sred (Default (ti::ts2) tj tc) (Default (ti'::ts2) tj tc).
+Proof.
+  induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+Qed.
+
+Lemma star_sred_default_E_one:
+    forall vi tj tj' ts3 tjust tcons,
+      star sred tj tj' ->
+      star sred
+        (Default ((Value vi)::tj::ts3) tjust tcons)
+        (Default ((Value vi)::tj'::ts3) tjust tcons).
+Proof.
+  admit.
+Admitted.
+
+Lemma star_sred_default_J:
+    forall tj1 tj2 tc,
+      star sred tj1 tj2 ->
+      forall ts,
+      ts = [] ->
+      star sred (Default ts tj1 tc) (Default ts tj2 tc).
+Proof.
+  induction 1; intros; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+Qed.
+
+Lemma star_sred_match_cond:
+    forall u1 u2 t1 t2,
+      star sred u1 u2 ->
+      star sred (Match_ u1 t1 t2) (Match_ u2 t1 t2).
+Proof.
+  induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+Qed.
+
+Lemma star_sred_Some_context:
+    forall t1 t2,
+      star sred t1 t2 ->
+      star sred (ESome t1) (ESome t2).
+Proof.
+  induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+
 Lemma remove_head_empty {ts1 ts1' ti ti' ts2 ts2'}:
   List.Forall (eq Empty) ts1 ->
   List.Forall (eq Empty) ts1' ->
