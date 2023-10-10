@@ -138,8 +138,14 @@ Ltac dsimpl :=
     rewrite (apply_CDefault_ST h)
   | [h: ?t <> Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
     rewrite (apply_CDefault_NT h)
-  (* | [ |- context [match ?t with Empty => _ | _ => _ end]] =>
-    induction t using EmptyOrNotEmpty *)
+  | [h1: ?t = Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_SE h1) in h2
+  | [h1: ?t = Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_NE h1) in h2
+  | [h1: ?t <> Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_ST h1) in h2
+  | [h1: ?t <> Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_NT h1) in h2
 
   | [h: ?t <> Empty |- context [?t.[subst_of_env ?sigma]]] =>
     learn (NEmpty_subst_of_env_NEmpty sigma h)

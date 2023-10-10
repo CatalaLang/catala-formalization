@@ -6,9 +6,55 @@ Import List.ListNotations.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Translating an term into an *)
+(* Translating a state into a term *)
+
+Lemma EmptyOrNotEmpty:
+  forall t, (t = Empty) \/ (t <> Empty).
+Proof.
+  induction t; try solve [right; repeat intro; congruence|left; eauto].
+Qed.
 
 
+Definition apply_CDefault o ts tj tc t sigma : term :=
+  match (o, t) with
+  | (Some v, _) =>
+      Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+  | (None, _) =>
+      Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+  end.
+
+(* This permits to simplify apply defaults using the EmptyOrNotEmpty lemma in an automatic fashon *)
+
+Lemma apply_CDefault_NT: forall {t ts tj tc sigma},
+  t <> Empty ->
+  apply_CDefault None ts tj tc t sigma =
+    Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+Proof.
+induction t; intros; tryfalse; eauto.
+Qed.
+
+Lemma apply_CDefault_ST: forall {v t ts tj tc sigma},
+  t <> Empty ->
+  apply_CDefault (Some v) ts tj tc t sigma =
+    Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+.
+Proof.
+induction t; intros; tryfalse; injections; subst; eauto.
+Qed.
+
+Lemma apply_CDefault_NE: forall {t ts tj tc sigma},
+  t = Empty ->
+  apply_CDefault None ts tj tc t sigma =
+    Default ((ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+Proof.
+Abort.
+
+Lemma apply_CDefault_SE: forall {v t ts tj tc sigma},
+  t = Empty ->
+  apply_CDefault (Some v) ts tj tc t sigma =
+    Default ((Value v).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+Proof.
+Abort.
 
 Definition apply_cont
   (param1: term * list value)
@@ -25,10 +71,8 @@ Definition apply_cont
   | CClosure t_cl sigma_cl =>
     (App (Value (Closure t_cl sigma_cl)) t, sigma)
   | CReturn sigma' => (t, sigma')
-  | CDefault (Some v) ts tj tc =>
-    (Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma], sigma)
-  | CDefault None ts tj tc =>
-    (Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma], sigma)
+  | CDefault o ts tj tc =>
+    (apply_CDefault o ts tj tc t sigma, sigma)
   | CDefaultBase tc =>
     (Default nil t tc.[subst_of_env sigma], sigma)
   | CMatch t1 t2 =>
@@ -60,6 +104,63 @@ Definition apply_state_aux (s: state): term * list value :=
 (* We use an notation to be apple to simplify this definition. *)
 Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
 
+
+
+Lemma NEmpty_subst_of_env_NEmpty {t} sigma:
+  t <> Empty -> t.[subst_of_env sigma] <> Empty.
+Proof.
+  induction t; simpl; repeat intro; try congruence.
+  unfold subst_of_env in *.
+  induction (List.nth_error sigma x).
+  all: unfold ids, Ids_term in *; try congruence.
+Qed.
+
+
+Lemma Empty_eq_Empty : Empty = Empty.
+Proof.
+  reflexivity.
+Qed.
+
+Import Learn.
+
+Ltac dsimpl :=
+  repeat match goal with
+  | [h: ?t = Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_ST h)
+  | [h: ?t = Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_NT h)
+  | [h: ?t <> Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_ST h)
+  | [h: ?t <> Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_NT h)
+  | [h1: ?t = Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_ST h1) in h2
+  | [h1: ?t = Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_NT h1) in h2
+  | [h1: ?t <> Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_ST h1) in h2
+  | [h1: ?t <> Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_NT h1) in h2
+
+  | [h: ?t <> Empty |- context [?t.[subst_of_env ?sigma]]] =>
+    learn (NEmpty_subst_of_env_NEmpty sigma h)
+  | [h: _ /\ _ |- _] =>
+    destruct h
+  | [h: exists _, _ |- _] =>
+    destruct h
+
+  | _ => learn (Empty_eq_Empty) (* so the first two cases trigger*)
+  | _ => progress subst
+  | _ => progress simpl
+  end.
+
+
+Inductive eq_value: value -> value -> Prop :=
+  | eq_closure:
+    forall t sigma,
+      eq_value (Closure t sigma) (Closure t.[up (subst_of_env sigma)] [])
+.
+
 Inductive match_conf : state -> term -> Prop :=
   | match_conf_intro: forall s t,
       t = apply_state s ->
@@ -71,9 +172,10 @@ Inductive match_conf : state -> term -> Prop :=
     match_conf s (Default (ts1++ts2) tj tc) *)
 
   (* | match_value:
-    apply_state s = Value v' ->
-    eq_value v v'  ->
-    match_conf s (Value v) *)
+    forall s v' v,
+      apply_state s = Value v' ->
+      eq_value v v'  ->
+      match_conf s (Value v) *)
 .
 
 Parameter match_conf_filter_empty :
@@ -117,11 +219,7 @@ Proof.
   eapply match_conf_heads_empty; eauto.
 Qed.
 
-Inductive eq_value: value -> value -> Prop :=
-  | eq_closure:
-    forall t sigma,
-      eq_value (Closure t sigma) (Closure t.[up (subst_of_env sigma)] [])
-.
+
 
 Parameter match_value: forall {s v v'},
   match_conf s (Value v) ->
@@ -232,7 +330,6 @@ Proof.
     induction y1, y2; simpl in IHkappa.
     induction x.
     all: unfold apply_cont; simpl in *; eauto; simpl.
-    { induction o; simpl; eauto. }
   }
 Qed.
 
@@ -287,11 +384,9 @@ Proof.
     all: try solve [ simpl; eapply snd_appply_conts_inj; simpl; eauto].
     { simpl; eapply snd_appply_conts_inj; induction phi; simpl; eauto.
       { exfalso. eapply H0; eauto. }
-      { exfalso. eapply H; eauto. }
     }
     { simpl; eapply snd_appply_conts_inj; induction phi; simpl; eauto.
       { exfalso. eapply H; eauto. }
-      { induction o; simpl; eauto. }
     }
   }
 Qed.
@@ -818,23 +913,25 @@ Proof.
   split; revert v kappa t env0 H.
   { induction kappa as [|k kappa] using List.rev_ind.
     { econstructor. }
-    { induction k; try induction o.
+    { induction k.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); eapply List.Forall_app; eauto. }
+      { admit. }
     }
   }
   { induction kappa as [|k kappa] using List.rev_ind.
     { induction t; asimpl; intros; inj; subst; eauto. }
     { destruct t; induction k.
-      all: intros; try induction o; repeat match_conf1; inj.
+      all: intros; repeat match_conf1; inj.
       { destruct (IHkappa (Var x) _ H); inj; unpack; injections; subst; eauto. }
       all: try match goal with
       | [h: Value _ = fst (apply_conts _ (?t, ?env)) |- _] =>
         destruct (IHkappa t env); simpl; eauto
       end.
+      all: admit.
     }
   }
-Qed.
+Admitted.
 
 Lemma value_apply_conts_inversion_cont {v kappa result env0}:
   Value v = fst (apply_conts kappa (apply_return result, env0)) ->
@@ -866,9 +963,10 @@ Proof.
     { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); subst; eauto. }
+      all: admit.
     }
   }
-Qed.
+Admitted.
 
 Lemma empty_apply_conts_inversion_eval {kappa t env0}:
   Empty = fst (apply_conts kappa (t, env0)) ->
@@ -888,9 +986,10 @@ Proof.
     { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); subst; eauto. }
+      all: admit.
     }
   }
-Qed.
+Admitted.
 
 Lemma conflict_apply_conts_inversion_eval {kappa t env0}:
   Conflict = fst (apply_conts kappa (t, env0)) ->
@@ -910,9 +1009,10 @@ Proof.
     { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); subst; eauto. }
+      all: admit.
     }
   }
-Qed.
+Admitted.
 
 Lemma match_conf_eval_app_CReturn {e kappa sigma env0 t}:
   match_conf (mode_eval e (kappa ++ [CReturn sigma]) env0) t ->
@@ -1286,7 +1386,11 @@ Proof.
         as (s2 & Hs1s2 & Hs2);
       try solve [simpl; econstructor; eauto].
 
-      aexists (append_stack s2 [CDefault None ts0 tjust tcons]).
+      destruct (EmptyOrNotEmpty (fst (apply_state_aux s2))); dsimpl.
+      { aexists (mode_cont [CDefault None ts0 tjust tcons] env0 REmpty).
+        { admit. }
+      }
+      { aexists (append_stack s2 [CDefault None ts0 tjust tcons]); dsimpl; eauto. }
     }
     { unpack_subst_of_env_cons.
       destruct (IHHred Hred)
@@ -1297,13 +1401,17 @@ Proof.
 
       induction u; unpack_subst_of_env_cons; tryfalse;
       aexists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]).
+      admit.
     }
     { aexists (mode_cont [CDefault None ts0 tjust tcons] env0 REmpty).
-      admit "???".
+      unfold apply_CDefault.
+      all: admit "???".
     }
     { induction u; tryfalse; unpack_subst_of_env_cons.
-      { aexists (mode_cont [CDefault (Some v) ts tjust0 tcons0] env0 REmpty).  admit "???". }
-      { aexists (mode_cont [CDefault (Some v) ts tjust0 tcons0] env0 REmpty).  admit "???". }
+      { aexists (mode_cont [CDefault (Some v) ts tjust0 tcons0] env0 REmpty).
+      all: admit "???". }
+      { aexists (mode_cont [CDefault (Some v) ts tjust0 tcons0] env0 REmpty).
+      all: admit "???". }
     }
     { destruct (IHHred Hred) with (mode_eval tjust [] env0) as (s2 & Hs1s2 & Hs2).
       { match_conf. }
