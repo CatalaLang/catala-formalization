@@ -1,12 +1,13 @@
 Require Import syntax continuations small_step sequences tactics.
 Require Import Coq.ZArith.ZArith.
 Import List.ListNotations.
+Import Learn.
 
 
 
 (* -------------------------------------------------------------------------- *)
 
-(* Translating an term into an *)
+(* Translating a state into a term *)
 
 Lemma EmptyOrNotEmpty:
   forall t, (t = Empty) \/ (t <> Empty).
@@ -110,7 +111,7 @@ Definition apply_state_aux (s: state): term * list value :=
 (* We use an notation to be apple to simplify this definition. *)
 Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
 
-Import Learn.
+
 
 Lemma NEmpty_subst_of_env_NEmpty {t} sigma:
   t <> Empty -> t.[subst_of_env sigma] <> Empty.
@@ -167,8 +168,6 @@ Proof.
   rewrite List.fold_left_app; eauto.
 Qed.
 
-(* Idea: subtil lemma *)
-
 Fixpoint last (l: list cont) (env0: list value) : list value :=
   match l with
   | [] => env0
@@ -204,7 +203,7 @@ Proof.
   }
 Qed.
 
-Import Learn.
+
 
 Lemma last_snd_apply_conts :
   forall kappa env0 t, (snd (apply_conts kappa (t, env0))) = (last kappa env0).
@@ -223,6 +222,14 @@ Proof.
     all: try eapply IHkappa.
   }
 Qed.
+
+
+(* -------------------------------------------------------------------------- *)
+
+
+(*
+  We are now ready to demonstrate the simulation theorem between continuation-style semantics (`cred`) and small-step semantics (`sred`). This demonstration hinges the following lemma that ensures compositionality when applying a continuation stack.
+*)
 
 
 Theorem sreds_apply_conts: forall kappa t t' sigma,
