@@ -112,14 +112,42 @@ Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsi
 
 Import Learn.
 
+Lemma NEmpty_subst_of_env_NEmpty {t} sigma:
+  t <> Empty -> t.[subst_of_env sigma] <> Empty.
+Proof.
+  induction t; simpl; repeat intro; try congruence.
+  unfold subst_of_env in *.
+  induction (List.nth_error sigma x).
+  all: unfold ids, Ids_term in *; try congruence.
+Qed.
+
+
+Lemma Empty_eq_Empty : Empty = Empty.
+Proof.
+  reflexivity.
+Qed.
+
 Ltac dsimpl :=
   repeat match goal with
-  | [ |- context [match ?t with Empty => _ | _ => _ end]] =>
-    induction t using EmptyOrNotEmpty
+  | [h: ?t = Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_SE h)
+  | [h: ?t = Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_NE h)
+  | [h: ?t <> Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_ST h)
+  | [h: ?t <> Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_NT h)
+  (* | [ |- context [match ?t with Empty => _ | _ => _ end]] =>
+    induction t using EmptyOrNotEmpty *)
+
+  | [h: ?t <> Empty |- context [?t.[subst_of_env ?sigma]]] =>
+    learn (NEmpty_subst_of_env_NEmpty sigma h)
   | [h: _ /\ _ |- _] =>
     destruct h
   | [h: exists _, _ |- _] =>
     destruct h
+
+  | _ => learn (Empty_eq_Empty)
   | _ => progress subst
   | _ => progress simpl
   end.
@@ -197,8 +225,7 @@ Proof.
 Qed.
 
 
-
-Theorem sred_apply_conts: forall kappa t t' sigma,
+Theorem sreds_apply_conts: forall kappa t t' sigma,
   star sred t t' ->
   star sred
     (fst (apply_conts kappa (t, sigma)))
@@ -223,7 +250,6 @@ Proof.
 
     all: repeat rewrite last_snd_apply_conts.
 
-
     all: try solve [eauto with sred].
     { repeat match goal with
       | [|- context [apply_CDefault ?o _ _ _ ?t _] ] =>
@@ -247,9 +273,10 @@ Proof.
       | [h: star sred Empty _ |- _] =>
         learn (star_sred_empty_empty _ h)
       | _ =>
-        try congruence
+        progress try congruence
+      | _ =>
+        solve [eauto with sred]
       end.
-      all: try solve [eauto with sred].
       { eapply star_trans. {
           eapply star_sred_default_E_one.
           eapply Hred_kappa.
@@ -302,53 +329,39 @@ Proof.
 Qed.
 
 
-
-Theorem sreds_apply_conts: forall kappa t t' sigma,
-  star sred t t' ->
-  star sred
-    (fst (apply_conts kappa (t, sigma)))
-    (fst (apply_conts kappa (t', sigma)))
-.
-Proof.
-  induction 1; eauto using sred_apply_conts with sequences.
-Qed.
-
-
 Theorem simulation_cred_sred:
   forall s1 s2,
     cred s1 s2 ->
     star sred (apply_state s1) (apply_state s2).
 Proof.
   induction 1; try induction o.
-  all: simpl; try solve [eapply star_refl| eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
+  all: simpl.
+  all: try solve [eapply star_refl].
+  all: try solve [eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
   { simpl; unfold subst_of_env; rewrite H; eauto with sequences. }
   { simpl. eapply sreds_apply_conts.
     eapply star_one.
     admit "lambda related issue".
   }
   { eapply sreds_apply_conts.
-    eapply star_one.
-    admit "issue related to Empty in right position".
+    destruct (EmptyOrNotEmpty th).
+    { subst; simpl; repeat rewrite apply_CDefault_SE; eauto.
+      asimpl.
+      eapply star_one; econstructor.
+    }
+    { dsimpl.
+      eapply star_refl.
+    }
   }
   { eapply sreds_apply_conts.
-    eapply star_one.
-    admit "same: the reduction append an empty on the right hand side".
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
-    admit "same: the reduction append an empty on the right hand side".
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
-    admit "same: the reduction append an empty on the right hand side".
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
-    admit "same: the reduction append an empty on the right hand side".
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
-    admit "same: the reduction append an empty on the right hand side".
+    destruct (EmptyOrNotEmpty th).
+    { subst; simpl; repeat rewrite apply_CDefault_SE; eauto.
+      asimpl.
+      eapply star_one; econstructor.
+    }
+    { dsimpl.
+      eapply star_refl.
+    }
   }
   { induction phi; try induction o.
     all: try solve[eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
