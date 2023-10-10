@@ -266,6 +266,32 @@ Inductive sred: term -> term -> Prop :=
       sred (ESome (Value v)) (Value (VSome v))
 .
 
+
+Notation "'sred' t1 t2" :=
+  (sred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'sred'  '[hv' t1  '/' t2 ']'"
+).
+Notation "'star' 'sred' t1 t2" :=
+  (star sred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'star'  'sred'  '[hv' t1  '/' t2 ']'"
+).
+Notation "'plus' 'sred' t1 t2" :=
+  (plus sred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'plus'  'sred'  '[hv' t1  '/' t2 ']'"
+).
+
 (* -------------------------------------------------------------------------- *)
 
 (* Lifting context rules to star. *)
@@ -288,8 +314,12 @@ Lemma star_sred_app_right:
       (App (Value (Closure t sigma)) u1)
       (App (Value (Closure t sigma)) u2).
 Proof.
-  admit.
-Admitted.
+  induction 1.
+  { eapply star_refl. }
+  { eapply star_step; [|eapply IHstar].
+    econstructor; eauto.
+  }
+Qed.
 
 Lemma star_sred_binop_left:
     forall op t1 t2 u,
@@ -308,8 +338,12 @@ Lemma star_sred_binop_right:
         (Binop op (Value v) u1)
         (Binop op (Value v) u2).
 Proof.
-  admit.
-Admitted.
+  induction 1.
+  { eapply star_refl. }
+  { eapply star_step; [|eapply IHstar].
+    econstructor; eauto.
+  }
+Qed.
 
 Lemma star_sred_default_E_zero:
     forall ti ti' ts2 tj tc,
@@ -326,8 +360,12 @@ Lemma star_sred_default_E_one:
         (Default ((Value vi)::tj::ts3) tjust tcons)
         (Default ((Value vi)::tj'::ts3) tjust tcons).
 Proof.
-  admit.
-Admitted.
+  induction 1.
+  { eapply star_refl. }
+  { eapply star_step; [|eapply IHstar].
+    econstructor; eauto.
+  }
+Qed.
 
 Lemma star_sred_default_J:
     forall tj1 tj2 tc,
@@ -355,8 +393,47 @@ Proof.
   induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
 Qed.
 
+Lemma star_sred_empty_empty:
+  forall t2,
+    star sred Empty t2 -> t2 = Empty.
+Proof.
+  intros.
+  induction H using star_ind_n1; subst; eauto.
+  inversion H.
+Qed.
+
+Hint Resolve
+  star_sred_app_left
+  star_sred_app_right
+  star_sred_binop_left
+  star_sred_binop_right
+  star_sred_default_E_zero
+  star_sred_default_E_one
+  star_sred_default_J
+  star_sred_match_cond
+  star_sred_Some_context
+
+  star_sred_empty_empty
+: sred.
+
+Hint Resolve
+  star_refl
+: sred.
+
+Hint Constructors sred : sred.
+
+
 (* -------------------------------------------------------------------------- *)
 
+(* Determinsm lemma *)
+
+Theorem sred_deterministc:
+  forall t t1,
+    sred t t1 ->
+    forall t2,
+      sred t t2 ->
+      t1 = t2.
+Abort.
 
 Lemma remove_head_empty {ts1 ts1' ti ti' ts2 ts2'}:
   List.Forall (eq Empty) ts1 ->
@@ -446,27 +523,6 @@ Proof.
   { rewrite <- H in H5; injections; eauto. }
 Qed.
 
-Notation "'sred' t1 t2" :=
-  (sred t1 t2) (
-  at level 50,
-  t1 at level 3,
-  t2 at level 3,
-  only printing,
-  format "'sred'  '[hv' t1  '/' t2 ']'"
-).
-Notation "'star' 'sred' t1 t2" :=
-  (star sred t1 t2) (
-  at level 50,
-  t1 at level 3,
-  t2 at level 3,
-  only printing,
-  format "'star'  'sred'  '[hv' t1  '/' t2 ']'"
-).
-Notation "'plus' 'sred' t1 t2" :=
-  (plus sred t1 t2) (
-  at level 50,
-  t1 at level 3,
-  t2 at level 3,
-  only printing,
-  format "'plus'  'sred'  '[hv' t1  '/' t2 ']'"
-).
+
+
+

@@ -199,14 +199,14 @@ Qed.
 
 
 Theorem sred_apply_conts: forall kappa t t' sigma,
-  sred t t' ->
-  sred
+  star sred t t' ->
+  star sred
     (fst (apply_conts kappa (t, sigma)))
     (fst (apply_conts kappa (t', sigma)))
 .
 Proof.
   induction kappa as [|k kappa] using List.rev_ind.
-  { simpl; eauto. }
+  { simpl; eauto with sequences. }
   { induction k;
     intros t t' env Htt'.
     all: pose proof (IHkappa _ _ env Htt') as Hred_kappa.
@@ -224,8 +224,7 @@ Proof.
     all: repeat rewrite last_snd_apply_conts.
 
 
-    all: try solve [econstructor; eauto].
-    { eapply IHkappa; eauto. }
+    all: try solve [eauto with sred].
     { repeat match goal with
       | [|- context [apply_CDefault ?o _ _ _ ?t _] ] =>
         induction o; learn (EmptyOrNotEmpty t)
@@ -245,13 +244,59 @@ Proof.
         rewrite h1
       | [h: sred Empty _ |- _] =>
         inversion h
+      | [h: star sred Empty _ |- _] =>
+        learn (star_sred_empty_empty _ h)
+      | _ =>
+        try congruence
       end.
-      all: asimpl.
-      all: try solve [econstructor; eauto].
-      3:{  }
-      asimpl.
-      2: { econstructor; eauto. }
-      eapply sred_DefaultE_one.
+      all: try solve [eauto with sred].
+      { eapply star_trans. {
+          eapply star_sred_default_E_one.
+          eapply Hred_kappa.
+        }
+        eapply star_one. {
+          eapply sred_default_E_one_empty.
+        }
+      }
+      {
+        eapply star_trans. {
+          eapply star_sred_default_E_one.
+          eapply Hred_kappa.
+        }
+        eapply star_refl.
+      }
+      {
+        eapply star_trans. {
+          eapply star_sred_default_E_zero.
+          eapply Hred_kappa.
+        }
+        eapply star_one. {
+          eapply sred_default_E_zero_empty.
+        }
+      }
+      { eapply star_trans. {
+          eapply star_sred_default_E_one.
+          eapply Hred_kappa.
+        }
+        eapply star_one. {
+          eapply sred_default_E_one_empty.
+        }
+      }
+      {
+        eapply star_trans. {
+          eapply star_sred_default_E_one.
+          eapply Hred_kappa.
+        }
+        eapply star_refl.
+      }
+      { eapply star_trans. {
+          eapply star_sred_default_E_zero.
+          eapply Hred_kappa.
+        }
+        eapply star_one. {
+          eapply sred_default_E_zero_empty.
+        }
+      }
     }
   }
 Qed.
