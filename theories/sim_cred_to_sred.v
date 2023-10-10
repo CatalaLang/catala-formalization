@@ -147,7 +147,7 @@ Ltac dsimpl :=
   | [h: exists _, _ |- _] =>
     destruct h
 
-  | _ => learn (Empty_eq_Empty)
+  | _ => learn (Empty_eq_Empty) (* so the first two cases trigger*)
   | _ => progress subst
   | _ => progress simpl
   end.
