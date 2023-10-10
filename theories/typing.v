@@ -3,6 +3,9 @@ Require Import List.
 Require Import syntax continuations tactics sequences.
 Import List.ListNotations.
 
+
+(* The primary challenge was to accurately determine the correct typing judgment for the states of the abstract machine. I chose an approach that specifies the required typing judgment for each continuation. The tricky part is that, within the continuation stack, there can be environmental changes, especially during a function return. These changes must then be propagated throughout the remainder of the continuation stack. As a result, I decided on a method involving two typing environments: an input and an output. Furthermore, an input type (corresponding to the "hole") and an output type are needed. *)
+
 Inductive type :=
 | TBool
 | TInteger
@@ -16,6 +19,8 @@ Definition jt_op (o: op) :=
   | Add => (TInteger, TInteger, TInteger)
   end.
 
+
+(** [jt_term Delta Gamma t T] signifies that the term [t], within the local environment [Gamma] and the global environment [Delta], is of type [T]. *)
 Inductive jt_term:
   (string -> option type) -> list type -> term -> type -> Prop :=
   | JTVar:
@@ -263,7 +268,7 @@ Ltac inv_jt :=
   end.
 
 Section Examples.
-
+  (* TODO *)
 End Examples.
 
 Theorem preservation s1 s2:
