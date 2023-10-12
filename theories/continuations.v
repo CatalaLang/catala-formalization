@@ -719,8 +719,9 @@ Proof.
   all: intros; solve [ inj | tryfalse | eauto].
 Qed.
 
-Hypothesis eq_dec_cont: forall (x y : cont), {x = y}+{x <> y}.
-
+Theorem eq_dec_cont: forall (x y : cont), {x = y}+{x <> y}.
+decide equality.
+Admitted.
 
 Theorem cred_stack_drop:
   forall t k env env'' r'',

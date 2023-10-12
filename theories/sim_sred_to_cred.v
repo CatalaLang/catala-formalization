@@ -16,10 +16,10 @@ Qed.
 
 
 Definition apply_CDefault o ts tj tc t sigma : term :=
-  match (o, t) with
-  | (Some v, _) =>
+  match o with
+  | Some v =>
       Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-  | (None, _) =>
+  | None =>
       Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
   end.
 
@@ -125,18 +125,18 @@ Import Learn.
 
 Ltac dsimpl :=
   repeat match goal with
-  | [h: ?t = Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
-    rewrite (apply_CDefault_ST h)
+  (* | [h: ?t = Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_SE h)
   | [h: ?t = Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
-    rewrite (apply_CDefault_NT h)
+    rewrite (apply_CDefault_NE h) *)
   | [h: ?t <> Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
     rewrite (apply_CDefault_ST h)
   | [h: ?t <> Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
     rewrite (apply_CDefault_NT h)
-  | [h1: ?t = Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
-    rewrite (apply_CDefault_ST h1) in h2
+  (* | [h1: ?t = Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_SE h1) in h2
   | [h1: ?t = Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
-    rewrite (apply_CDefault_NT h1) in h2
+    rewrite (apply_CDefault_NE h1) in h2 *)
   | [h1: ?t <> Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
     rewrite (apply_CDefault_ST h1) in h2
   | [h1: ?t <> Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
@@ -151,7 +151,7 @@ Ltac dsimpl :=
 
   | _ => learn (Empty_eq_Empty) (* so the first two cases trigger*)
   | _ => progress subst
-  | _ => progress simpl
+  | _ => progress asimpl
   end.
 
 
@@ -913,25 +913,23 @@ Proof.
   split; revert v kappa t env0 H.
   { induction kappa as [|k kappa] using List.rev_ind.
     { econstructor. }
-    { induction k.
+    { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); eapply List.Forall_app; eauto. }
-      { admit. }
     }
   }
   { induction kappa as [|k kappa] using List.rev_ind.
     { induction t; asimpl; intros; inj; subst; eauto. }
-    { destruct t; induction k.
+    { destruct t; induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { destruct (IHkappa (Var x) _ H); inj; unpack; injections; subst; eauto. }
       all: try match goal with
       | [h: Value _ = fst (apply_conts _ (?t, ?env)) |- _] =>
         destruct (IHkappa t env); simpl; eauto
       end.
-      all: admit.
     }
   }
-Admitted.
+Qed.
 
 Lemma value_apply_conts_inversion_cont {v kappa result env0}:
   Value v = fst (apply_conts kappa (apply_return result, env0)) ->
@@ -963,10 +961,9 @@ Proof.
     { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); subst; eauto. }
-      all: admit.
     }
   }
-Admitted.
+Qed.
 
 Lemma empty_apply_conts_inversion_eval {kappa t env0}:
   Empty = fst (apply_conts kappa (t, env0)) ->
@@ -986,10 +983,9 @@ Proof.
     { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); subst; eauto. }
-      all: admit.
     }
   }
-Admitted.
+Qed.
 
 Lemma conflict_apply_conts_inversion_eval {kappa t env0}:
   Conflict = fst (apply_conts kappa (t, env0)) ->
@@ -1009,10 +1005,9 @@ Proof.
     { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); subst; eauto. }
-      all: admit.
     }
   }
-Admitted.
+Qed.
 
 Lemma match_conf_eval_app_CReturn {e kappa sigma env0 t}:
   match_conf (mode_eval e (kappa ++ [CReturn sigma]) env0) t ->
@@ -1094,6 +1089,26 @@ Proof.
   }
 Qed.
 
+Lemma cred_apply_state_Emtpy {s2}:
+  fst (apply_state_aux s2) = Empty ->
+  star cred s2 (mode_cont [] (last (stack s2) (env s2)) REmpty).
+Proof.
+  induction s2; simpl; intros H.
+  { learn (empty_apply_conts_inversion_eval (eq_sym H)).
+    match_conf; unpack_subst_of_env_cons.
+
+    replace kappa with (kappa ++ []) at 1 by eapply List.app_nil_r .
+    eapply star_step. { econstructor. }
+    eapply cred_process_return; eauto.
+  }
+  { learn (empty_apply_conts_inversion_eval (eq_sym H)).
+    match_conf; unpack_subst_of_env_cons.
+
+    replace kappa with (kappa ++ []) at 1 by eapply List.app_nil_r .
+    eapply cred_process_return; eauto.
+  }
+Qed.
+
 Lemma last_snd_apply_conts :
   forall kappa env0 t, (snd (apply_conts kappa (t, env0))) = (last kappa env0).
 Proof.
@@ -1101,6 +1116,55 @@ Proof.
   { simpl; eauto. }
   { induction a; simpl; intros; try induction o; eapply IHkappa. }
 Qed.
+
+Goal
+  apply_state (mode_eval (Default [Empty] (Value (Bool true)) (Value (Bool true))) [] []) = Default [Empty] (Value (Bool true)) (Value (Bool true)).
+Proof.
+  simpl.
+  eauto.
+Qed.
+
+Goal
+  apply_state (mode_eval (Default [] (Value (Bool true)) (Value (Bool true))) [] []) = Default [] (Value (Bool true)) (Value (Bool true)).
+Proof.
+  simpl.
+  eauto.
+Qed.
+
+Goal
+  forall t,
+  t <> Empty ->
+  apply_state (mode_eval (Default [t] (Value (Bool true)) (Value (Bool true))) [] []) = Default [t.[subst_of_env []]] (Value (Bool true)) (Value (Bool true)).
+Proof.
+  intros; dsimpl.
+  simpl.
+  eauto.
+Qed.
+
+Goal
+  exists k env ret,
+    apply_state (mode_cont [k] env ret) =
+      Default [Empty] (Value (Bool true)) (Value (Bool true)).
+Proof.
+  exists (CDefault None [] (Value (Bool true)) (Value (Bool true))), [], REmpty.
+  simpl; eauto.
+Qed.
+
+Goal
+  exists k env ret,
+    apply_state (mode_cont [k] env ret) =
+      Default [] (Value (Bool true)) (Value (Bool true)).
+Proof.
+  exists (CDefaultBase (Value (Bool true))), [], REmpty.
+  simpl; eauto.
+Abort.
+
+
+Compute apply_state (mode_eval (Default [] (Value (Bool true)) (Value (Bool true))) [] []).
+
+Compute apply_state (mode_cont [CDefault None [(Value (Bool true))] (Value (Bool true)) (Value (Bool true))] [] REmpty).
+
+Compute apply_state (mode_eval ((Value (Bool true))) [CDefault None [] (Value (Bool true)) (Value (Bool true))] []).
 
 Ltac cstep :=
   match goal with
@@ -1130,7 +1194,7 @@ Ltac cstep :=
       eapply star_plus_trans; [solve [eapply cred_process_return; eauto]|]
   | [
     h: List.Forall (fun k => exists sigma, k = CReturn sigma) ?kappa1
-    |- plus cred
+    |- star cred
         (mode_cont (?kappa1 ++ ?kappa2) ?env ?r)
         _
     ] =>
@@ -1153,13 +1217,77 @@ Ltac cstep :=
     eapply append_stack_stable_plus
   | [ |- star cred ?s1 ?s1] =>
     eapply star_refl
-  | _ => rewrite last_snd_apply_conts in *
+  | _ => progress rewrite last_snd_apply_conts in *
 end.
+
+(* Same thing as cstep, but write the resulting sequence steps. *)
+Ltac cstep_info := cstep;
+  match goal with
+  | [|- cred ?s _] =>
+    idtac s "//";
+    remember (apply_state s) as tmp;
+    match goal with
+    | [h: tmp = ?t |- _] => simpl in h
+    end;
+    match goal with
+    | [h: tmp = ?t |- _] => idtac t "//"; clear tmp h
+    end
+  | [|- plus cred ?s _] =>
+    idtac s "//";
+    remember (apply_state s) as tmp;
+    match goal with
+    | [h: tmp = ?t |- _] => simpl in h
+    end;
+    match goal with
+    | [h: tmp = ?t |- _] => idtac t "//"; clear tmp h
+    end
+  | [|- star cred ?s _] =>
+    idtac s "//";
+    remember (apply_state s) as tmp;
+    match goal with
+    | [h: tmp = ?t |- _] => simpl in h
+    end;
+    match goal with
+    | [h: tmp = ?t |- _] => idtac t "//"; clear tmp h
+    end
+  end.
+
+Ltac repeat_cstep_info :=
+  idtac "--------------------------------------------------------------------------";
+  repeat cstep_info;
+  idtac "--------------------------------------------------------------------------".
 
 (* -------------------------------------------------------------------------- *)
 
 Ltac aexists t :=
-  exists t; unlock; subst; split; [repeat cstep|match_conf].
+  exists t; unlock; subst; split; [repeat_cstep_info|match_conf].
+
+
+Goal
+exists sigma',
+  star cred
+  (mode_eval
+    (* \synlet 5 \synin (\synlet 3 \synin \bar 0) +\ bar 0*)
+    (App
+      (Lam
+        (Binop
+          Add
+          (App (Lam (Var 0)) (Value (Int 3%Z)))
+          (Var 0)
+        )
+      )
+      (Value (Int 5%Z))
+    )
+    []
+    []
+  )
+  (mode_cont [] sigma' (RValue (Int 8%Z)))
+  .
+Proof.
+  eexists.
+  repeat_cstep_info.
+  eapply star_refl.
+Qed.
 
 
 (* -------------------------------------------------------------------------- *)
@@ -1388,7 +1516,21 @@ Proof.
 
       destruct (EmptyOrNotEmpty (fst (apply_state_aux s2))); dsimpl.
       { aexists (mode_cont [CDefault None ts0 tjust tcons] env0 REmpty).
-        { admit. }
+        { learn (cred_apply_state_Emtpy H0).
+          eapply star_trans. {
+            rewrite <- List.app_nil_l at 1.
+            rewrite append_stack_eval.
+            eapply append_stack_stable_star.
+            eauto.
+          }
+          eapply star_trans. {
+            eapply append_stack_stable_star.
+            eauto.
+          }
+          simpl.
+          eapply star_refl_eq; repeat f_equal.
+          { admit "trivial". }
+        }
       }
       { aexists (append_stack s2 [CDefault None ts0 tjust tcons]); dsimpl; eauto. }
     }
@@ -1401,17 +1543,31 @@ Proof.
 
       induction u; unpack_subst_of_env_cons; tryfalse;
       aexists (append_stack s2 [CDefault (Some v) ts tjust0 tcons0]).
-      admit.
     }
-    { aexists (mode_cont [CDefault None ts0 tjust tcons] env0 REmpty).
-      unfold apply_CDefault.
-      all: admit "???".
+    { (* This is the case where [Default (Empty :: ts) tjust tcons -> Default ts tjust tcons]. It is particularly tricky.
+
+    * Typically, the shared term should be [mode_cont [CDefault None ts0 tjust tcons] env0 REmpty].
+    * But, when we evaluate the result of [apply_state], it produces an [Empty::ts0] which doesn't align with the match_conf segment of the expression.
+    * This misalignment stems from the [mode_cont] mode.
+    * To address this, an additional computation step is necessary. The resulting term is contingent on the makeup of ts0. If it's [[]], the subsequent computation uses [CDefaultBase]. Otherwise, it employs [CDefault]. In both instances, it operates in the [mode_eval] mode.
+    *)
+      induction ts0.
+      { aexists (mode_eval tjust [CDefaultBase tcons] env0). }
+      { aexists (mode_eval a [CDefault None ts0 tjust tcons] env0). }
     }
-    { induction u; tryfalse; unpack_subst_of_env_cons.
-      { aexists (mode_cont [CDefault (Some v) ts tjust0 tcons0] env0 REmpty).
-      all: admit "???". }
-      { aexists (mode_cont [CDefault (Some v) ts tjust0 tcons0] env0 REmpty).
-      all: admit "???". }
+    { (* This is very similar to the previous case, but with the slight difference that we need to check if u is a [Value] or a [Var]. *)
+      induction u; tryfalse; unpack_subst_of_env_cons.
+      {
+        induction ts.
+        { simpl in *.
+          
+          aexists (mode_cont [] env0 (RValue v)). admit. }
+        { aexists (mode_eval a [CDefault (Some v) ts tjust0 tcons0] env0). }
+      }
+      { induction ts.
+        { aexists (mode_cont [] env0 (RValue v)). admit. }
+        { aexists (mode_eval a [CDefault (Some v) ts tjust0 tcons0] env0). }
+      }
     }
     { destruct (IHHred Hred) with (mode_eval tjust [] env0) as (s2 & Hs1s2 & Hs2).
       { match_conf. }

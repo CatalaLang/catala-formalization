@@ -189,10 +189,12 @@ Inductive sred: term -> term -> Prop :=
       sred (Default ((Value vi)::Conflict::ts2) tjust tcons) Conflict
   | sred_default_E_zero:
     forall ti ti' ts2 tj tc,
+      ti' <> Empty ->
       sred ti ti' ->
       sred (Default (ti::ts2) tj tc) (Default (ti'::ts2) tj tc)
   | sred_default_E_one:
     forall vi tj tj' ts3 tjust tcons,
+      tj' <> Empty ->
       sred tj tj' ->
       sred
         (Default ((Value vi)::tj::ts3) tjust tcons)
@@ -200,12 +202,14 @@ Inductive sred: term -> term -> Prop :=
 
   (* todo : add a comment to explain why version of the semantics and not the sred t Empty -> sred (Default (t::ts) tj tc) (Default ts tj tc). *)
   | sred_default_E_zero_empty:
-  forall ts2 tj tc,
-    sred (Default (Empty::ts2) tj tc) (Default ts2 tj tc)
+    forall ti ts2 tj tc,
+      sred ti Empty ->
+      sred (Default (ti::ts2) tj tc) (Default ts2 tj tc)
   | sred_default_E_one_empty:
-    forall vi ts3 tjust tcons,
+    forall vi tj ts3 tjust tcons,
+      sred tj Empty ->
       sred
-        (Default ((Value vi)::Empty::ts3) tjust tcons)
+        (Default ((Value vi)::tj::ts3) tjust tcons)
         (Default ((Value vi)::ts3) tjust tcons)
   | sred_default_J:
     forall tj1 tj2 tc,
@@ -350,10 +354,13 @@ Qed.
 Lemma star_sred_default_E_zero:
     forall ti ti' ts2 tj tc,
       star sred ti ti' ->
+      ti' <> Empty ->
       star sred (Default (ti::ts2) tj tc) (Default (ti'::ts2) tj tc).
 Proof.
-  induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
-Qed.
+  induction 1; intros; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+  admit.
+  admit.
+Admitted.
 
 Lemma star_sred_default_E_one:
     forall vi tj tj' ts3 tjust tcons,
@@ -366,8 +373,9 @@ Proof.
   { eapply star_refl. }
   { eapply star_step; [|eapply IHstar].
     econstructor; eauto.
+    admit.
   }
-Qed.
+Admitted.
 
 Lemma star_sred_default_J:
     forall tj1 tj2 tc,
@@ -503,9 +511,9 @@ Proof.
   | [
     h1: sred ?t ?t1,
     h2: sred ?t ?t2,
-    IHsred: forall t3, sred ?t t3 -> forall t4, sred ?t t4 -> t3 = t4
+    IHsred: forall t3, sred ?t t3 -> _
     |- _ ] =>
-    eapply IHsred; eauto
+    learn (IHsred _ h1)
 
   (* Main helper lemma: we can only take a look to the first non-empty term *)
   | [
@@ -524,7 +532,3 @@ Proof.
   (* After saturation, there is only one case left. *)
   { rewrite <- H in H5; injections; eauto. }
 Qed.
-
-
-
-
