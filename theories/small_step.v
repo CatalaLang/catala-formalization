@@ -202,15 +202,19 @@ Inductive sred: term -> term -> Prop :=
 
   (* todo : add a comment to explain why version of the semantics and not the sred t Empty -> sred (Default (t::ts) tj tc) (Default ts tj tc). *)
   | sred_default_E_zero_empty:
-    forall ti ts2 tj tc,
-      sred ti Empty ->
-      sred (Default (ti::ts2) tj tc) (Default ts2 tj tc)
-  | sred_default_E_one_empty:
-    forall vi tj ts3 tjust tcons,
-      sred tj Empty ->
+    forall ts2 tj tc,
+      sred (Default (Empty::ts2) tj tc) (Default ts2 tj tc)
+  | sred_default_E_one_empty_finish:
+    forall vi tjust tcons,
       sred
-        (Default ((Value vi)::tj::ts3) tjust tcons)
-        (Default ((Value vi)::ts3) tjust tcons)
+        (Default ((Value vi)::Empty::[]) tjust tcons)
+        (Value vi)
+  | sred_default_E_one_empty_continue:
+    forall vi a ts3 tjust tcons,
+      sred
+        (Default ((Value vi)::Empty::a::ts3) tjust tcons)
+        (Default ((Value vi)::a::ts3) tjust tcons)
+
   | sred_default_J:
     forall tj1 tj2 tc,
       sred tj1 tj2 ->

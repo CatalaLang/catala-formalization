@@ -166,59 +166,12 @@ Inductive match_conf : state -> term -> Prop :=
       t = apply_state s ->
       match_conf s t
 
-  (* | match_conf_empty:
-    match_conf s (Default ts2 tj tc) ->
-    List.Forall (Eq Empty) ts1 ->
-    match_conf s (Default (ts1++ts2) tj tc) *)
-
   (* | match_value:
     forall s v' v,
       apply_state s = Value v' ->
       eq_value v v'  ->
       match_conf s (Value v) *)
 .
-
-Parameter match_conf_filter_empty :
-  forall {s ts tj tc},
-  match_conf s (Default (List.filter (fun ti => match ti with | Empty => false | _ => false end) ts) tj tc) ->
-  match_conf s (Default ts tj tc)
-.
-
-Parameter match_conf_filter_empty' :
-  forall {s ts tj tc},
-  match_conf s (Default ts tj tc) ->
-  match_conf s (Default (List.filter (fun ti => match ti with | Empty => false | _ => false end) ts) tj tc)
-.
-
-Lemma match_conf_heads_empty:
-  forall {s ts1 ts2 tj tc},
-    match_conf s (Default ts2 tj tc) ->
-    List.Forall (eq Empty) ts1 ->
-    match_conf s (Default (ts1++ts2) tj tc).
-Proof.
-  intros.
-  assert (Hfilter:
-    (List.filter (fun ti => match ti with | Empty => false | _ => false end) ts2) =
-    (List.filter (fun ti => match ti with | Empty => false | _ => false end) (ts1++ts2))
-  ).
-  { induction ts1; simpl; unpack; eauto. }
-  eapply match_conf_filter_empty.
-  rewrite <- Hfilter.
-  eapply match_conf_filter_empty'.
-  eauto.
-Qed.
-
-Lemma match_conf_empty:
-  forall {s ts1 tj tc},
-    match_conf s (Default [] tj tc) ->
-    List.Forall (eq Empty) ts1 ->
-    match_conf s (Default ts1 tj tc).
-Proof.
-  intros.
-  replace ts1 with (ts1 ++ []) by (autorewrite with list; eauto).
-  eapply match_conf_heads_empty; eauto.
-Qed.
-
 
 
 Parameter match_value: forall {s v v'},
@@ -878,6 +831,8 @@ Ltac match_conf1 :=
     learn (creds_apply_state_sigma_stable hs1s2)
   | [ hs1s2: star cred (mode_cont _ _ _) ?s2 |- _ ] =>
     learn (creds_apply_state_sigma_stable hs1s2)
+  | [ hs1s2: star cred _ _ |- _ ] =>
+    learn (creds_apply_state_sigma_stable hs1s2)
   | [ |- context [apply_state_aux (append_stack _ _)]] =>
     rewrite apply_state_append_stack
   | [ |- context [let '(_, _) := ?p in _]] =>
@@ -1217,7 +1172,7 @@ Ltac cstep :=
     eapply append_stack_stable_plus
   | [ |- star cred ?s1 ?s1] =>
     eapply star_refl
-  | _ => progress rewrite last_snd_apply_conts in *
+  | _ => try rewrite last_snd_apply_conts in *
 end.
 
 (* Same thing as cstep, but write the resulting sequence steps. *)
@@ -1260,35 +1215,7 @@ Ltac repeat_cstep_info :=
 (* -------------------------------------------------------------------------- *)
 
 Ltac aexists t :=
-  exists t; unlock; subst; split; [repeat_cstep_info|match_conf].
-
-
-Goal
-exists sigma',
-  star cred
-  (mode_eval
-    (* \synlet 5 \synin (\synlet 3 \synin \bar 0) +\ bar 0*)
-    (App
-      (Lam
-        (Binop
-          Add
-          (App (Lam (Var 0)) (Value (Int 3%Z)))
-          (Var 0)
-        )
-      )
-      (Value (Int 5%Z))
-    )
-    []
-    []
-  )
-  (mode_cont [] sigma' (RValue (Int 8%Z)))
-  .
-Proof.
-  eexists.
-  repeat_cstep_info.
-  eapply star_refl.
-Qed.
-
+  exists t; unlock; subst; split; [repeat cstep|match_conf].
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1529,7 +1456,7 @@ Proof.
           }
           simpl.
           eapply star_refl_eq; repeat f_equal.
-          { admit "trivial". }
+          { match_conf. }
         }
       }
       { aexists (append_stack s2 [CDefault None ts0 tjust tcons]); dsimpl; eauto. }
@@ -1557,17 +1484,12 @@ Proof.
     }
     { (* This is very similar to the previous case, but with the slight difference that we need to check if u is a [Value] or a [Var]. *)
       induction u; tryfalse; unpack_subst_of_env_cons.
-      {
-        induction ts.
-        { simpl in *.
-          
-          aexists (mode_cont [] env0 (RValue v)). admit. }
-        { aexists (mode_eval a [CDefault (Some v) ts tjust0 tcons0] env0). }
-      }
-      { induction ts.
-        { aexists (mode_cont [] env0 (RValue v)). admit. }
-        { aexists (mode_eval a [CDefault (Some v) ts tjust0 tcons0] env0). }
-      }
+      { aexists (mode_cont [] env0 (RValue v)). }
+      { aexists (mode_cont [] env0 (RValue v)). }
+    }
+    { induction u; tryfalse; unpack_subst_of_env_cons.
+      { aexists (mode_eval u1 [CDefault (Some v) ts0 tjust0 tcons0] env0). }
+      { aexists (mode_eval u1 [CDefault (Some v) ts0 tjust0 tcons0] env0). }
     }
     { destruct (IHHred Hred) with (mode_eval tjust [] env0) as (s2 & Hs1s2 & Hs2).
       { match_conf. }
@@ -2100,7 +2022,7 @@ Proof.
       { induction e, u; tryfalse; unpack_subst_of_env_cons.
         all: repeat cstep. }
       { induction u; tryfalse; unpack_subst_of_env_cons.
-        all: repeat cstep. 
+        all: repeat cstep.
       }
     }
     { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
@@ -2181,14 +2103,14 @@ Proof.
       { destruct (IHkappa _ _ Hred s1') as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
         aexists (append_stack s2' [CDefault None ts tj0 tc0]).
         { repeat f_equal.
-          all: rewrite <- (creds_apply_state_sigma_stable H).
+          all: rewrite <- (creds_apply_state_sigma_stable H0).
           all: simpl; rewrite last_snd_apply_conts; eauto.
         }
       }
       { destruct (IHkappa _ _ Hred s1') as (s2' & Hs1s2 & Hs2); try solve [unlock; subst; match_conf].
         aexists (append_stack s2' [CDefault None ts tj0 tc0]).
         { repeat f_equal.
-          all: rewrite <- (creds_apply_state_sigma_stable H).
+          all: rewrite <- (creds_apply_state_sigma_stable H0).
           all: simpl; rewrite last_snd_apply_conts; eauto.
         }
       }
@@ -2214,8 +2136,8 @@ Proof.
 
         aexists (append_stack s2' [CDefault (Some a) ts tj0 tc]).
         { repeat f_equal.
-          all: rewrite <- (creds_apply_state_sigma_stable H).
-          all: simpl; rewrite last_snd_apply_conts; eauto.
+          all: rewrite <- (creds_apply_state_sigma_stable H0).
+          all: simpl; rewrite last_snd_apply_conts in *; eauto.
         }
       }
       { assert (Hlen: length ([]: list cont) < length (kappa ++ [CDefault None (u :: ts0) tj0 tc])). {simpl; rewrite List.last_length. lia. }
@@ -2229,7 +2151,7 @@ Proof.
 
         aexists (append_stack s2' [CDefault (Some a) ts tj0 tc]).
         { repeat f_equal.
-          all: rewrite <- (creds_apply_state_sigma_stable H).
+          all: rewrite <- (creds_apply_state_sigma_stable H0).
           all: simpl; rewrite last_snd_apply_conts; eauto.
         }
       }
@@ -2238,8 +2160,81 @@ Proof.
         aexists (append_stack s2' [CDefault (Some vi) ts0 tj0 tc]).
       }
     }
-    { admit. }
-    { admit. }
+    { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
+      all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
+      all: intros s1; remember s1 as s1' eqn: Heqs1; lock Heqs1; induction s1'.
+      all: try (remember o as o' eqn: Heqo; lock Heqo; induction o').
+      all: try solve [intros; eapply induction_case_CReturn; eauto; econstructor; eauto].
+      all: intros MC Heqkappa; revert MC; simpl in Heqkappa; subst.
+      all: intros MC; inversion MC; clear MC; simpl; subst.
+      all: first [rewrite append_stack_eval in * | repeat rewrite append_stack_cont in *].
+      all: match_conf; try solve [tryfalse]; subst.
+      all: match goal with
+        | [|- context [mode_eval ?t (?kappa ++ [?k]) ?env0]] =>
+          remember (mode_eval t kappa env0) as s1'; lock Heqs1'
+        | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
+          remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
+        end.
+      all: rewrite last_snd_apply_conts in *; unpack_subst_of_env_cons.
+
+      { induction ts.
+        { aexists (mode_eval tj0 [CDefaultBase tc0] (last kappa env0)). }
+        { aexists (mode_eval a [CDefault None ts tj0 tc0] (last kappa env0)). }
+      }
+      {
+        induction ts.
+        { aexists (mode_eval tj0 [CDefaultBase tc0] (last kappa env0)). }
+        { aexists (mode_eval a [CDefault None ts tj0 tc0] (last kappa env0)). }
+      }
+    }
+    { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
+      all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
+      all: intros s1; remember s1 as s1' eqn: Heqs1; lock Heqs1; induction s1'.
+      all: try (remember o as o' eqn: Heqo; lock Heqo; induction o').
+      all: try solve [intros; eapply induction_case_CReturn; eauto; econstructor; eauto].
+      all: intros MC Heqkappa; revert MC; simpl in Heqkappa; subst.
+      all: intros MC; inversion MC; clear MC; simpl; subst.
+      all: first [rewrite append_stack_eval in * | repeat rewrite append_stack_cont in *].
+      all: match_conf; try solve [tryfalse]; subst.
+      all: match goal with
+        | [|- context [mode_eval ?t (?kappa ++ [?k]) ?env0]] =>
+          remember (mode_eval t kappa env0) as s1'; lock Heqs1'
+        | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
+          remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
+        end.
+      all: rewrite last_snd_apply_conts in *; unpack_subst_of_env_cons.
+      { aexists (mode_cont [] (last kappa env0) (RValue a)). }
+      { induction e; tryfalse; unpack_subst_of_env_cons.
+        all: aexists (mode_cont [] (last kappa env0) (RValue v)).
+        { unfold subst_of_env; rewrite <- Heqo1; eauto. }
+      }
+      { aexists (mode_cont [] (last kappa env0) (RValue a)). }
+      { aexists (mode_cont [] (last kappa env0) (RValue vi)). }
+    }
+    { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
+      all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
+      all: intros s1; remember s1 as s1' eqn: Heqs1; lock Heqs1; induction s1'.
+      all: try (remember o as o' eqn: Heqo; lock Heqo; induction o').
+      all: try solve [intros; eapply induction_case_CReturn; eauto; econstructor; eauto].
+      all: intros MC Heqkappa; revert MC; simpl in Heqkappa; subst.
+      all: intros MC; inversion MC; clear MC; simpl; subst.
+      all: first [rewrite append_stack_eval in * | repeat rewrite append_stack_cont in *].
+      all: match_conf; try solve [tryfalse]; subst.
+      all: match goal with
+        | [|- context [mode_eval ?t (?kappa ++ [?k]) ?env0]] =>
+          remember (mode_eval t kappa env0) as s1'; lock Heqs1'
+        | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
+          remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
+        end.
+      all: rewrite last_snd_apply_conts in *; unpack_subst_of_env_cons.
+      { aexists (mode_eval u [CDefault (Some a0) ts0 tj tc] (last kappa env0)). }
+      { induction e; tryfalse; unpack_subst_of_env_cons.
+        all: aexists (mode_eval u0 [CDefault (Some v) ts tj tc] (last kappa env0)); repeat f_equal.
+        { unfold subst_of_env; rewrite <- Heqo1; eauto. }
+      }
+      { aexists (mode_eval u [CDefault (Some a0) ts0 tj tc] (last kappa env0)). }
+      { aexists (mode_eval u0 [CDefault (Some vi) ts tj tc] (last kappa env0)). }
+    }
     { (* evaluate condition *)
       subst.
       all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
@@ -2572,4 +2567,4 @@ Proof.
       { aexists (mode_cont [] (last kappa env0) (RValue (VSome v))). }
     }
   }
-Admitted.
+Qed.
