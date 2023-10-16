@@ -366,10 +366,7 @@ Lemma star_sred_default_E_zero:
       ti' <> Empty ->
       star sred (Default (ti::ts2) tj tc) (Default (ti'::ts2) tj tc).
 Proof.
-  induction 1; intros; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
-  admit.
-  admit.
-Admitted.
+Abort.
 
 Lemma star_sred_default_E_one:
     forall vi tj tj' ts3 tjust tcons,
@@ -426,8 +423,8 @@ Hint Resolve
   star_sred_app_right
   star_sred_binop_left
   star_sred_binop_right
-  star_sred_default_E_zero
-  star_sred_default_E_one
+  (* star_sred_default_E_zero *)
+  (* star_sred_default_E_one *)
   star_sred_default_J
   star_sred_match_cond
   star_sred_Some_context

@@ -294,6 +294,7 @@ Proof.
       { admit. (* t' is empty, o has a value *) }
       { admit. (* t' is not empty, o has a value *) }
       { admit. (* t' is empty, o has a no value *) }
+      { admit. (* t' is not empty, o has a no value *) }
     }
   }
 Admitted.
