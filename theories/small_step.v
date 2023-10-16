@@ -96,6 +96,11 @@ Proof.
   eauto.
 Qed.
 
+
+(* -------------------------------------------------------------------------- *)
+
+(** Small steps semantics definition. *)
+
 Inductive sred: term -> term -> Prop :=
   | sred_beta:
     forall t v sigma',
@@ -379,7 +384,7 @@ Proof.
     econstructor; eauto.
     admit.
   }
-Admitted.
+Abort.
 
 Lemma star_sred_default_J:
     forall tj1 tj2 tc,

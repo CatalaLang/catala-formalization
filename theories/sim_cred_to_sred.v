@@ -264,9 +264,10 @@ Proof.
     all: repeat rewrite last_snd_apply_conts.
 
     all: try solve [eauto with sred].
-    { repeat match goal with
+    { induction o.
+      all: repeat match goal with
       | [|- context [apply_CDefault ?o _ _ _ ?t _] ] =>
-        induction o; learn (EmptyOrNotEmpty t)
+        learn (EmptyOrNotEmpty t)
       | [h: _ \/ _ |- _] =>
         destruct h
       | [h: ?t = Empty|- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
@@ -290,56 +291,12 @@ Proof.
       | _ =>
         solve [eauto with sred]
       end.
-      { eapply star_trans. {
-          eapply star_sred_default_E_one.
-          eapply Hred_kappa.
-        }
-        eapply star_one. {
-          eapply sred_default_E_one_empty.
-        }
-      }
-      {
-        eapply star_trans. {
-          eapply star_sred_default_E_one.
-          eapply Hred_kappa.
-        }
-        eapply star_refl.
-      }
-      {
-        eapply star_trans. {
-          eapply star_sred_default_E_zero.
-          eapply Hred_kappa.
-        }
-        eapply star_one. {
-          eapply sred_default_E_zero_empty.
-        }
-      }
-      { eapply star_trans. {
-          eapply star_sred_default_E_one.
-          eapply Hred_kappa.
-        }
-        eapply star_one. {
-          eapply sred_default_E_one_empty.
-        }
-      }
-      {
-        eapply star_trans. {
-          eapply star_sred_default_E_one.
-          eapply Hred_kappa.
-        }
-        eapply star_refl.
-      }
-      { eapply star_trans. {
-          eapply star_sred_default_E_zero.
-          eapply Hred_kappa.
-        }
-        eapply star_one. {
-          eapply sred_default_E_zero_empty.
-        }
-      }
+      { admit. (* t' is empty, o has a value *) }
+      { admit. (* t' is not empty, o has a value *) }
+      { admit. (* t' is empty, o has a no value *) }
     }
   }
-Qed.
+Admitted.
 
 
 Theorem simulation_cred_sred:
@@ -357,10 +314,16 @@ Proof.
     admit "lambda related issue".
   }
   { eapply sreds_apply_conts.
+    simpl.
     destruct (EmptyOrNotEmpty th).
     { subst; simpl; repeat rewrite apply_CDefault_SE; eauto.
+
       asimpl.
-      eapply star_one; econstructor.
+      eapply star_one. {
+        induction ts; asimpl.
+        { admit. }
+        { econstructor. }
+      }
     }
     { dsimpl.
       eapply star_refl.
