@@ -320,7 +320,7 @@ Proof.
     { subst; simpl; repeat rewrite apply_CDefault_SE; eauto.
 
       asimpl.
-      eapply star_one. {
+      eapply star_step. {
         induction ts; asimpl.
         { admit. }
         { econstructor. }

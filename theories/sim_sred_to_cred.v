@@ -2419,8 +2419,7 @@ Proof.
       all: unpack_subst_of_env_cons.
       all: aexists (mode_cont [] (last kappa env0) RConflict).
     }
-    { 
-      all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
+    { all: remember k as k' eqn: Heqk; lock Heqk; induction k'.
       all: match goal with |[|-context[CReturn]] => fail | _ => idtac end.
       all: intros s1; remember s1 as s1' eqn: Heqs1; lock Heqs1; induction s1'.
       all: try (remember o as o' eqn: Heqo; lock Heqo; induction o').
