@@ -21,7 +21,6 @@ From Catala Require Import tactics.
 Inductive result :=
   | RValue (v: value)
   | REmpty
-  | RHole
   | RConflict
 .
 
@@ -92,19 +91,19 @@ Inductive cred: state -> state -> Prop :=
     forall ts tj tc kappa sigma,
     cred
       (mode_eval (Default ts tj tc) kappa sigma)
-      (mode_cont ((CDefault None ts tj tc)::kappa) sigma RHole)
+      (mode_cont ((CDefault None ts tj tc)::kappa) sigma REmpty)
 
   | cred_defaultunpack:
     forall o th ts tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault o (th::ts) tj tc)::kappa) sigma RHole)
+      (mode_cont ((CDefault o (th::ts) tj tc)::kappa) sigma REmpty)
       (mode_eval th ((CDefault o ts tj tc)::kappa) sigma)
 
   | cred_defaultnone:
     forall ts tj tc kappa sigma v,
     cred
       (mode_cont ((CDefault None ts tj tc)::kappa) sigma (RValue v))
-      (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma RHole)
+      (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma REmpty)
 
   | cred_defaultconflict:
     forall ts tj tc kappa sigma v v',
@@ -115,7 +114,7 @@ Inductive cred: state -> state -> Prop :=
   | cred_defaultvalue:
     forall v tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault (Some v) [] tj tc)::kappa) sigma RHole)
+      (mode_cont ((CDefault (Some v) [] tj tc)::kappa) sigma REmpty)
       (mode_cont kappa sigma (RValue v))
 
   (* | cred_defaultnonefinal: (* not needed *)
@@ -124,7 +123,7 @@ Inductive cred: state -> state -> Prop :=
   | cred_defaultbase:
     forall tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault None [] tj tc)::kappa) sigma RHole)
+      (mode_cont ((CDefault None [] tj tc)::kappa) sigma REmpty)
       (mode_eval tj ((CDefaultBase tc)::kappa) sigma)
 
   | cred_defaultbasetrue:
@@ -138,12 +137,6 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont ((CDefaultBase tc)::kappa) sigma (RValue (Bool false)))
       (mode_cont kappa sigma REmpty)
-
-  | cred_default_empty:
-    forall ts tj tc kappa sigma,
-    cred
-      (mode_cont ((CDefault None ts tj tc)::kappa) sigma REmpty)
-      (mode_cont ((CDefault None ts tj tc)::kappa) sigma RHole)
 
   (* REmpty is catched by CDefault in the rule cdefaultbase. *)
   | cred_empty:
@@ -480,7 +473,7 @@ Proof.
   all: repeat rewrite droplastn_cons; try econstructor.
   all: try solve [eapply lastn_cons_length; eauto].
   all: try eapply lastn_cons_cons_length; eauto; try congruence.
-  all: try solve [intro; injections; eapply fuck_stdlib; eauto].
+  all: intro; injections; eapply fuck_stdlib; eauto.
 Qed.
 
 Theorem cred_star_append_stack_inv s s' n:
@@ -676,7 +669,6 @@ Proof.
   all: repeat rewrite droplastn_cons by (subst; simpl; lia).
   all: try solve [econstructor; eauto].
   { inj; exfalso; eapply fuck_stdlib; eauto. }
-  { admit. }
 Qed.
 
 Theorem creds_stack_sub:

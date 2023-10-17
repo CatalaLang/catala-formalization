@@ -103,9 +103,6 @@ Inductive jt_result: (string -> option type) -> result -> type -> Prop :=
   | JTRConflict:
     forall Delta T,
     jt_result Delta RConflict T
-  | JTRHole:
-    forall Delta T,
-    jt_result Delta RHole T
 .
 
 Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> type -> type -> Prop :=
@@ -261,8 +258,6 @@ Ltac inv_jt :=
   | [h: jt_result _ REmpty _ |- _] =>
     inversion h; clear h; subst
   | [h: jt_result _ RConflict _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_result _ RHole _ |- _] =>
     inversion h; clear h; subst
 
   | [h: List.Forall _ (cons _ _) |- _] =>
