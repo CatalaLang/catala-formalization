@@ -21,6 +21,7 @@ From Catala Require Import tactics.
 Inductive result :=
   | RValue (v: value)
   | REmpty
+  | RHole
   | RConflict
 .
 
