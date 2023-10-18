@@ -291,8 +291,13 @@ Proof.
       | _ =>
         solve [eauto with sred]
       end.
-      { admit. (* t' is empty, o has a value *) }
-      { admit. (* t' is not empty, o has a value *) }
+      { (* t' is empty, o has a value *)
+        admit.
+      }
+      { (* t' is not empty, o has a value *)
+        eapply star_trans. { eapply star_sred_default_E_one; eauto. }
+        asimpl; eapply star_refl.
+      }
       { admit. (* t' is empty, o has a no value *) }
       { admit. (* t' is not empty, o has a no value *) }
     }

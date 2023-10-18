@@ -2567,3 +2567,9 @@ Proof.
     }
   }
 Qed.
+
+
+Goal forall s1 s2,
+  star cred s1 s2 ->
+  False.
+Abort.

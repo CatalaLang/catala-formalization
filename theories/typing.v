@@ -324,6 +324,18 @@ Proof.
   }
 Qed.
 
+Lemma well_typed_finish:
+  forall Delta Gamma s1 T,
+    (forall s2, ~ cred s1 s2) ->
+    jt_state Delta Gamma s1 T ->
+    is_mode_cont s1 = true /\ stack s1 = nil.
+Proof.
+  intros.
+  destruct (progress s1 Delta Gamma T); eauto.
+  { unpack; exfalso.
+    eapply H; eauto.
+  }
+Qed.
 
 Module correctness.
   Parameter measure: state -> nat.

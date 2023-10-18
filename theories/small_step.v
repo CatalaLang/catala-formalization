@@ -368,20 +368,38 @@ Lemma star_sred_default_E_zero:
 Proof.
 Abort.
 
-Lemma star_sred_default_E_one:
+Lemma star_sred_default_E_one_nempty:
     forall vi tj tj' ts3 tjust tcons,
       star sred tj tj' ->
+      tj' <> Empty ->
       star sred
         (Default ((Value vi)::tj::ts3) tjust tcons)
         (Default ((Value vi)::tj'::ts3) tjust tcons).
 Proof.
-  induction 1.
-  { eapply star_refl. }
-  { eapply star_step; [|eapply IHstar].
+  induction 1 using star_ind_n1.
+  { intros; eapply star_refl. }
+  { intros.
+    eapply star_step_n1.
+    2:{ eapply IHstar. induction y; intro; tryfalse; inversion H. }
     econstructor; eauto.
-    admit.
   }
-Abort.
+Qed.
+
+Lemma star_sred_default_E_one_empty:
+    forall vi tj ts3 tjust tcons,
+      star sred tj Empty ->
+      star sred
+        (Default ((Value vi)::tj::ts3) tjust tcons)
+        (Default ((Value vi)::ts3) tjust tcons).
+Proof.
+  induction 1 using star_ind_n1.
+  { (* tj = Empty, right? *) }
+  { intros.
+    eapply star_step_n1.
+    2:{ eapply IHstar. induction y; intro; tryfalse; inversion H. }
+    econstructor; eauto.
+  }
+Qed.
 
 Lemma star_sred_default_J:
     forall tj1 tj2 tc,
@@ -424,7 +442,7 @@ Hint Resolve
   star_sred_binop_left
   star_sred_binop_right
   (* star_sred_default_E_zero *)
-  (* star_sred_default_E_one *)
+  star_sred_default_E_one
   star_sred_default_J
   star_sred_match_cond
   star_sred_Some_context
