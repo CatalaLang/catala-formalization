@@ -98,13 +98,20 @@ Definition apply_state_aux (s: state): term * list value :=
   | mode_eval t stack env =>
     (apply_conts stack (t.[subst_of_env env], env))
   | mode_cont stack env r =>
-    (apply_conts stack ((apply_return r),env))
+    (apply_conts stack ((apply_return r), env))
   end.
 
 (* We use an notation to be apple to simplify this definition. *)
 Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
 
+Require Import typing.
 
+Lemma apply_state_typing:
+  forall Delta Gamma s1 T,
+    jt_state Delta Gamma s1 T ->
+    jt_term Delta Gamma (apply_state s1) T.
+Proof.
+Abort.
 
 Lemma NEmpty_subst_of_env_NEmpty {t} sigma:
   t <> Empty -> t.[subst_of_env sigma] <> Empty.
