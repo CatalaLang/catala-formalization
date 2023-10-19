@@ -1491,6 +1491,11 @@ Proof.
         learn (h tmp);
         clear tmp
 
+      (* Strong induction hypothesis *)
+      | [h: forall l': list cont, length l' < length (?kappa ++ [?k]) -> _ |- _] =>
+        assert (Hlen: length ([]: list cont) < length (kappa ++ [k])) by (rewrite List.last_length; simpl; lia);
+        learn (IHkappa_wf _ Hlen)
+
       (* basic unfoling & commun lemma learning*)
       | [h: plus _ _ _ |- _] =>
         learn (plus_star h)
