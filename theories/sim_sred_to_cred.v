@@ -860,10 +860,6 @@ Ltac match_conf1 :=
     simpl in h
   | _ => progress simpl; try solve [repeat f_equal; eauto]
   | _ => progress injections
-  | _ => repeat match goal with
-          [h: ?A = _ |- context g [?A]] =>
-            repeat setoid_rewrite h
-          end
   end.
 
 Lemma value_apply_conts_inversion_eval {v kappa t env0}:
@@ -1136,8 +1132,6 @@ Ltac cstep :=
     eauto
   | [ |- plus cred ?s1 ?s2] =>
     eapply plus_left; [solve [econstructor; eauto|econstructor; repeat intro; inj]|]
-  | [ h: plus cred ?s1 ?s2 |- _] =>
-    learn (plus_star h)
   | [ |- star cred ?s1 ?s2] =>
     eapply star_step; [solve [econstructor; eauto|econstructor; repeat intro; inj]|]
   | [
@@ -1257,9 +1251,46 @@ Proof.
   }
 Qed.
 
+
+
 (* -------------------------------------------------------------------------- *)
 
-(** Actuall simulation lemmas for sred -> cred. We first prove the induction case when the last continuation is [CReturn]. *)
+(* Tentative in proving the same simulation theorem but in an automatic way. This reposes on the following basic logic theorem. *)
+
+Theorem implication_left_and (A B C: Prop):
+  (A -> B) -> (A /\ C -> B /\ C).
+Proof.
+  intros; unpack; eauto.
+Qed.
+
+
+(* Indeed, since we want to prove the following theorem:
+
+```
+Theorem simulation_sred_cred t1 t2:
+  sred t1 t2 ->
+  forall s1, match_conf s1 t1 ->
+  exists s2,
+    (plus cred s1 s2)
+  /\ match_conf s2 t2.
+```
+
+given an [sred t1 t2], and an [s1] such that [match_conf s1 t1], in most cases, it suffice to show that we can reduce [s1] based on the hypothesis we have in our disposition and after a few reduction, we can find [s2] such that [match_conf s2 t2].
+
+*)
+
+Goal forall s1 s2 s3,
+  cred s1 s2 ->
+  star cred s2 s3 ->
+  exists s2,
+    (plus cred s1 s2) /\ True.
+Proof.
+  intros.
+  eexists.
+  eapply implication_left_and.
+  { eapply plus_left; eauto. }
+  { eauto. }
+Qed.
 
 Lemma induction_case_CReturn
   (sigma: list value)
@@ -1291,6 +1322,129 @@ Proof.
   all: aexists (append_stack s2 [CReturn sigma]).
 Qed.
 
+
+Theorem simulation_sred_cred t1 t2:
+  sred t1 t2 ->
+  forall s1, match_conf s1 t1 ->
+  exists s2,
+    (plus cred s1 s2)
+  /\ match_conf s2 t2.
+
+Proof.
+  intros Hred s1 MC.
+  remember (stack s1) as kappa.
+  generalize dependent s1.
+  generalize dependent t2.
+  generalize dependent t1.
+  induction kappa as [|k kappa IHkappa IHkappa_wf] using rev_ind_wf.
+  { intros t1 t2 Hred.
+    assert (Hred_current: sred t1 t2) by eauto.
+    induction Hred; subst.
+    all: induction s1; intro MC; inversion MC; clear MC; intros; repeat (simpl in *; subst).
+    all: try solve [induction result; simpl in *; tryfalse].
+    (* unpack except in the conflict case: we need for now to not unpack here as we first need to modify slightly the definition. *)
+    all: unpack_subst_of_env_cons.
+    all: repeat multimatch goal with
+    (* Gathering more informations about the possible reduction *)
+    | [h1: sred ?a ?b -> _, h2: sred ?a ?b |- _] =>
+      learn (h1 h2)
+    | [h1: forall s, match_conf s ?u.[subst_of_env ?env] -> _ |- _] =>
+      let s1 := constr:(mode_eval u [] env) in
+      assert (tmp: match_conf s1 u.[subst_of_env env]) by (econstructor; simpl; eauto);
+      learn (h1 s1 tmp);
+      clear h1 tmp
+    | [h1: ?kappa = stack (mode_eval ?u ?kappa ?env0) -> _ |- _] =>
+      simpl in h1
+    | [h: ?A -> _ |- _] =>
+      assert (tmp: A) by (simpl; eauto);
+      learn tmp;
+      learn (h tmp);
+      clear h tmp
+    | [h: plus _ _ _ |- _] =>
+      learn (plus_star h)
+    | [h: _ /\ _ |- _] => destruct h
+    | [h: exists _, _ |- _] => destruct h
+    | [h: match_conf _ _ |- _] =>
+      inversion h; clear h; subst
+
+    (* one step computation *)
+    | [|- plus cred ?s1 ?s2 /\ _] =>
+      eapply implication_left_and; [
+        eapply plus_left; solve [
+          econstructor; eauto|
+          econstructor; repeat intro; inj]
+      |]
+    | [|- star cred ?s1 ?s2 /\ _] =>
+      eapply implication_left_and; [
+        eapply star_step; solve [
+          econstructor; eauto|
+          econstructor; repeat intro; inj]
+      |]
+
+    (* Multi steps computation *)
+    | [h: star cred ?s1 ?s2 |- star cred ?s1 _ /\ _] =>
+      eapply implication_left_and; [
+        eapply star_trans; eapply h
+      |]
+    | [h: plus cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
+      eapply implication_left_and; [
+        eapply plus_star; eapply h
+      |]
+    | [h: star cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
+      eapply implication_left_and; [
+        eapply star_plus_trans; eapply h
+      |]
+
+    | [
+      h: plus cred (mode_eval _ _ _) ?s2
+      |- context [mode_eval _ ?kappa _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h kappa)
+    | [h: _ |- _] =>
+      (* we want to simpl in all, but not in the learnt propositions *)
+      let P := type of h in match P with | Learnt => fail 1 | _ => idtac end;
+      simpl in h
+
+    | [h: star cred ?s1 ?s2 |- _] =>
+      learn (creds_apply_state_sigma_stable h)
+
+    | [ h: Value _ = ?t.[subst_of_env _] |- _] =>
+      induction t; simpl in h; tryfalse; unpack_subst_of_env_cons
+
+    (* When no more progress is possible, we can finaly introduce the evar corresponding to the goal term. This is to avoid having variable completing our evar that escape the scope they were defined in. *)
+    | [ |- exists _, _] =>
+      eexists
+    | _ =>
+      solve [split; [eapply star_refl|];
+      try solve [
+        econstructor; eauto
+
+      (* Majority of the cases *)
+      | econstructor; repeat rewrite apply_state_append_stack;
+        simpl; unfold apply_cont; simpl;
+        match goal with
+        | [ |- context [let '(_, _) := ?p in _]] =>
+          rewrite (surjective_pairing p)
+        end; simpl in *;
+        repeat match goal with
+        | _ => progress eauto
+        | _ => progress f_equal
+        end
+      (* For return cases *)
+      | econstructor; simpl; rewrite subst_env_cons; asimpl; eauto
+      ]]
+    end.
+    { (* Lambda case *)
+      split; [eapply star_refl|].
+      eapply match_value; econstructor; eauto.
+    }
+    { admit "one of the problem this technique is supposed to solve". }
+  }
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
   forall s1, match_conf s1 t1 ->
