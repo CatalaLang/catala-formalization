@@ -1480,6 +1480,11 @@ Proof.
         let s1 := constr:(mode_eval e kappa sigma) in
         assert (tmp: match_conf s1 (fst (apply_conts kappa (e.[subst_of_env sigma], sigma)))) by (econstructor; simpl; eauto);
         learn (h1 s1 tmp)
+      | [h1: forall s, match_conf s (fst (apply_conts ?kappa (apply_return ?r, ?sigma))) -> _ |- _] =>
+        let s1 := constr:(mode_cont kappa sigma r) in
+        assert (tmp: match_conf s1 (fst (apply_conts kappa (apply_return r, sigma)))) by (econstructor; simpl; eauto);
+        learn (h1 s1 tmp)
+
       | [h: ?A -> _ |- _] =>
         assert (tmp: A) by (simpl; eauto);
         learn tmp;
