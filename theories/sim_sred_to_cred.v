@@ -1345,27 +1345,44 @@ Proof.
     (* unpack except in the conflict case: we need for now to not unpack here as we first need to modify slightly the definition. *)
     all: unpack_subst_of_env_cons.
     all: repeat multimatch goal with
-    (* Gathering more informations about the possible reduction *)
-    | [h1: sred ?a ?b -> _, h2: sred ?a ?b |- _] =>
-      learn (h1 h2)
+    (* induction hypothesis *)
+
+    | [h1: forall t1 t2, sred t1 t2 -> _, h2: sred ?t1 ?t2 |- _] =>
+      learn (h1 _ _ h2)
     | [h1: forall s, match_conf s ?u.[subst_of_env ?env] -> _ |- _] =>
       let s1 := constr:(mode_eval u [] env) in
       assert (tmp: match_conf s1 u.[subst_of_env env]) by (econstructor; simpl; eauto);
       learn (h1 s1 tmp);
-      clear h1 tmp
+      clear tmp
     | [h1: ?kappa = stack (mode_eval ?u ?kappa ?env0) -> _ |- _] =>
       simpl in h1
+    | [h1: forall s, match_conf s (fst (apply_conts ?kappa (?e.[subst_of_env ?sigma], ?sigma))) -> _ |- _] =>
+      let s1 := constr:(mode_eval e kappa sigma) in
+      assert (tmp: match_conf s1 (fst (apply_conts kappa (e.[subst_of_env sigma], sigma)))) by (econstructor; simpl; eauto);
+      learn (h1 s1 tmp)
+    | [h1: forall s, match_conf s (fst (apply_conts ?kappa (apply_return ?r, ?sigma))) -> _ |- _] =>
+      let s1 := constr:(mode_cont kappa sigma r) in
+      assert (tmp: match_conf s1 (fst (apply_conts kappa (apply_return r, sigma)))) by (econstructor; simpl; eauto);
+      learn (h1 s1 tmp)
+
     | [h: ?A -> _ |- _] =>
       assert (tmp: A) by (simpl; eauto);
-      learn tmp;
       learn (h tmp);
-      clear h tmp
+      clear tmp
+
+    (* Strong induction hypothesis *)
+    | [h: forall l': list cont, length l' < length (?kappa ++ [?k]) -> _ |- _] =>
+      assert (Hlen: length ([]: list cont) < length (kappa ++ [k])) by (rewrite List.last_length; simpl; lia);
+      learn (IHkappa_wf _ Hlen)
+
+    (* basic unfoling & commun lemma learning*)
     | [h: plus _ _ _ |- _] =>
       learn (plus_star h)
     | [h: _ /\ _ |- _] => destruct h
     | [h: exists _, _ |- _] => destruct h
     | [h: match_conf _ _ |- _] =>
       inversion h; clear h; subst
+    | _ => progress rewrite last_snd_apply_conts in *
 
     (* one step computation *)
     | [|- plus cred ?s1 ?s2 /\ _] =>
@@ -1388,15 +1405,34 @@ Proof.
       |]
     | [h: plus cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
       eapply implication_left_and; [
-        eapply plus_star; eapply h
+        eapply plus_star_trans; eapply h
       |]
     | [h: star cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
+      match goal with
+      [h: plus cred s1 s2 |- _] => fail 1
+      end;
       eapply implication_left_and; [
         eapply star_plus_trans; eapply h
       |]
 
     | [
-      h: plus cred (mode_eval _ _ _) ?s2
+      h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
+      |- star cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
+      eapply implication_left_and;[
+        eapply star_trans;
+        eapply (cred_process_return _ h)
+      |]
+
+    | [
+      h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
+      |- plus cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
+      eapply implication_left_and;[
+        eapply star_plus_trans;
+        eapply (cred_process_return _ h)
+      |]
+
+    | [
+      h: plus cred _ ?s2
       |- context [mode_eval _ ?kappa _]
     ] =>
       (* check if there is an append stack on the right hand side to avoid looping *)
@@ -1405,6 +1441,64 @@ Proof.
       | _ => idtac
       end;
       learn (append_stack_stable_plus _ _ h kappa)
+    | [
+      h: plus cred _ ?s2
+      |- context [mode_eval _ (?kappa ++ [?k]) _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h [k])
+    | [h: _ |- _] =>
+      (* we want to simpl in all, but not in the learnt propositions *)
+      let P := type of h in match P with | Learnt => fail 1 | _ => idtac end;
+      simpl in h
+    | [
+      h: plus cred _ ?s2
+      |- context [mode_eval _ ?kappa _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h kappa)
+    | [
+      h: plus cred _ ?s2
+      |- context [mode_eval _ (?kappa ++ [?k]) _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h [k])
+    | [h: _ |- _] =>
+      (* we want to simpl in all, but not in the learnt propositions *)
+      let P := type of h in match P with | Learnt => fail 1 | _ => idtac end;
+      simpl in h
+    | [
+      h: plus cred _ ?s2
+      |- context [mode_cont ?kappa _ _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h kappa)
+    | [
+      h: plus cred _ ?s2
+      |- context [mode_cont (?kappa ++ [?k]) _ _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h [k])
     | [h: _ |- _] =>
       (* we want to simpl in all, but not in the learnt propositions *)
       let P := type of h in match P with | Learnt => fail 1 | _ => idtac end;
@@ -1463,200 +1557,199 @@ Proof.
       | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
         remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
       end. *)
-      all: unpack_subst_of_env_cons.
-      all: repeat multimatch goal with
-      (* induction hypothesis *)
+    all: unpack_subst_of_env_cons.
+    all: repeat multimatch goal with
+    (* induction hypothesis *)
 
-      | [h1: forall t1 t2, sred t1 t2 -> _, h2: sred ?t1 ?t2 |- _] =>
-        learn (h1 _ _ h2)
-      | [h1: forall s, match_conf s ?u.[subst_of_env ?env] -> _ |- _] =>
-        let s1 := constr:(mode_eval u [] env) in
-        assert (tmp: match_conf s1 u.[subst_of_env env]) by (econstructor; simpl; eauto);
-        learn (h1 s1 tmp);
-        clear tmp
-      | [h1: ?kappa = stack (mode_eval ?u ?kappa ?env0) -> _ |- _] =>
-        simpl in h1
-      | [h1: forall s, match_conf s (fst (apply_conts ?kappa (?e.[subst_of_env ?sigma], ?sigma))) -> _ |- _] =>
-        let s1 := constr:(mode_eval e kappa sigma) in
-        assert (tmp: match_conf s1 (fst (apply_conts kappa (e.[subst_of_env sigma], sigma)))) by (econstructor; simpl; eauto);
-        learn (h1 s1 tmp)
-      | [h1: forall s, match_conf s (fst (apply_conts ?kappa (apply_return ?r, ?sigma))) -> _ |- _] =>
-        let s1 := constr:(mode_cont kappa sigma r) in
-        assert (tmp: match_conf s1 (fst (apply_conts kappa (apply_return r, sigma)))) by (econstructor; simpl; eauto);
-        learn (h1 s1 tmp)
+    | [h1: forall t1 t2, sred t1 t2 -> _, h2: sred ?t1 ?t2 |- _] =>
+      learn (h1 _ _ h2)
+    | [h1: forall s, match_conf s ?u.[subst_of_env ?env] -> _ |- _] =>
+      let s1 := constr:(mode_eval u [] env) in
+      assert (tmp: match_conf s1 u.[subst_of_env env]) by (econstructor; simpl; eauto);
+      learn (h1 s1 tmp);
+      clear tmp
+    | [h1: ?kappa = stack (mode_eval ?u ?kappa ?env0) -> _ |- _] =>
+      simpl in h1
+    | [h1: forall s, match_conf s (fst (apply_conts ?kappa (?e.[subst_of_env ?sigma], ?sigma))) -> _ |- _] =>
+      let s1 := constr:(mode_eval e kappa sigma) in
+      assert (tmp: match_conf s1 (fst (apply_conts kappa (e.[subst_of_env sigma], sigma)))) by (econstructor; simpl; eauto);
+      learn (h1 s1 tmp)
+    | [h1: forall s, match_conf s (fst (apply_conts ?kappa (apply_return ?r, ?sigma))) -> _ |- _] =>
+      let s1 := constr:(mode_cont kappa sigma r) in
+      assert (tmp: match_conf s1 (fst (apply_conts kappa (apply_return r, sigma)))) by (econstructor; simpl; eauto);
+      learn (h1 s1 tmp)
 
-      | [h: ?A -> _ |- _] =>
-        assert (tmp: A) by (simpl; eauto);
-        learn tmp;
-        learn (h tmp);
-        clear tmp
+    | [h: ?A -> _ |- _] =>
+      assert (tmp: A) by (simpl; eauto);
+      learn (h tmp);
+      clear tmp
 
-      (* Strong induction hypothesis *)
-      | [h: forall l': list cont, length l' < length (?kappa ++ [?k]) -> _ |- _] =>
-        assert (Hlen: length ([]: list cont) < length (kappa ++ [k])) by (rewrite List.last_length; simpl; lia);
-        learn (IHkappa_wf _ Hlen)
+    (* Strong induction hypothesis *)
+    | [h: forall l': list cont, length l' < length (?kappa ++ [?k]) -> _ |- _] =>
+      assert (Hlen: length ([]: list cont) < length (kappa ++ [k])) by (rewrite List.last_length; simpl; lia);
+      learn (IHkappa_wf _ Hlen)
 
-      (* basic unfoling & commun lemma learning*)
-      | [h: plus _ _ _ |- _] =>
-        learn (plus_star h)
-      | [h: _ /\ _ |- _] => destruct h
-      | [h: exists _, _ |- _] => destruct h
-      | [h: match_conf _ _ |- _] =>
-        inversion h; clear h; subst
-      | _ => progress rewrite last_snd_apply_conts in *
+    (* basic unfoling & commun lemma learning*)
+    | [h: plus _ _ _ |- _] =>
+      learn (plus_star h)
+    | [h: _ /\ _ |- _] => destruct h
+    | [h: exists _, _ |- _] => destruct h
+    | [h: match_conf _ _ |- _] =>
+      inversion h; clear h; subst
+    | _ => progress rewrite last_snd_apply_conts in *
 
-      (* one step computation *)
-      | [|- plus cred ?s1 ?s2 /\ _] =>
-        eapply implication_left_and; [
-          eapply plus_left; solve [
-            econstructor; eauto|
-            econstructor; repeat intro; inj]
-        |]
-      | [|- star cred ?s1 ?s2 /\ _] =>
-        eapply implication_left_and; [
-          eapply star_step; solve [
-            econstructor; eauto|
-            econstructor; repeat intro; inj]
-        |]
+    (* one step computation *)
+    | [|- plus cred ?s1 ?s2 /\ _] =>
+      eapply implication_left_and; [
+        eapply plus_left; solve [
+          econstructor; eauto|
+          econstructor; repeat intro; inj]
+      |]
+    | [|- star cred ?s1 ?s2 /\ _] =>
+      eapply implication_left_and; [
+        eapply star_step; solve [
+          econstructor; eauto|
+          econstructor; repeat intro; inj]
+      |]
 
-      (* Multi steps computation *)
-      | [h: star cred ?s1 ?s2 |- star cred ?s1 _ /\ _] =>
-        eapply implication_left_and; [
-          eapply star_trans; eapply h
-        |]
-      | [h: plus cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
-        eapply implication_left_and; [
-          eapply plus_star_trans; eapply h
-        |]
-      | [h: star cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
+    (* Multi steps computation *)
+    | [h: star cred ?s1 ?s2 |- star cred ?s1 _ /\ _] =>
+      eapply implication_left_and; [
+        eapply star_trans; eapply h
+      |]
+    | [h: plus cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
+      eapply implication_left_and; [
+        eapply plus_star_trans; eapply h
+      |]
+    | [h: star cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
+      match goal with
+      [h: plus cred s1 s2 |- _] => fail 1
+      end;
+      eapply implication_left_and; [
+        eapply star_plus_trans; eapply h
+      |]
+
+    | [
+      h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
+      |- star cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
+      eapply implication_left_and;[
+        eapply star_trans;
+        eapply (cred_process_return _ h)
+      |]
+
+    | [
+      h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
+      |- plus cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
+      eapply implication_left_and;[
+        eapply star_plus_trans;
+        eapply (cred_process_return _ h)
+      |]
+
+    | [
+      h: plus cred _ ?s2
+      |- context [mode_eval _ ?kappa _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h kappa)
+    | [
+      h: plus cred _ ?s2
+      |- context [mode_eval _ (?kappa ++ [?k]) _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h [k])
+    | [h: _ |- _] =>
+      (* we want to simpl in all, but not in the learnt propositions *)
+      let P := type of h in match P with | Learnt => fail 1 | _ => idtac end;
+      simpl in h
+    | [
+      h: plus cred _ ?s2
+      |- context [mode_eval _ ?kappa _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h kappa)
+    | [
+      h: plus cred _ ?s2
+      |- context [mode_eval _ (?kappa ++ [?k]) _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h [k])
+    | [h: _ |- _] =>
+      (* we want to simpl in all, but not in the learnt propositions *)
+      let P := type of h in match P with | Learnt => fail 1 | _ => idtac end;
+      simpl in h
+    | [
+      h: plus cred _ ?s2
+      |- context [mode_cont ?kappa _ _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h kappa)
+    | [
+      h: plus cred _ ?s2
+      |- context [mode_cont (?kappa ++ [?k]) _ _]
+    ] =>
+      (* check if there is an append stack on the right hand side to avoid looping *)
+      match s2 with
+      | context [append_stack] => fail 1
+      | _ => idtac
+      end;
+      learn (append_stack_stable_plus _ _ h [k])
+    | [h: _ |- _] =>
+      (* we want to simpl in all, but not in the learnt propositions *)
+      let P := type of h in match P with | Learnt => fail 1 | _ => idtac end;
+      simpl in h
+
+    | [h: star cred ?s1 ?s2 |- _] =>
+      learn (creds_apply_state_sigma_stable h)
+
+    | [ h: Value _ = ?t.[subst_of_env _] |- _] =>
+      induction t; simpl in h; tryfalse; unpack_subst_of_env_cons
+
+    (* When no more progress is possible, we can finaly introduce the evar corresponding to the goal term. This is to avoid having variable completing our evar that escape the scope they were defined in. *)
+    | [ |- exists _, _] =>
+      eexists
+    | _ =>
+      solve [split; [eapply star_refl|];
+      try solve [
+        econstructor; eauto
+
+      (* Majority of the cases *)
+      | econstructor; repeat rewrite apply_state_append_stack;
+        simpl; unfold apply_cont; simpl;
         match goal with
-        [h: plus cred s1 s2 |- _] => fail 1
-        end;
-        eapply implication_left_and; [
-          eapply star_plus_trans; eapply h
-        |]
+        | [ |- context [let '(_, _) := ?p in _]] =>
+          rewrite (surjective_pairing p)
+        end; simpl in *;
+        repeat match goal with
+        | _ => progress eauto
+        | _ => progress f_equal
+        end
+      (* For return cases *)
+      | econstructor; simpl; rewrite subst_env_cons; asimpl; eauto
+      ]]
+    end.
 
-      | [
-        h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
-        |- star cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
-        eapply implication_left_and;[
-          eapply star_trans;
-          eapply (cred_process_return _ h)
-        |]
-
-      | [
-        h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
-        |- plus cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
-        eapply implication_left_and;[
-          eapply star_plus_trans;
-          eapply (cred_process_return _ h)
-        |]
-
-      | [
-        h: plus cred _ ?s2
-        |- context [mode_eval _ ?kappa _]
-      ] =>
-        (* check if there is an append stack on the right hand side to avoid looping *)
-        match s2 with
-        | context [append_stack] => fail 1
-        | _ => idtac
-        end;
-        learn (append_stack_stable_plus _ _ h kappa)
-      | [
-        h: plus cred _ ?s2
-        |- context [mode_eval _ (?kappa ++ [?k]) _]
-      ] =>
-        (* check if there is an append stack on the right hand side to avoid looping *)
-        match s2 with
-        | context [append_stack] => fail 1
-        | _ => idtac
-        end;
-        learn (append_stack_stable_plus _ _ h [k])
-      | [h: _ |- _] =>
-        (* we want to simpl in all, but not in the learnt propositions *)
-        let P := type of h in match P with | Learnt => fail 1 | _ => idtac end;
-        simpl in h
-      | [
-        h: plus cred _ ?s2
-        |- context [mode_eval _ ?kappa _]
-      ] =>
-        (* check if there is an append stack on the right hand side to avoid looping *)
-        match s2 with
-        | context [append_stack] => fail 1
-        | _ => idtac
-        end;
-        learn (append_stack_stable_plus _ _ h kappa)
-      | [
-        h: plus cred _ ?s2
-        |- context [mode_eval _ (?kappa ++ [?k]) _]
-      ] =>
-        (* check if there is an append stack on the right hand side to avoid looping *)
-        match s2 with
-        | context [append_stack] => fail 1
-        | _ => idtac
-        end;
-        learn (append_stack_stable_plus _ _ h [k])
-      | [h: _ |- _] =>
-        (* we want to simpl in all, but not in the learnt propositions *)
-        let P := type of h in match P with | Learnt => fail 1 | _ => idtac end;
-        simpl in h
-      | [
-        h: plus cred _ ?s2
-        |- context [mode_cont ?kappa _ _]
-      ] =>
-        (* check if there is an append stack on the right hand side to avoid looping *)
-        match s2 with
-        | context [append_stack] => fail 1
-        | _ => idtac
-        end;
-        learn (append_stack_stable_plus _ _ h kappa)
-      | [
-        h: plus cred _ ?s2
-        |- context [mode_cont (?kappa ++ [?k]) _ _]
-      ] =>
-        (* check if there is an append stack on the right hand side to avoid looping *)
-        match s2 with
-        | context [append_stack] => fail 1
-        | _ => idtac
-        end;
-        learn (append_stack_stable_plus _ _ h [k])
-      | [h: _ |- _] =>
-        (* we want to simpl in all, but not in the learnt propositions *)
-        let P := type of h in match P with | Learnt => fail 1 | _ => idtac end;
-        simpl in h
-
-      | [h: star cred ?s1 ?s2 |- _] =>
-        learn (creds_apply_state_sigma_stable h)
-
-      | [ h: Value _ = ?t.[subst_of_env _] |- _] =>
-        induction t; simpl in h; tryfalse; unpack_subst_of_env_cons
-
-      (* When no more progress is possible, we can finaly introduce the evar corresponding to the goal term. This is to avoid having variable completing our evar that escape the scope they were defined in. *)
-      | [ |- exists _, _] =>
-        eexists
-      | _ =>
-        solve [split; [eapply star_refl|];
-        try solve [
-          econstructor; eauto
-
-        (* Majority of the cases *)
-        | econstructor; repeat rewrite apply_state_append_stack;
-          simpl; unfold apply_cont; simpl;
-          match goal with
-          | [ |- context [let '(_, _) := ?p in _]] =>
-            rewrite (surjective_pairing p)
-          end; simpl in *;
-          repeat match goal with
-          | _ => progress eauto
-          | _ => progress f_equal
-          end
-        (* For return cases *)
-        | econstructor; simpl; rewrite subst_env_cons; asimpl; eauto
-        ]]
-      end.
-
-      { admit. }
-      { admit. }
+    { admit. }
+    { admit. }
 
   }
 Admitted.
