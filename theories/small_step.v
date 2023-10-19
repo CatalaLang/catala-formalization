@@ -19,6 +19,13 @@ Definition subst_of_env sigma :=
   end
 .
 
+Notation "'soe' sigma n" := (
+match List.nth_error sigma n with
+| None => ids (n - List.length sigma)
+| Some t => Value t
+end)
+(at level 69, sigma at level 1, n at level 1).
+
 Theorem subst_env_nil:
   subst_of_env [] = ids.
 Proof.
@@ -392,14 +399,14 @@ Lemma star_sred_default_E_one_empty:
         (Default ((Value vi)::tj::ts3) tjust tcons)
         (Default ((Value vi)::ts3) tjust tcons).
 Proof.
-  induction 1 using star_ind_n1.
-  { (* tj = Empty, right? *) }
+  (* induction 1 using star_ind_n1.
+  { admit. (* tj = Empty, right? *) }
   { intros.
     eapply star_step_n1.
     2:{ eapply IHstar. induction y; intro; tryfalse; inversion H. }
     econstructor; eauto.
-  }
-Qed.
+  } *)
+Admitted.
 
 Lemma star_sred_default_J:
     forall tj1 tj2 tc,
@@ -442,7 +449,7 @@ Hint Resolve
   star_sred_binop_left
   star_sred_binop_right
   (* star_sred_default_E_zero *)
-  star_sred_default_E_one
+  (* star_sred_default_E_one *)
   star_sred_default_J
   star_sred_match_cond
   star_sred_Some_context
