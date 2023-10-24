@@ -1255,7 +1255,22 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-(* Tentative in proving the same simulation theorem but in an automatic way. This reposes on the following basic logic theorem. *)
+
+(* The simulation theorem is as follows *)
+
+Theorem simulation_sred_cred t1 t2:
+  sred t1 t2 ->
+  forall s1, match_conf s1 t1 ->
+  exists s2,
+    (plus cred s1 s2)
+  /\ match_conf s2 t2.
+Abort.
+
+(* The global proof strategy is to do an induction on [sred t1 t2], then we consider all possible [s1] such that [match_conf s1 t1]. Thanks to those two jypothesis ([sred t1 t2] and [match_conf s1 s2]), we know a few things about the general shape of [s1]. So we can do a few reductions on [s1], leading to a new state [s2] when we cannot be sure to reduce anymore. Because our semantics are deterministic, we have a good chance of getting to the correct [s2], ie an state such that [match_conf s2 t2] holds.
+
+In more technicals details, we implement the interpretor to derive [star cred s1 s2] using ltac. All possible transitions (possibly multi-steps) are in the form [match goal with |[... |- star cred (* special shape *) _ /\ _ ] => some lemma]. The second part of the [_ /\ _] is the [match_conf]: since when we reduce we don't know s2, we need to keep this member as long as possible, to in the end do an [star_refl] and try to prove [match_conf s2 t2]. Hence, we leverage the following very basic logic theorem at this point:
+
+*)
 
 Theorem implication_left_and (A B C: Prop):
   (A -> B) -> (A /\ C -> B /\ C).
@@ -1263,21 +1278,7 @@ Proof.
   intros; unpack; eauto.
 Qed.
 
-
-(* Indeed, since we want to prove the following theorem:
-
-```
-Theorem simulation_sred_cred t1 t2:
-  sred t1 t2 ->
-  forall s1, match_conf s1 t1 ->
-  exists s2,
-    (plus cred s1 s2)
-  /\ match_conf s2 t2.
-```
-
-given an [sred t1 t2], and an [s1] such that [match_conf s1 t1], in most cases, it suffice to show that we can reduce [s1] based on the hypothesis we have in our disposition and after a few reduction, we can find [s2] such that [match_conf s2 t2].
-
-*)
+(* Example utilization : *)
 
 Goal forall s1 s2 s3,
   cred s1 s2 ->
@@ -1292,6 +1293,9 @@ Proof.
   { eauto. }
 Qed.
 
+
+
+(* The handling of CReturn is orthogonal to the other continuations, hence we proove it in a different way. *)
 Lemma induction_case_CReturn
   (sigma: list value)
   (kappa: list cont)
