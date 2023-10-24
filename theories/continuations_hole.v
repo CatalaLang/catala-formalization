@@ -21,8 +21,12 @@ From Catala Require Import tactics.
 Inductive result :=
   | RValue (v: value)
   | REmpty
-  | RHole
   | RConflict
+.
+
+Inductive is_hole :=
+  | Hole
+  | NoHole
 .
 
 (* App (Var 0) (up t2) *)
@@ -36,7 +40,7 @@ Inductive cont :=
   | CBinopL (op: op) (v1: value) (* [op t1 \square] *)
   | CBinopR (op: op) (t2: term) (* [op \square t2] *)
   | CReturn (sigma: list value) (* call return *)
-  | CDefault (o: option value) (ts: list term) (tj: term) (tc: term)
+  | CDefault (b: is_hole) (o: option value) (ts: list term) (tj: term) (tc: term)
     (* [Def(o, ts, tj, tc)] *)
   | CDefaultBase (tc: term)
     (* [ <| \square :- tc >] *)
@@ -92,30 +96,30 @@ Inductive cred: state -> state -> Prop :=
     forall ts tj tc kappa sigma,
     cred
       (mode_eval (Default ts tj tc) kappa sigma)
-      (mode_cont ((CDefault None ts tj tc)::kappa) sigma RHole)
+      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma REmpty)
 
   | cred_defaultunpack:
     forall o th ts tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault o (th::ts) tj tc)::kappa) sigma RHole)
-      (mode_eval th ((CDefault o ts tj tc)::kappa) sigma)
+      (mode_cont ((CDefault Hole o (th::ts) tj tc)::kappa) sigma REmpty)
+      (mode_eval th ((CDefault NoHole o ts tj tc)::kappa) sigma)
 
   | cred_defaultnone:
     forall ts tj tc kappa sigma v,
     cred
-      (mode_cont ((CDefault None ts tj tc)::kappa) sigma (RValue v))
-      (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma RHole)
+      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma (RValue v))
+      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma REmpty)
 
   | cred_defaultconflict:
     forall ts tj tc kappa sigma v v',
     cred
-      (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma (RValue v'))
+      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma (RValue v'))
       (mode_cont kappa sigma RConflict)
 
   | cred_defaultvalue:
     forall v tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault (Some v) [] tj tc)::kappa) sigma RHole)
+      (mode_cont ((CDefault Hole (Some v) [] tj tc)::kappa) sigma REmpty)
       (mode_cont kappa sigma (RValue v))
 
   (* | cred_defaultnonefinal: (* not needed *)
@@ -124,7 +128,7 @@ Inductive cred: state -> state -> Prop :=
   | cred_defaultbase:
     forall tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault None [] tj tc)::kappa) sigma RHole)
+      (mode_cont ((CDefault Hole None [] tj tc)::kappa) sigma REmpty)
       (mode_eval tj ((CDefaultBase tc)::kappa) sigma)
 
   | cred_defaultbasetrue:
@@ -142,13 +146,13 @@ Inductive cred: state -> state -> Prop :=
   | cred_default_empty:
     forall o ts tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault o ts tj tc)::kappa) sigma REmpty)
-      (mode_cont ((CDefault o ts tj tc)::kappa) sigma RHole)
+      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma REmpty)
 
   (* REmpty is catched by CDefault in the rule cdefaultbase. *)
   | cred_empty:
     forall phi kappa sigma,
-    (forall o ts tj tc, phi <> CDefault o ts tj tc) ->
+    (forall b o ts tj tc, phi <> CDefault b o ts tj tc) ->
     (forall sigma', phi <> CReturn sigma') ->
     cred
       (mode_cont (phi::kappa) sigma REmpty)
@@ -369,8 +373,8 @@ Proof.
       epose proof h _ as tmp; exfalso; apply tmp; eauto
     end.
   all: try match goal with
-    [h: context [CDefault _ _ _ _ <> CDefault _ _ _ _] |- _ ] =>
-    epose proof h _ _ _ _ as tmp; exfalso; apply tmp; eauto
+    [h: context [CDefault _ _ _ _ _ <> CDefault _ _ _ _ _] |- _ ] =>
+    epose proof h _ _ _ _ _ as tmp; exfalso; apply tmp; eauto
     end.
 Qed.
 
@@ -383,7 +387,7 @@ Definition apply_cont c :=
   | CBinopL op v => continuations.CBinopL op v
   | CBinopR op t => continuations.CBinopR op t
   | CReturn s => continuations.CReturn s
-  | CDefault o ts tj tc => continuations.CDefault o ts tj tc
+  | CDefault b o ts tj tc => continuations.CDefault o ts tj tc
   | CDefaultBase tc => continuations.CDefaultBase tc
   | CMatch t1 t2 => continuations.CMatch t1 t2
   | CSome => continuations.CSome
@@ -393,7 +397,6 @@ Definition apply_return r :=
   match r with
   | RValue v => continuations.RValue v
   | REmpty => continuations.REmpty
-  | RHole => continuations.REmpty
   | RConflict => continuations.RConflict
   end.
 
@@ -526,7 +529,7 @@ Proof.
     { edestruct H; eauto. }
   }
   { induction x; simpl in *.
-    {}
+    { }
   }
   { induction x; simpl in *.
     all: eexists; split; [eapply star_one; econstructor; repeat intro; tryfalse; eauto|simpl; eauto].
