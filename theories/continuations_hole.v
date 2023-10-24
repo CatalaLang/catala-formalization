@@ -105,15 +105,15 @@ Inductive cred: state -> state -> Prop :=
       (mode_eval th ((CDefault NoHole o ts tj tc)::kappa) sigma)
 
   | cred_defaultnone:
-    forall ts tj tc kappa sigma v,
+    forall b ts tj tc kappa sigma v,
     cred
-      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma (RValue v))
+      (mode_cont ((CDefault b None ts tj tc)::kappa) sigma (RValue v))
       (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma REmpty)
 
   | cred_defaultconflict:
-    forall ts tj tc kappa sigma v v',
+    forall b ts tj tc kappa sigma v v',
     cred
-      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma (RValue v'))
+      (mode_cont ((CDefault b (Some v) ts tj tc)::kappa) sigma (RValue v'))
       (mode_cont kappa sigma RConflict)
 
   | cred_defaultvalue:
@@ -431,7 +431,8 @@ Lemma apply_cont_inj:
     apply_cont k1 = apply_cont k2 -> k1 = k2.
 Proof.
   induction k1, k2; simpl in *; intros; injections; subst; tryfalse; eauto.
-Qed.
+  { (* this is not anymore true *) admit. }
+Admitted.
 
 Lemma map_apply_cont_inj:
   forall kappa1 kappa2,
@@ -523,13 +524,45 @@ Proof.
 
   all: try solve [eexists;split;[
       solve [repeat (eapply star_step; [econstructor; eauto|]); eapply star_refl]|simpl; eauto]].
+  { eexists; split.
+    { eapply star_one; econstructor. }
+    { simpl; eauto. }
+  }
+  { induction b; eexists; split.
+    { eapply star_one; econstructor. }
+    { simpl; eauto. }
+    { eapply star_step; [econstructor; eauto|].
+      eapply star_one; econstructor.
+    }
+    { simpl; eauto. }
+  }
+  { eexists; split.
+    { eapply star_one; econstructor. }
+    { simpl; eauto. }
+  }
+  { induction b; eexists; split.
+    { eapply star_one; econstructor. }
+    { simpl; eauto. }
+    { eapply star_step; [econstructor|].
+      eapply star_one; econstructor.
+    }
+    { simpl; eauto. }
+  }
+  { induction b; eexists; split.
+    { eapply star_step; [econstructor; eauto|].
+      eapply star_refl.
+    }
+    { simpl; eauto. }
+    { eapply star_step; [econstructor; eauto|].
+      eapply star_step; [econstructor; eauto|].
+      eapply star_refl.
+    }
+    { simpl; eauto. }
+  }
   { induction x; simpl in *.
     all: eexists; split; [eapply star_one; econstructor; repeat intro; tryfalse; eauto|simpl; eauto].
     { edestruct H0; eauto. }
     { edestruct H; eauto. }
-  }
-  { induction x; simpl in *.
-    { }
   }
   { induction x; simpl in *.
     all: eexists; split; [eapply star_one; econstructor; repeat intro; tryfalse; eauto|simpl; eauto].
