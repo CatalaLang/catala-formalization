@@ -55,6 +55,9 @@ Inductive state :=
 .
 
 Inductive cred: state -> state -> Prop :=
+
+
+  (** Rules related to the lambda calculus *)
   | cred_var:
     forall x kappa sigma v,
     List.nth_error sigma x = Some v ->
@@ -92,38 +95,55 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont (CReturn sigma::kappa) sigma_cl r)
       (mode_cont kappa sigma r)
 
+
+  (** Rules related to the defaults *)
+
   | cred_default:
     forall ts tj tc kappa sigma,
     cred
       (mode_eval (Default ts tj tc) kappa sigma)
       (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma REmpty)
 
-  | cred_defaultunpack:
+  | cred_default_unpack:
     forall o th ts tj tc kappa sigma,
     cred
       (mode_cont ((CDefault Hole o (th::ts) tj tc)::kappa) sigma REmpty)
       (mode_eval th ((CDefault NoHole o ts tj tc)::kappa) sigma)
 
-  | cred_defaultnone:
-    forall b ts tj tc kappa sigma v,
+  (* Possible results :
+  
+  value *)
+
+  | cred_default_value:
+    forall o ts tj tc kappa sigma v,
     cred
-      (mode_cont ((CDefault b None ts tj tc)::kappa) sigma (RValue v))
+      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma (RValue v))
+      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma (RValue v))
+
+  | cred_default_value_none_to_some:
+    forall ts tj tc kappa sigma v,
+    cred
+      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma (RValue v))
       (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma REmpty)
 
-  | cred_defaultconflict:
-    forall b ts tj tc kappa sigma v v',
+  | cred_default_value_conflict:
+    forall ts tj tc kappa sigma v v',
     cred
-      (mode_cont ((CDefault b (Some v) ts tj tc)::kappa) sigma (RValue v'))
+      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma (RValue v'))
       (mode_cont kappa sigma RConflict)
 
-  | cred_defaultvalue:
+  | cred_default_value_return:
     forall v tj tc kappa sigma,
     cred
       (mode_cont ((CDefault Hole (Some v) [] tj tc)::kappa) sigma REmpty)
       (mode_cont kappa sigma (RValue v))
 
-  (* | cred_defaultnonefinal: (* not needed *)
-    todo *)
+  (* empty *)
+  | cred_default_empty:
+    forall o ts tj tc kappa sigma,
+    cred
+      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma REmpty)
 
   | cred_defaultbase:
     forall tj tc kappa sigma,
@@ -142,12 +162,6 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont ((CDefaultBase tc)::kappa) sigma (RValue (Bool false)))
       (mode_cont kappa sigma REmpty)
-
-  | cred_default_empty:
-    forall o ts tj tc kappa sigma,
-    cred
-      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma REmpty)
-      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma REmpty)
 
   (* REmpty is catched by CDefault in the rule cdefaultbase. *)
   | cred_empty:
@@ -431,7 +445,7 @@ Lemma apply_cont_inj:
     apply_cont k1 = apply_cont k2 -> k1 = k2.
 Proof.
   induction k1, k2; simpl in *; intros; injections; subst; tryfalse; eauto.
-  { (* this is not anymore true *) admit. }
+  { f_equal. (* this is not anymore true *) admit. }
 Admitted.
 
 Lemma map_apply_cont_inj:
@@ -464,12 +478,50 @@ Proof.
   }
 Qed.
 
+
+(** Our reduction sequences should have the folowing shape:
+
+the head of kappa, if it exists can have any possible shape.
+
+Each member of the tail should however no contain "Hole" inside their default terms.
+
+This is explained by the following invariant on state :
+
+*)
+
+Inductive inv_kappa_no_hole: cont -> Prop :=
+.
+
+
+Definition inv_state (s: state): Prop :=
+  let kappa := (stack s) in
+  match kappa with
+  | [] => True
+  | h::t =>  List.Forall inv_kappa_no_hole t
+  end
+.
+
+(* This property is indeed conserved by the cred relation. *)
+
+Theorem cred_inv_state_stable:
+  forall s1,
+    inv_state s1 ->
+    forall s2,
+      cred s1 s2 ->
+      inv_state s2.
+Proof.
+  induction 2.
+  all: try solve [unfold inv_state in *; simpl in *; eauto].
+Abort.
+
+
 Import Learn.
 
 Theorem simulation_cred'_cred:
   forall s1 s2,
     continuations.cred s1 s2 ->
-    forall s1', s1 = apply s1' ->
+    forall s1',
+      s1 = apply s1' ->
       exists s2',
         star cred s1' s2' /\ s2 = apply s2'.
 Proof.
@@ -536,8 +588,12 @@ Proof.
     }
     { simpl; eauto. }
   }
-  { eexists; split.
+  { induction b; eexists; split.
     { eapply star_one; econstructor. }
+    { simpl; eauto. }
+    { eapply star_step; [econstructor; eauto|].
+      eapply star_one; econstructor.
+    }
     { simpl; eauto. }
   }
   { induction b; eexists; split.
@@ -545,6 +601,17 @@ Proof.
     { simpl; eauto. }
     { eapply star_step; [econstructor|].
       eapply star_one; econstructor.
+    }
+    { simpl; eauto. }
+  }
+  { induction b; eexists; split.
+    { eapply star_step; [econstructor; eauto|].
+      eapply star_refl.
+    }
+    { simpl; eauto. }
+    { eapply star_step; [econstructor; eauto|].
+      eapply star_step; [econstructor; eauto|].
+      eapply star_refl.
     }
     { simpl; eauto. }
   }
