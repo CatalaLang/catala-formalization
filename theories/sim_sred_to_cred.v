@@ -1,4 +1,4 @@
-Require Import syntax continuations small_step sequences tactics.
+Require Import syntax continuations_hole small_step sequences tactics.
 Require Import Coq.ZArith.ZArith.
 Import List.ListNotations.
 
@@ -103,6 +103,21 @@ Definition apply_state_aux (s: state): term * list value :=
 
 (* We use an notation to be apple to simplify this definition. *)
 Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
+
+Inductive apply_conts' : list cont -> term -> list value -> term -> list value -> Prop := .
+
+Inductive apply_state_aux' : state -> term -> list value -> Prop :=
+  | apply_mode_eval:
+    forall stack t env t' env',
+      apply_conts' stack t.[subst_of_env env] env t' env' ->
+      apply_state_aux' (mode_eval t stack env) t' env'
+  (* | apply_mode_cont:
+    forall stack t env t' env',
+      apply_conts' stack t.[subst_of_env env]x² env t' env' ->
+      apply_state_aux' (mode_eval t stack env) t' env' *)
+.
+
+(* -------------------------------------------------------------------------- *)
 
 Require Import typing.
 
@@ -1326,6 +1341,16 @@ Proof.
   all: aexists (append_stack s2 [CReturn sigma]).
 Qed.
 
+Ltac info :=
+  match goal with
+  | [ |- plus cred ?s1 _ /\ _ ] =>
+    idtac s1 "//"
+  | [ |- star cred ?s1 _ /\ _ ] =>
+    idtac s1 "//"
+  | [ |- cred ?s1 _ /\ _ ] =>
+    idtac s1 "//"
+  | _ => idtac
+  end.
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
@@ -1390,13 +1415,13 @@ Proof.
 
     (* one step computation *)
     | [|- plus cred ?s1 ?s2 /\ _] =>
-      eapply implication_left_and; [
+      info; eapply implication_left_and; [
         eapply plus_left; solve [
           econstructor; eauto|
           econstructor; repeat intro; inj]
       |]
     | [|- star cred ?s1 ?s2 /\ _] =>
-      eapply implication_left_and; [
+      info; eapply implication_left_and; [
         eapply star_step; solve [
           econstructor; eauto|
           econstructor; repeat intro; inj]
@@ -1404,25 +1429,25 @@ Proof.
 
     (* Multi steps computation *)
     | [h: star cred ?s1 ?s2 |- star cred ?s1 _ /\ _] =>
-      eapply implication_left_and; [
+      info; eapply implication_left_and; [
         eapply star_trans; eapply h
       |]
     | [h: plus cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
-      eapply implication_left_and; [
+      info; eapply implication_left_and; [
         eapply plus_star_trans; eapply h
       |]
     | [h: star cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
       match goal with
       [h: plus cred s1 s2 |- _] => fail 1
       end;
-      eapply implication_left_and; [
+      info; eapply implication_left_and; [
         eapply star_plus_trans; eapply h
       |]
 
     | [
       h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
       |- star cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
-      eapply implication_left_and;[
+      info; eapply implication_left_and;[
         eapply star_trans;
         eapply (cred_process_return _ h)
       |]
@@ -1430,7 +1455,7 @@ Proof.
     | [
       h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
       |- plus cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
-      eapply implication_left_and;[
+      info; eapply implication_left_and;[
         eapply star_plus_trans;
         eapply (cred_process_return _ h)
       |]
@@ -1516,8 +1541,9 @@ Proof.
 
     (* When no more progress is possible, we can finaly introduce the evar corresponding to the goal term. This is to avoid having variable completing our evar that escape the scope they were defined in. *)
     | [ |- exists _, _] =>
-      eexists
+    idtac "---" "---"; eexists
     | _ =>
+      info;
       solve [split; [eapply star_refl|];
       try solve [
         econstructor; eauto
@@ -1604,13 +1630,13 @@ Proof.
 
     (* one step computation *)
     | [|- plus cred ?s1 ?s2 /\ _] =>
-      eapply implication_left_and; [
+      info; eapply implication_left_and; [
         eapply plus_left; solve [
           econstructor; eauto|
           econstructor; repeat intro; inj]
       |]
     | [|- star cred ?s1 ?s2 /\ _] =>
-      eapply implication_left_and; [
+      info; eapply implication_left_and; [
         eapply star_step; solve [
           econstructor; eauto|
           econstructor; repeat intro; inj]
@@ -1618,25 +1644,25 @@ Proof.
 
     (* Multi steps computation *)
     | [h: star cred ?s1 ?s2 |- star cred ?s1 _ /\ _] =>
-      eapply implication_left_and; [
+      info; eapply implication_left_and; [
         eapply star_trans; eapply h
       |]
     | [h: plus cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
-      eapply implication_left_and; [
+      info; eapply implication_left_and; [
         eapply plus_star_trans; eapply h
       |]
     | [h: star cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
       match goal with
       [h: plus cred s1 s2 |- _] => fail 1
       end;
-      eapply implication_left_and; [
+      info; eapply implication_left_and; [
         eapply star_plus_trans; eapply h
       |]
 
     | [
       h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
       |- star cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
-      eapply implication_left_and;[
+      info; eapply implication_left_and;[
         eapply star_trans;
         eapply (cred_process_return _ h)
       |]
@@ -1644,7 +1670,7 @@ Proof.
     | [
       h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
       |- plus cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
-      eapply implication_left_and;[
+      info; eapply implication_left_and;[
         eapply star_plus_trans;
         eapply (cred_process_return _ h)
       |]
@@ -1732,7 +1758,7 @@ Proof.
     | [ |- exists _, _] =>
       eexists
     | _ =>
-      solve [split; [eapply star_refl|];
+      first[solve [split; [info; eapply star_refl|];
       try solve [
         econstructor; eauto
 
@@ -1749,7 +1775,7 @@ Proof.
         end
       (* For return cases *)
       | econstructor; simpl; rewrite subst_env_cons; asimpl; eauto
-      ]]
+      ]; idtac "ok"] | idtac "notok"]
     end.
 
     { admit. }
