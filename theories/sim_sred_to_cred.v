@@ -15,46 +15,93 @@ Proof.
 Qed.
 
 
-Definition apply_CDefault o ts tj tc t sigma : term :=
-  match o with
-  | Some v =>
+Definition apply_CDefault b o ts tj tc t sigma : term :=
+  match b, t, o with
+  | Hole, Empty, Some v =>
+      Default ((Value v).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+  | Hole, Empty, None =>
+      Default (ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+  | _, _, Some v =>
       Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-  | None =>
+  | _, _,None =>
       Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
   end.
 
-(* This permits to simplify apply defaults using the EmptyOrNotEmpty lemma in an automatic fashon *)
+Lemma apply_CDefault_hole_some_empty:
+  forall v ts tj tc t sigma,
+    t = Empty ->
+    apply_CDefault Hole (Some v) ts tj tc t sigma =
+      Default ((Value v).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+Proof.
+  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
+Qed.
 
-Lemma apply_CDefault_NT: forall {t ts tj tc sigma},
-  t <> Empty ->
-  apply_CDefault None ts tj tc t sigma =
+Lemma apply_CDefault_hole_none_empty:
+  forall ts tj tc t sigma,
+    t = Empty ->
+    apply_CDefault Hole None ts tj tc t sigma =
+      Default (ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+Proof.
+  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
+Qed.
+
+Lemma apply_CDefault_hole_some_nempty:
+  forall v ts tj tc t sigma,
+    t <> Empty ->
+    apply_CDefault Hole (Some v) ts tj tc t sigma =
+      Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+Proof.
+  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
+Qed.
+
+Lemma apply_CDefault_hole_none_nempty:
+  forall ts tj tc t sigma,
+    t <> Empty ->
+    apply_CDefault Hole None ts tj tc t sigma =
+      Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+Proof.
+  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
+Qed.
+
+Lemma apply_CDefault_nohole_some:
+  forall v ts tj tc t sigma,
+    apply_CDefault NoHole (Some v) ts tj tc t sigma =
+      Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+Proof.
+  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
+Qed.
+
+Lemma apply_CDefault_nohole_none:
+  forall ts tj tc t sigma,
+  apply_CDefault NoHole None ts tj tc t sigma =
     Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
 Proof.
-induction t; intros; tryfalse; eauto.
+  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
 Qed.
 
-Lemma apply_CDefault_ST: forall {v t ts tj tc sigma},
-  t <> Empty ->
-  apply_CDefault (Some v) ts tj tc t sigma =
-    Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-.
-Proof.
-induction t; intros; tryfalse; injections; subst; eauto.
-Qed.
 
-Lemma apply_CDefault_NE: forall {t ts tj tc sigma},
-  t = Empty ->
-  apply_CDefault None ts tj tc t sigma =
-    Default ((ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
-Proof.
-Abort.
+Ltac simpl_apply_CDefault := match goal with
+| [h1: ?t=Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+  rewrite apply_CDefault_hole_some_empty in h2
+| [h1: ?t=Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+  rewrite apply_CDefault_hole_none_empty in h2
+| [h1: ?t<>Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+  rewrite apply_CDefault_hole_some_nempty in h2
+| [h1: ?t<>Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+  rewrite apply_CDefault_hole_none_nempty in h2
+| [h: context [apply_CDefault NoHole (Some _) _ _ _ ?t _] |- _] =>
+  rewrite apply_CDefault_nohole_some in h
+| [h: context [apply_CDefault NoHole None _ _ _ ?t _] |- _] =>
+  rewrite apply_CDefault_nohole_none in h
+end.
 
-Lemma apply_CDefault_SE: forall {v t ts tj tc sigma},
-  t = Empty ->
-  apply_CDefault (Some v) ts tj tc t sigma =
-    Default ((Value v).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
-Proof.
-Abort.
+
+
+
+Opaque apply_CDefault.
+
+(* This permits to simplify apply defaults using the EmptyOrNotEmpty lemma in an automatic fashon *)
+
 
 Definition apply_cont
   (param1: term * list value)
@@ -71,8 +118,8 @@ Definition apply_cont
   | CClosure t_cl sigma_cl =>
     (App (Value (Closure t_cl sigma_cl)) t, sigma)
   | CReturn sigma' => (t, sigma')
-  | CDefault o ts tj tc =>
-    (apply_CDefault o ts tj tc t sigma, sigma)
+  | CDefault b o ts tj tc =>
+    (apply_CDefault b o ts tj tc t sigma, sigma)
   | CDefaultBase tc =>
     (Default nil t tc.[subst_of_env sigma], sigma)
   | CMatch t1 t2 =>
@@ -119,14 +166,14 @@ Inductive apply_state_aux' : state -> term -> list value -> Prop :=
 
 (* -------------------------------------------------------------------------- *)
 
-Require Import typing.
+(* Require Import typing.
 
 Lemma apply_state_typing:
   forall Delta Gamma s1 T,
     jt_state Delta Gamma s1 T ->
     jt_term Delta Gamma (apply_state s1) T.
 Proof.
-Abort.
+Abort. *)
 
 Lemma NEmpty_subst_of_env_NEmpty {t} sigma:
   t <> Empty -> t.[subst_of_env sigma] <> Empty.
@@ -147,7 +194,7 @@ Import Learn.
 
 Ltac dsimpl :=
   repeat match goal with
-  (* | [h: ?t = Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
+  (* (* | [h: ?t = Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
     rewrite (apply_CDefault_SE h)
   | [h: ?t = Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
     rewrite (apply_CDefault_NE h) *)
@@ -162,7 +209,7 @@ Ltac dsimpl :=
   | [h1: ?t <> Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
     rewrite (apply_CDefault_ST h1) in h2
   | [h1: ?t <> Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
-    rewrite (apply_CDefault_NT h1) in h2
+    rewrite (apply_CDefault_NT h1) in h2 *)
 
   | [h: ?t <> Empty |- context [?t.[subst_of_env ?sigma]]] =>
     learn (NEmpty_subst_of_env_NEmpty sigma h)
@@ -825,12 +872,13 @@ Lemma cred_default_head_empty:
   forall ts1 o ts2 e1 e2 env0,
   List.Forall (eq Empty) ts1 ->
   star cred
-    (mode_cont [CDefault o (ts1 ++ ts2) e1 e2] env0 REmpty)
-    (mode_cont [CDefault o (ts2) e1 e2] env0 REmpty).
+    (mode_cont [CDefault Hole o (ts1 ++ ts2) e1 e2] env0 REmpty)
+    (mode_cont [CDefault Hole o (ts2) e1 e2] env0 REmpty).
 Proof.
   induction ts1; intros; unpack; simpl.
   { econstructor. }
   { eapply star_step. { econstructor. }
+    eapply star_step. { econstructor. }
     eapply star_step. { econstructor. }
     eapply IHts1; eauto.
   }
@@ -845,8 +893,8 @@ Import Learn.
 Ltac match_conf1 :=
   match goal with
   | [ |- match_conf _ _ ] => econstructor
-  | [h: match_conf _ _ |- _ ] =>
-    inversion h; subst; clear h
+  (* | [h: match_conf _ _ |- _ ] =>
+    inversion h; subst; clear h *)
   | [ h: plus cred ?s1 ?s2 |- _] =>
     learn (plus_star h)
   | [ hs1s2: star cred (mode_eval _ _ _) ?s2 |- _ ] =>
@@ -873,9 +921,82 @@ Ltac match_conf1 :=
     rewrite apply_conts_app in h
   | [h: context [fst (_, _)] |- _] =>
     simpl in h
+
+  | [h: _ = apply_CDefault _ _ _ _ _ ?t _ |- _] =>
+    learn (EmptyOrNotEmpty t); repeat match goal with
+    | [h: _ \/ _ |- _] =>
+      destruct h
+    | [h1: ?t=Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+      rewrite (apply_CDefault_hole_some_empty _ _ _ _ _ _ h1) in h2
+    | [h1: ?t=Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
+      rewrite (apply_CDefault_hole_none_empty _ _ _ _ _ h1) in h2
+    | [h1: ?t<>Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+      rewrite (apply_CDefault_hole_some_nempty _ _ _ _ _ _ h1) in h2
+    | [h1: ?t<>Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
+      rewrite (apply_CDefault_hole_none_nempty _ _ _ _ _ h1) in h2
+    | [h: context [apply_CDefault NoHole (Some _) _ _ _ ?t _] |- _] =>
+      rewrite apply_CDefault_nohole_some in h
+    | [h: context [apply_CDefault NoHole None _ _ _ ?t _] |- _] =>
+      rewrite apply_CDefault_nohole_none in h
+    end
+  | [h: _ \/ _ |- _] =>
+    destruct h
   | _ => progress simpl; try solve [repeat f_equal; eauto]
   | _ => progress injections
   end.
+
+Ltac simpl_apply_CDefault' :=
+  match goal with
+  | [h1: ?t=Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_hole_some_empty _ _ _ _ _ _ h1) in h2
+  | [h1: ?t=Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_hole_none_empty _ _ _ _ _ h1) in h2
+  | [h1: ?t<>Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_hole_some_nempty _ _ _ _ _ _ h1) in h2
+  | [h1: ?t<>Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_hole_none_nempty _ _ _ _ _ h1) in h2
+  | [h: context [apply_CDefault NoHole (Some _) _ _ _ ?t _] |- _] =>
+    rewrite apply_CDefault_nohole_some in h
+  | [h: context [apply_CDefault NoHole None _ _ _ ?t _] |- _] =>
+    rewrite apply_CDefault_nohole_none in h
+  end.
+
+Lemma Value_apply_CDefault:
+  forall v a b c d e f g,
+    Value v = apply_CDefault a b c d e f g -> False.
+Proof.
+  intros.
+  induction a, b; destruct (EmptyOrNotEmpty f) as [Heq | Heq].
+  all: simpl_apply_CDefault'; tryfalse.
+Qed.
+
+
+Lemma Conflict_apply_CDefault:
+  forall a b c d e f g,
+    Conflict = apply_CDefault a b c d e f g -> False.
+Proof.
+  intros.
+  induction a, b; destruct (EmptyOrNotEmpty f) as [Heq | Heq].
+  all: simpl_apply_CDefault'; tryfalse.
+Qed.
+
+Lemma Empty_apply_CDefault:
+  forall a b c d e f g,
+    Empty = apply_CDefault a b c d e f g -> False.
+Proof.
+  intros.
+  induction a, b; destruct (EmptyOrNotEmpty f) as [Heq | Heq].
+  all: simpl_apply_CDefault'; tryfalse.
+Qed.
+
+Lemma Lam_apply_CDefault:
+  forall t a b c d e f g,
+    Lam t = apply_CDefault a b c d e f g -> False.
+Proof.
+  intros.
+  induction a, b; destruct (EmptyOrNotEmpty f) as [Heq | Heq].
+  all: simpl_apply_CDefault'; tryfalse.
+Qed.
 
 Lemma value_apply_conts_inversion_eval {v kappa t env0}:
   Value v = fst (apply_conts kappa (t, env0)) ->
@@ -889,6 +1010,8 @@ Proof.
     { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); eapply List.Forall_app; eauto. }
+      all: exfalso.
+      all: eapply Value_apply_CDefault; eauto.
     }
   }
   { induction kappa as [|k kappa] using List.rev_ind.
@@ -900,6 +1023,7 @@ Proof.
       | [h: Value _ = fst (apply_conts _ (?t, ?env)) |- _] =>
         destruct (IHkappa t env); simpl; eauto
       end.
+      all: exfalso; eapply Value_apply_CDefault; eauto.
     }
   }
 Qed.
@@ -927,6 +1051,7 @@ Proof.
     { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); eapply List.Forall_app; eauto. }
+      all: exfalso; eapply Lam_apply_CDefault; eauto.
     }
   }
   { induction kappa as [|k kappa] using List.rev_ind.
@@ -934,6 +1059,7 @@ Proof.
     { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); subst; eauto. }
+      all: exfalso; eapply Lam_apply_CDefault; eauto.
     }
   }
 Qed.
@@ -946,15 +1072,15 @@ Proof.
   split; revert kappa t env0 H.
   { induction kappa as [|k kappa] using List.rev_ind.
     { econstructor. }
-    { induction k; try induction o.
-      all: intros; repeat match_conf1; inj.
+    { induction k; try induction o; try induction b.
+      all: intros; repeat match_conf1; inj; tryfalse.
       { learn (IHkappa _ _ H); eapply List.Forall_app; eauto. }
     }
   }
   { induction kappa as [|k kappa] using List.rev_ind.
     { simpl; eauto. }
-    { induction k; try induction o.
-      all: intros; repeat match_conf1; inj.
+    { induction k; try induction o; try induction b.
+      all: intros; repeat match_conf1; inj; tryfalse.
       { learn (IHkappa _ _ H); subst; eauto. }
     }
   }
@@ -971,6 +1097,7 @@ Proof.
     { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); eapply List.Forall_app; eauto. }
+      all: exfalso; eapply Conflict_apply_CDefault; eauto.
     }
   }
   { induction kappa as [|k kappa] using List.rev_ind.
@@ -978,6 +1105,7 @@ Proof.
     { induction k; try induction o.
       all: intros; repeat match_conf1; inj.
       { learn (IHkappa _ _ H); subst; eauto. }
+      all: exfalso; eapply Conflict_apply_CDefault; eauto.
     }
   }
 Qed.
@@ -1019,6 +1147,9 @@ Ltac match_conf :=
     clear h
   | [h: Empty = fst (apply_conts _ (_, _)) |- _ ] =>
     learn (empty_apply_conts_inversion_eval h);
+    clear h
+  | [h: fst (apply_conts _ (_, _)) = Empty |- _ ] =>
+    learn (empty_apply_conts_inversion_eval (eq_sym h));
     clear h
   | _ => progress match_conf1
   | _ => progress unpack
@@ -1090,54 +1221,27 @@ Proof.
   { induction a; simpl; intros; try induction o; eapply IHkappa. }
 Qed.
 
-Goal
-  apply_state (mode_eval (Default [Empty] (Value (Bool true)) (Value (Bool true))) [] []) = Default [Empty] (Value (Bool true)) (Value (Bool true)).
+
+Ltac sp :=
+  repeat match goal with
+  | [ |- context [let '(_, _) := ?p in _]] =>
+    rewrite (surjective_pairing p)
+  | [h: context [let '(_, _) := ?p in _] |- _] =>
+    rewrite (surjective_pairing p) in h
+  end
+.
+
+Lemma apply_conts_forall_return: forall kappa t env,
+        List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) kappa -> fst (apply_conts kappa (t, env)) = t.
 Proof.
-  simpl.
-  eauto.
+  intros.
+  induction kappa using List.rev_ind.
+  { simpl; eauto. }
+  { unpack; subst.
+    rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl.
+    eapply IHkappa; eauto.
+  }
 Qed.
-
-Goal
-  apply_state (mode_eval (Default [] (Value (Bool true)) (Value (Bool true))) [] []) = Default [] (Value (Bool true)) (Value (Bool true)).
-Proof.
-  simpl.
-  eauto.
-Qed.
-
-Goal
-  forall t,
-  t <> Empty ->
-  apply_state (mode_eval (Default [t] (Value (Bool true)) (Value (Bool true))) [] []) = Default [t.[subst_of_env []]] (Value (Bool true)) (Value (Bool true)).
-Proof.
-  intros; dsimpl.
-  simpl.
-  eauto.
-Qed.
-
-Goal
-  exists k env ret,
-    apply_state (mode_cont [k] env ret) =
-      Default [Empty] (Value (Bool true)) (Value (Bool true)).
-Proof.
-  exists (CDefault None [] (Value (Bool true)) (Value (Bool true))), [], REmpty.
-  simpl; eauto.
-Qed.
-
-Goal
-  exists k env ret,
-    apply_state (mode_cont [k] env ret) =
-      Default [] (Value (Bool true)) (Value (Bool true)).
-Proof.
-  exists (CDefaultBase (Value (Bool true))), [], REmpty.
-  simpl; eauto.
-Abort.
-
-
-Compute apply_state (mode_eval (Default [] (Value (Bool true)) (Value (Bool true))) [] []).
-
-Compute apply_state (mode_cont [CDefault None [(Value (Bool true))] (Value (Bool true)) (Value (Bool true))] [] REmpty).
-
-Compute apply_state (mode_eval ((Value (Bool true))) [CDefault None [] (Value (Bool true)) (Value (Bool true))] []).
 
 Ltac cstep :=
   match goal with
@@ -1339,6 +1443,7 @@ Proof.
       learn (match_conf_cont_app_CReturn Hs1).
   all: destruct (IHkappa _ _ Hsred' _ H) as (s2 & Hs1s2 & Hs2); [simpl; eauto|].
   all: aexists (append_stack s2 [CReturn sigma]).
+  all: inversion Hs2; subst; eauto.
 Qed.
 
 Ltac info :=
@@ -1541,7 +1646,7 @@ Proof.
 
     (* When no more progress is possible, we can finaly introduce the evar corresponding to the goal term. This is to avoid having variable completing our evar that escape the scope they were defined in. *)
     | [ |- exists _, _] =>
-    idtac "---" "---"; eexists
+    idtac "---"; eexists
     | _ =>
       info;
       solve [split; [eapply star_refl|];
@@ -1567,7 +1672,16 @@ Proof.
       split; [eapply star_refl|].
       eapply match_value; econstructor; eauto.
     }
-    { admit "one of the problem this technique is supposed to solve". }
+    { split; [eapply star_refl|].
+      econstructor; repeat rewrite apply_state_append_stack;
+      simpl; unfold apply_cont; simpl;
+      match goal with
+        | [ |- context [let '(_, _) := ?p in _]] =>
+          rewrite (surjective_pairing p)
+      end; simpl in *.
+      rewrite apply_CDefault_nohole_none.
+      rewrite <- H16; eauto.
+    }
   }
   { (* induction step.*)
     intros t1 t2 Hred.
@@ -1577,10 +1691,21 @@ Proof.
     all: try solve [intros; eapply induction_case_CReturn; eauto; econstructor; eauto].
     all: induction s1.
     all: try (remember o as o' eqn: Heqo; lock Heqo; induction o').
+    all: try (remember b as b' eqn: Heqb; lock Heqb; induction b').
     all: intros MC Heqkappa; revert MC; simpl in Heqkappa; subst.
-    all: intros MC; inversion MC; clear MC; simpl; subst.
+    all: intros MC; inversion MC; simpl; subst.
     all: first [rewrite append_stack_eval in * | repeat rewrite append_stack_cont in *].
+
+    (* all: match goal with
+    | [h: _ = fst (apply_state_aux _) |- _ ] =>
+      let P := type of H in
+      assert (MC: P) by eauto;
+      lock MC
+    end. *)
+
     all: match_conf; try solve [tryfalse]; subst.
+
+
     (* all: match goal with
       | [|- context [mode_eval ?t (?kappa ++ [?k]) ?env0]] =>
         remember (mode_eval t kappa env0) as s1'; lock Heqs1'
@@ -1588,7 +1713,35 @@ Proof.
         remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
       end. *)
     all: unpack_subst_of_env_cons.
-    all: repeat multimatch goal with
+(* 
+    88:{
+      inversion MC; subst; clear MC.
+      rewrite append_stack_eval in *.
+      rewrite apply_state_append_stack in *.
+      simpl in *.
+      unfold apply_cont in *.
+      match goal with
+        | [h: context [let '(_, _) := ?p in _] |- _] =>
+          rewrite (surjective_pairing p) in h
+      end.
+      simpl in *.
+      match goal with
+      |[hneq: ?t <> Empty, h: context[apply_CDefault Hole None _ _ _ ?t _] |- _] =>
+        rewrite (apply_CDefault_hole_none_nempty _ _ _ _ _  hneq) in h
+      end.
+      injections.
+      simpl in H0.
+      injection H0.
+      first [
+        rewrite apply_CDefault_hole_none_empty in *;
+        rewrite apply_CDefault_hole_none_nempty in *;
+        rewrite apply_CDefault_hole_some_empty in *;
+        rewrite apply_CDefault_hole_some_nempty in *;
+        rewrite apply_CDefault_nohole_none in *;
+        rewrite apply_CDefault_nohole_some in *].
+    } *)
+
+    all: idtac "---"; repeat multimatch goal with
     (* induction hypothesis *)
 
     | [h1: forall t1 t2, sred t1 t2 -> _, h2: sred ?t1 ?t2 |- _] =>
@@ -1623,57 +1776,11 @@ Proof.
     | [h: plus _ _ _ |- _] =>
       learn (plus_star h)
     | [h: _ /\ _ |- _] => destruct h
-    | [h: exists _, _ |- _] => destruct h
+    | [h: exists _, _ |- _] =>
+      destruct h
     | [h: match_conf _ _ |- _] =>
       inversion h; clear h; subst
     | _ => progress rewrite last_snd_apply_conts in *
-
-    (* one step computation *)
-    | [|- plus cred ?s1 ?s2 /\ _] =>
-      info; eapply implication_left_and; [
-        eapply plus_left; solve [
-          econstructor; eauto|
-          econstructor; repeat intro; inj]
-      |]
-    | [|- star cred ?s1 ?s2 /\ _] =>
-      info; eapply implication_left_and; [
-        eapply star_step; solve [
-          econstructor; eauto|
-          econstructor; repeat intro; inj]
-      |]
-
-    (* Multi steps computation *)
-    | [h: star cred ?s1 ?s2 |- star cred ?s1 _ /\ _] =>
-      info; eapply implication_left_and; [
-        eapply star_trans; eapply h
-      |]
-    | [h: plus cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
-      info; eapply implication_left_and; [
-        eapply plus_star_trans; eapply h
-      |]
-    | [h: star cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
-      match goal with
-      [h: plus cred s1 s2 |- _] => fail 1
-      end;
-      info; eapply implication_left_and; [
-        eapply star_plus_trans; eapply h
-      |]
-
-    | [
-      h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
-      |- star cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
-      info; eapply implication_left_and;[
-        eapply star_trans;
-        eapply (cred_process_return _ h)
-      |]
-
-    | [
-      h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
-      |- plus cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
-      info; eapply implication_left_and;[
-        eapply star_plus_trans;
-        eapply (cred_process_return _ h)
-      |]
 
     | [
       h: plus cred _ ?s2
@@ -1754,12 +1861,89 @@ Proof.
     | [ h: Value _ = ?t.[subst_of_env _] |- _] =>
       induction t; simpl in h; tryfalse; unpack_subst_of_env_cons
 
+    
+
+    (* 12:{
+      repeat match goal with | [h: @Learnt _ |- _ ] => clear h end.
+      repeat match goal with
+      | [h: _ = apply_CDefault _ _ _ _ _ ?t _ |- _] =>
+        learn (EmptyOrNotEmpty t)
+      | [h1: ?t=Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+        rewrite (apply_CDefault_hole_some_empty _ _ _ _ _ _ h1) in h2
+      | [h1: ?t=Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
+        rewrite (apply_CDefault_hole_none_empty _ _ _ _ _ h1) in h2
+      | [h1: ?t<>Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+        rewrite (apply_CDefault_hole_some_nempty _ _ _ _ _ _ h1) in h2
+      | [h1: ?t<>Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
+        rewrite (apply_CDefault_hole_none_nempty _ _ _ _ _ h1) in h2
+      | [h: context [apply_CDefault NoHole (Some _) _ _ _ ?t _] |- _] =>
+        rewrite apply_CDefault_nohole_some in h
+      | [h: context [apply_CDefault NoHole None _ _ _ ?t _] |- _] =>
+        rewrite apply_CDefault_nohole_none in h
+      | [h: _ \/ _ |- _] =>
+        destruct h
+      end.
+      (* why the fuck does App (Value (Closure t sigma')) (Value v) = apply_CDefault Hole (Some a) ts tj tc (fst (apply_conts kappa (Empty, env0))) (last kappa env0) appears ? it should be destroyed by the match on CDefault holes somewhere. Is the rewriting done in the wrong direction ?*)
+      match goal with
+    }
+    idtac. *)
+
+    (* end.
+    (* 82:{ } *)
+    match goal with *)
+      (* one step computation *)
+      | [|- plus cred ?s1 ?s2 /\ _] =>
+        info; eapply implication_left_and; [
+          eapply plus_left; solve [
+            econstructor; eauto|
+            econstructor; repeat intro; inj]
+        |]
+      | [|- star cred ?s1 ?s2 /\ _] =>
+        info; eapply implication_left_and; [
+          eapply star_step; solve [
+            econstructor; eauto|
+            econstructor; repeat intro; inj]
+        |]
+
+      (* Multi steps computation *)
+      | [h: star cred ?s1 ?s2 |- star cred ?s1 _ /\ _] =>
+        info; eapply implication_left_and; [
+          eapply star_trans; eapply h
+        |]
+      | [h: plus cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
+        info; eapply implication_left_and; [
+          eapply plus_star_trans; eapply h
+        |]
+      | [h: star cred ?s1 ?s2 |- plus cred ?s1 _ /\ _] =>
+        match goal with
+        [h: plus cred s1 s2 |- _] => fail 1
+        end;
+        info; eapply implication_left_and; [
+          eapply star_plus_trans; eapply h
+        |]
+
+      | [
+        h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
+        |- star cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
+        info; eapply implication_left_and;[
+          eapply star_trans;
+          eapply (cred_process_return _ h)
+        |]
+
+      | [
+        h: List.Forall (fun k : cont => exists sigma : list value, k = CReturn sigma) ?kappa
+        |- plus cred (mode_cont (?kappa ++ _) _ _) _ /\ _] =>
+        info; eapply implication_left_and;[
+          eapply star_plus_trans;
+          eapply (cred_process_return _ h)
+        |]
+
     (* When no more progress is possible, we can finaly introduce the evar corresponding to the goal term. This is to avoid having variable completing our evar that escape the scope they were defined in. *)
     | [ |- exists _, _] =>
       eexists
     | _ =>
       first[solve [split; [info; eapply star_refl|];
-      try solve [
+      solve [
         econstructor; eauto
 
       (* Majority of the cases *)
@@ -1777,9 +1961,103 @@ Proof.
       | econstructor; simpl; rewrite subst_env_cons; asimpl; eauto
       ]; idtac "ok"] | idtac "notok"]
     end.
+    
+    all: try solve [ repeat match goal with
+    | [h: context [apply_conts (_ ++ [?k]) _] |- _ ] =>
+      rewrite apply_conts_app in h;
+      simpl in h;
+      unfold apply_cont in h;
+      match goal with
+      | [h: context [let '(_, _) := ?p in _] |- _] =>
+        rewrite (surjective_pairing p) in h
+      end;
+      try match goal with
+      | [h: _ = apply_CDefault _ _ _ _ _ ?t _ |- _] =>
+        learn (EmptyOrNotEmpty t)
+      | [h1: ?t=Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+        rewrite (apply_CDefault_hole_some_empty _ _ _ _ _ _ h1) in h2
+      | [h1: ?t=Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
+        rewrite (apply_CDefault_hole_none_empty _ _ _ _ _ h1) in h2
+      | [h1: ?t<>Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
+        rewrite (apply_CDefault_hole_some_nempty _ _ _ _ _ _ h1) in h2
+      | [h1: ?t<>Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
+        rewrite (apply_CDefault_hole_none_nempty _ _ _ _ _ h1) in h2
+      | [h: context [apply_CDefault NoHole (Some _) _ _ _ ?t _] |- _] =>
+        rewrite apply_CDefault_nohole_some in h
+      | [h: context [apply_CDefault NoHole None _ _ _ ?t _] |- _] =>
+        rewrite apply_CDefault_nohole_none in h
+      end;
+      simpl in h;
+      injections
+    end;
+    try match goal with
+      | [h: Value _ = _ |- _] =>
+        destruct (value_apply_conts_inversion_eval h);
+        tryfalse
+    end].
 
-    { admit. }
-    { admit. }
 
+    all: try solve [
+      split; [eapply star_refl|];
+      econstructor;
+      rewrite apply_state_append_stack;
+      simpl; unfold apply_cont; sp; simpl;
+      first
+      [
+      rewrite apply_CDefault_hole_none_empty|
+      rewrite apply_CDefault_hole_none_nempty|
+      rewrite apply_CDefault_hole_some_empty|
+      rewrite apply_CDefault_hole_some_nempty|
+      rewrite apply_CDefault_nohole_none|
+      rewrite apply_CDefault_nohole_some
+      ];
+      eauto; simpl; repeat f_equal; eauto
+    ].
+
+    (** Special incorrect case: *)
+
+    all:
+      (* oh well, didn't saw this one coming. Hred is inconsistant. In some cases. *)
+      try solve [exfalso;
+      rewrite apply_conts_forall_return in Hred; eauto;
+      inversion Hred].
+
+    all:
+      try (split; [eapply star_refl|];
+      econstructor;
+      rewrite apply_state_append_stack;
+      simpl; unfold apply_cont; sp; simpl).
+
+    { rewrite apply_CDefault_hole_none_nempty; eauto.
+      repeat f_equal; eauto.
+    }
+    {
+      rewrite apply_CDefault_hole_none_nempty; eauto.
+      repeat f_equal; eauto.
+    }
+    { rewrite apply_CDefault_hole_some_nempty; eauto.
+      simpl; repeat f_equal; eauto.
+    }
+    { rewrite apply_CDefault_hole_some_nempty; eauto.
+      simpl; repeat f_equal; eauto.
+    }
+    {
+      exfalso.
+      rewrite apply_conts_app in *.
+      simpl in *.
+      unfold apply_cont in *; sp; simpl in *.
+      rewrite apply_conts_forall_return in H10; eauto.
+      rewrite apply_CDefault_hole_none_empty in *; eauto.
+      repeat injections.
+      Require Import common.
+      rewrite last_snd_apply_conts in *.
+      eapply fuck_stdlib; eauto.
+    }
   }
-Admitted.
+
+  Unshelve.
+  all: eauto.
+  all: exact (mode_eval Empty [] []).
+Qed.
+
+Print Assumptions simulation_sred_cred.
