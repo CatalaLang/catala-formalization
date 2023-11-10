@@ -276,7 +276,6 @@ Notation "'plus' 'cred' t1 t2" :=
   format "'plus'  'cred'  '[hv' t1  '/' t2 ']'"
 ).
 
-Section CRED_PROPERTIES.
 
 (** STACK MANIPULATION *)
 
@@ -540,8 +539,8 @@ Proof.
   | [h: continuations.RConflict = apply_return ?r |- _] =>
     induction r; simpl in h; injections; tryfalse; subst
 
-  | [h: List.map apply_cont _ = List.map apply_cont _ |- _] =>
-    learn (map_apply_cont_inj _ _ h)
+  (* | [h: List.map apply_cont _ = List.map apply_cont _ |- _] =>
+    learn (map_apply_cont_inj _ _ h) *)
   | [h: _ :: List.map apply_cont _ = List.map apply_cont _ |- _] =>
     learn (map_apply_cont_left _ _ _ h)
 

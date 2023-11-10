@@ -1,8 +1,7 @@
-Require Import syntax continuations small_step sequences tactics.
+Require Import syntax continuations_hole small_step sequences tactics.
 Require Import Coq.ZArith.ZArith.
 Import List.ListNotations.
 Import Learn.
-
 
 
 (* -------------------------------------------------------------------------- *)
@@ -78,7 +77,7 @@ Definition apply_cont
   | CClosure t_cl sigma_cl =>
     (App (Value (Closure t_cl sigma_cl)) t, sigma)
   | CReturn sigma' => (t, sigma')
-  | CDefault o ts tj tc =>
+  | CDefault h o ts tj tc =>
     (apply_CDefault o ts tj tc t sigma, sigma)
   | CDefaultBase tc =>
     (Default nil t tc.[subst_of_env sigma], sigma)
@@ -320,18 +319,14 @@ Proof.
     admit "lambda related issue".
   }
   { eapply sreds_apply_conts.
-    simpl.
     destruct (EmptyOrNotEmpty th).
-    { subst; simpl; repeat rewrite apply_CDefault_SE; eauto.
-
-      asimpl.
-      eapply star_step. {
-        induction ts; asimpl.
-        { admit. }
-        { econstructor. }
-      }
+    { subst; simpl.
+      repeat rewrite apply_CDefault_SE; eauto.
+      eapply star_one; simpl; econstructor.
     }
-    { dsimpl.
+    { subst; simpl.
+      rewrite apply_CDefault_SE; eauto. 
+      rewrite apply_CDefault_ST; eauto. 2:{ admit. }
       eapply star_refl.
     }
   }

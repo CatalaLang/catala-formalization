@@ -216,16 +216,16 @@ Inductive sred: term -> term -> Prop :=
   | sred_default_E_zero_empty:
     forall ts2 tj tc,
       sred (Default (Empty::ts2) tj tc) (Default ts2 tj tc)
-  | sred_default_E_one_empty_finish:
+  (* | sred_default_E_one_empty_finish:
     forall vi tjust tcons,
       sred
         (Default ((Value vi)::Empty::[]) tjust tcons)
-        (Value vi)
+        (Value vi) *)
   | sred_default_E_one_empty_continue:
-    forall vi a ts3 tjust tcons,
+    forall vi ts tjust tcons,
       sred
-        (Default ((Value vi)::Empty::a::ts3) tjust tcons)
-        (Default ((Value vi)::a::ts3) tjust tcons)
+        (Default ((Value vi)::Empty::ts) tjust tcons)
+        (Default ((Value vi)::ts) tjust tcons)
 
   | sred_default_J:
     forall tj1 tj2 tc,

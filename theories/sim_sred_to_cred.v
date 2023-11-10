@@ -2053,6 +2053,16 @@ Proof.
       rewrite last_snd_apply_conts in *.
       eapply fuck_stdlib; eauto.
     }
+    { exfalso.
+      rewrite apply_conts_app in *.
+      simpl in *.
+      unfold apply_cont in *; sp; simpl in *.
+      rewrite apply_conts_forall_return in H10; eauto.
+      rewrite apply_CDefault_hole_some_empty in *; eauto.
+      repeat injections.
+      rewrite last_snd_apply_conts in *.
+      eapply fuck_stdlib; eauto.
+    }
   }
 
   Unshelve.
