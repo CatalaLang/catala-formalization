@@ -190,9 +190,8 @@ Inductive sred: term -> term -> Prop :=
     forall ts vi vj tjust tcons,
       sred (Default ((Value vi)::(Value vj)::ts) tjust tcons) Conflict
   | sred_default_E_value:
-    forall vi ts tjust tcons,
-      ts = [] ->
-      sred (Default ((Value vi)::ts) tjust tcons) (Value vi)
+    forall vi tjust tcons,
+      sred (Default [Value vi] tjust tcons) (Value vi)
   | sred_default_E_zero_conflict:
     forall ts2 tjust tcons,
       sred (Default (Conflict::ts2) tjust tcons) Conflict
@@ -201,12 +200,10 @@ Inductive sred: term -> term -> Prop :=
       sred (Default ((Value vi)::Conflict::ts2) tjust tcons) Conflict
   | sred_default_E_zero:
     forall ti ti' ts2 tj tc,
-      ti' <> Empty ->
       sred ti ti' ->
       sred (Default (ti::ts2) tj tc) (Default (ti'::ts2) tj tc)
   | sred_default_E_one:
     forall vi tj tj' ts3 tjust tcons,
-      tj' <> Empty ->
       sred tj tj' ->
       sred
         (Default ((Value vi)::tj::ts3) tjust tcons)
@@ -221,7 +218,7 @@ Inductive sred: term -> term -> Prop :=
       sred
         (Default ((Value vi)::Empty::[]) tjust tcons)
         (Value vi) *)
-  | sred_default_E_one_empty_continue:
+  | sred_default_E_one_empty:
     forall vi ts tjust tcons,
       sred
         (Default ((Value vi)::Empty::ts) tjust tcons)
@@ -370,15 +367,19 @@ Qed.
 Lemma star_sred_default_E_zero:
     forall ti ti' ts2 tj tc,
       star sred ti ti' ->
-      ti' <> Empty ->
       star sred (Default (ti::ts2) tj tc) (Default (ti'::ts2) tj tc).
 Proof.
-Abort.
+  induction 1 using star_ind_n1.
+  { intros; eapply star_refl. }
+  { intros. eapply star_step_n1.
+    { econstructor; eauto. }
+    { eauto. }
+  }
+Qed.
 
-Lemma star_sred_default_E_one_nempty:
+Lemma star_sred_default_E_one:
     forall vi tj tj' ts3 tjust tcons,
       star sred tj tj' ->
-      tj' <> Empty ->
       star sred
         (Default ((Value vi)::tj::ts3) tjust tcons)
         (Default ((Value vi)::tj'::ts3) tjust tcons).
@@ -387,26 +388,10 @@ Proof.
   { intros; eapply star_refl. }
   { intros.
     eapply star_step_n1.
-    2:{ eapply IHstar. induction y; intro; tryfalse; inversion H. }
+    2: eapply IHstar.
     econstructor; eauto.
   }
 Qed.
-
-Lemma star_sred_default_E_one_empty:
-    forall vi tj ts3 tjust tcons,
-      star sred tj Empty ->
-      star sred
-        (Default ((Value vi)::tj::ts3) tjust tcons)
-        (Default ((Value vi)::ts3) tjust tcons).
-Proof.
-  (* induction 1 using star_ind_n1.
-  { admit. (* tj = Empty, right? *) }
-  { intros.
-    eapply star_step_n1.
-    2:{ eapply IHstar. induction y; intro; tryfalse; inversion H. }
-    econstructor; eauto.
-  } *)
-Admitted.
 
 Lemma star_sred_default_J:
     forall tj1 tj2 tc,
@@ -448,8 +433,8 @@ Hint Resolve
   star_sred_app_right
   star_sred_binop_left
   star_sred_binop_right
-  (* star_sred_default_E_zero *)
-  (* star_sred_default_E_one *)
+  star_sred_default_E_zero
+  star_sred_default_E_one
   star_sred_default_J
   star_sred_match_cond
   star_sred_Some_context
