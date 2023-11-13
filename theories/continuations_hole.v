@@ -439,31 +439,6 @@ Proof.
   }
 Qed.
 
-Lemma apply_cont_inj:
-  forall k1 k2,
-    apply_cont k1 = apply_cont k2 -> k1 = k2.
-Proof.
-  induction k1, k2; simpl in *; intros; injections; subst; tryfalse; eauto.
-  { f_equal. (* this is not anymore true *) admit. }
-Admitted.
-
-Lemma map_apply_cont_inj:
-  forall kappa1 kappa2,
-  List.map apply_cont kappa1 = List.map apply_cont kappa2 ->
-    kappa1 = kappa2.
-Proof.
-Admitted.
-
-Lemma map_apply_cont_left:
-  forall k1 kappa1 kappa2,
-  k1 :: List.map apply_cont kappa1 = List.map apply_cont kappa2 ->
-  exists k2, kappa2 = k2 :: kappa1 /\ k1 = apply_cont k2.
-Proof.
-  intros.
-  induction kappa2; simpl in *; tryfalse.
-  injections; eexists; split; eauto.
-  f_equal. eapply map_apply_cont_inj; eauto.
-Qed.
 
 Lemma map_apply_cont_left':
   forall k1 kappa1 kappa2,
@@ -479,39 +454,65 @@ Qed.
 
 
 (** Our reduction sequences should have the folowing shape:
-
 the head of kappa, if it exists can have any possible shape.
-
 Each member of the tail should however no contain "Hole" inside their default terms.
-
 This is explained by the following invariant on state :
-
 *)
 
-Inductive inv_kappa_no_hole: cont -> Prop :=
+Inductive inv_conts_no_hole: cont -> Prop :=
+| inv_CAppR (t2: term):
+  inv_conts_no_hole (CAppR (t2: term))
+| inv_CClosure (t_cl: {bind term}) (sigma_cl: list value):
+  inv_conts_no_hole (CClosure (t_cl: {bind term}) (sigma_cl: list value))
+| inv_CBinopL (op: op) (v1: value):
+  inv_conts_no_hole (CBinopL (op) (v1: value))
+| inv_CBinopR (op: op) (t2: term):
+  inv_conts_no_hole (CBinopR (op) (t2: term))
+| inv_CReturn (sigma: list value):
+  inv_conts_no_hole (CReturn (sigma: list value))
+| inv_CDefault (o: option value) (ts: list term) (tj: term) (tc: term):
+  inv_conts_no_hole (CDefault (NoHole) (o: option value) (ts: list term) (tj: term) (tc: term))
+| inv_CDefaultBase (tc: term):
+  inv_conts_no_hole (CDefaultBase (tc: term))
+| inv_CMatch (t1: term) (t2: {bind term}):
+  inv_conts_no_hole (CMatch (t1: term) (t2: {bind term}))
+| inv_CSome:
+  inv_conts_no_hole (CSome)
 .
 
-
-Definition inv_state (s: state): Prop :=
-  let kappa := (stack s) in
-  match kappa with
-  | [] => True
-  | h::t =>  List.Forall inv_kappa_no_hole t
-  end
+Inductive inv_state: state -> Prop :=
+| inv_mode_eval t kappa env:
+  List.Forall inv_conts_no_hole kappa ->
+  inv_state (mode_eval t kappa env)
+| inv_mode_cont_cons k kappa env r:
+  List.Forall inv_conts_no_hole kappa ->
+  inv_state (mode_cont (k::kappa) env r)
+| inv_mode_cont_nil env r:
+  inv_state (mode_cont [] env r)
 .
 
 (* This property is indeed conserved by the cred relation. *)
 
 Theorem cred_inv_state_stable:
-  forall s1,
+  forall s1 s2,
+    cred s1 s2 ->
     inv_state s1 ->
-    forall s2,
-      cred s1 s2 ->
-      inv_state s2.
+    inv_state s2.
 Proof.
-  induction 2.
-  all: try solve [unfold inv_state in *; simpl in *; eauto].
-Abort.
+  induction 1; inversion 1; subst; repeat econstructor; eauto.
+  all: destruct kappa; econstructor; unpack; eauto.
+Qed.
+
+Theorem star_cred_inv_state_stable:
+  forall s1 s2,
+    star cred s1 s2 ->
+    inv_state s1 ->
+    inv_state s2.
+Proof.
+  induction 1.
+  { eauto. }
+  { intros; eapply IHstar; eapply cred_inv_state_stable; eauto. }
+Qed.
 
 
 Import Learn.
@@ -635,3 +636,4 @@ Proof.
     { edestruct H; eauto. }
   }
 Qed.
+
