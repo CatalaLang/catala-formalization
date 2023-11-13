@@ -1457,13 +1457,15 @@ Lemma induction_case_CReturn
             forall s1 : state,
             match_conf s1 t1 ->
             kappa = stack s1 ->
-            exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2):
+            inv_state s1 ->
+            exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2 /\ inv_state s2):
   forall t1 t2 : term,
     sred t1 t2 ->
     forall s1 : state,
       match_conf s1 t1 ->
       kappa ++ [CReturn sigma] = stack s1 ->
-      exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2
+      inv_state s1 ->
+      exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2 /\ inv_state s2
 .
 Proof.
   intros t1 t2 Hsred.
@@ -1479,7 +1481,7 @@ Proof.
     learn (inv_state_mode_cont_append Hs1_inv) +
     learn (inv_state_mode_eval_append Hs1_inv).
   all: eapply ignore_inv_state; eauto.
-  all: destruct (IHkappa _ _ Hsred' _ H) as (s2 & Hs1s2 & Hs2); [simpl;eauto|simpl; eauto|].
+  all: destruct (IHkappa _ _ Hsred' _ H) as (s2 & Hs1s2 & Hs2 & Hs2_inv); [simpl;eauto|simpl; eauto|].
   all: aexists (append_stack s2 [CReturn sigma]).
   all: inversion Hs2; subst; eauto.
 Qed.
