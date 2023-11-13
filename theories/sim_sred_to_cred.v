@@ -1412,7 +1412,41 @@ Proof.
   { eauto. }
 Qed.
 
+Lemma inv_state_mode_cont_CDefault_Hole_conts_empty:
+  forall kappa o ts tj tc env r,
+  inv_state (mode_cont (kappa ++ [CDefault Hole o ts tj tc]) env r) ->
+  kappa = [].
+Proof.
+  induction kappa; intros; eauto.
+  exfalso.
+  inversion H; subst; unpack; inversion H4.
+Qed.
 
+
+Lemma inv_state_mode_eval_append {e kappa k env0}:
+    inv_state (mode_eval e (kappa ++ [k]) env0) ->
+    inv_state (mode_eval e (kappa) env0).
+Proof.
+  induction kappa; inversion 1; unpack; repeat econstructor; eauto.
+Qed.
+
+Lemma inv_state_mode_cont_append {r kappa k env0}:
+    inv_state (mode_cont (kappa ++ [k]) env0 r) ->
+    inv_state (mode_cont (kappa) env0 r).
+Proof.
+  induction kappa; inversion 1; unpack; repeat econstructor; eauto.
+Qed.
+
+Lemma ignore_inv_state s1 t2:
+  inv_state s1 ->
+  (exists s2, (plus cred s1 s2) /\ match_conf s2 t2) ->
+  (exists s2, (plus cred s1 s2) /\ match_conf s2 t2 /\ inv_state s2).
+Proof.
+  intros; unpack.
+  exists x; repeat split; inversion H1; subst; eauto.
+  learn (plus_star H0).
+  eapply star_cred_inv_state_stable; eauto.
+Qed.
 
 (* The handling of CReturn is orthogonal to the other continuations, hence we proove it in a different way. *)
 Lemma induction_case_CReturn
@@ -1436,12 +1470,16 @@ Proof.
   (** In order to be able to apply the induction, we need to remember that t1 reduces to t2, even after the induction on it. *)
   remember Hsred as Hsred'.
   destruct Hsred; clear HeqHsred'.
-  all: intros s1 Hs1.
+  all: intros s1 Hs1 tmp Hs1_inv; revert tmp.
   all: induction s1.
   all: simpl; intros; subst.
   all: learn (match_conf_eval_app_CReturn Hs1) +
       learn (match_conf_cont_app_CReturn Hs1).
-  all: destruct (IHkappa _ _ Hsred' _ H) as (s2 & Hs1s2 & Hs2); [simpl; eauto|].
+  all:
+    learn (inv_state_mode_cont_append Hs1_inv) +
+    learn (inv_state_mode_eval_append Hs1_inv).
+  all: eapply ignore_inv_state; eauto.
+  all: destruct (IHkappa _ _ Hsred' _ H) as (s2 & Hs1s2 & Hs2); [simpl;eauto|simpl; eauto|].
   all: aexists (append_stack s2 [CReturn sigma]).
   all: inversion Hs2; subst; eauto.
 Qed.
@@ -1457,16 +1495,7 @@ Ltac info :=
   | _ => idtac
   end.
 
-Lemma ignore_inv_state s1 t2:
-  inv_state s1 ->
-  (exists s2, (plus cred s1 s2) /\ match_conf s2 t2) ->
-  (exists s2, (plus cred s1 s2) /\ match_conf s2 t2 /\ inv_state s2).
-Proof.
-  intros; unpack.
-  exists x; repeat split; inversion H1; subst; eauto.
-  learn (plus_star H0).
-  eapply star_cred_inv_state_stable; eauto.
-Qed.
+
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
