@@ -1457,13 +1457,23 @@ Ltac info :=
   | _ => idtac
   end.
 
+Lemma ignore_inv_state s1 t2:
+  inv_state s1 ->
+  (exists s2, (plus cred s1 s2) /\ match_conf s2 t2) ->
+  (exists s2, (plus cred s1 s2) /\ match_conf s2 t2 /\ inv_state s2).
+Proof.
+  intros; unpack.
+  exists x; repeat split; inversion H1; subst; eauto.
+  learn (plus_star H0).
+  eapply star_cred_inv_state_stable; eauto.
+Qed.
+
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
-  forall s1, match_conf s1 t1 ->
+  forall s1, match_conf s1 t1 -> inv_state s1 ->
   exists s2,
     (plus cred s1 s2)
-  /\ match_conf s2 t2.
-
+  /\ match_conf s2 t2 /\ inv_state s2.
 Proof.
   intros Hred s1 MC.
   remember (stack s1) as kappa.
@@ -1475,12 +1485,13 @@ Proof.
     assert (Hred_current: sred t1 t2) by eauto.
     induction Hred; subst.
     all: induction s1; intro MC; inversion MC; clear MC; intros; repeat (simpl in *; subst).
+    all: eapply ignore_inv_state; [eauto|].
     all: try solve [induction result; simpl in *; tryfalse].
     (* unpack except in the conflict case: we need for now to not unpack here as we first need to modify slightly the definition. *)
     all: unpack_subst_of_env_cons.
     all: repeat multimatch goal with
-    (* induction hypothesis *)
 
+    (* induction hypothesis *)
     | [h1: forall t1 t2, sred t1 t2 -> _, h2: sred ?t1 ?t2 |- _] =>
       learn (h1 _ _ h2)
     | [h1: forall s, match_conf s ?u.[subst_of_env ?env] -> _ |- _] =>
@@ -1498,6 +1509,10 @@ Proof.
       let s1 := constr:(mode_cont kappa sigma r) in
       assert (tmp: match_conf s1 (fst (apply_conts kappa (apply_return r, sigma)))) by (econstructor; simpl; eauto);
       learn (h1 s1 tmp)
+    | [h: inv_state ?s -> _ |- _] =>
+      assert (tmp: inv_state s) by (repeat econstructor);
+      learn (h tmp);
+      clear tmp
 
     | [h: ?A -> _ |- _] =>
       assert (tmp: A) by (simpl; eauto);
@@ -1655,11 +1670,7 @@ Proof.
 
       (* Majority of the cases *)
       | econstructor; repeat rewrite apply_state_append_stack;
-        simpl; unfold apply_cont; simpl;
-        match goal with
-        | [ |- context [let '(_, _) := ?p in _]] =>
-          rewrite (surjective_pairing p)
-        end; simpl in *;
+        simpl; unfold apply_cont; simpl; sp; simpl in *;
         repeat match goal with
         | _ => progress eauto
         | _ => progress f_equal
@@ -1674,13 +1685,9 @@ Proof.
     }
     { split; [eapply star_refl|].
       econstructor; repeat rewrite apply_state_append_stack;
-      simpl; unfold apply_cont; simpl;
-      match goal with
-        | [ |- context [let '(_, _) := ?p in _]] =>
-          rewrite (surjective_pairing p)
-      end; simpl in *.
+      simpl; unfold apply_cont; simpl; sp; simpl in *.
       rewrite apply_CDefault_nohole_none.
-      rewrite <- H16; eauto.
+      repeat f_equal; eauto.
     }
   }
   { (* induction step.*)
@@ -1741,7 +1748,7 @@ Proof.
         rewrite apply_CDefault_nohole_some in *].
     } *)
 
-    all: idtac "---"; repeat multimatch goal with
+    all: repeat multimatch goal with
     (* induction hypothesis *)
 
     | [h1: forall t1 t2, sred t1 t2 -> _, h2: sred ?t1 ?t2 |- _] =>
@@ -1940,7 +1947,7 @@ Proof.
 
     (* When no more progress is possible, we can finaly introduce the evar corresponding to the goal term. This is to avoid having variable completing our evar that escape the scope they were defined in. *)
     | [ |- exists _, _] =>
-      eexists
+      let P := type of Hred_current in idtac "---"; idtac P "//"; eexists
     | _ =>
       first[solve [split; [info; eapply star_refl|];
       solve [
@@ -1964,29 +1971,10 @@ Proof.
     
     all: try solve [ repeat match goal with
     | [h: context [apply_conts (_ ++ [?k]) _] |- _ ] =>
-      rewrite apply_conts_app in h;
+      repeat rewrite apply_conts_app in h;
       simpl in h;
       unfold apply_cont in h;
-      match goal with
-      | [h: context [let '(_, _) := ?p in _] |- _] =>
-        rewrite (surjective_pairing p) in h
-      end;
-      try match goal with
-      | [h: _ = apply_CDefault _ _ _ _ _ ?t _ |- _] =>
-        learn (EmptyOrNotEmpty t)
-      | [h1: ?t=Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
-        rewrite (apply_CDefault_hole_some_empty _ _ _ _ _ _ h1) in h2
-      | [h1: ?t=Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
-        rewrite (apply_CDefault_hole_none_empty _ _ _ _ _ h1) in h2
-      | [h1: ?t<>Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
-        rewrite (apply_CDefault_hole_some_nempty _ _ _ _ _ _ h1) in h2
-      | [h1: ?t<>Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
-        rewrite (apply_CDefault_hole_none_nempty _ _ _ _ _ h1) in h2
-      | [h: context [apply_CDefault NoHole (Some _) _ _ _ ?t _] |- _] =>
-        rewrite apply_CDefault_nohole_some in h
-      | [h: context [apply_CDefault NoHole None _ _ _ ?t _] |- _] =>
-        rewrite apply_CDefault_nohole_none in h
-      end;
+      sp;
       simpl in h;
       injections
     end;
@@ -2002,6 +1990,10 @@ Proof.
       econstructor;
       rewrite apply_state_append_stack;
       simpl; unfold apply_cont; sp; simpl;
+      match goal with
+      | [|- _ = apply_CDefault _ _ _ _ _ ?t _] =>
+        learn (EmptyOrNotEmpty t)
+      end; unpack;
       first
       [
       rewrite apply_CDefault_hole_none_empty|
@@ -2022,25 +2014,10 @@ Proof.
       rewrite apply_conts_forall_return in Hred; eauto;
       inversion Hred].
 
-    all:
-      try (split; [eapply star_refl|];
-      econstructor;
-      rewrite apply_state_append_stack;
-      simpl; unfold apply_cont; sp; simpl).
-
-    { rewrite apply_CDefault_hole_none_nempty; eauto.
-      repeat f_equal; eauto.
-    }
-    {
-      rewrite apply_CDefault_hole_none_nempty; eauto.
-      repeat f_equal; eauto.
-    }
-    { rewrite apply_CDefault_hole_some_nempty; eauto.
-      simpl; repeat f_equal; eauto.
-    }
-    { rewrite apply_CDefault_hole_some_nempty; eauto.
-      simpl; repeat f_equal; eauto.
-    }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
     {
       exfalso.
       rewrite apply_conts_app in *.
