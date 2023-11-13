@@ -237,6 +237,24 @@ Qed.
 *)
 
 
+Lemma star_sred_default_E_zero:
+    forall ti ti' ts2 tj tc,
+      star sred ti ti' ->
+      star sred (Default (ti::ts2) tj tc) (Default (ti'::ts2) tj tc).
+Proof.
+  eauto with sred.
+Qed.
+
+Lemma star_sred_default_E_one:
+    forall vi tj tj' ts3 tjust tcons,
+      star sred tj tj' ->
+      star sred
+        (Default ((Value vi)::tj::ts3) tjust tcons)
+        (Default ((Value vi)::tj'::ts3) tjust tcons).
+Proof.
+  eauto with sred.
+Qed.
+
 Theorem sreds_apply_conts: forall kappa t t' sigma,
   star sred t t' ->
   star sred
@@ -291,17 +309,19 @@ Proof.
         solve [eauto with sred]
       end.
       { (* t' is empty, o has a value *)
-        admit.
+        eapply star_trans. { eapply star_sred_default_E_one. eauto. }
+        eapply star_one. { econstructor. }
       }
       { (* t' is not empty, o has a value *)
-        eapply star_trans. { eapply star_sred_default_E_one; eauto. }
-        asimpl; eapply star_refl.
+        eapply star_trans. { eapply star_sred_default_E_one. eauto. }
+        eapply star_refl.
       }
-      { admit. (* t' is empty, o has a no value *) }
-      { admit. (* t' is not empty, o has a no value *) }
+      { eapply star_trans. { eapply star_sred_default_E_zero. eauto. }
+        eapply star_one. { econstructor. }
+      }
     }
   }
-Admitted.
+Qed.
 
 
 Theorem simulation_cred_sred:
@@ -325,8 +345,8 @@ Proof.
       eapply star_one; simpl; econstructor.
     }
     { subst; simpl.
-      rewrite apply_CDefault_SE; eauto. 
-      rewrite apply_CDefault_ST; eauto. 2:{ admit. }
+      rewrite apply_CDefault_SE; eauto.
+      rewrite apply_CDefault_ST; eauto. 2:{ eapply NEmpty_subst_of_env_NEmpty; eauto. }
       eapply star_refl.
     }
   }
