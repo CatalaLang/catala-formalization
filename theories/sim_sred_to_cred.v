@@ -1778,6 +1778,7 @@ Proof.
         rewrite apply_CDefault_nohole_none in *;
         rewrite apply_CDefault_nohole_some in *].
     } *)
+    all: intros H_inv; eapply ignore_inv_state; [eauto|].
 
     all: repeat multimatch goal with
     (* induction hypothesis *)
@@ -1800,6 +1801,11 @@ Proof.
       assert (tmp: match_conf s1 (fst (apply_conts kappa (apply_return r, sigma)))) by (econstructor; simpl; eauto);
       learn (h1 s1 tmp)
 
+    | [h: inv_state ?s -> _ |- _] =>
+      assert (tmp: inv_state s) by (repeat econstructor);
+      learn (h tmp);
+      clear tmp
+
     | [h: ?A -> _ |- _] =>
       assert (tmp: A) by (simpl; eauto);
       learn (h tmp);
@@ -1819,6 +1825,11 @@ Proof.
     | [h: match_conf _ _ |- _] =>
       inversion h; clear h; subst
     | _ => progress rewrite last_snd_apply_conts in *
+
+    | [h: inv_state (mode_eval _ (_ ++ [_]) _) |- _] =>
+      learn (inv_state_mode_eval_append h)
+    | [h: inv_state (mode_cont (_ ++ [_]) _ _) |- _] =>
+      learn (inv_state_mode_cont_append h)
 
     | [
       h: plus cred _ ?s2
@@ -2045,10 +2056,21 @@ Proof.
       rewrite apply_conts_forall_return in Hred; eauto;
       inversion Hred].
 
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
+    { inversion H_inv; unpack.
+      inversion H57. }
+    { learn (inv_state_mode_cont_CDefault_Hole_conts_empty _ _ _ _ _ _ _ H_inv).
+      subst.
+      inversion H27.
+      inversion H50.
+    }
+    { inversion H_inv; unpack.
+      inversion H57.
+    }
+    { learn (inv_state_mode_cont_CDefault_Hole_conts_empty _ _ _ _ _ _ _ H_inv).
+      subst.
+      inversion H27.
+      inversion H50.
+    }
     {
       exfalso.
       rewrite apply_conts_app in *.
