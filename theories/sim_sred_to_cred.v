@@ -1826,6 +1826,8 @@ Proof.
       inversion h; clear h; subst
     | _ => progress rewrite last_snd_apply_conts in *
 
+
+    (* Fact learning about inv_state. *)
     | [h: inv_state (mode_eval _ (_ ++ [_]) _) |- _] =>
       learn (inv_state_mode_eval_append h)
     | [h: inv_state (mode_cont (_ ++ [_]) _ _) |- _] =>
@@ -1910,36 +1912,6 @@ Proof.
     | [ h: Value _ = ?t.[subst_of_env _] |- _] =>
       induction t; simpl in h; tryfalse; unpack_subst_of_env_cons
 
-    
-
-    (* 12:{
-      repeat match goal with | [h: @Learnt _ |- _ ] => clear h end.
-      repeat match goal with
-      | [h: _ = apply_CDefault _ _ _ _ _ ?t _ |- _] =>
-        learn (EmptyOrNotEmpty t)
-      | [h1: ?t=Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
-        rewrite (apply_CDefault_hole_some_empty _ _ _ _ _ _ h1) in h2
-      | [h1: ?t=Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
-        rewrite (apply_CDefault_hole_none_empty _ _ _ _ _ h1) in h2
-      | [h1: ?t<>Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
-        rewrite (apply_CDefault_hole_some_nempty _ _ _ _ _ _ h1) in h2
-      | [h1: ?t<>Empty, h2: context [apply_CDefault Hole None _ _ _ ?t _] |- _] =>
-        rewrite (apply_CDefault_hole_none_nempty _ _ _ _ _ h1) in h2
-      | [h: context [apply_CDefault NoHole (Some _) _ _ _ ?t _] |- _] =>
-        rewrite apply_CDefault_nohole_some in h
-      | [h: context [apply_CDefault NoHole None _ _ _ ?t _] |- _] =>
-        rewrite apply_CDefault_nohole_none in h
-      | [h: _ \/ _ |- _] =>
-        destruct h
-      end.
-      (* why the fuck does App (Value (Closure t sigma')) (Value v) = apply_CDefault Hole (Some a) ts tj tc (fst (apply_conts kappa (Empty, env0))) (last kappa env0) appears ? it should be destroyed by the match on CDefault holes somewhere. Is the rewriting done in the wrong direction ?*)
-      match goal with
-    }
-    idtac. *)
-
-    (* end.
-    (* 82:{ } *)
-    match goal with *)
       (* one step computation *)
       | [|- plus cred ?s1 ?s2 /\ _] =>
         info; eapply implication_left_and; [
@@ -2099,5 +2071,3 @@ Proof.
   all: eauto.
   all: exact (mode_eval Empty [] []).
 Qed.
-
-Print Assumptions simulation_sred_cred.
