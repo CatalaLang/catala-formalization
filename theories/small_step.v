@@ -283,6 +283,23 @@ Inductive sred: term -> term -> Prop :=
   | sred_Some:
     forall v,
       sred (ESome (Value v)) (Value (VSome v))
+
+  | sred_if_cond:
+    forall u1 u2 ta tb,
+      sred u1 u2 ->
+      sred (If u1 ta tb) (If u2 ta tb)
+  | sred_if_cond_empty:
+    forall ta tb,
+      sred (If Empty ta tb) Empty
+  | sred_if_cond_conflict:
+    forall ta tb,
+      sred (If Conflict ta tb) Conflict
+  | sred_if_true:
+    forall ta tb,
+      sred (If (Value (Bool true)) ta tb) ta
+  | sred_if_false:
+    forall ta tb,
+      sred (If (Value (Bool false)) ta tb) tb
 .
 
 
@@ -411,6 +428,15 @@ Proof.
   induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
 Qed.
 
+
+Lemma star_sred_if_cond:
+    forall u1 u2 t1 t2,
+      star sred u1 u2 ->
+      star sred (If u1 t1 t2) (If u2 t1 t2).
+Proof.
+  induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+Qed.
+
 Lemma star_sred_Some_context:
     forall t1 t2,
       star sred t1 t2 ->
@@ -437,8 +463,8 @@ Hint Resolve
   star_sred_default_E_one
   star_sred_default_J
   star_sred_match_cond
+  star_sred_if_cond
   star_sred_Some_context
-
   star_sred_empty_empty
 : sred.
 

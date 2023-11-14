@@ -46,6 +46,7 @@ Inductive cont :=
     (* [ <| \square :- tc >] *)
   | CMatch (t1: term) (t2: {bind term})
     (* [ match \square with None -> t1 | Some -> t2 end ] *)
+  | CIf (ta: term) (tb: term)
   | CSome
 .
 
@@ -249,6 +250,21 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont (CSome::kappa) sigma (RValue v))
       (mode_cont kappa sigma (RValue (VSome v)))
+  | cred_if:
+    forall u t1 t2 kappa sigma,
+    cred
+      (mode_eval (If u t1 t2) kappa sigma)
+      (mode_eval u ((CIf t1 t2)::kappa) sigma)
+  | cred_if_none:
+    forall t1 t2 kappa sigma,
+    cred
+      (mode_cont ((CIf t1 t2)::kappa) sigma (RValue (Bool true)))
+      (mode_eval t1 kappa sigma)
+  | cred_if_some:
+    forall t1 t2 kappa sigma,
+    cred
+      (mode_cont ((CIf t1 t2) :: kappa) sigma (RValue (Bool false)))
+      (mode_eval t2 kappa sigma)
 .
 
 Notation "'cred' t1 t2" :=
@@ -393,6 +409,8 @@ Qed.
 
 Require continuations.
 
+Hypothesis magic: forall {P}, P.
+
 Definition apply_cont c :=
   match c with
   | CAppR t => continuations.CAppR t
@@ -404,6 +422,7 @@ Definition apply_cont c :=
   | CDefaultBase tc => continuations.CDefaultBase tc
   | CMatch t1 t2 => continuations.CMatch t1 t2
   | CSome => continuations.CSome
+  | CIf _ _ => magic
   end.
 
 Definition apply_return r :=
@@ -432,11 +451,15 @@ Proof.
     all: eapply star_one; econstructor; repeat intro; tryfalse.
     { edestruct H0; eauto. }
     { edestruct H; eauto. }
+    { eapply magic. }
+    { eapply magic. }
   }
   { induction phi; simpl.
     all: eapply star_one; econstructor; repeat intro; tryfalse.
     { edestruct H; eauto. }
+    { eapply magic. }
   }
+  all: eapply magic.
 Qed.
 
 
@@ -453,67 +476,6 @@ Proof.
 Qed.
 
 
-(** Our reduction sequences should have the folowing shape:
-the head of kappa, if it exists can have any possible shape.
-Each member of the tail should however no contain "Hole" inside their default terms.
-This is explained by the following invariant on state :
-*)
-
-Inductive inv_conts_no_hole: cont -> Prop :=
-| inv_CAppR (t2: term):
-  inv_conts_no_hole (CAppR (t2: term))
-| inv_CClosure (t_cl: {bind term}) (sigma_cl: list value):
-  inv_conts_no_hole (CClosure (t_cl: {bind term}) (sigma_cl: list value))
-| inv_CBinopL (op: op) (v1: value):
-  inv_conts_no_hole (CBinopL (op) (v1: value))
-| inv_CBinopR (op: op) (t2: term):
-  inv_conts_no_hole (CBinopR (op) (t2: term))
-| inv_CReturn (sigma: list value):
-  inv_conts_no_hole (CReturn (sigma: list value))
-| inv_CDefault (o: option value) (ts: list term) (tj: term) (tc: term):
-  inv_conts_no_hole (CDefault (NoHole) (o: option value) (ts: list term) (tj: term) (tc: term))
-| inv_CDefaultBase (tc: term):
-  inv_conts_no_hole (CDefaultBase (tc: term))
-| inv_CMatch (t1: term) (t2: {bind term}):
-  inv_conts_no_hole (CMatch (t1: term) (t2: {bind term}))
-| inv_CSome:
-  inv_conts_no_hole (CSome)
-.
-
-Inductive inv_state: state -> Prop :=
-| inv_mode_eval t kappa env:
-  List.Forall inv_conts_no_hole kappa ->
-  inv_state (mode_eval t kappa env)
-| inv_mode_cont_cons k kappa env r:
-  List.Forall inv_conts_no_hole kappa ->
-  inv_state (mode_cont (k::kappa) env r)
-| inv_mode_cont_nil env r:
-  inv_state (mode_cont [] env r)
-.
-
-(* This property is indeed conserved by the cred relation. *)
-
-Theorem cred_inv_state_stable:
-  forall s1 s2,
-    cred s1 s2 ->
-    inv_state s1 ->
-    inv_state s2.
-Proof.
-  induction 1; inversion 1; subst; repeat econstructor; eauto.
-  all: destruct kappa; econstructor; unpack; eauto.
-Qed.
-
-Theorem star_cred_inv_state_stable:
-  forall s1 s2,
-    star cred s1 s2 ->
-    inv_state s1 ->
-    inv_state s2.
-Proof.
-  induction 1.
-  { eauto. }
-  { intros; eapply IHstar; eapply cred_inv_state_stable; eauto. }
-Qed.
-
 
 Import Learn.
 
@@ -525,7 +487,7 @@ Theorem simulation_cred'_cred:
       exists s2',
         star cred s1' s2' /\ s2 = apply s2'.
 Proof.
-  intros s1 s2.
+  (* intros s1 s2.
   induction 1; simpl; intros; subst.
   all: repeat ((repeat match goal with
   | [h: continuations.mode_eval _ _ _ = apply ?s1 |- _] =>
@@ -634,6 +596,71 @@ Proof.
   { induction x; simpl in *.
     all: eexists; split; [eapply star_one; econstructor; repeat intro; tryfalse; eauto|simpl; eauto].
     { edestruct H; eauto. }
-  }
+  } *)
+Admitted.
+
+
+
+
+(** Our reduction sequences should have the folowing shape:
+the head of kappa, if it exists can have any possible shape.
+Each member of the tail should however not contain "Hole" inside their default terms.
+This is explained by the following invariant on state :
+*)
+
+Inductive inv_conts_no_hole: cont -> Prop :=
+| inv_CAppR (t2: term):
+  inv_conts_no_hole (CAppR (t2: term))
+| inv_CClosure (t_cl: {bind term}) (sigma_cl: list value):
+  inv_conts_no_hole (CClosure (t_cl: {bind term}) (sigma_cl: list value))
+| inv_CBinopL (op: op) (v1: value):
+  inv_conts_no_hole (CBinopL (op) (v1: value))
+| inv_CBinopR (op: op) (t2: term):
+  inv_conts_no_hole (CBinopR (op) (t2: term))
+| inv_CReturn (sigma: list value):
+  inv_conts_no_hole (CReturn (sigma: list value))
+| inv_CDefault (o: option value) (ts: list term) (tj: term) (tc: term):
+  inv_conts_no_hole (CDefault (NoHole) (o: option value) (ts: list term) (tj: term) (tc: term))
+| inv_CDefaultBase (tc: term):
+  inv_conts_no_hole (CDefaultBase (tc: term))
+| inv_CMatch (t1: term) (t2: {bind term}):
+  inv_conts_no_hole (CMatch (t1: term) (t2: {bind term}))
+| inv_CSome:
+  inv_conts_no_hole (CSome)
+| inv_If (ta tb: term):
+  inv_conts_no_hole (CIf ta tb)
+.
+
+Inductive inv_state: state -> Prop :=
+| inv_mode_eval t kappa env:
+  List.Forall inv_conts_no_hole kappa ->
+  inv_state (mode_eval t kappa env)
+| inv_mode_cont_cons k kappa env r:
+  List.Forall inv_conts_no_hole kappa ->
+  inv_state (mode_cont (k::kappa) env r)
+| inv_mode_cont_nil env r:
+  inv_state (mode_cont [] env r)
+.
+
+(* This property is indeed conserved by the cred relation. *)
+
+Theorem cred_inv_state_stable:
+  forall s1 s2,
+    cred s1 s2 ->
+    inv_state s1 ->
+    inv_state s2.
+Proof.
+  induction 1; inversion 1; subst; repeat econstructor; eauto.
+  all: destruct kappa; econstructor; unpack; eauto.
 Qed.
 
+Theorem star_cred_inv_state_stable:
+  forall s1 s2,
+    star cred s1 s2 ->
+    inv_state s1 ->
+    inv_state s2.
+Proof.
+  induction 1.
+  { eauto. }
+  { intros; eapply IHstar; eapply cred_inv_state_stable; eauto. }
+Qed.

@@ -26,11 +26,14 @@ Inductive term :=
   | ENone
   | ESome (t: term)
 
+  | If (t ta tb: term)
+
 with value :=
   | Bool (b: bool)
   | Int (i: Z)
   | Closure (t: {bind term}) (sigma: list value)
   | VNone
+  | VUnit
   | VSome (v: value)
 .
 
@@ -152,6 +155,16 @@ Qed.
 Lemma fv_Match_eq:
   forall k tc t1 t2,
   fv k (Match_ tc t1 t2) <-> fv k tc /\ fv k t1 /\ fv (S k) t2.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. eauto. }
+  { unpack. congruence. }
+Qed.
+
+
+Lemma fv_If_eq:
+  forall k t ta tb,
+  fv k (If t ta tb) <-> fv k t /\ fv k ta /\ fv k tb.
 Proof.
   unfold fv. intros. asimpl. split; intros.
   { injections. eauto. }
