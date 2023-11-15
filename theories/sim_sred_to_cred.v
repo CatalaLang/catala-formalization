@@ -126,6 +126,9 @@ Definition apply_cont
     (Match_ t t1.[subst_of_env sigma] t2.[up (subst_of_env sigma)], sigma)
   | CSome =>
     (ESome t, sigma)
+
+  | CIf t1 t2=>
+    (If t t1.[subst_of_env sigma] t2.[subst_of_env sigma], sigma)
   end.
 
 Definition apply_conts
@@ -571,6 +574,26 @@ Proof.
   { repeat eexists. }
 Qed.
 
+Lemma subst_of_env_If {u t1 t2 t' env}:
+  If u t1 t2 = t'.[subst_of_env env] ->
+  exists u' t1' t2',
+    u = u'.[subst_of_env env]
+    /\ t1 = t1'.[subst_of_env env]
+    /\ t2 = t2'.[subst_of_env env]
+    /\ t' = If u' t1' t2'
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto.
+  { match goal with
+    | [h: _ = subst_of_env ?env ?x |- _ ] =>
+      unfold subst_of_env in h;
+      destruct (List.nth_error env x);
+      inj
+    end.
+  }
+  { repeat eexists. }
+Qed.
+
 Lemma subst_of_env_ESome {t t' env}:
   ESome t = t'.[subst_of_env env] ->
   exists t1',
@@ -690,6 +713,15 @@ Ltac unpack_subst_of_env_cons :=
     let Ht2 := fresh "Ht2" in
     let Ht := fresh "Ht" in
     destruct (subst_of_env_Match_ h) as (u & t1 & t2 & Hu & Ht1 & Ht2 & Ht); subst; clear h
+  | [h: If _ _ _ = _.[subst_of_env _] |- _] =>
+    let u := fresh "u" in
+    let t1 := fresh "ta" in
+    let t2 := fresh "tb" in
+    let Hu := fresh "Hu" in
+    let Ht1 := fresh "Ht1" in
+    let Ht2 := fresh "Ht2" in
+    let Ht := fresh "Ht" in
+    destruct (subst_of_env_If h) as (u & t1 & t2 & Hu & Ht1 & Ht2 & Ht); subst; clear h
   | [h: Binop _ _ _ = _.[subst_of_env _] |- _] =>
     let t1 := fresh "t1" in
     let t2 := fresh "t2" in
@@ -1733,13 +1765,6 @@ Proof.
     all: intros MC Heqkappa; revert MC; simpl in Heqkappa; subst.
     all: intros MC; inversion MC; simpl; subst.
     all: first [rewrite append_stack_eval in * | repeat rewrite append_stack_cont in *].
-
-    (* all: match goal with
-    | [h: _ = fst (apply_state_aux _) |- _ ] =>
-      let P := type of H in
-      assert (MC: P) by eauto;
-      lock MC
-    end. *)
 
     all: match_conf; try solve [tryfalse]; subst.
 

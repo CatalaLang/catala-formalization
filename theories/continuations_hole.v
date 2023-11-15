@@ -601,7 +601,6 @@ Admitted.
 
 
 
-
 (** Our reduction sequences should have the folowing shape:
 the head of kappa, if it exists can have any possible shape.
 Each member of the tail should however not contain "Hole" inside their default terms.

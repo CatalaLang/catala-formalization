@@ -85,6 +85,8 @@ Definition apply_cont
     (Match_ t t1.[subst_of_env sigma] t2.[up (subst_of_env sigma)], sigma)
   | CSome =>
     (ESome t, sigma)
+  | CIf ta tb =>
+    (If t ta.[subst_of_env sigma] tb.[subst_of_env sigma], sigma)
   end.
 
 Definition apply_conts
@@ -254,6 +256,10 @@ Lemma star_sred_default_E_one:
 Proof.
   eauto with sred.
 Qed.
+
+Hint Resolve
+  star_refl
+: sred.
 
 Theorem sreds_apply_conts: forall kappa t t' sigma,
   star sred t t' ->
