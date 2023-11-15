@@ -1,6 +1,6 @@
 Require Import String.
 Require Import List.
-Require Import syntax continuations tactics sequences.
+Require Import syntax continuations_hole tactics sequences.
 Import List.ListNotations.
 
 
@@ -11,6 +11,7 @@ Inductive type :=
 | TInteger
 | TFun (T1 T2: type)
 | TOption (T: type)
+| TUnit
 .
 
 Definition jt_op (o: op) :=
@@ -69,6 +70,12 @@ Inductive jt_term:
   | JTENone:
     forall Delta Gamma T,
       jt_term Delta Gamma ENone (TOption T)
+  | JTEIf:
+    forall Delta Gamma u ta tb T,
+      jt_term Delta Gamma u TBool ->
+      jt_term Delta Gamma ta T ->
+      jt_term Delta Gamma tb T ->
+      jt_term Delta Gamma (If u ta tb) T
 with jt_value:
   (string -> option type) -> value -> type -> Prop :=
   | JTValueBool:
@@ -89,6 +96,9 @@ with jt_value:
     forall Delta v T,
       jt_value Delta v T ->
       jt_value Delta (VSome v) (TOption T)
+  | JTValueUnit:
+    forall Delta,
+      jt_value Delta VUnit TUnit
 .
 
 
@@ -126,12 +136,12 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       jt_term Delta Gamma t2 T2 ->
       jt_cont Delta Gamma Gamma (CBinopR op t2) T1 T3
   | JTCDefault:
-    forall Delta Gamma o ts tj tc T,
+    forall Delta Gamma h o ts tj tc T,
       List.Forall (fun ti => jt_term Delta Gamma ti T) ts ->
       match o with None => True | Some o => jt_value Delta o T end ->
       jt_term Delta Gamma tj TBool ->
       jt_term Delta Gamma tc T ->
-      jt_cont Delta Gamma Gamma (CDefault o ts tj tc) T T
+      jt_cont Delta Gamma Gamma (CDefault h o ts tj tc) T T
   | JTCDefaultBase:
     forall Delta Gamma tc T,
       jt_term Delta Gamma tc T->
@@ -144,6 +154,11 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
   | JTCSome:
     forall Delta Gamma T,
       jt_cont Delta Gamma Gamma CSome T (TOption T)
+  | JTCIf:
+    forall Delta Gamma T ta tb,
+      jt_term Delta Gamma ta T ->
+      jt_term Delta Gamma tb T ->
+      jt_cont Delta Gamma Gamma (CIf ta tb) (TBool) T
 
   | JTCReturn:
     forall Delta sigma Gamma1 Gamma2 T,
@@ -204,6 +219,8 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   | [h: jt_term _ _ (Match_ _ _ _) _ |- _ ] =>
     inversion h; clear h; subst
+  | [h: jt_term _ _ (If _ _ _) _ |- _ ] =>
+    inversion h; clear h; subst
 
   | [h: jt_value _ (Bool _) _ |- _] =>
     inversion h; clear h; subst
@@ -215,6 +232,8 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   | [h: jt_value _ VNone _ |- _] =>
     inversion h; clear h; subst
+  | [h: jt_value _ _ TUnit |- _] =>
+    inversion h; clear h; subst
   | [h: jt_value _ _ (TOption _) |- _] =>
     inversion h; clear h; subst
   | [h: jt_value _ _ (TFun _ _) |- _] =>
@@ -222,6 +241,8 @@ Ltac inv_jt :=
   | [h: jt_value _ _ (TBool) |- _] =>
     inversion h; clear h; subst
   | [h: jt_value _ _ (TInteger) |- _] =>
+    inversion h; clear h; subst
+  | [h: jt_value _ _ (TUnit) |- _] =>
     inversion h; clear h; subst
 
   | [h: jt_cont _ _ _ (CAppR _) _ _ |- _] =>
@@ -232,7 +253,7 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   | [h: jt_cont _ _ _ (CBinopR _ _) _ _ |- _] =>
     inversion h; clear h; subst
-  | [h: jt_cont _ _ _ (CDefault _ _ _ _) _ _ |- _] =>
+  | [h: jt_cont _ _ _ (CDefault _ _ _ _ _) _ _ |- _] =>
     inversion h; clear h; subst
   | [h: jt_cont _ _ _ (CDefaultBase _) _ _ |- _] =>
     inversion h; clear h; subst
@@ -241,6 +262,8 @@ Ltac inv_jt :=
   | [h: jt_cont _ _ _ CSome _ _ |- _] =>
     inversion h; clear h; subst
   | [h: jt_cont _ _ _ (CMatch _ _) _ _ |- _] =>
+    inversion h; clear h; subst
+  | [h: jt_cont _ _ _ (CIf _ _) _ _ |- _] =>
     inversion h; clear h; subst
 
   | [h: jt_state _ _ (mode_eval _ _ _) _ |- _] =>
@@ -315,6 +338,7 @@ Proof.
     { left; induction cont; induction r.
       all: try match goal with [o: option value |- _ ] => induction o end.
       all: try match goal with [ts: list term |- _ ] => induction ts end.
+      all: try match goal with [h: is_hole |- _ ] => induction h end.
       all: repeat inv_jt.
       all: try match goal with [b: bool |- _ ] => induction b end.
       all: try solve [repeat inv_jt; eexists; econstructor; repeat intro; inj].
