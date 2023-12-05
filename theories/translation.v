@@ -1,4 +1,4 @@
-Require Import syntax.
+(* Require Import syntax.
 
 Inductive pure := Pure | Impure.
 
@@ -165,4 +165,4 @@ Proof.
     all: admit alain.
   }
 Admitted.
-*)
+*) *)

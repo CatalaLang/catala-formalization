@@ -188,16 +188,16 @@ Inductive sred: term -> term -> Prop :=
 
   | sred_default_Conflict:
     forall ts vi vj tjust tcons,
-      sred (Default ((Value vi)::(Value vj)::ts) tjust tcons) Conflict
+      sred (Default ((Value (VPure vi))::(Value (VPure vj))::ts) tjust tcons) Conflict
   | sred_default_E_value:
     forall vi tjust tcons,
-      sred (Default [Value vi] tjust tcons) (Value vi)
+      sred (Default [Value (VPure vi)] tjust tcons) (Value (VPure vi))
   | sred_default_E_zero_conflict:
     forall ts2 tjust tcons,
       sred (Default (Conflict::ts2) tjust tcons) Conflict
   | sred_default_E_one_conflict:
     forall vi ts2 tjust tcons,
-      sred (Default ((Value vi)::Conflict::ts2) tjust tcons) Conflict
+      sred (Default ((Value (VPure vi))::Conflict::ts2) tjust tcons) Conflict
   | sred_default_E_zero:
     forall ti ti' ts2 tj tc,
       sred ti ti' ->
@@ -206,8 +206,8 @@ Inductive sred: term -> term -> Prop :=
     forall vi tj tj' ts3 tjust tcons,
       sred tj tj' ->
       sred
-        (Default ((Value vi)::tj::ts3) tjust tcons)
-        (Default ((Value vi)::tj'::ts3) tjust tcons)
+        (Default ((Value (VPure vi))::tj::ts3) tjust tcons)
+        (Default ((Value (VPure vi))::tj'::ts3) tjust tcons)
 
   (* todo : add a comment to explain why version of the semantics and not the sred t Empty -> sred (Default (t::ts) tj tc) (Default ts tj tc). *)
   | sred_default_E_zero_empty:
@@ -221,8 +221,8 @@ Inductive sred: term -> term -> Prop :=
   | sred_default_E_one_empty:
     forall vi ts tjust tcons,
       sred
-        (Default ((Value vi)::Empty::ts) tjust tcons)
-        (Default ((Value vi)::ts) tjust tcons)
+        (Default ((Value (VPure vi))::Empty::ts) tjust tcons)
+        (Default ((Value (VPure vi))::ts) tjust tcons)
 
   | sred_default_J:
     forall tj1 tj2 tc,
@@ -250,6 +250,7 @@ Inductive sred: term -> term -> Prop :=
     forall ts,
     ts = [] ->
       sred (Default ts Conflict tc) Conflict
+
   | sred_match_cond:
     forall u1 u2 t1 t2,
       sred u1 u2 ->
@@ -300,6 +301,23 @@ Inductive sred: term -> term -> Prop :=
   | sred_if_false:
     forall ta tb,
       sred (If (Value (Bool false)) ta tb) tb
+
+  | sred_ErrorOnEmpty:
+    forall ta tb,
+      sred ta tb ->
+      sred (ErrorOnEmpty ta) (ErrorOnEmpty tb)
+  | sred_eoe_empty:
+    sred (ErrorOnEmpty Empty) (Conflict)
+  | sred_eoe_value:
+    forall v,
+      sred (ErrorOnEmpty (Value (VPure v))) (Value v)
+  | sred_DefaultPure:
+    forall ta tb,
+      sred ta tb ->
+      sred (DefaultPure ta) (DefaultPure tb)
+  | sred_DefaultPure_value:
+    forall v,
+      sred (DefaultPure (Value v)) (Value (VPure v))
 .
 
 
@@ -398,8 +416,8 @@ Lemma star_sred_default_E_one:
     forall vi tj tj' ts3 tjust tcons,
       star sred tj tj' ->
       star sred
-        (Default ((Value vi)::tj::ts3) tjust tcons)
-        (Default ((Value vi)::tj'::ts3) tjust tcons).
+        (Default ((Value (VPure vi))::tj::ts3) tjust tcons)
+        (Default ((Value (VPure vi))::tj'::ts3) tjust tcons).
 Proof.
   induction 1 using star_ind_n1.
   { intros; eapply star_refl. }
@@ -454,6 +472,34 @@ Proof.
   inversion H.
 Qed.
 
+Lemma star_sred_erroronempty:
+    forall u1 u2,
+    star sred u1 u2 ->
+      star sred
+        (ErrorOnEmpty u1)
+        (ErrorOnEmpty u2).
+Proof.
+  induction 1.
+  { eapply star_refl. }
+  { eapply star_step; [|eapply IHstar].
+    econstructor; eauto.
+  }
+Qed.
+
+Lemma star_sred_defaultpure:
+    forall u1 u2,
+    star sred u1 u2 ->
+      star sred
+        (DefaultPure u1)
+        (DefaultPure u2).
+Proof.
+  induction 1.
+  { eapply star_refl. }
+  { eapply star_step; [|eapply IHstar].
+    econstructor; eauto.
+  }
+Qed.
+
 Hint Resolve
   star_sred_app_left
   star_sred_app_right
@@ -466,10 +512,8 @@ Hint Resolve
   star_sred_if_cond
   star_sred_Some_context
   star_sred_empty_empty
-: sred.
-
-Hint Resolve
-  star_refl
+  star_sred_erroronempty
+  star_sred_defaultpure
 : sred.
 
 Hint Constructors sred : sred.

@@ -11,15 +11,21 @@ Inductive op :=
 .
 
 Inductive term :=
+  (* Lambda calculus part of the language*)
   | Var (x: var)
-  | FreeVar (x: string) (* external variables *)
   | App (t1 t2: term)
   | Lam (t: {bind term})
+
+  (* Default fragment of the language. *)
+  | ErrorOnEmpty (arg: term)
+  | DefaultPure (arg: term)
   | Default (ts: list term) (tj tc: term)
   | Empty
   | Conflict
 
+  (* value computating fragment of the language*)
   | Value (v: value)
+  | FreeVar (x: string) (* external variables *)
   | Binop (op: op) (t1 t2: term)
 
   | Match_ (u t1: term) (t2: {bind term})
@@ -35,6 +41,7 @@ with value :=
   | VNone
   | VUnit
   | VSome (v: value)
+  | VPure (v: value)
 .
 
 Require Import Autosubst_FreeVars.
@@ -187,6 +194,24 @@ Proof.
   { congruence. }
 Qed.
 
+Lemma fv_ErrorOnEmpty_eq:
+  forall k t,
+  fv k (ErrorOnEmpty t) <-> fv k t.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. eauto. }
+  { congruence. }
+Qed.
+
+Lemma fv_DefaultPure_eq:
+  forall k t,
+  fv k (DefaultPure t) <-> fv k t.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. eauto. }
+  { congruence. }
+Qed.
+
 Lemma thing: forall ts sigma,
   ts..[sigma] = ts <-> List.Forall (fun ti : term => ti.[sigma] = ti) ts.
 Proof.
@@ -234,5 +259,7 @@ Hint Rewrite
   fv_Match_eq
   fv_Binop_eq
   fv_Default_eq
+  fv_ErrorOnEmpty_eq
+  fv_DefaultPure_eq
   fv_Value_eq
   : fv.

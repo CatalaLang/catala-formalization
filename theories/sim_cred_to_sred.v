@@ -87,6 +87,10 @@ Definition apply_cont
     (ESome t, sigma)
   | CIf ta tb =>
     (If t ta.[subst_of_env sigma] tb.[subst_of_env sigma], sigma)
+  | CErrorOnEmpty =>
+    (ErrorOnEmpty t, sigma)
+  | CDefaultPure =>
+    (DefaultPure t, sigma)
   end.
 
 Definition apply_conts
@@ -348,7 +352,7 @@ Proof.
     destruct (EmptyOrNotEmpty th).
     { subst; simpl.
       repeat rewrite apply_CDefault_SE; eauto.
-      eapply star_one; simpl; econstructor.
+      eapply star_one; simpl.
     }
     { subst; simpl.
       rewrite apply_CDefault_SE; eauto.
@@ -366,6 +370,9 @@ Proof.
       eapply star_refl.
     }
   }
+  { eapply sreds_apply_conts.
+    unfold apply_CDefault; simpl.
+    eapply star_step. econstructor. }
   { induction phi; try induction o.
     all: try solve[eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
     { exfalso.

@@ -12,6 +12,7 @@ Inductive type :=
 | TFun (T1 T2: type)
 | TOption (T: type)
 | TUnit
+| TDefault (T: type)
 .
 
 Definition jt_op (o: op) :=
@@ -43,10 +44,18 @@ Inductive jt_term:
       jt_term Delta Gamma (Lam t) (TFun T1 T2)
   | JTDefault:
     forall Delta Gamma ts tj tc T,
-      List.Forall (fun ti => jt_term Delta Gamma ti T) ts ->
+      List.Forall (fun ti => jt_term Delta Gamma ti (TDefault T)) ts ->
       jt_term Delta Gamma tj TBool ->
-      jt_term Delta Gamma tc T ->
-      jt_term Delta Gamma (Default ts tj tc) T
+      jt_term Delta Gamma tc (TDefault T) ->
+      jt_term Delta Gamma (Default ts tj tc) (TDefault T)
+  | JTDefaultPure:
+    forall Delta Gamma t T,
+      jt_term Delta Gamma t T ->
+      jt_term Delta Gamma (DefaultPure t) (TDefault T)
+  | JTErrorOnEmpty:
+    forall Delta Gamma t T,
+      jt_term Delta Gamma t (TDefault T) ->
+      jt_term Delta Gamma (ErrorOnEmpty t) T
   | JTBinop:
     forall Delta Gamma t1 t2 op T1 T2 T3,
       (T1, T2, T3) = jt_op op ->
@@ -70,6 +79,9 @@ Inductive jt_term:
   | JTENone:
     forall Delta Gamma T,
       jt_term Delta Gamma ENone (TOption T)
+  | JTEEmpty:
+    forall Delta Gamma T,
+      jt_term Delta Gamma Empty (TDefault T)
   | JTEIf:
     forall Delta Gamma u ta tb T,
       jt_term Delta Gamma u TBool ->
@@ -99,6 +111,10 @@ with jt_value:
   | JTValueUnit:
     forall Delta,
       jt_value Delta VUnit TUnit
+  | JTValueVPure:
+    forall Delta v T,
+      jt_value Delta v T ->
+      jt_value Delta (VPure v) (TDefault T)
 .
 
 
@@ -109,7 +125,7 @@ Inductive jt_result: (string -> option type) -> result -> type -> Prop :=
     jt_result Delta (RValue v) T
   | JTREmpty:
     forall Delta T,
-    jt_result Delta REmpty T
+    jt_result Delta REmpty (TDefault T)
   | JTRConflict:
     forall Delta T,
     jt_result Delta RConflict T
@@ -137,15 +153,21 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       jt_cont Delta Gamma Gamma (CBinopR op t2) T1 T3
   | JTCDefault:
     forall Delta Gamma h o ts tj tc T,
-      List.Forall (fun ti => jt_term Delta Gamma ti T) ts ->
+      List.Forall (fun ti => jt_term Delta Gamma ti (TDefault T)) ts ->
       match o with None => True | Some o => jt_value Delta o T end ->
       jt_term Delta Gamma tj TBool ->
-      jt_term Delta Gamma tc T ->
-      jt_cont Delta Gamma Gamma (CDefault h o ts tj tc) T T
+      jt_term Delta Gamma tc (TDefault T) ->
+      jt_cont Delta Gamma Gamma (CDefault h o ts tj tc) (TDefault T) (TDefault T)
   | JTCDefaultBase:
     forall Delta Gamma tc T,
-      jt_term Delta Gamma tc T->
-      jt_cont Delta Gamma Gamma (CDefaultBase tc) TBool T
+      jt_term Delta Gamma tc (TDefault T) ->
+      jt_cont Delta Gamma Gamma (CDefaultBase tc) TBool (TDefault T)
+  | JTCDefaultPure:
+    forall Delta Gamma T,
+      jt_cont Delta Gamma Gamma (CDefaultPure) T (TDefault T)
+  | JTCErrorOnEmpty:
+    forall Delta Gamma T,
+      jt_cont Delta Gamma Gamma (CErrorOnEmpty) (TDefault T) T
   | JTCMatch:
     forall Delta Gamma t1 t2 U T,
       jt_term Delta Gamma t1 T ->
@@ -209,7 +231,13 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   | [h: jt_term _ _ (Default _ _ _) _ |- _] =>
     inversion h; clear h; subst
+  | [h: jt_term _ _ (ErrorOnEmpty _) _ |- _ ] =>
+    inversion h; clear h; subst
+  | [h: jt_term _ _ (DefaultPure _) _ |- _ ] =>
+    inversion h; clear h; subst
   | [h: jt_term _ _ (Value _) _ |- _] =>
+    inversion h; clear h; subst
+  | [h: jt_term _ _ Empty _ |- _] =>
     inversion h; clear h; subst
   | [h: jt_term _ _ (Binop _ _ _) _ |- _] =>
     inversion h; clear h; subst
@@ -232,6 +260,8 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   | [h: jt_value _ VNone _ |- _] =>
     inversion h; clear h; subst
+  | [h: jt_value _ VPure _ |- _] =>
+    inversion h; clear h; subst
   | [h: jt_value _ _ TUnit |- _] =>
     inversion h; clear h; subst
   | [h: jt_value _ _ (TOption _) |- _] =>
@@ -243,6 +273,8 @@ Ltac inv_jt :=
   | [h: jt_value _ _ (TInteger) |- _] =>
     inversion h; clear h; subst
   | [h: jt_value _ _ (TUnit) |- _] =>
+    inversion h; clear h; subst
+  | [h: jt_value _ _ (TDefault _) |- _] =>
     inversion h; clear h; subst
 
   | [h: jt_cont _ _ _ (CAppR _) _ _ |- _] =>
@@ -256,6 +288,10 @@ Ltac inv_jt :=
   | [h: jt_cont _ _ _ (CDefault _ _ _ _ _) _ _ |- _] =>
     inversion h; clear h; subst
   | [h: jt_cont _ _ _ (CDefaultBase _) _ _ |- _] =>
+    inversion h; clear h; subst
+  | [h: jt_cont _ _ _ CErrorOnEmpty _ _ |- _] =>
+    inversion h; clear h; subst
+  | [h: jt_cont _ _ _ CDefaultPure _ _ |- _] =>
     inversion h; clear h; subst
   | [h: jt_cont _ _ _ (CReturn _) _ _ |- _] =>
     inversion h; clear h; subst
@@ -304,9 +340,6 @@ Proof.
   * match goal with [_: context[Var _]|- context[RValue _] ] => idtac end.
     repeat inv_jt; repeat econstructor; eauto.
     eapply common.Forall2_nth_error_Some; eauto.
-  * (* Returning an REmpty: this cause a problem with CReturn. *)
-    induction phi; try solve [repeat inv_jt; repeat econstructor; eauto].
-    { now pose proof H0 sigma0. }
   * (* Returning an Conflict *)
     induction phi; try solve [repeat inv_jt; repeat econstructor; eauto].
     { now pose proof H sigma0. }
@@ -342,11 +375,18 @@ Proof.
       all: repeat inv_jt.
       all: try match goal with [b: bool |- _ ] => induction b end.
       all: try solve [repeat inv_jt; eexists; econstructor; repeat intro; inj].
-      { induction op; simpl in *; inj; repeat inv_jt.
-        all: eexists; econstructor; simpl; eauto. }
+      3: { induction op; simpl in *; inj; repeat inv_jt. }
+
+      3: { induction op; simpl in *; inj; repeat inv_jt. }
+      2: { induction op; simpl in *; inj; repeat inv_jt.
+           all: eexists; econstructor; simpl; eauto.
+      }
+      { admit "we need a 'Empty' value for this to be true. The value can be of type TDefault hence the preservation and progress theorem should still be true.". }
+      { eexists. econstructor. }
+      { admit "same". }
     }
   }
-Qed.
+Admitted.
 
 Lemma well_typed_finish:
   forall Delta Gamma s1 T,

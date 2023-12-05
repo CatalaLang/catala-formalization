@@ -48,6 +48,8 @@ Inductive cont :=
     (* [ match \square with None -> t1 | Some -> t2 end ] *)
   | CIf (ta: term) (tb: term)
   | CSome
+  | CErrorOnEmpty
+  | CDefaultPure
 .
 
 Inductive state :=
@@ -99,6 +101,33 @@ Inductive cred: state -> state -> Prop :=
 
   (** Rules related to the defaults *)
 
+  | cred_defaultpure_intro:
+    forall e kappa sigma,
+    cred
+      (mode_eval (DefaultPure e) kappa sigma)
+      (mode_eval e (CDefaultPure::kappa) sigma)
+  | cred_defaultpure_elim:
+    forall kappa sigma v,
+    cred
+      (mode_cont (CDefaultPure::kappa) sigma (RValue v))
+      (mode_cont kappa sigma (RValue (VPure v)))
+
+  | cred_erroronempty_intro:
+    forall e kappa sigma,
+    cred
+      (mode_eval (ErrorOnEmpty e) kappa sigma)
+      (mode_eval e (CErrorOnEmpty::kappa) sigma)
+  | cred_erroronempty_elim_empty:
+    forall kappa sigma,
+    cred
+      (mode_cont (CErrorOnEmpty::kappa) sigma REmpty)
+      (mode_cont kappa sigma RConflict)
+  | cred_erroronempty_elim_other:
+    forall kappa sigma v,
+    cred
+      (mode_cont (CErrorOnEmpty::kappa) sigma (RValue (VPure v)))
+      (mode_cont kappa sigma (RValue v))
+
   | cred_default:
     forall ts tj tc kappa sigma,
     cred
@@ -111,33 +140,29 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont ((CDefault Hole o (th::ts) tj tc)::kappa) sigma REmpty)
       (mode_eval th ((CDefault NoHole o ts tj tc)::kappa) sigma)
 
-  (* Possible results :
-  
-  value *)
-
   | cred_default_value:
     forall o ts tj tc kappa sigma v,
     cred
-      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma (RValue v))
-      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma (RValue v))
+      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma (RValue (VPure v)))
+      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma (RValue (VPure v)))
 
   | cred_default_value_none_to_some:
     forall ts tj tc kappa sigma v,
     cred
-      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma (RValue v))
+      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma (RValue (VPure v)))
       (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma REmpty)
 
   | cred_default_value_conflict:
     forall ts tj tc kappa sigma v v',
     cred
-      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma (RValue v'))
+      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma (RValue (VPure v')))
       (mode_cont kappa sigma RConflict)
 
   | cred_default_value_return:
     forall v tj tc kappa sigma,
     cred
       (mode_cont ((CDefault Hole (Some v) [] tj tc)::kappa) sigma REmpty)
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont kappa sigma (RValue (VPure v)))
 
   (* empty *)
   | cred_default_empty:
@@ -162,15 +187,6 @@ Inductive cred: state -> state -> Prop :=
     forall tc kappa sigma,
     cred
       (mode_cont ((CDefaultBase tc)::kappa) sigma (RValue (Bool false)))
-      (mode_cont kappa sigma REmpty)
-
-  (* REmpty is catched by CDefault in the rule cdefaultbase. *)
-  | cred_empty:
-    forall phi kappa sigma,
-    (forall b o ts tj tc, phi <> CDefault b o ts tj tc) ->
-    (forall sigma', phi <> CReturn sigma') ->
-    cred
-      (mode_cont (phi::kappa) sigma REmpty)
       (mode_cont kappa sigma REmpty)
 
   (* Conflict panics and stop the execution of the program.
@@ -407,7 +423,7 @@ Proof.
     end.
 Qed.
 
-Require continuations.
+(* Require continuations.
 
 Hypothesis magic: forall {P}, P.
 
@@ -597,7 +613,7 @@ Proof.
     all: eexists; split; [eapply star_one; econstructor; repeat intro; tryfalse; eauto|simpl; eauto].
     { edestruct H; eauto. }
   } *)
-Admitted.
+Admitted. *)
 
 
 
@@ -628,6 +644,10 @@ Inductive inv_conts_no_hole: cont -> Prop :=
   inv_conts_no_hole (CSome)
 | inv_If (ta tb: term):
   inv_conts_no_hole (CIf ta tb)
+| inv_ErrorOnEmpty:
+  inv_conts_no_hole CErrorOnEmpty
+| inv_CDefaultPure:
+  inv_conts_no_hole CDefaultPure
 .
 
 Inductive inv_state: state -> Prop :=
