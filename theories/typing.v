@@ -199,6 +199,41 @@ Inductive jt_conts: (string -> option type) -> list type -> list type -> list co
       jt_conts Delta Gamma1 Gamma3 (cont :: kappa) T1 T3
 .
 
+Lemma JTConcat:
+  forall Delta Gamma1 Gamma2 Gamma3 kappa1 kappa2 T1 T2 T3,
+    jt_conts Delta Gamma1 Gamma2 kappa1 T1 T2 ->
+    jt_conts Delta Gamma2 Gamma3 kappa2 T2 T3 ->
+    jt_conts Delta Gamma1 Gamma3 (kappa1 ++ kappa2) T1 T3.
+Proof.
+  intros until kappa1.
+  revert Delta Gamma1 Gamma2 Gamma3.
+  induction kappa1.
+  { simpl. intros. inversion H; subst. repeat econstructor; eauto. }
+  { simpl. intros. inversion H; subst.
+    eapply JTCons; eauto.
+  }
+Qed.
+
+Lemma JTConcat_inversion:
+  forall Delta Gamma1 Gamma3 kappa1 kappa2 T1 T3,
+    jt_conts Delta Gamma1 Gamma3 (kappa1 ++ kappa2) T1 T3 ->
+    exists Gamma2 T2,
+    jt_conts Delta Gamma1 Gamma2 kappa1 T1 T2 /\
+    jt_conts Delta Gamma2 Gamma3 kappa2 T2 T3.
+Proof.
+  intros until kappa1.
+  revert Delta Gamma1 Gamma3.
+  induction kappa1.
+  { simpl; intros.
+    exists Gamma1, T1; split; eauto; econstructor.
+  }
+  { simpl; intros.
+    inversion H; subst.
+    destruct (IHkappa1 _ _ _ _ _ _ H8) as (Gamma4 & T4 & H24 & H43).
+    exists Gamma4, T4; split; [econstructor|]; eauto.
+  }
+Qed.
+
 
 Inductive jt_state: (string -> option type) -> list type -> state -> type -> Prop :=
   | JTmode_eval:
@@ -311,6 +346,8 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   | [h: jt_conts _ _ _ (cons _ _) _ _ |- _] =>
     inversion h; clear h; subst
+  | [h: jt_conts _ _ _ (app _ _) _ _ |- _] =>
+    destruct (JTConcat_inversion _ _ _ _ _ _ _ h); clear h; subst
 
   | [h: jt_result _ (RValue _) _ |- _] =>
     inversion h; clear h; subst
@@ -325,6 +362,7 @@ Ltac inv_jt :=
   | [h: List.Forall2 _ (cons _ _) (cons _ _) |- _] =>
     inversion h; clear h; subst
   end.
+
 
 Section Examples.
   (* TODO *)
@@ -350,19 +388,69 @@ Proof.
     eauto; repeat econstructor; eauto.
 Qed.
 
+Inductive inv_no_default: type -> Prop :=
+  | invTBool : inv_no_default TBool
+  | invTInteger : inv_no_default TInteger
+  | invTUnit : inv_no_default TUnit
+  | invTFun : forall T1 T2,
+    inv_no_default T1 ->
+    inv_no_default T2 ->
+    inv_no_default (TFun T1 T2)
+  | invTOption: forall T1,
+    inv_no_default T1 ->
+    inv_no_default (TOption T1)
+.
+
+Inductive inv_thunk_or_no_default : type -> Prop :=
+  | inv_nodef: forall T, inv_no_default T -> inv_thunk_or_no_default T
+  | inv_thunk: forall T1 T2,
+    inv_no_default T1 ->
+    inv_no_default T2 ->
+    inv_thunk_or_no_default (TFun T1 (TDefault T2))
+.
+
+Inductive inv_ty: type -> Prop :=
+  | inv_base: forall T, inv_thunk_or_no_default T -> inv_ty T
+  | inv_root_default: forall T, inv_no_default T -> inv_ty (TDefault T)
+.
+
+
+Lemma backward_jt_cont_inv:
+  forall Delta Gamma1 Gamma2 kappa T1 T2,
+    jt_cont Delta Gamma1 Gamma2 kappa T1 T2 ->
+    inv_ty T2 ->
+    inv_ty T1.
+Proof.
+Admitted.
+
+Lemma backward_jt_conts_inv:
+  forall Delta Gamma1 Gamma2 kappa T1 T2,
+    jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
+    inv_ty T2 ->
+    inv_ty T1.
+Proof.
+  induction kappa using List.rev_ind.
+  { intros; repeat inv_jt; eauto. }
+  { intros; repeat inv_jt.
+    eapply IHkappa.
+    
+
+Admitted.
 
 Theorem progress s1:
   forall Delta Gamma T,
     jt_state Delta Gamma s1 T ->
+    inv T ->
     (exists s2, cred s1 s2) \/ (is_mode_cont s1 = true /\ stack s1 = nil).
 Proof.
   induction s1 as [t kappa env|kappa env r]; intros; repeat inv_jt.
   { left.
+    clear H0.
     induction t.
     all: repeat inv_jt.
     all: try solve [eexists; econstructor].
     { symmetry in H2.
-      destruct (common.Forall2_nth_error_Some_right _ _ _ H5 _ _ H2).
+      destruct (common.Forall2_nth_error_Some_right _ _ _ H6 _ _ H2).
       eexists; econstructor; eauto.
     }
   }
@@ -382,7 +470,7 @@ Proof.
            all: eexists; econstructor; simpl; eauto.
       }
       { admit "we need a 'Empty' value for this to be true. The value can be of type TDefault hence the preservation and progress theorem should still be true.". }
-      { eexists. econstructor. }
+      {  }
       { admit "same". }
     }
   }
