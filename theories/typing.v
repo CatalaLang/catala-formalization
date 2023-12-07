@@ -15,6 +15,32 @@ Inductive type :=
 | TDefault (T: type)
 .
 
+Inductive inv_no_default: type -> Prop :=
+  | invTBool : inv_no_default TBool
+  | invTInteger : inv_no_default TInteger
+  | invTUnit : inv_no_default TUnit
+  | invTFun : forall T1 T2,
+    inv_no_default T1 ->
+    inv_no_default T2 ->
+    inv_no_default (TFun T1 T2)
+  | invTOption: forall T1,
+    inv_no_default T1 ->
+    inv_no_default (TOption T1)
+.
+
+Inductive inv_thunk_or_no_default : type -> Prop :=
+  | inv_nodef: forall T, inv_no_default T -> inv_thunk_or_no_default T
+  | inv_thunk: forall T1 T2,
+    inv_no_default T1 ->
+    inv_no_default T2 ->
+    inv_thunk_or_no_default (TFun T1 (TDefault T2))
+.
+
+Inductive inv_ty: type -> Prop :=
+  | inv_base: forall T, inv_thunk_or_no_default T -> inv_ty T
+  | inv_root_default: forall T, inv_no_default T -> inv_ty (TDefault T)
+.
+
 Definition jt_op (o: op) :=
   match o with
   | Eq => (TInteger, TInteger, TBool)
@@ -188,12 +214,17 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       jt_cont Delta Gamma1 Gamma2 (CReturn sigma) T T
 .
 
+Definition inv (Gamma: list type) (T: type) : Prop :=
+  inv_ty (List.fold_left TFun Gamma T).
+
 Inductive jt_conts: (string -> option type) -> list type -> list type -> list cont -> type -> type -> Prop :=
   | JTNil:
-    forall Delta Gamma T1,
-      jt_conts Delta Gamma Gamma nil T1 T1
+    forall Delta Gamma T,
+      inv Gamma T ->
+      jt_conts Delta Gamma Gamma nil T T
   | JTCons:
     forall Delta Gamma1 Gamma2 Gamma3 cont kappa T1 T2 T3,
+      inv Gamma1 T1 ->
       jt_cont Delta Gamma1 Gamma2 cont T1 T2 ->
       jt_conts Delta Gamma2 Gamma3 kappa T2 T3 ->
       jt_conts Delta Gamma1 Gamma3 (cont :: kappa) T1 T3
@@ -218,19 +249,23 @@ Lemma JTConcat_inversion:
   forall Delta Gamma1 Gamma3 kappa1 kappa2 T1 T3,
     jt_conts Delta Gamma1 Gamma3 (kappa1 ++ kappa2) T1 T3 ->
     exists Gamma2 T2,
-    jt_conts Delta Gamma1 Gamma2 kappa1 T1 T2 /\
-    jt_conts Delta Gamma2 Gamma3 kappa2 T2 T3.
+      inv Gamma2 T2 /\
+      jt_conts Delta Gamma1 Gamma2 kappa1 T1 T2 /\
+      jt_conts Delta Gamma2 Gamma3 kappa2 T2 T3.
 Proof.
   intros until kappa1.
   revert Delta Gamma1 Gamma3.
   induction kappa1.
   { simpl; intros.
-    exists Gamma1, T1; split; eauto; econstructor.
+    assert (inv Gamma1 T1). { inversion H; subst; eauto. }
+    exists Gamma1, T1; repeat split; eauto; try solve [econstructor; eauto].
   }
   { simpl; intros.
     inversion H; subst.
-    destruct (IHkappa1 _ _ _ _ _ _ H8) as (Gamma4 & T4 & H24 & H43).
-    exists Gamma4, T4; split; [econstructor|]; eauto.
+    assert (inv Gamma2 T2). { inversion H9; subst; eauto. }
+    destruct (IHkappa1 _ _ _ _ _ _ H9) as (Gamma4 & T4 & H24 & H43).
+    unpack.
+    exists Gamma4, T4; repeat split; eauto; econstructor; eauto.
   }
 Qed.
 
@@ -347,7 +382,11 @@ Ltac inv_jt :=
   | [h: jt_conts _ _ _ (cons _ _) _ _ |- _] =>
     inversion h; clear h; subst
   | [h: jt_conts _ _ _ (app _ _) _ _ |- _] =>
-    destruct (JTConcat_inversion _ _ _ _ _ _ _ h); clear h; subst
+    let G := fresh "Gamma" in
+    let T := fresh "T" in
+    let H1 := fresh "H" in
+    let H2 := fresh "H" in
+    destruct (JTConcat_inversion _ _ _ _ _ _ _ h) as (G & T & H1 & H2); clear h; subst
 
   | [h: jt_result _ (RValue _) _ |- _] =>
     inversion h; clear h; subst
@@ -363,10 +402,64 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   end.
 
+Lemma jt_term_inv:
+  forall Delta Gamma t T,
+    jt_term Delta Gamma t T ->
+    inv Gamma T.
+Proof.
+  induction 1.
+  * admit "require strict nodefault on this one, or maybe not it depends on the thing we know about Gamma".
+  * admit "ok".
+  * admit "ok".
+  * eauto.
+  * admit "Require strict nodefault on this one".
+  * admit "ok".
+  * induction op; simpl in *; injections; subst.
+    all: admit "ok".
+  * admit "ok".
+  * eauto.
+  * admit "require strict nodefault on this one".
+  * admit "require strict nodefault on this one".
+  * admit "require strict nodefault on this one".
+  * eauto.
+Admitted.
 
-Section Examples.
-  (* TODO *)
-End Examples.
+Lemma jt_cont_inv:
+  forall Delta Gamma1 Gamma2 cont T1 T2,
+    jt_cont Delta Gamma1 Gamma2 cont T1 T2 ->
+    inv Gamma1 T1.
+Proof.
+  induction 1.
+  * admit "require information".
+  * admit "require information".
+  * admit "trivial".
+  * admit "trivial".
+  * admit "trivial".
+  * admit "trivial".
+  * admit "require information".
+  * admit "require information".
+  * admit "require information".
+  * admit "require information".
+  * admit "trivial".
+  * admit "require information".
+Admitted.
+
+
+Lemma jt_conts_inv:
+  forall Delta Gamma1 Gamma2 kappa T1 T2,
+    jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
+    inv Gamma1 T1.
+Proof.
+  induction 1; eauto.
+Qed.
+
+Require Import tactics.
+Import Learn.
+
+Ltac learn_inv :=
+  repeat match goal with
+  | [h: jt_term _ _ _ _ |- _] => learn (jt_term_inv _ _ _ _ h)
+  end.
 
 Theorem preservation s1 s2:
   cred s1 s2 ->
@@ -374,7 +467,12 @@ Theorem preservation s1 s2:
   jt_state Delta Gamma s1 T ->
   jt_state Delta Gamma s2 T.
 Proof.
-  induction 1; intros; try solve [repeat inv_jt; repeat econstructor; eauto].
+  induction 1; intros; try solve [
+    repeat inv_jt; learn_inv;
+    repeat match goal with
+    | [|- inv _ _ ] => idtac
+    | _ => econstructor
+    end; eauto].
   * match goal with [_: context[Var _]|- context[RValue _] ] => idtac end.
     repeat inv_jt; repeat econstructor; eauto.
     eapply common.Forall2_nth_error_Some; eauto.
@@ -388,63 +486,16 @@ Proof.
     eauto; repeat econstructor; eauto.
 Qed.
 
-Inductive inv_no_default: type -> Prop :=
-  | invTBool : inv_no_default TBool
-  | invTInteger : inv_no_default TInteger
-  | invTUnit : inv_no_default TUnit
-  | invTFun : forall T1 T2,
-    inv_no_default T1 ->
-    inv_no_default T2 ->
-    inv_no_default (TFun T1 T2)
-  | invTOption: forall T1,
-    inv_no_default T1 ->
-    inv_no_default (TOption T1)
-.
-
-Inductive inv_thunk_or_no_default : type -> Prop :=
-  | inv_nodef: forall T, inv_no_default T -> inv_thunk_or_no_default T
-  | inv_thunk: forall T1 T2,
-    inv_no_default T1 ->
-    inv_no_default T2 ->
-    inv_thunk_or_no_default (TFun T1 (TDefault T2))
-.
-
-Inductive inv_ty: type -> Prop :=
-  | inv_base: forall T, inv_thunk_or_no_default T -> inv_ty T
-  | inv_root_default: forall T, inv_no_default T -> inv_ty (TDefault T)
-.
-
-
-Lemma backward_jt_cont_inv:
-  forall Delta Gamma1 Gamma2 kappa T1 T2,
-    jt_cont Delta Gamma1 Gamma2 kappa T1 T2 ->
-    inv_ty T2 ->
-    inv_ty T1.
-Proof.
-Admitted.
-
-Lemma backward_jt_conts_inv:
-  forall Delta Gamma1 Gamma2 kappa T1 T2,
-    jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
-    inv_ty T2 ->
-    inv_ty T1.
-Proof.
-  induction kappa using List.rev_ind.
-  { intros; repeat inv_jt; eauto. }
-  { intros; repeat inv_jt.
-    eapply IHkappa.
-    
-
-Admitted.
 
 Theorem progress s1:
   forall Delta Gamma T,
     jt_state Delta Gamma s1 T ->
-    inv T ->
+    inv_ty T ->
     (exists s2, cred s1 s2) \/ (is_mode_cont s1 = true /\ stack s1 = nil).
 Proof.
-  induction s1 as [t kappa env|kappa env r]; intros; repeat inv_jt.
-  { left.
+  induction s1 as [t kappa env|kappa env r]; intros.
+  { repeat inv_jt.
+    left.
     clear H0.
     induction t.
     all: repeat inv_jt.
@@ -461,6 +512,7 @@ Proof.
       all: try match goal with [ts: list term |- _ ] => induction ts end.
       all: try match goal with [h: is_hole |- _ ] => induction h end.
       all: repeat inv_jt.
+      all: learn_inv.
       all: try match goal with [b: bool |- _ ] => induction b end.
       all: try solve [repeat inv_jt; eexists; econstructor; repeat intro; inj].
       3: { induction op; simpl in *; inj; repeat inv_jt. }
@@ -469,9 +521,13 @@ Proof.
       2: { induction op; simpl in *; inj; repeat inv_jt.
            all: eexists; econstructor; simpl; eauto.
       }
-      { admit "we need a 'Empty' value for this to be true. The value can be of type TDefault hence the preservation and progress theorem should still be true.". }
-      {  }
-      { admit "same". }
+      { exfalso.
+        clear -H.
+        admit " this is obviously false".
+      }
+      { admit. }
+      { admit. }
+      { repeat inv_jt. }
     }
   }
 Admitted.
