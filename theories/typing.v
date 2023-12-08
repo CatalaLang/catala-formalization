@@ -37,9 +37,44 @@ Inductive inv_thunk_or_no_default : type -> Prop :=
 .
 
 Inductive inv_ty: type -> Prop :=
-  | inv_base: forall T, inv_thunk_or_no_default T -> inv_ty T
   | inv_root_default: forall T, inv_no_default T -> inv_ty (TDefault T)
+  | inv_base: forall T, inv_thunk_or_no_default T -> inv_ty T
 .
+
+(* For instance, the following types do follow the invariant:
+
+int; bool; int -> bool; <bool>; <int -> bool>; int -> <bool>; (int ->
+<bool>) -> bool
+
+While the following types does not follow the invariant:
+
+<<int>>;
+<int -> <bool>>;
+<bool> -> int;
+S_in {x: int -> <bool>} -> S {y: <bool>}
+ *)
+
+Goal inv_ty TBool. repeat econstructor. Qed.
+Goal inv_ty TInteger. repeat econstructor. Qed.
+Goal inv_ty (TFun TInteger TBool). repeat econstructor. Qed.
+Goal inv_ty (TDefault TBool). repeat econstructor. Qed.
+Goal inv_ty (TDefault (TFun TInteger TBool)). repeat econstructor. Qed.
+Goal inv_ty (TFun TInteger (TDefault TBool)). repeat econstructor. Admitted.
+Goal inv_ty (TFun (TFun TInteger (TDefault TBool)) TBool). repeat econstructor. Admitted.
+
+Goal not (inv_ty (TDefault (TDefault TInteger))).
+intro. inversion H. inversion H1. inversion H0. subst. inversion H2. Qed.
+Goal not (inv_ty (TDefault (TFun TBool (TDefault TInteger)))).
+  intro.
+  inversion H; subst; clear H.
+  { inversion H1; subst; clear H1. inversion H3; subst; clear H3. }
+  { inversion H0; subst; clear H0. inversion H; subst; clear H. }
+Qed.
+Goal inv_ty (TFun (TDefault TBool) TInteger). repeat econstructor. Admitted.
+Goal inv_ty (TFun (TFun TInteger (TDefault TBool)) (TDefault TBool)). Admitted.
+
+Definition inv (Gamma: list type) (T: type) : Prop :=
+  inv_ty (List.fold_left TFun Gamma T).
 
 Definition jt_op (o: op) :=
   match o with
@@ -54,6 +89,7 @@ Inductive jt_term:
   | JTVar:
     forall Delta Gamma x T,
       Some T = List.nth_error Gamma x ->
+      inv_thunk_or_no_default T ->
       jt_term Delta Gamma (Var x) T
   (* | JTFreeVar:
     forall Delta Gamma x T,
@@ -77,6 +113,7 @@ Inductive jt_term:
   | JTDefaultPure:
     forall Delta Gamma t T,
       jt_term Delta Gamma t T ->
+      inv_no_default T ->
       jt_term Delta Gamma (DefaultPure t) (TDefault T)
   | JTErrorOnEmpty:
     forall Delta Gamma t T,
@@ -101,12 +138,15 @@ Inductive jt_term:
   | JTESome:
     forall Delta Gamma t T,
       jt_term Delta Gamma t T ->
+      inv_no_default T ->
       jt_term Delta Gamma (ESome t) (TOption T)
   | JTENone:
     forall Delta Gamma T,
+      inv_no_default T ->
       jt_term Delta Gamma ENone (TOption T)
   | JTEEmpty:
     forall Delta Gamma T,
+      inv_no_default T ->
       jt_term Delta Gamma Empty (TDefault T)
   | JTEIf:
     forall Delta Gamma u ta tb T,
@@ -213,9 +253,6 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       (List.Forall2 (jt_value Delta) sigma Gamma2) ->
       jt_cont Delta Gamma1 Gamma2 (CReturn sigma) T T
 .
-
-Definition inv (Gamma: list type) (T: type) : Prop :=
-  inv_ty (List.fold_left TFun Gamma T).
 
 Inductive jt_conts: (string -> option type) -> list type -> list type -> list cont -> type -> type -> Prop :=
   | JTNil:
@@ -402,13 +439,25 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   end.
 
+Print inv_ty.
+Print inv_thunk_or_no_default.
+Lemma lift_gamma:
+  forall Gamma T,
+  List.Forall inv_thunk_or_no_default Gamma ->
+  inv_ty T ->
+  inv Gamma T.
+Proof.
+  intros.
+  econstructor.
+
 Lemma jt_term_inv:
   forall Delta Gamma t T,
     jt_term Delta Gamma t T ->
+    List.Forall inv_thunk_or_no_default Gamma ->
     inv Gamma T.
 Proof.
   induction 1.
-  * admit "require strict nodefault on this one, or maybe not it depends on the thing we know about Gamma".
+  * admit.
   * admit "ok".
   * admit "ok".
   * eauto.
@@ -459,6 +508,8 @@ Import Learn.
 Ltac learn_inv :=
   repeat match goal with
   | [h: jt_term _ _ _ _ |- _] => learn (jt_term_inv _ _ _ _ h)
+  | [h: jt_cont _ _ _ _ _ _ |- _] => learn (jt_cont_inv _ _ _ _ _ _ h)
+  | [h: jt_conts _ _ _ _ _ _ |- _] => learn (jt_conts_inv _ _ _ _ _ _ h)
   end.
 
 Theorem preservation s1 s2:
@@ -515,19 +566,16 @@ Proof.
       all: learn_inv.
       all: try match goal with [b: bool |- _ ] => induction b end.
       all: try solve [repeat inv_jt; eexists; econstructor; repeat intro; inj].
+      all: learn_inv.
       3: { induction op; simpl in *; inj; repeat inv_jt. }
 
       3: { induction op; simpl in *; inj; repeat inv_jt. }
       2: { induction op; simpl in *; inj; repeat inv_jt.
            all: eexists; econstructor; simpl; eauto.
       }
-      { exfalso.
-        clear -H.
-        admit " this is obviously false".
-      }
-      { admit. }
-      { admit. }
-      { repeat inv_jt. }
+      { exfalso; clear -H. inversion H; subst. }
+      { exfalso; clear -H. admit "trivially true". }
+      { exfalso; clear -H. admit "trivially true". }
     }
   }
 Admitted.
