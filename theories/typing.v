@@ -236,25 +236,21 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
   | JTCAppR:
     forall Delta Gamma t2 T1 T2,
       jt_term Delta Gamma t2 T1 ->
-      inv_root (TFun (TFun T1 T2) T2) ->
       jt_cont Delta Gamma Gamma (CAppR t2) (TFun T1 T2) T2
   | JTCClosure:
     forall Delta Gamma Gamma_cl sigma_cl T1 T2 tcl,
       jt_term Delta (T1 :: Gamma_cl) tcl T2 ->
       List.Forall2 (jt_value Delta) sigma_cl Gamma_cl ->
-      inv_root (TFun T1 T2) ->
       jt_cont Delta Gamma Gamma (CClosure tcl sigma_cl) T1 T2
   | JTCBinopL:
     forall T1 T2 T3 op Delta v1 Gamma,
       (T1, T2, T3) = jt_op op ->
       jt_value Delta v1 T1 ->
-      inv_root (TFun T2 T3) ->
       jt_cont Delta Gamma Gamma (CBinopL op v1) T2 T3
   | JTCBinopR:
     forall T1 T2 T3 op Delta t2 Gamma,
       (T1, T2, T3) = jt_op op ->
       jt_term Delta Gamma t2 T2 ->
-      inv_root (TFun T1 T3) ->
       jt_cont Delta Gamma Gamma (CBinopR op t2) T1 T3
   | JTCDefault:
     forall Delta Gamma h o ts tj tc T,
@@ -262,36 +258,31 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       match o with None => True | Some o => jt_value Delta o T end ->
       jt_term Delta Gamma tj TBool ->
       jt_term Delta Gamma tc (TDefault T) ->
-      inv_root (TFun (TDefault T) (TDefault T)) ->
       jt_cont Delta Gamma Gamma (CDefault h o ts tj tc) (TDefault T) (TDefault T)
   | JTCDefaultBase:
     forall Delta Gamma tc T,
       jt_term Delta Gamma tc (TDefault T) ->
-      inv_root (TFun TBool (TDefault T)) ->
       jt_cont Delta Gamma Gamma (CDefaultBase tc) TBool (TDefault T)
   | JTCDefaultPure:
     forall Delta Gamma T,
-      inv_root (TFun T (TDefault T)) ->
+      inv_no_default T ->
       jt_cont Delta Gamma Gamma (CDefaultPure) T (TDefault T)
   | JTCErrorOnEmpty:
     forall Delta Gamma T,
-      inv_root (TFun (TDefault T) T) ->
       jt_cont Delta Gamma Gamma (CErrorOnEmpty) (TDefault T) T
   | JTCMatch:
     forall Delta Gamma t1 t2 U T,
       jt_term Delta Gamma t1 T ->
       jt_term Delta (U::Gamma) t2 T ->
-      inv_root (TFun (TOption U) T) ->
       jt_cont Delta Gamma Gamma (CMatch t1 t2) (TOption U) T
   | JTCSome:
     forall Delta Gamma T,
-      inv_root (TFun T (TOption T)) ->
+      inv_no_default T ->
       jt_cont Delta Gamma Gamma CSome T (TOption T)
   | JTCIf:
     forall Delta Gamma T ta tb,
       jt_term Delta Gamma ta T ->
       jt_term Delta Gamma tb T ->
-      inv_root (TFun TBool T) ->
       jt_cont Delta Gamma Gamma (CIf ta tb) (TBool) T
 
   | JTCReturn:
@@ -348,11 +339,7 @@ Proof.
   }
   { simpl; intros.
     inversion_clear H0.
-    { assert (inv_root T2). }
-
-  }
-
-induction kappa1.
+    { assert (inv_root T2). } }
 Admitted.
 
 
@@ -371,156 +358,21 @@ Inductive jt_state: (string -> option type) -> list type -> state -> type -> Pro
       jt_state Delta Gamma2 (mode_cont kappa sigma r) T2
 .
 
-(* This tactic is used to automaticaly break down judgements types in smaller 
-   elements, without .
-*)
-
-Ltac2 myinv' () :=
+Ltac2 sinv_jt () :=
   match! goal with
-  | [ h : jt_term _ _ ?c _ |- _ ] =>
-    smart_inversion c h
-  | [ h : jt_value _ _ _ ?c |- _ ] =>
-    smart_inversion c h
-  | [ h : jt_value _ _ ?c _ |- _ ] =>
-    smart_inversion c h
+  | [ h: jt_term _ _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_value _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_value _ _ ?c |- _ ] => smart_inversion c h
+  | [ h: jt_cont _ _ _ ?c _ _ |- _ ] => smart_inversion c h
+  | [ h: jt_conts _ _ _ ?c _ _ |- _ ] => smart_inversion c h
+  | [ h: jt_state _ _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_result _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 _ _ ?c |- _ ] => smart_inversion c h
   end.
 
-#[export]
-Hint Extern 5 => ltac2:(match! goal with
-  [ h : jt_term _ _ ?c _ |- _ ] => smart_inversion c h end)
-: typing.
-
-#[export]
-Hint Extern 5 => ltac2:(match! goal with
-  [ h : jt_value _ _ ?c _ |- _ ] => smart_inversion c h end)
-: typing.
-
-#[export]
-Hint Extern 5 => ltac2:(match! goal with
-  [ h : jt_value _ _ _ ?c |- _ ] => smart_inversion c h end)
-: typing.
-
-Hint Constructors jt_value : typing.
-Hint Constructors jt_term : typing.
-
-Ltac inv_jt :=
-  match goal with
-  | [h: jt_term _ _ c _ |- _] =>
-    smart_inversion c h
-  end.
-
-Ltac inv_jt :=
-  match goal with
-  | [h: jt_term _ _ (Var _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ (FreeVar _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ (App _ _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ (Lam _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ (Default _ _ _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ (ErrorOnEmpty _) _ |- _ ] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ (DefaultPure _) _ |- _ ] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ (Value _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ Empty _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ (Binop _ _ _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ ENone _ |- _ ] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ (ESome _) _ |- _ ] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ (Match_ _ _ _) _ |- _ ] =>
-    inversion h; clear h; subst
-  | [h: jt_term _ _ (If _ _ _) _ |- _ ] =>
-    inversion h; clear h; subst
-
-  | [h: jt_value _ (Bool _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ (Int _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ (Closure _ _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ (VSome _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ VNone _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ VPure _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ _ TUnit |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ _ (TOption _) |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ _ (TFun _ _) |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ _ (TBool) |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ _ (TInteger) |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ _ (TUnit) |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_value _ _ (TDefault _) |- _] =>
-    inversion h; clear h; subst
-
-  | [h: jt_cont _ _ _ (CAppR _) _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_cont _ _ _ (CClosure _ _) _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_cont _ _ _ (CBinopL _ _) _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_cont _ _ _ (CBinopR _ _) _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_cont _ _ _ (CDefault _ _ _ _ _) _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_cont _ _ _ (CDefaultBase _) _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_cont _ _ _ CErrorOnEmpty _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_cont _ _ _ CDefaultPure _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_cont _ _ _ (CReturn _) _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_cont _ _ _ CSome _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_cont _ _ _ (CMatch _ _) _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_cont _ _ _ (CIf _ _) _ _ |- _] =>
-    inversion h; clear h; subst
-
-  | [h: jt_state _ _ (mode_eval _ _ _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_state _ _ (mode_cont _ _ _) _ |- _] =>
-    inversion h; clear h; subst
-
-  | [h: jt_conts _ _ _ nil _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_conts _ _ _ (cons _ _) _ _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_conts _ _ _ (app _ _) _ _ |- _] =>
-    let G := fresh "Gamma" in
-    let T := fresh "T" in
-    let H1 := fresh "H" in
-    let H2 := fresh "H" in
-    destruct (JTConcat_inversion _ _ _ _ _ _ _ h) as (G & T & H1 & H2); clear h; subst
-
-  | [h: jt_result _ (RValue _) _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_result _ REmpty _ |- _] =>
-    inversion h; clear h; subst
-  | [h: jt_result _ RConflict _ |- _] =>
-    inversion h; clear h; subst
-
-  | [h: List.Forall _ (cons _ _) |- _] =>
-    inversion h; clear h; subst
-
-  | [h: List.Forall2 _ (cons _ _) (cons _ _) |- _] =>
-    inversion h; clear h; subst
-  end.
+Ltac sinv_jt := ltac2:(sinv_jt ()).
 
 Lemma jt_term_inv:
   forall Delta Gamma t T,
@@ -533,20 +385,26 @@ Qed.
 Lemma jt_cont_inv:
   forall Delta Gamma1 Gamma2 cont T1 T2,
     jt_cont Delta Gamma1 Gamma2 cont T1 T2 ->
-    inv_root T1.
+    inv_root T1 -> inv_root T2.
 Proof.
-  induction 1; eauto.
-Admitted.
-
+  intros Delta G1 G2 cont T1 T2 Hjt'.
+  assert (Hjt: jt_cont Delta G1 G2 cont T1 T2
+  ) by eauto.
+  revert Hjt'.
+  induction 1; intros; eauto.
+  all: repeat sinv_invariant.
+  all: repeat match goal with [h: jt_term _ _ _ _ |- _] => learn (jt_term_inv _ _ _ _ h) end.
+  all: repeat (eauto; econstructor; eauto).
+  all: try solve [induction op; simpl in *; inj; repeat econstructor].
+Qed.
 
 Lemma jt_conts_inv:
   forall Delta Gamma1 Gamma2 kappa T1 T2,
     jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
-    inv_root T1.
+    inv_root T1 -> inv_root T2.
 Proof.
-  induction 1; eauto.
-Admitted.
-
+  induction 1; eauto using jt_cont_inv.
+Qed.
 
 
 Ltac learn_inv :=
@@ -554,6 +412,7 @@ Ltac learn_inv :=
   | [h: jt_term _ _ _ _ |- _] => learn (jt_term_inv _ _ _ _ h)
   | [h: jt_cont _ _ _ _ _ _ |- _] => learn (jt_cont_inv _ _ _ _ _ _ h)
   | [h: jt_conts _ _ _ _ _ _ |- _] => learn (jt_conts_inv _ _ _ _ _ _ h)
+  | [hAB: ?A -> ?B, hA: ?A |- _] => learn (hAB hA)
   end.
 
 Theorem preservation s1 s2:
@@ -562,23 +421,29 @@ Theorem preservation s1 s2:
   jt_state Delta Gamma s1 T ->
   jt_state Delta Gamma s2 T.
 Proof.
+  intro Hred'.
+  assert (Hred: cred s1 s2) by eauto.
+  revert Hred'.
   induction 1; intros; try solve [
-    repeat inv_jt; learn_inv;
+    repeat sinv_jt; learn_inv;
     repeat match goal with
     | [|- inv_root _ ] => idtac
     | _ => econstructor
     end; eauto].
-  * match goal with [_: context[Var _]|- context[RValue _] ] => idtac end.
-    repeat inv_jt; repeat econstructor; eauto.
-    eapply common.Forall2_nth_error_Some; eauto.
-  * (* Returning an Conflict *)
-    induction phi; try solve [repeat inv_jt; repeat econstructor; eauto].
-    { now pose proof H sigma0. }
-  * (* Operator case. We just need to consider all the cases. *)
-    match goal with [_: context[CBinopL _ _]|- context[RValue _] ] => idtac end.
-    repeat inv_jt.
+  all: repeat sinv_jt.
+  all: learn_inv.
+  all: repeat sinv_invariant.
+  (* Operator handling *)
+  all: try solve [
     induction v1; induction v2; induction op; simpl in *; inj; tryfalse;
-    eauto; repeat econstructor; eauto.
+  eauto; repeat econstructor; eauto].
+  { repeat econstructor; eauto. eapply common.Forall2_nth_error_Some; eauto. }
+  { repeat (econstructor; eauto). }
+  { (* Returning an Conflict *)
+    induction phi; try solve [repeat sinv_jt; repeat econstructor; eauto].
+    { now pose proof H sigma0. }
+  }
+  { repeat (econstructor; eauto). }
 Qed.
 
 
@@ -588,10 +453,10 @@ Theorem progress s1:
     (exists s2, cred s1 s2) \/ (is_mode_cont s1 = true /\ stack s1 = nil).
 Proof.
   induction s1 as [t kappa env|kappa env r]; intros.
-  { repeat inv_jt.
+  { repeat sinv_jt.
     left.
     induction t.
-    all: repeat inv_jt.
+    all: repeat sinv_jt.
     all: try solve [eexists; econstructor].
     { symmetry in H0.
       destruct (common.Forall2_nth_error_Some_right _ _ _ H5 _ _ H0).
@@ -601,23 +466,22 @@ Proof.
   { induction kappa as [|cont kappa].
     { right; simpl; eauto. }
     { left; induction cont; induction r.
+      all: repeat sinv_jt. (* need to infer information about *)
       all: try match goal with [o: option value |- _ ] => induction o end.
       all: try match goal with [ts: list term |- _ ] => induction ts end.
       all: try match goal with [h: is_hole |- _ ] => induction h end.
-      all: repeat inv_jt.
-      all: learn_inv.
-      all: try match goal with [b: bool |- _ ] => induction b end.
-      all: try solve [repeat inv_jt; eexists; econstructor; repeat intro; inj].
-      all: learn_inv.
-      3: { induction op; simpl in *; inj; repeat inv_jt. }
-
-      3: { induction op; simpl in *; inj; repeat inv_jt. }
-      2: { induction op; simpl in *; inj; repeat inv_jt.
-           all: eexists; econstructor; simpl; eauto.
-      }
-      { exfalso; clear -H. inversion H; subst. }
-      { exfalso; clear -H. admit "trivially true". }
-      { exfalso; clear -H. admit "trivially true". }
+      all: try match goal with [op: op |- _ ] => induction op end.
+      all: repeat match goal with [b: bool |- _ ] => induction b end.
+      all: repeat (
+        try learn_inv;
+        try sinv_invariant;
+        try sinv_jt;
+        try simpl in *; inj
+      ).
+      all: try solve [idtac
+        |eexists; econstructor; repeat intro; inj
+        |eexists; econstructor; simpl; eauto].
+      { admit "ok, we need something a little bit stronger here". }
     }
   }
 Admitted.
@@ -664,6 +528,7 @@ Module correctness.
 
   Theorem correctness:
     forall Delta t T,
+      inv_root T ->
       jt_term Delta [] t T ->
       exists r sigma,
         star cred
@@ -678,7 +543,7 @@ Module correctness.
       ([]: list type)
       T
     as (s2 & H1 & H2 & H3 & H4).
-    { repeat econstructor; eauto. }
+    { repeat (econstructor; eauto). }
     induction s2; simpl in *; subst; inj.
     repeat eexists; eauto.
   Qed.
