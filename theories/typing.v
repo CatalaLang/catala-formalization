@@ -28,18 +28,66 @@ Inductive inv_no_default: type -> Prop :=
     inv_no_default (TOption T1)
 .
 
-Inductive inv_thunk_or_no_default : type -> Prop :=
-  | inv_nodef: forall T, inv_no_default T -> inv_thunk_or_no_default T
-  | inv_thunk: forall T1 T2,
-    inv_no_default T1 ->
-    inv_no_default T2 ->
-    inv_thunk_or_no_default (TFun T1 (TDefault T2))
+Inductive inv_thunked_or_nodefault: type -> Prop :=
+  | invArrowThunked:
+    forall arg res,
+      inv_no_default arg ->
+      inv_no_default res ->
+      inv_thunked_or_nodefault (TFun arg (TDefault res))
+  | invNoDefault:
+    forall T,
+      inv_no_default T ->
+      inv_thunked_or_nodefault T
+  .
+
+Inductive inv_root: type -> Prop :=
+  | invDefault:
+    forall T,
+      inv_no_default T ->
+      inv_root (TDefault T)
+  | invScopeCall:
+    forall T1 T2,
+      inv_thunked_or_nodefault T1 ->
+      inv_no_default T2 ->
+      inv_root (TFun T1 T2)
+  | invThunkedOrNoDefault:
+    forall T,
+      inv_thunked_or_nodefault T ->
+      inv_root T
 .
 
-Inductive inv_ty: type -> Prop :=
-  | inv_root_default: forall T, inv_no_default T -> inv_ty (TDefault T)
-  | inv_base: forall T, inv_thunk_or_no_default T -> inv_ty T
-.
+From Ltac2 Require Import Ltac2.
+From Ltac2 Require Import Constr Std.
+Set Default Proof Mode "Classic".
+
+Ltac2 is_applied_constructor(c: constr) :=
+  match Unsafe.kind c with
+  | Unsafe.App c _ =>
+    match Unsafe.kind c with
+    | Unsafe.Constructor _ _ => true
+    | _ => false
+    end
+  | Unsafe.Constructor _ _ => true
+  | _ => false
+  end.
+
+Ltac2 myinv () :=
+  match! goal with
+  | [ h : inv_root ?c |- _ ] =>
+    if is_applied_constructor c then
+      Std.inversion Std.FullInversionClear (Std.ElimOnIdent h) None None
+    else Control.zero Match_failure
+  | [ h : inv_thunked_or_nodefault ?c |- _ ] =>
+    if is_applied_constructor c then
+      Std.inversion Std.FullInversionClear (Std.ElimOnIdent h) None None
+    else Control.zero Match_failure
+  | [ h : inv_no_default ?c |- _ ] =>
+    if is_applied_constructor c then
+      Std.inversion Std.FullInversionClear (Std.ElimOnIdent h) None None
+    else Control.zero Match_failure
+  end.
+
+Ltac myinv := ltac2: (myinv ()).
 
 (* For instance, the following types do follow the invariant:
 
@@ -54,27 +102,20 @@ While the following types does not follow the invariant:
 S_in {x: int -> <bool>} -> S {y: <bool>}
  *)
 
-Goal inv_ty TBool. repeat econstructor. Qed.
-Goal inv_ty TInteger. repeat econstructor. Qed.
-Goal inv_ty (TFun TInteger TBool). repeat econstructor. Qed.
-Goal inv_ty (TDefault TBool). repeat econstructor. Qed.
-Goal inv_ty (TDefault (TFun TInteger TBool)). repeat econstructor. Qed.
-Goal inv_ty (TFun TInteger (TDefault TBool)). repeat econstructor. Admitted.
-Goal inv_ty (TFun (TFun TInteger (TDefault TBool)) TBool). repeat econstructor. Admitted.
+Goal inv_root TBool. repeat econstructor. Qed.
+Goal inv_root TInteger. repeat econstructor. Qed.
+Goal inv_root (TFun TInteger TBool). repeat econstructor. Qed.
+Goal inv_root (TDefault TBool). repeat econstructor. Qed.
+Goal inv_root (TDefault (TFun TInteger TBool)). repeat econstructor. Qed.
+Goal inv_root (TFun TInteger (TDefault TBool)). eapply invThunkedOrNoDefault. repeat econstructor. Qed.
+Goal inv_root (TFun (TFun TInteger (TDefault TBool)) TBool). repeat econstructor. Qed.
 
-Goal not (inv_ty (TDefault (TDefault TInteger))).
-intro. inversion H. inversion H1. inversion H0. subst. inversion H2. Qed.
-Goal not (inv_ty (TDefault (TFun TBool (TDefault TInteger)))).
-  intro.
-  inversion H; subst; clear H.
-  { inversion H1; subst; clear H1. inversion H3; subst; clear H3. }
-  { inversion H0; subst; clear H0. inversion H; subst; clear H. }
-Qed.
-Goal inv_ty (TFun (TDefault TBool) TInteger). repeat econstructor. Admitted.
-Goal inv_ty (TFun (TFun TInteger (TDefault TBool)) (TDefault TBool)). Admitted.
+Goal not (inv_root (TDefault (TDefault TInteger))). intro. repeat myinv. Qed.
+Goal not (inv_root (TDefault (TFun TBool (TDefault TInteger)))). intro. repeat myinv. Qed.
+Goal not (inv_root (TFun (TDefault TBool) TInteger)). intro. repeat myinv. Qed.
+Goal not (inv_root (TFun (TFun TInteger (TDefault TBool)) (TDefault TBool))).
+intro. repeat myinv. Qed.
 
-Definition inv (Gamma: list type) (T: type) : Prop :=
-  inv_ty (List.fold_left TFun Gamma T).
 
 Definition jt_op (o: op) :=
   match o with
@@ -89,7 +130,7 @@ Inductive jt_term:
   | JTVar:
     forall Delta Gamma x T,
       Some T = List.nth_error Gamma x ->
-      inv_thunk_or_no_default T ->
+      inv_root T ->
       jt_term Delta Gamma (Var x) T
   (* | JTFreeVar:
     forall Delta Gamma x T,
@@ -99,60 +140,71 @@ Inductive jt_term:
     forall Delta Gamma t1 t2 T1 T2,
       jt_term Delta Gamma t1 (TFun T1 T2) ->
       jt_term Delta Gamma t2 T1 ->
+      inv_root T2 ->
       jt_term Delta Gamma (App t1 t2) T2
   | JTLam:
     forall Delta Gamma t T1 T2,
       jt_term Delta (T1::Gamma) t T2 ->
+      inv_root (TFun T1 T2) ->
       jt_term Delta Gamma (Lam t) (TFun T1 T2)
   | JTDefault:
     forall Delta Gamma ts tj tc T,
       List.Forall (fun ti => jt_term Delta Gamma ti (TDefault T)) ts ->
       jt_term Delta Gamma tj TBool ->
       jt_term Delta Gamma tc (TDefault T) ->
+      inv_root (TDefault T) ->
       jt_term Delta Gamma (Default ts tj tc) (TDefault T)
   | JTDefaultPure:
     forall Delta Gamma t T,
       jt_term Delta Gamma t T ->
-      inv_no_default T ->
+      inv_root (TDefault T) ->
       jt_term Delta Gamma (DefaultPure t) (TDefault T)
   | JTErrorOnEmpty:
     forall Delta Gamma t T,
       jt_term Delta Gamma t (TDefault T) ->
+      inv_root T ->
       jt_term Delta Gamma (ErrorOnEmpty t) T
   | JTBinop:
     forall Delta Gamma t1 t2 op T1 T2 T3,
       (T1, T2, T3) = jt_op op ->
       jt_term Delta Gamma t1 T1 ->
       jt_term Delta Gamma t2 T2 ->
+      inv_root T3 ->
       jt_term Delta Gamma (Binop op t1 t2) T3
   | JTValue:
     forall Delta Gamma v T,
       jt_value Delta v T ->
+      inv_root T ->
       jt_term Delta Gamma (Value v) T
   | JTMatch:
     forall Delta Gamma u U t1 t2 T,
       jt_term Delta Gamma u (TOption U) ->
       jt_term Delta Gamma t1 T ->
       jt_term Delta (U :: Gamma) t2 T ->
+      inv_root T ->
       jt_term Delta Gamma (Match_ u t1 t2) T
   | JTESome:
     forall Delta Gamma t T,
       jt_term Delta Gamma t T ->
       inv_no_default T ->
+      inv_root (TOption T) ->
       jt_term Delta Gamma (ESome t) (TOption T)
   | JTENone:
     forall Delta Gamma T,
       inv_no_default T ->
+      inv_root (TOption T) ->
       jt_term Delta Gamma ENone (TOption T)
   | JTEEmpty:
     forall Delta Gamma T,
       inv_no_default T ->
+      inv_root (TDefault T) ->
       jt_term Delta Gamma Empty (TDefault T)
   | JTEIf:
     forall Delta Gamma u ta tb T,
       jt_term Delta Gamma u TBool ->
       jt_term Delta Gamma ta T ->
       jt_term Delta Gamma tb T ->
+      inv_root T ->
       jt_term Delta Gamma (If u ta tb) T
 with jt_value:
   (string -> option type) -> value -> type -> Prop :=
@@ -183,6 +235,9 @@ with jt_value:
       jt_value Delta (VPure v) (TDefault T)
 .
 
+Check jt_term_ind.
+
+
 
 Inductive jt_result: (string -> option type) -> result -> type -> Prop := 
   | JTRValue:
@@ -201,21 +256,25 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
   | JTCAppR:
     forall Delta Gamma t2 T1 T2,
       jt_term Delta Gamma t2 T1 ->
+      inv_root (TFun (TFun T1 T2) T2) ->
       jt_cont Delta Gamma Gamma (CAppR t2) (TFun T1 T2) T2
   | JTCClosure:
     forall Delta Gamma Gamma_cl sigma_cl T1 T2 tcl,
       jt_term Delta (T1 :: Gamma_cl) tcl T2 ->
       List.Forall2 (jt_value Delta) sigma_cl Gamma_cl ->
+      inv_root (TFun T1 T2) ->
       jt_cont Delta Gamma Gamma (CClosure tcl sigma_cl) T1 T2
   | JTCBinopL:
     forall T1 T2 T3 op Delta v1 Gamma,
       (T1, T2, T3) = jt_op op ->
       jt_value Delta v1 T1 ->
+      inv_root (TFun T2 T3) ->
       jt_cont Delta Gamma Gamma (CBinopL op v1) T2 T3
   | JTCBinopR:
     forall T1 T2 T3 op Delta t2 Gamma,
       (T1, T2, T3) = jt_op op ->
       jt_term Delta Gamma t2 T2 ->
+      inv_root (TFun T1 T3) ->
       jt_cont Delta Gamma Gamma (CBinopR op t2) T1 T3
   | JTCDefault:
     forall Delta Gamma h o ts tj tc T,
@@ -223,29 +282,36 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       match o with None => True | Some o => jt_value Delta o T end ->
       jt_term Delta Gamma tj TBool ->
       jt_term Delta Gamma tc (TDefault T) ->
+      inv_root (TFun (TDefault T) (TDefault T)) ->
       jt_cont Delta Gamma Gamma (CDefault h o ts tj tc) (TDefault T) (TDefault T)
   | JTCDefaultBase:
     forall Delta Gamma tc T,
       jt_term Delta Gamma tc (TDefault T) ->
+      inv_root (TFun TBool (TDefault T)) ->
       jt_cont Delta Gamma Gamma (CDefaultBase tc) TBool (TDefault T)
   | JTCDefaultPure:
     forall Delta Gamma T,
+      inv_root (TFun T (TDefault T)) ->
       jt_cont Delta Gamma Gamma (CDefaultPure) T (TDefault T)
   | JTCErrorOnEmpty:
     forall Delta Gamma T,
+      inv_root (TFun (TDefault T) T) ->
       jt_cont Delta Gamma Gamma (CErrorOnEmpty) (TDefault T) T
   | JTCMatch:
     forall Delta Gamma t1 t2 U T,
       jt_term Delta Gamma t1 T ->
       jt_term Delta (U::Gamma) t2 T ->
+      inv_root (TFun (TOption U) T) ->
       jt_cont Delta Gamma Gamma (CMatch t1 t2) (TOption U) T
   | JTCSome:
     forall Delta Gamma T,
+      inv_root (TFun T (TOption T)) ->
       jt_cont Delta Gamma Gamma CSome T (TOption T)
   | JTCIf:
     forall Delta Gamma T ta tb,
       jt_term Delta Gamma ta T ->
       jt_term Delta Gamma tb T ->
+      inv_root (TFun TBool T) ->
       jt_cont Delta Gamma Gamma (CIf ta tb) (TBool) T
 
   | JTCReturn:
@@ -257,11 +323,10 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
 Inductive jt_conts: (string -> option type) -> list type -> list type -> list cont -> type -> type -> Prop :=
   | JTNil:
     forall Delta Gamma T,
-      inv Gamma T ->
+      inv_root T ->
       jt_conts Delta Gamma Gamma nil T T
   | JTCons:
     forall Delta Gamma1 Gamma2 Gamma3 cont kappa T1 T2 T3,
-      inv Gamma1 T1 ->
       jt_cont Delta Gamma1 Gamma2 cont T1 T2 ->
       jt_conts Delta Gamma2 Gamma3 kappa T2 T3 ->
       jt_conts Delta Gamma1 Gamma3 (cont :: kappa) T1 T3
@@ -286,25 +351,10 @@ Lemma JTConcat_inversion:
   forall Delta Gamma1 Gamma3 kappa1 kappa2 T1 T3,
     jt_conts Delta Gamma1 Gamma3 (kappa1 ++ kappa2) T1 T3 ->
     exists Gamma2 T2,
-      inv Gamma2 T2 /\
       jt_conts Delta Gamma1 Gamma2 kappa1 T1 T2 /\
       jt_conts Delta Gamma2 Gamma3 kappa2 T2 T3.
 Proof.
-  intros until kappa1.
-  revert Delta Gamma1 Gamma3.
-  induction kappa1.
-  { simpl; intros.
-    assert (inv Gamma1 T1). { inversion H; subst; eauto. }
-    exists Gamma1, T1; repeat split; eauto; try solve [econstructor; eauto].
-  }
-  { simpl; intros.
-    inversion H; subst.
-    assert (inv Gamma2 T2). { inversion H9; subst; eauto. }
-    destruct (IHkappa1 _ _ _ _ _ _ H9) as (Gamma4 & T4 & H24 & H43).
-    unpack.
-    exists Gamma4, T4; repeat split; eauto; econstructor; eauto.
-  }
-Qed.
+Admitted.
 
 
 Inductive jt_state: (string -> option type) -> list type -> state -> type -> Prop :=
@@ -325,6 +375,42 @@ Inductive jt_state: (string -> option type) -> list type -> state -> type -> Pro
 (* This tactic is used to automaticaly break down judgements types in smaller 
    elements, without .
 *)
+
+
+Ltac2 smart_inversion c h :=
+  if is_applied_constructor c then
+    Std.inversion Std.FullInversionClear (Std.ElimOnIdent h) None None
+  else Control.zero Match_failure
+.
+
+Ltac2 myinv' () :=
+  match! goal with
+  | [ h : jt_term _ _ ?c _ |- _ ] =>
+    smart_inversion c h
+  | [ h : jt_value _ _ _ ?c |- _ ] =>
+    smart_inversion c h
+  | [ h : jt_value _ _ ?c _ |- _ ] =>
+    smart_inversion c h
+  end.
+
+#[export]
+Hint Extern 5 => ltac2:(match! goal with
+  [ h : jt_term _ _ ?c _ |- _ ] => smart_inversion c h end)
+: typing.
+
+#[export]
+Hint Extern 5 => ltac2:(match! goal with
+  [ h : jt_value _ _ ?c _ |- _ ] => smart_inversion c h end)
+: typing.
+
+#[export]
+Hint Extern 5 => ltac2:(match! goal with
+  [ h : jt_value _ _ _ ?c |- _ ] => smart_inversion c h end)
+: typing.
+
+Hint Constructors jt_value : typing.
+Hint Constructors jt_term : typing.
+
 
 Ltac inv_jt :=
   match goal with
@@ -439,68 +525,30 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   end.
 
-Print inv_ty.
-Print inv_thunk_or_no_default.
-Lemma lift_gamma:
-  forall Gamma T,
-  List.Forall inv_thunk_or_no_default Gamma ->
-  inv_ty T ->
-  inv Gamma T.
-Proof.
-  intros.
-  econstructor.
-
 Lemma jt_term_inv:
   forall Delta Gamma t T,
     jt_term Delta Gamma t T ->
-    List.Forall inv_thunk_or_no_default Gamma ->
-    inv Gamma T.
+    inv_root T.
 Proof.
-  induction 1.
-  * admit.
-  * admit "ok".
-  * admit "ok".
-  * eauto.
-  * admit "Require strict nodefault on this one".
-  * admit "ok".
-  * induction op; simpl in *; injections; subst.
-    all: admit "ok".
-  * admit "ok".
-  * eauto.
-  * admit "require strict nodefault on this one".
-  * admit "require strict nodefault on this one".
-  * admit "require strict nodefault on this one".
-  * eauto.
-Admitted.
+  induction 1; eauto.
+Qed.
 
 Lemma jt_cont_inv:
   forall Delta Gamma1 Gamma2 cont T1 T2,
     jt_cont Delta Gamma1 Gamma2 cont T1 T2 ->
-    inv Gamma1 T1.
+    inv_root T1.
 Proof.
-  induction 1.
-  * admit "require information".
-  * admit "require information".
-  * admit "trivial".
-  * admit "trivial".
-  * admit "trivial".
-  * admit "trivial".
-  * admit "require information".
-  * admit "require information".
-  * admit "require information".
-  * admit "require information".
-  * admit "trivial".
-  * admit "require information".
+  induction 1; eauto.
 Admitted.
 
 
 Lemma jt_conts_inv:
   forall Delta Gamma1 Gamma2 kappa T1 T2,
     jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
-    inv Gamma1 T1.
+    inv_root T1.
 Proof.
   induction 1; eauto.
-Qed.
+Admitted.
 
 Require Import tactics.
 Import Learn.
@@ -521,7 +569,7 @@ Proof.
   induction 1; intros; try solve [
     repeat inv_jt; learn_inv;
     repeat match goal with
-    | [|- inv _ _ ] => idtac
+    | [|- inv_root _ ] => idtac
     | _ => econstructor
     end; eauto].
   * match goal with [_: context[Var _]|- context[RValue _] ] => idtac end.
@@ -541,18 +589,16 @@ Qed.
 Theorem progress s1:
   forall Delta Gamma T,
     jt_state Delta Gamma s1 T ->
-    inv_ty T ->
     (exists s2, cred s1 s2) \/ (is_mode_cont s1 = true /\ stack s1 = nil).
 Proof.
   induction s1 as [t kappa env|kappa env r]; intros.
   { repeat inv_jt.
     left.
-    clear H0.
     induction t.
     all: repeat inv_jt.
     all: try solve [eexists; econstructor].
-    { symmetry in H2.
-      destruct (common.Forall2_nth_error_Some_right _ _ _ H6 _ _ H2).
+    { symmetry in H0.
+      destruct (common.Forall2_nth_error_Some_right _ _ _ H5 _ _ H0).
       eexists; econstructor; eauto.
     }
   }
