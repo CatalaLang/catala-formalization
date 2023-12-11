@@ -244,12 +244,14 @@ Tactic Notation "lock" ident(H) := lock_ident H.
 
 (* Source: myself *)
 
-(** The [smart_inversion] tactic is a custom Ltac2 tactic designed to enhance the inversion process in Coq proofs. It takes a constructor term [c] and a hypothesis [h], and performs an inversion on [h] if [c] is a constructor either fully applied (e.g., C _ _ _ _) or in its basic form (C).
+(**
+The [smart_inversion] tactic, a custom Ltac2 implementation, streamlines the inversion process in Coq proofs. It efficiently handles inversions on hypotheses [h] when provided with a constructor term [c], applicable to both fully applied constructors (like [C _ _ _ _]) and their basic forms ([C]).
 
-It can only be used within Ltac2 context.
+This tactic is exclusively usable within the Ltac2 context.
 
-Here is an example for inversion of typing jugment. the following tactics are the same.
+For instance, in the inversion of typing judgments, [smart_inversion] simplifies the traditional approach significantly. Compare the following tactics:
 
+Original Ltac Approach:
 ```coq
 Ltac inv_jt :=
   match goal with
@@ -259,9 +261,11 @@ Ltac inv_jt :=
     inversion h; clear h; subst
   | [h: jt_term _ _ (Lam _) _ |- _] =>
     inversion h; clear h; subst
-  ...(* all cases *)
+  ...(* and so on for all cases *)
   end.
 ```
+
+Refactored Using Ltac2 and `smart_inversion`:
 
 ```coq
 Ltac2 inv_jt () :=
@@ -272,6 +276,8 @@ Ltac2 inv_jt () :=
 
 Ltac inv_jt := ltac2:(inv_jt ())
 ```
+
+In the refactored version, [smart_inversion] elegantly replaces the verbose pattern matching, making the tactic more concise and maintainable.
 
 *)
 
