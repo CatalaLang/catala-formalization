@@ -56,38 +56,15 @@ Inductive inv_root: type -> Prop :=
       inv_root T
 .
 
-From Ltac2 Require Import Ltac2.
-From Ltac2 Require Import Constr Std.
-Set Default Proof Mode "Classic".
 
-Ltac2 is_applied_constructor(c: constr) :=
-  match Unsafe.kind c with
-  | Unsafe.App c _ =>
-    match Unsafe.kind c with
-    | Unsafe.Constructor _ _ => true
-    | _ => false
-    end
-  | Unsafe.Constructor _ _ => true
-  | _ => false
-  end.
-
-Ltac2 myinv () :=
+Ltac2 sinv_invariant () :=
   match! goal with
-  | [ h : inv_root ?c |- _ ] =>
-    if is_applied_constructor c then
-      Std.inversion Std.FullInversionClear (Std.ElimOnIdent h) None None
-    else Control.zero Match_failure
-  | [ h : inv_thunked_or_nodefault ?c |- _ ] =>
-    if is_applied_constructor c then
-      Std.inversion Std.FullInversionClear (Std.ElimOnIdent h) None None
-    else Control.zero Match_failure
-  | [ h : inv_no_default ?c |- _ ] =>
-    if is_applied_constructor c then
-      Std.inversion Std.FullInversionClear (Std.ElimOnIdent h) None None
-    else Control.zero Match_failure
+  | [ h : inv_root ?c |- _ ] => smart_inversion c h
+  | [ h : inv_thunked_or_nodefault ?c |- _ ] => smart_inversion c h
+  | [ h : inv_no_default ?c |- _ ] => smart_inversion c h
   end.
 
-Ltac myinv := ltac2: (myinv ()).
+Ltac sinv_invariant := ltac2: (sinv_invariant ()).
 
 (* For instance, the following types do follow the invariant:
 
@@ -375,13 +352,6 @@ Inductive jt_state: (string -> option type) -> list type -> state -> type -> Pro
 (* This tactic is used to automaticaly break down judgements types in smaller 
    elements, without .
 *)
-
-
-Ltac2 smart_inversion c h :=
-  if is_applied_constructor c then
-    Std.inversion Std.FullInversionClear (Std.ElimOnIdent h) None None
-  else Control.zero Match_failure
-.
 
 Ltac2 myinv' () :=
   match! goal with

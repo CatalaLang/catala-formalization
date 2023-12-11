@@ -240,3 +240,61 @@ Tactic Notation "unlock" := unlock.
 Tactic Notation "unlock" ident(H) := unlock_ident H.
 Tactic Notation "lock" ident(H) := lock_ident H.
 
+(* -------------------------------------------------------------------------- *)
+
+(* Source: myself *)
+
+(** The [smart_inversion] tactic is a custom Ltac2 tactic designed to enhance the inversion process in Coq proofs. It takes a constructor term [c] and a hypothesis [h], and performs an inversion on [h] if [c] is a constructor either fully applied (e.g., C _ _ _ _) or in its basic form (C).
+
+It can only be used within Ltac2 context.
+
+Here is an example for inversion of typing jugment. the following tactics are the same.
+
+```coq
+Ltac inv_jt :=
+  match goal with
+  | [h: jt_term _ _ (Var _) _ |- _] =>
+    inversion h; clear h; subst
+  | [h: jt_term _ _ (App _ _) _ |- _] =>
+    inversion h; clear h; subst
+  | [h: jt_term _ _ (Lam _) _ |- _] =>
+    inversion h; clear h; subst
+  ...(* all cases *)
+  end.
+```
+
+```coq
+Ltac2 inv_jt () :=
+  match! goal with
+  | [h: jt_term _ _ c _ |- _] =>
+    smart_inversion c h
+  end.
+
+Ltac inv_jt := ltac2:(inv_jt ())
+```
+
+*)
+
+From Ltac2 Require Import Ltac2.
+From Ltac2 Require Import Constr Std.
+Set Default Proof Mode "Classic".
+
+Ltac2 is_applied_constructor (c: constr) :=
+  Bool.and
+  (Constr.is_ind (Constr.type c))
+  (match Unsafe.kind c with
+  | Unsafe.App c _ =>
+    match Unsafe.kind c with
+    | Unsafe.Constructor _ _ => true
+    | _ => false
+    end
+  | Unsafe.Constructor _ _ => true
+  | _ => false
+  end).
+
+Ltac2 smart_inversion c h :=
+  (* check whenever c is a constructor either fully applied (C _ _ _ _) or C*)
+  if is_applied_constructor c then
+    Std.inversion Std.FullInversionClear (Std.ElimOnIdent h) None None
+  else Control.zero Match_failure
+.
