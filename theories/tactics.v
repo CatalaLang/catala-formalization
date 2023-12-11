@@ -287,7 +287,12 @@ In the refactored version, [smart_inversion] elegantly replaces the verbose patt
 
 Ltac2 is_applied_constructor (c: constr) :=
   Bool.and
-  (Constr.is_ind (Constr.type c))
+  (match Unsafe.kind (Constr.type c) with
+  | Unsafe.App c _ =>
+    is_ind c
+  | Unsafe.Ind _ _ => true
+  | _ => false
+  end)
   (match Unsafe.kind c with
   | Unsafe.App c _ =>
     match Unsafe.kind c with
@@ -301,6 +306,11 @@ Ltac2 is_applied_constructor (c: constr) :=
 Ltac2 smart_inversion c h :=
   (* check whenever c is a constructor either fully applied (C _ _ _ _) or C*)
   if is_applied_constructor c then
-    Std.inversion Std.FullInversionClear (Std.ElimOnIdent h) None None
+    (
+      Std.inversion Std.FullInversion (Std.ElimOnIdent h) None None;
+      Std.subst_all ();
+      Std.clear [h]
+    )
   else Control.zero Match_failure
 .
+
