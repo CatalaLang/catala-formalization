@@ -3,6 +3,13 @@ Require Import List.
 Require Import syntax continuations_hole tactics sequences.
 Import List.ListNotations.
 
+Require Import tactics.
+Import Learn.
+
+Require Import Ltac2.Ltac2.
+Set Default Proof Mode "Classic".
+
+
 
 (* The primary challenge was to accurately determine the correct typing judgment for the states of the abstract machine. I chose an approach that specifies the required typing judgment for each continuation. The tricky part is that, within the continuation stack, there can be environmental changes, especially during a function return. These changes must then be propagated throughout the remainder of the continuation stack. As a result, I decided on a method involving two typing environments: an input and an output. Furthermore, an input type (corresponding to the "hole") and an output type are needed. *)
 
@@ -87,11 +94,11 @@ Goal inv_root (TDefault (TFun TInteger TBool)). repeat econstructor. Qed.
 Goal inv_root (TFun TInteger (TDefault TBool)). eapply invThunkedOrNoDefault. repeat econstructor. Qed.
 Goal inv_root (TFun (TFun TInteger (TDefault TBool)) TBool). repeat econstructor. Qed.
 
-Goal not (inv_root (TDefault (TDefault TInteger))). intro. repeat myinv. Qed.
-Goal not (inv_root (TDefault (TFun TBool (TDefault TInteger)))). intro. repeat myinv. Qed.
-Goal not (inv_root (TFun (TDefault TBool) TInteger)). intro. repeat myinv. Qed.
+Goal not (inv_root (TDefault (TDefault TInteger))). intro. repeat sinv_invariant. Qed.
+Goal not (inv_root (TDefault (TFun TBool (TDefault TInteger)))). intro. repeat sinv_invariant. Qed.
+Goal not (inv_root (TFun (TDefault TBool) TInteger)). intro. repeat sinv_invariant. Qed.
 Goal not (inv_root (TFun (TFun TInteger (TDefault TBool)) (TDefault TBool))).
-intro. repeat myinv. Qed.
+intro. repeat sinv_invariant. Qed.
 
 
 Definition jt_op (o: op) :=
@@ -212,10 +219,6 @@ with jt_value:
       jt_value Delta (VPure v) (TDefault T)
 .
 
-Check jt_term_ind.
-
-
-
 Inductive jt_result: (string -> option type) -> result -> type -> Prop := 
   | JTRValue:
     forall Delta v T,
@@ -309,6 +312,8 @@ Inductive jt_conts: (string -> option type) -> list type -> list type -> list co
       jt_conts Delta Gamma1 Gamma3 (cont :: kappa) T1 T3
 .
 
+Hint Constructors jt_conts : typing.
+
 Lemma JTConcat:
   forall Delta Gamma1 Gamma2 Gamma3 kappa1 kappa2 T1 T2 T3,
     jt_conts Delta Gamma1 Gamma2 kappa1 T1 T2 ->
@@ -326,11 +331,28 @@ Qed.
 
 Lemma JTConcat_inversion:
   forall Delta Gamma1 Gamma3 kappa1 kappa2 T1 T3,
+    inv_root T1 ->
     jt_conts Delta Gamma1 Gamma3 (kappa1 ++ kappa2) T1 T3 ->
-    exists Gamma2 T2,
-      jt_conts Delta Gamma1 Gamma2 kappa1 T1 T2 /\
-      jt_conts Delta Gamma2 Gamma3 kappa2 T2 T3.
+    exists Gamma T,
+      jt_conts Delta Gamma1 Gamma kappa1 T1 T /\
+      jt_conts Delta Gamma Gamma3 kappa2 T T3.
 Proof.
+  generalize ltac_mark.
+  intro Hmark.
+  intros until kappa1.
+  move kappa1 after Hmark.
+  push_until_mark.
+  induction kappa1.
+  { simpl; intros.
+    exists Gamma1, T1; split; eauto; econstructor; eauto.
+  }
+  { simpl; intros.
+    inversion_clear H0.
+    { assert (inv_root T2). }
+
+  }
+
+induction kappa1.
 Admitted.
 
 
@@ -381,6 +403,11 @@ Hint Extern 5 => ltac2:(match! goal with
 Hint Constructors jt_value : typing.
 Hint Constructors jt_term : typing.
 
+Ltac inv_jt :=
+  match goal with
+  | [h: jt_term _ _ c _ |- _] =>
+    smart_inversion c h
+  end.
 
 Ltac inv_jt :=
   match goal with
@@ -520,8 +547,7 @@ Proof.
   induction 1; eauto.
 Admitted.
 
-Require Import tactics.
-Import Learn.
+
 
 Ltac learn_inv :=
   repeat match goal with
