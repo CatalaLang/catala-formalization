@@ -10,6 +10,10 @@ Require Import Arith.Peano_dec.
 Require Import Decidable PeanoNat.
 Require Eqdep_dec.
 
+From Ltac2 Require Import Ltac2.
+From Ltac2 Require Import Constr Std.
+Set Default Proof Mode "Classic".
+
 (* -------------------------------------------------------------------------- *)
 
 (* Source: Myself. *)
@@ -280,10 +284,6 @@ Ltac inv_jt := ltac2:(inv_jt ())
 In the refactored version, [smart_inversion] elegantly replaces the verbose pattern matching, making the tactic more concise and maintainable.
 
 *)
-
-From Ltac2 Require Import Ltac2.
-From Ltac2 Require Import Constr Std.
-Set Default Proof Mode "Classic".
 
 Ltac2 is_applied_constructor (c: constr) :=
   Bool.and

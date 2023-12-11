@@ -1,6 +1,6 @@
 (coq.theory
  (name Catala)
  (package coq-catala)
- (theories Autosubst))
+ (theories Autosubst Ltac2))
 
 (include_subdirs qualified)
