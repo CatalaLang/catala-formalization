@@ -1,3 +1,79 @@
 {
-    "git-blame.gitWebUrl": ""
+    "git-blame.gitWebUrl": "",
+    "editor.tabSize": 2,
+    "editor.multiCursorModifier": "ctrlCmd",
+    "codemap.v": [
+        {
+            "pattern": "^(\\s*)Definition ([a-zA-Z0-9_']*)",
+            "clear": "\\s*Definition",
+            "prefix": "def",
+            "icon": "level1"
+        },
+        {
+            "pattern": "^(\\s*)Inductive ([a-zA-Z0-9_']*)",
+            "clear": "\\s*Inductive",
+            "prefix": "ind",
+            "icon": "level1"
+        },
+        {
+            "pattern": "^(\\s*)Lemma ([a-zA-Z0-9_']*)",
+            "clear": "\\s*Lemma",
+            "prefix": "lem",
+            "icon": "level1"
+        },
+        {
+            "pattern": "^(\\s*)Theorem ([a-zA-Z0-9_']*)",
+            "clear": "\\s*Theorem",
+            "prefix": "thm",
+            "icon": "level1"
+        },
+        {
+            "pattern": "^(\\s*)Ltac ([a-zA-Z0-9_']*)",
+            "clear": "\\s*Ltac",
+            "prefix": "tac",
+            "icon": "level1"
+        },
+        {
+            "pattern": "^(\\s*)Ltac2 ([a-zA-Z0-9_']*)",
+            "clear": "\\s*Ltac2",
+            "prefix": "tac",
+            "icon": "level1"
+        },
+        {
+            "pattern": "^(\\s*)Tactic Notation \"([a-zA-Z0-9_']*)\"",
+            "clear": "\\s*Tactic Notation",
+            "prefix": "tac",
+            "icon": "level1"
+        },
+        {
+            "pattern": "^(\\s*)Module ([a-zA-Z0-9_']*)",
+            "clear": "(\\s*)Module",
+            "prefix": "",
+            "icon": "level1"
+        },
+        {
+            "pattern": "^(\\s*)Section ([a-zA-Z0-9_']*)",
+            "clear": "(\\s*)Section",
+            "prefix": "Section",
+            "icon": "level1"
+        },
+        {
+            "pattern": "^(\\s*)Parameter ([a-zA-Z0-9_']*)",
+            "clear": "\\s*Parameter",
+            "prefix": "param",
+            "icon": "level1"
+        },
+        {
+            "pattern": "^(\\s*)Example ([a-zA-Z0-9_']*)",
+            "clear": "\\s*Example",
+            "prefix": "ex",
+            "icon": "level1"
+        },
+        {
+            "pattern": "^(\\s*)\\(\\* -+ \\*\\)",
+            "clear": ".*",
+            "prefix": "--------------",
+            "icon": "none"
+        }
+    ]
 }
