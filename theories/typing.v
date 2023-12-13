@@ -63,14 +63,23 @@ Inductive inv_root: type -> Prop :=
 .
 
 
-Ltac2 sinv_invariant () :=
+Ltac2 sinv_inv () :=
   match! goal with
   | [ h : inv_root ?c |- _ ] => smart_inversion c h
   | [ h : inv_thunked_or_nodefault ?c |- _ ] => smart_inversion c h
   | [ h : inv_no_default ?c |- _ ] => smart_inversion c h
   end.
 
-Ltac sinv_invariant := ltac2: (sinv_invariant ()).
+Ltac2 econs_inv () :=
+  match! goal with
+  | [ |- inv_root _ ] => econstructor
+  | [ |- inv_thunked_or_nodefault _ ] => econstructor
+  | [ |- inv_no_default _ ] => econstructor
+  end.
+
+
+Ltac sinv_inv := ltac2: (sinv_inv ()).
+Ltac econs_inv := ltac2: (econs_inv ()).
 
 Module Invariant_Examples.
   (* For instance, the following types do follow the invariant:
@@ -86,19 +95,19 @@ Module Invariant_Examples.
   S_in {x: int -> <bool>} -> S {y: <bool>}
   *)
 
-  Example positive_1: inv_root TBool. repeat econstructor. Qed.
-  Example positive_2: inv_root TInteger. repeat econstructor. Qed.
-  Example positive_3: inv_root (TFun TInteger TBool). repeat econstructor. Qed.
-  Example positive_4: inv_root (TDefault TBool). repeat econstructor. Qed.
-  Example positive_5: inv_root (TDefault (TFun TInteger TBool)). repeat econstructor. Qed.
-  Example positive_6: inv_root (TFun TInteger (TDefault TBool)). eapply invThunkedOrNoDefault. repeat econstructor. Qed.
-  Example positive_7: inv_root (TFun (TFun TInteger (TDefault TBool)) TBool). repeat econstructor. Qed.
+  Example positive_1: inv_root TBool. repeat econs_inv. Qed.
+  Example positive_2: inv_root TInteger. repeat econs_inv. Qed.
+  Example positive_3: inv_root (TFun TInteger TBool). repeat econs_inv. Qed.
+  Example positive_4: inv_root (TDefault TBool). repeat econs_inv. Qed.
+  Example positive_5: inv_root (TDefault (TFun TInteger TBool)). repeat econs_inv. Qed.
+  Example positive_6: inv_root (TFun TInteger (TDefault TBool)). eapply invThunkedOrNoDefault. repeat econs_inv. Qed.
+  Example positive_7: inv_root (TFun (TFun TInteger (TDefault TBool)) TBool). repeat econs_inv. Qed.
 
-  Example negative_1: not (inv_root (TDefault (TDefault TInteger))). intro. repeat sinv_invariant. Qed.
-  Example negative_2: not (inv_root (TDefault (TFun TBool (TDefault TInteger)))). intro. repeat sinv_invariant. Qed.
-  Example negative_3: not (inv_root (TFun (TDefault TBool) TInteger)). intro. repeat sinv_invariant. Qed.
+  Example negative_1: not (inv_root (TDefault (TDefault TInteger))). intro. repeat sinv_inv. Qed.
+  Example negative_2: not (inv_root (TDefault (TFun TBool (TDefault TInteger)))). intro. repeat sinv_inv. Qed.
+  Example negative_3: not (inv_root (TFun (TDefault TBool) TInteger)). intro. repeat sinv_inv. Qed.
   Example negative_4: not (inv_root (TFun (TFun TInteger (TDefault TBool)) (TDefault TBool))).
-  intro. repeat sinv_invariant. Qed.
+  intro. repeat sinv_inv. Qed.
 
 End Invariant_Examples.
 
@@ -202,7 +211,7 @@ with jt_value:
   | JTValueClosure:
     forall Delta tcl sigma_cl Gamma_cl T1 T2,
       List.Forall2 (jt_value Delta) sigma_cl Gamma_cl ->
-      jt_term Delta (T1 :: Gamma_cl) tcl T2 ->
+      jt_term Delta Gamma_cl (Lam tcl) (TFun T1 T2) ->
       jt_value Delta (Closure tcl sigma_cl) (TFun T1 T2)
   | JTValueVNone:
     forall Delta T,
@@ -240,7 +249,7 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       jt_cont Delta Gamma Gamma (CAppR t2) (TFun T1 T2) T2
   | JTCClosure:
     forall Delta Gamma Gamma_cl sigma_cl T1 T2 tcl,
-      jt_term Delta (T1 :: Gamma_cl) tcl T2 ->
+      jt_term Delta Gamma_cl (Lam tcl) (TFun T1 T2) ->
       List.Forall2 (jt_value Delta) sigma_cl Gamma_cl ->
       jt_cont Delta Gamma Gamma (CClosure tcl sigma_cl) T1 T2
   | JTCBinopL:
@@ -333,9 +342,39 @@ Ltac2 sinv_jt () :=
   | [ h: List.Forall2 _ _ ?c |- _ ] => smart_inversion c h
   end.
 
+Ltac2 econs_jt () :=
+  match! goal with
+  | [ |- jt_term _ _ _ _] => econstructor
+  | [ |- jt_value _ _ _] => econstructor
+  | [ |- jt_cont _ _ _ _ _ _] => econstructor
+  | [ |- jt_conts _ _ _ _ _ _] => econstructor
+  | [ |- jt_state _ _ _ _] => econstructor
+  | [ |- jt_result _ _ _] => econstructor
+  | [ |- List.Forall _ _] => econstructor
+  | [ |- List.Forall2 _ _ _] => econstructor
+  end.
+
+
 Ltac sinv_jt := ltac2:(sinv_jt ()).
+Ltac econs_jt := ltac2:(econs_jt ()).
 
 Module Typing_Examples.
+  Require Import Coq.ZArith.ZArith.
+
+
+  (* (λ t. eoe < t () | true :- pure 5>) (λ x. Ø) *)
+  Example positive_1: jt_term (fun _ => None) [] (App (Lam (ErrorOnEmpty (Default [App (Var 0) (Value (VUnit))] (Value (Bool true)) (DefaultPure (Value (Int 5)))))) (Lam Empty)) TInteger.
+  all: repeat econs_jt.
+  all: try solve [repeat econstructor].
+  Qed.
+
+  (* (λ t. < t () | true :- pure 5>) (λ x. Ø) *)
+  Example negative_1: ~ jt_term (fun _ => None) [] (App (Lam ((Default [App (Var 0) (Value (VUnit))] (Value (Bool true)) (DefaultPure (Value (Int 5)))))) (Lam Empty)) (TDefault TInteger).
+    intro.
+    repeat sinv_jt.
+    clear -H10.
+    repeat sinv_inv.
+  Qed.
 End Typing_Examples.
 
 Lemma jt_term_inv:
@@ -346,54 +385,9 @@ Proof.
   induction 1; eauto.
 Qed.
 
-Lemma jt_term_inv':
-  forall Delta Gamma t T,
-    jt_term Delta Gamma t T ->
-    List.Forall inv_thunked_or_nodefault Gamma.
-Proof.
-  intros Delta Gamma t T Hjt'.
-  assert (Hjt: jt_term Delta Gamma t T) by eauto.
-  revert Hjt'.
-  induction 1; eauto; intros.
-  { admit "require change". }
-  { sinv_jt; eauto. }
-  { admit "variables does not appears". }
-  { admit "variables does not appears". }
-  { admit "variables does not appears". }
-Admitted.
-
-Lemma jt_cont_inv:
-  forall Delta Gamma1 Gamma2 cont T1 T2,
-    jt_cont Delta Gamma1 Gamma2 cont T1 T2 ->
-    inv_root T1 -> inv_root T2.
-Proof.
-  intros Delta G1 G2 cont T1 T2 Hjt'.
-  assert (Hjt: jt_cont Delta G1 G2 cont T1 T2
-  ) by eauto.
-  revert Hjt'.
-  induction 1; intros; eauto.
-  all: repeat sinv_invariant.
-  all: repeat match goal with [h: jt_term _ _ _ _ |- _] => learn (jt_term_inv _ _ _ _ h) end.
-  all: try solve [repeat (eauto; econstructor; eauto)].
-  all: try solve [induction op; simpl in *; inj; repeat econstructor].
-Qed.
-
-Lemma jt_conts_inv:
-  forall Delta Gamma1 Gamma2 kappa T1 T2,
-    jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
-    inv_root T1 -> inv_root T2.
-Proof.
-  induction 1; eauto using jt_cont_inv.
-Qed.
-
-
 Ltac learn_inv :=
   repeat match goal with
   | [h: jt_term _ _ _ _ |- _] => learn (jt_term_inv _ _ _ _ h)
-  | [h: jt_term _ _ _ _ |- _] => learn (jt_term_inv' _ _ _ _ h)
-  | [h: jt_cont _ _ _ _ _ _ |- _] => learn (jt_cont_inv _ _ _ _ _ _ h)
-  | [h: jt_conts _ _ _ _ _ _ |- _] => learn (jt_conts_inv _ _ _ _ _ _ h)
-  | [hAB: ?A -> ?B, hA: ?A |- _] => learn (hAB hA)
   end.
 
 Theorem preservation s1 s2:
@@ -413,7 +407,7 @@ Proof.
     end; eauto].
   all: repeat sinv_jt.
   all: learn_inv.
-  all: repeat sinv_invariant.
+  all: repeat sinv_inv.
   (* Operator handling *)
   all: try solve [
     induction v1; induction v2; induction op; simpl in *; inj; tryfalse;
@@ -455,7 +449,7 @@ Proof.
       all: repeat match goal with [b: bool |- _ ] => induction b end.
       all: repeat (
         try learn_inv;
-        try sinv_invariant;
+        try sinv_inv;
         try sinv_jt;
         try simpl in *; inj
       ).
