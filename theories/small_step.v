@@ -365,9 +365,8 @@ Lemma star_sred_default_E_zero:
 Proof.
   induction 1 using star_ind_n1.
   { intros; eapply star_refl. }
-  { intros. eapply star_step_n1.
+  { intros. eapply star_step_n1; [|eauto].
     { econstructor; eauto. }
-    { eauto. }
   }
 Qed.
 
@@ -381,20 +380,22 @@ Proof.
   induction 1 using star_ind_n1.
   { intros; eapply star_refl. }
   { intros.
-    eapply star_step_n1.
-    2: eapply IHstar.
-    econstructor; eauto.
+    eapply star_step_n1; [|eauto].
+    { econstructor; eauto. }
   }
 Qed.
 
 Lemma star_sred_default_J:
     forall tj1 tj2 tc,
       star sred tj1 tj2 ->
-      forall ts,
-      ts = [] ->
-      star sred (Default ts tj1 tc) (Default ts tj2 tc).
+      star sred (Default [] tj1 tc) (Default [] tj2 tc).
 Proof.
-  induction 1; intros; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+  induction 1 using star_ind_n1.
+  { intros; eapply star_refl. }
+  { intros.
+    eapply star_step_n1; [|eauto].
+    { econstructor; eauto. }
+  }
 Qed.
 
 Lemma star_sred_match_cond:
@@ -402,7 +403,12 @@ Lemma star_sred_match_cond:
       star sred u1 u2 ->
       star sred (Match_ u1 t1 t2) (Match_ u2 t1 t2).
 Proof.
-  induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+  induction 1 using star_ind_n1.
+  { intros; eapply star_refl. }
+  { intros.
+    eapply star_step_n1; [|eauto].
+    { econstructor; eauto. }
+  }
 Qed.
 
 
@@ -411,7 +417,12 @@ Lemma star_sred_if_cond:
       star sred u1 u2 ->
       star sred (If u1 t1 t2) (If u2 t1 t2).
 Proof.
-  induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+  induction 1 using star_ind_n1.
+  { intros; eapply star_refl. }
+  { intros.
+    eapply star_step_n1; [|eauto].
+    { econstructor; eauto. }
+  }
 Qed.
 
 Lemma star_sred_Some_context:
@@ -419,7 +430,12 @@ Lemma star_sred_Some_context:
       star sred t1 t2 ->
       star sred (ESome t1) (ESome t2).
 Proof.
-  induction 1; [eapply star_refl|]; eapply star_step; [econstructor; eauto| eauto].
+  induction 1 using star_ind_n1.
+  { intros; eapply star_refl. }
+  { intros.
+    eapply star_step_n1; [|eauto].
+    { econstructor; eauto. }
+  }
 Qed.
 
 Lemma star_sred_empty_empty:
@@ -473,7 +489,7 @@ Hint Resolve
   star_sred_empty_empty
   star_sred_erroronempty
   star_sred_defaultpure
-: sred.
+: sred sred_star.
 
 Hint Constructors sred : sred.
 
