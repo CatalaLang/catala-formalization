@@ -195,6 +195,10 @@ Inductive jt_term:
       inv_no_default T ->
       inv_root (TDefault T) ->
       jt_term Delta Gamma Empty (TDefault T)
+  | JTEConflict:
+    forall Delta Gamma T,
+      inv_root T ->
+      jt_term Delta Gamma Conflict T
   | JTEIf:
     forall Delta Gamma u ta tb T,
       jt_term Delta Gamma u TBool ->
