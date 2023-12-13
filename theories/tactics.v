@@ -42,8 +42,9 @@ Ltac unpack :=
     repeat match goal with
      [h: _ /\ _ |- _ ] =>
       destruct h
-    |[h: exists _, _ |- _] =>
-      destruct h
+    |[h: exists x, _ |- _] =>
+      let x := fresh x in
+      destruct h as [x h]
     |[h: List.Forall _ (_ :: _) |- _] =>
       inversion h;
       subst;
@@ -314,4 +315,3 @@ Ltac2 smart_inversion c h :=
     )
   else Control.zero Match_failure
 .
-

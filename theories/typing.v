@@ -2,6 +2,8 @@ Require Import String.
 Require Import List.
 Require Import syntax continuations_hole tactics sequences.
 Import List.ListNotations.
+Require Import Coq.ZArith.ZArith.
+
 
 Require Import tactics.
 
@@ -359,9 +361,6 @@ Ltac sinv_jt := ltac2:(sinv_jt ()).
 Ltac econs_jt := ltac2:(econs_jt ()).
 
 Module Typing_Examples.
-  Require Import Coq.ZArith.ZArith.
-
-
   (* (λ t. eoe < t () | true :- pure 5>) (λ x. Ø) *)
   Example positive_1: jt_term (fun _ => None) [] (App (Lam (ErrorOnEmpty (Default [App (Var 0) (Value (VUnit))] (Value (Bool true)) (DefaultPure (Value (Int 5)))))) (Lam Empty)) TInteger.
   all: repeat econs_jt.
@@ -492,11 +491,12 @@ Module correctness.
     intros ? ? ? HT.
     destruct (progress _ _ _ _ HT).
     * unpack.
-      edestruct (H x).
+      edestruct (H s2).
       { eapply measure_decrease; eauto. }
       { eapply preservation; eauto. }
       { unpack. eexists; eauto with sequences. }
     * unpack; eexists; repeat split; try eapply star_refl; eauto.
+    Fail next goal.
   Qed.
 
 
