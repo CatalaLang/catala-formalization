@@ -89,19 +89,53 @@ with trans_value v :=
   end
 .
 
+Theorem term_ind' : forall P : term -> Prop,
+       (forall x : var, P (Var x)) ->
+       (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
+       (forall t : {bind term}, P t -> P (Lam t)) ->
+       (forall arg : term, P arg -> P (ErrorOnEmpty arg)) ->
+       (forall arg : term, P arg -> P (DefaultPure arg)) ->
+       (forall (ts : list term),
+        List.Forall P ts ->
+        forall (tj : term),
+        P tj -> forall tc : term, P tc -> P (Default ts tj tc)) ->
+       P Empty ->
+       P Conflict ->
+       (forall v : value, P (Value v)) ->
+       (forall x : String.string, P (FreeVar x)) ->
+       (forall (op : op) (t1 : term),
+        P t1 -> forall t2 : term, P t2 -> P (Binop op t1 t2)) ->
+       (forall u : term,
+        P u ->
+        forall t1 : term,
+        P t1 -> forall t2 : {bind term}, P t2 -> P (Match_ u t1 t2)) ->
+       P ENone ->
+       (forall t : term, P t -> P (ESome t)) ->
+       (forall t : term,
+        P t ->
+        forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
+       forall t : term, P t.
+Proof.
+Admitted.
+
+
 Lemma trans_te_renaming:
   forall t u,
   trans t = u ->
   forall xi,
   trans t.[ren xi] = u.[ren xi].
 Proof.
-  induction t; repeat (asimpl; intros; subst; f_equal; eauto).
-  * admit.
-  * admit.
-  * rewrite subst_monad_handle;
+  induction t using term_ind'; repeat (asimpl; intros; subst; f_equal; eauto).
+  { rewrite subst_monad_handle;
     repeat (asimpl; intros; subst; f_equal; eauto).
-    admit "true with the correct induction hypothesis".
-Admitted.
+    induction H.
+    { simpl; eauto. }
+    { simpl. f_equal.
+      { eapply H; eauto. }
+      { eapply IHForall. }
+    }
+  }
+Qed.
 
 
 Lemma trans_te_renaming_0:
@@ -121,14 +155,13 @@ Theorem trans_te_substitution:
   List.Forall2 (fun v1 v2 => trans_value v1 = v2) sigma1 sigma2 ->
   trans t.[subst_of_env sigma1] = u.[subst_of_env sigma2].
 Proof.
-  induction t; try solve [repeat (asimpl; intros; subst; f_equal; eauto)].
-  { admit "should be trivial". }
-  { admit "should be trivial using trans_te_renaming_0.". }
-  { admit. }
-  { admit. }
+  induction t using term_ind'; try solve [repeat (asimpl; intros; subst; f_equal; eauto)].
+  { simpl; intros; subst. admit "should be trivial". }
+  { asimpl; intros; subst. asimpl. f_equal. admit "???". }
   { asimpl; intros; subst.
     rewrite subst_monad_handle; repeat (f_equal; eauto).
-    admit "correct with the correct induction hypothesis.".
+    induction H1; asimpl; eauto.
+    all: admit "correct with the correct induction hypothesis.".
   }
   { intros; subst; asimpl; f_equal; eauto.
     admit "should be trivial using trans_te_renaming_0". }
