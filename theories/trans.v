@@ -60,8 +60,8 @@ Fixpoint trans (t: term) : term :=
   | App t1 t2 => App (trans t1) (trans t2)
   | Lam t => Lam (trans t)
 
-  | ErrorOnEmpty _ => magic
-  | DefaultPure _ => magic
+  | ErrorOnEmpty t => Match_ (trans t) Conflict (Var 0)
+  | DefaultPure t => ESome (trans t)
   | Default ts tj tc =>
     monad_handle (List.map trans ts) (trans tj) (trans tc)
   | Empty => ENone
