@@ -170,12 +170,55 @@ Admitted.
 
 Require Import typing.
 
-(* Theorem correction_typing:
-  forall Gamma t T,
-  jt_term Gamma t T ->
-  exists Gamma' T',
-  jt_term Gamma' (trans t) T'.
-Admitted. *)
+Fixpoint trans_ty (ty: type) : type :=
+  match ty with
+  | TBool => TBool
+  | TInteger => TInteger
+  | TFun T1 T2 => TFun (trans_ty T1) (trans_ty T2)
+  | TOption T => TOption (trans_ty T)
+  | TUnit => TUnit
+  | TDefault T => TOption (trans_ty T)
+  end
+  .
+
+Lemma trans_ty_inv_no_default: forall T, inv_no_default (trans_ty T).
+Proof.
+  induction T; simpl. all: repeat econs_inv; eauto.
+Qed.
+
+Lemma nodef_root: forall {T}, inv_no_default T -> inv_root T.
+Proof. intros. repeat econs_inv. eauto. Qed.
+
+Lemma trans_ty_inv: forall T, inv_root (trans_ty T).
+Proof.
+  intros T; eapply nodef_root; eapply trans_ty_inv_no_default.
+Qed.
+
+Theorem correction_typing_value:
+  forall Delta v T,
+  jt_value Delta v T ->
+  jt_value Delta (trans_value v) (trans_ty T).
+Proof.
+  induction 1; simpl.
+  all: try solve [econs_jt; eauto].
+  { admit "need a stronger induction lemma". }
+Admitted.
+
+Theorem correction_typing:
+  forall t Gamma T,
+  jt_term (fun x => None) Gamma t T ->
+  jt_term (fun x => None) (List.map trans_ty Gamma) (trans t) (trans_ty T).
+Proof.
+  induction 1; simpl.
+  all: simpl in *; repeat (econs_jt; eauto using trans_ty_inv, nodef_root).
+  all: try eapply nodef_root.
+  all: try repeat (econs_inv; eauto using trans_ty_inv_no_default);
+  eauto using trans_ty_inv_no_default.
+  { symmetry; eapply List.map_nth_error; eauto. }
+  { admit" need external lemma". }
+  { induction op; simpl in *; inj; simpl; eauto. }
+  { eapply correction_typing_value; eauto. }
+Admitted.
 
 Import Learn.
 
