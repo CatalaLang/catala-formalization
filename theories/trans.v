@@ -1,7 +1,7 @@
 Require Import syntax.
 
 Require Import small_step tactics.
-
+Require Import sequences.
 
 Notation monad_bind t1 t2 := (Match_ t1 ENone t2).
 
@@ -220,7 +220,6 @@ Proof.
   { eapply correction_typing_value; eauto. }
 Admitted.
 
-Import Learn.
 
 Theorem correction_continuations:
   forall s1 s2,
@@ -233,13 +232,14 @@ Theorem correction_continuations:
       (trans s2) target.
 Proof.
   intros s1 s2.
-  intros (GGamma & Gamma & T & Hty) Hsred.
+  intros (GGamma & Gamma & T & Hty).
+  intros Hsred.
   generalize dependent GGamma.
   generalize dependent Gamma.
   generalize dependent T.
   induction Hsred; intros.
   all: repeat multimatch goal with
-  | _ => inv_jt
+  | _ => sinv_jt
   | [h1: forall _ _ _, jt_term _ _ ?u _ -> _, h2: jt_term _ _ ?u _ |- _] =>
     learn (h1 _ _ _ h2);
     clear h1
@@ -248,14 +248,84 @@ Proof.
     destruct h as (var & ?)
   | [h: _ /\ _ |- _] =>
     destruct h
+  
   end.
   (* When the right hand side is the result of the left hand side. *)
-  all: try solve [eexists; split; [eapply star_one; simpl; econstructor|eapply star_refl]].
-  7: { eexists; split; [|eapply star_refl]; simpl; eapply star_one. }
-  { admit. }
-  {  }
-  6: {
-    eexists; split; eapply star_sred_binop_right; eauto.
+  all: try solve [
+    eexists; split; asimpl;
+    [|eapply star_refl];
+    eapply star_one; simpl; econstructor; eauto
+    ].
+  { eexists; split; simpl; [|eapply star_refl; fail].
+    eapply star_step; [econstructor|].
+    rewrite <- List.map_cons.
+    eapply star_refl_eq.
+    symmetry.
+    eapply trans_te_substitution; eauto.
+    admit "trivially true".
   }
-  all: admit.
+  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { eexists; split; simpl; [|eapply star_refl; fail].
+    eapply star_step; [econstructor|]. { admit "lemma". }
+    eapply star_refl.
+  }
+  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { eexists; split; simpl; [|eapply star_refl; fail].
+    eapply star_step; [econstructor|].
+    eapply star_step; [econstructor|].
+    asimpl.
+    eapply star_refl.
+  }
+  { eexists; split; simpl; [|eapply star_refl; fail].
+    eapply star_step; [econstructor|].
+    eapply star_step; [econstructor|].
+    eapply star_refl.
+  }
+  {
+    eexists; split; simpl; [|eapply star_refl; fail].
+    eapply star_step; [econstructor|].
+    asimpl.
+    eapply star_step; [econstructor|].
+    eapply star_refl.
+  }
+  { eexists; split; simpl trans.
+    2:{
+      eapply star_step; [econstructor|].
+      eapply star_refl.
+    }
+    eapply star_step; [econstructor|].
+    asimpl.
+    eapply star_step; [econstructor; econstructor|].
+    eapply star_step; [econstructor|].
+    eapply star_refl.
+  }
+  { eexists; split; simpl trans; [|eapply star_refl; fail].
+    eapply star_step; [econstructor; econstructor|].
+    eapply star_step; [econstructor|].
+    eapply star_refl.
+  }
+  { eexists; split; asimpl.
+    { eapply star_step; [econstructor|].
+      eapply star_sred_match_cond; asimpl; eauto. }
+    { eapply star_step; [econstructor|].
+      eapply star_sred_match_cond; asimpl; eauto. }
+  }
+  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { eexists; split; simpl trans; [|eapply star_refl; fail].
+    eapply star_step; [econstructor|].
+    admit "rewrite trans_te_substitution".
+  }
+  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { eexists; split; simpl trans; [|eapply star_refl; fail].
+    eapply star_step; [econstructor; econstructor|].
+    eapply star_step; [econstructor|].
+    eapply star_refl.
+  }
+  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
 Admitted.
