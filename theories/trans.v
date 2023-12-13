@@ -205,9 +205,9 @@ Proof.
 Admitted.
 
 Theorem correction_typing:
-  forall t Gamma T,
-  jt_term (fun x => None) Gamma t T ->
-  jt_term (fun x => None) (List.map trans_ty Gamma) (trans t) (trans_ty T).
+  forall t Delta Gamma T,
+  jt_term Delta Gamma t T ->
+  jt_term Delta (List.map trans_ty Gamma) (trans t) (trans_ty T).
 Proof.
   induction 1; simpl.
   all: simpl in *; repeat (econs_jt; eauto using trans_ty_inv, nodef_root).
@@ -256,7 +256,7 @@ Proof.
     [|eapply star_refl];
     eapply star_one; simpl; econstructor; eauto
     ].
-  { eexists; split; simpl; [|eapply star_refl; fail].
+  { eexists; split; simpl trans; [|eapply star_refl; fail].
     eapply star_step; [econstructor|].
     rewrite <- List.map_cons.
     eapply star_refl_eq.
@@ -266,26 +266,26 @@ Proof.
   }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; simpl; [|eapply star_refl; fail].
+  { eexists; split; simpl trans; [|eapply star_refl; fail].
     eapply star_step; [econstructor|]. { admit "lemma". }
     eapply star_refl.
   }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; simpl; [|eapply star_refl; fail].
+  { eexists; split; simpl trans; [|eapply star_refl; fail].
     eapply star_step; [econstructor|].
     eapply star_step; [econstructor|].
     asimpl.
     eapply star_refl.
   }
-  { eexists; split; simpl; [|eapply star_refl; fail].
+  { eexists; split; simpl trans; [|eapply star_refl; fail].
     eapply star_step; [econstructor|].
     eapply star_step; [econstructor|].
     eapply star_refl.
   }
   {
-    eexists; split; simpl; [|eapply star_refl; fail].
+    eexists; split; simpl trans; [|eapply star_refl; fail].
     eapply star_step; [econstructor|].
     asimpl.
     eapply star_step; [econstructor|].
