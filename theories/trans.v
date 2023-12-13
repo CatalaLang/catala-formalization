@@ -51,8 +51,6 @@ Proof.
 Qed.
 
 
-Hypothesis magic: forall {T}, T.
-
 Fixpoint trans (t: term) : term :=
   match t with
   | Var x => Var x
@@ -87,7 +85,7 @@ with trans_value v :=
   | VNone => VNone
   | VUnit => VUnit
   | VSome v => VSome (trans_value v)
-  | VPure v => VPure (trans_value v)
+  | VPure v => VSome (trans_value v)
   end
 .
 
