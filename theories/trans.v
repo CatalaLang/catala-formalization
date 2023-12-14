@@ -152,8 +152,9 @@ Qed.
 Lemma up_soe_sigma:
   forall sigma t,
   t.[up (subst_of_env sigma)] =
-  t.[ids (List.length sigma)/]
-   .[subst_of_env sigma >>> rename (+1)]
+  t.[ren (fun i => if i <=? List.length sigma then i else (S i))]
+   .[ren (fun i => match i with O => 0 | S i => i end)]
+   .[subst_of_env sigma]
   .
 Proof.
   intros.
