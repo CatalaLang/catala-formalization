@@ -2,6 +2,8 @@ Require Import syntax.
 
 Require Import small_step tactics.
 Require Import sequences.
+Require Import typing.
+
 
 Notation monad_bind t1 t2 := (Match_ t1 ENone t2).
 
@@ -148,17 +150,6 @@ Proof.
 Qed.
 
 
-
-Lemma up_soe_sigma:
-  forall sigma t,
-  t.[up (subst_of_env sigma)] =
-  t.[ren (fun i => if i <=? List.length sigma then i else (S i))]
-   .[ren (fun i => match i with O => 0 | S i => i end)]
-   .[subst_of_env sigma]
-  .
-Proof.
-Admitted.
-
 Theorem trans_te_substitution_aux:
   forall t u,
   trans t = u ->
@@ -221,57 +212,6 @@ Qed.
 
 
 
-Require Import typing.
-(* 
-Fixpoint trans_ty (ty: type) : type :=
-  match ty with
-  | TBool => TBool
-  | TInteger => TInteger
-  | TFun T1 T2 => TFun (trans_ty T1) (trans_ty T2)
-  | TOption T => TOption (trans_ty T)
-  | TUnit => TUnit
-  | TDefault T => TOption (trans_ty T)
-  end
-  .
-
-Lemma trans_ty_inv_no_default: forall T, inv_no_default (trans_ty T).
-Proof.
-  induction T; simpl. all: repeat econs_inv; eauto.
-Qed.
-
-Lemma nodef_root: forall {T}, inv_no_default T -> inv_root T.
-Proof. intros. repeat econs_inv. eauto. Qed.
-
-Lemma trans_ty_inv: forall T, inv_root (trans_ty T).
-Proof.
-  intros T; eapply nodef_root; eapply trans_ty_inv_no_default.
-Qed.
-
-Theorem correction_typing_value:
-  forall Delta v T,
-  jt_value Delta v T ->
-  jt_value Delta (trans_value v) (trans_ty T).
-Proof.
-  induction 1; simpl.
-  all: try solve [econs_jt; eauto].
-  { admit "need a stronger induction lemma". }
-Admitted.
-
-Theorem correction_typing:
-  forall t Delta Gamma T,
-  jt_term Delta Gamma t T ->
-  jt_term Delta (List.map trans_ty Gamma) (trans t) (trans_ty T).
-Proof.
-  induction 1; simpl.
-  all: simpl in *; repeat (econs_jt; eauto using trans_ty_inv, nodef_root).
-  all: try eapply nodef_root.
-  all: try repeat (econs_inv; eauto using trans_ty_inv_no_default);
-  eauto using trans_ty_inv_no_default.
-  { symmetry; eapply List.map_nth_error; eauto. }
-  { admit" need external lemma". }
-  { induction op; simpl in *; inj; simpl; eauto. }
-  { eapply correction_typing_value; eauto. }
-Admitted. *)
 
 
 Lemma Forall2_map: forall sigma,
