@@ -131,6 +131,11 @@ Proof.
 Qed.
 
 
+Lemma nth_error_nil {A} x:
+  List.nth_error (nil: list A) x = None.
+Proof.
+  induction x; simpl; eauto.
+Qed.
 
 
 (* Such that [l = lastn n l ++ firstn n l] *)

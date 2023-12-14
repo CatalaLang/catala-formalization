@@ -148,6 +148,34 @@ Proof.
 Qed.
 
 
+
+Lemma up_soe_sigma:
+  forall sigma t,
+  t.[up (subst_of_env sigma)] =
+  t.[ids (List.length sigma)/]
+   .[subst_of_env sigma >>> rename (+1)]
+  .
+Proof.
+  intros.
+  asimpl.
+  unfold up.
+  Unset Printing Notations.
+  unfold scons.
+  Unset Printing Notations.
+  repeat f_equal.
+  { unfold subst_of_env.
+    replace (List.nth_error sigma (length sigma)) with (None: option value).
+    { f_equal; lia. }
+    { symmetry; rewrite List.nth_error_None. lia. }
+  }
+  { unfold rename.
+    unfold Rename_term.
+  }
+    eauto using List.nth_error_None.
+    rewrite List.nth_error_None. unfold soe. }
+  induction sigma; simpl.
+
+
 Theorem trans_te_substitution:
   forall t u,
   trans t = u ->
@@ -156,17 +184,47 @@ Theorem trans_te_substitution:
   trans t.[subst_of_env sigma1] = u.[subst_of_env sigma2].
 Proof.
   induction t using term_ind'; try solve [repeat (asimpl; intros; subst; f_equal; eauto)].
-  { simpl; intros; subst. admit "should be trivial". }
-  { asimpl; intros; subst. asimpl. f_equal. admit "???". }
+  { simpl; intros; subst; asimpl.
+    unfold subst_of_env; simpl.
+    rename x into a.
+    generalize dependent a.
+    induction H0, a; asimpl; eauto.
+    { rewrite H; eauto. }
+  }
+  { asimpl; intros; subst. asimpl. f_equal.
+    admit "the induction hypothesis is not enought".
+  }
   { asimpl; intros; subst.
     rewrite subst_monad_handle; repeat (f_equal; eauto).
     induction H1; asimpl; eauto.
     all: admit "correct with the correct induction hypothesis.".
   }
   { intros; subst; asimpl; f_equal; eauto.
+
     admit "should be trivial using trans_te_renaming_0". }
   Fail next goal.
 Admitted.
+
+Require Import common.
+
+Theorem trans_te_substitution_0:
+  forall t v,
+  trans t.[Value v/] = (trans t).[Value (trans_value v)/].
+Proof.
+  intros.
+  replace (scons (Value v) ids) with (subst_of_env (v::nil)).
+  replace (scons (Value (trans_value v)) ids) with (subst_of_env ((trans_value v)::nil)).
+  eapply trans_te_substitution; eauto.
+
+  
+  { eapply FunctionalExtensionality.functional_extensionality; intros.
+    induction x; unfold subst_of_env; simpl; eauto; rewrite nth_error_nil; f_equal; lia. }
+  { eapply FunctionalExtensionality.functional_extensionality; intros.  
+    induction x; unfold subst_of_env; simpl; eauto; rewrite nth_error_nil; f_equal; lia.
+  }
+Qed.
+
+
 
 Require Import typing.
 
@@ -221,6 +279,23 @@ Proof.
 Admitted.
 
 
+Lemma Forall2_map: forall sigma,
+  List.Forall2 (fun v1 v2 : value => trans_value v1 = v2) sigma
+    (List.map trans_value sigma).
+Proof.
+  induction sigma; econstructor; eauto.
+Qed.
+
+Lemma correction_trans_value_op:
+  forall v op v1 v2,
+    Some v = get_op op v1 v2 ->
+    Some (trans_value v) = get_op op (trans_value v1) (trans_value v2).
+Proof.
+  induction op, v1 , v2; intros; simpl in *; inj; simpl; eauto.
+Qed.
+
+
+
 Theorem correction_continuations:
   forall s1 s2,
   (exists GGamma Gamma T, jt_term GGamma Gamma s1 T) ->
@@ -262,12 +337,13 @@ Proof.
     eapply star_refl_eq.
     symmetry.
     eapply trans_te_substitution; eauto.
-    admit "trivially true".
+
+    eapply Forall2_map.
   }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|]. { admit "lemma". }
+    eapply star_step; [econstructor|]. { eapply correction_trans_value_op; eauto. }
     eapply star_refl.
   }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
@@ -316,7 +392,8 @@ Proof.
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { eexists; split; simpl trans; [|eapply star_refl; fail].
     eapply star_step; [econstructor|].
-    admit "rewrite trans_te_substitution".
+    eapply star_refl_eq.
+    rewrite trans_te_substitution_0; eauto.
   }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
@@ -328,4 +405,4 @@ Proof.
     eapply star_refl.
   }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-Admitted.
+Qed.
