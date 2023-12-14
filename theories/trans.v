@@ -157,25 +157,35 @@ Lemma up_soe_sigma:
    .[subst_of_env sigma]
   .
 Proof.
-  intros.
-  asimpl.
-  unfold up.
-  Unset Printing Notations.
-  unfold scons.
-  Unset Printing Notations.
-  repeat f_equal.
-  { unfold subst_of_env.
-    replace (List.nth_error sigma (length sigma)) with (None: option value).
-    { f_equal; lia. }
-    { symmetry; rewrite List.nth_error_None. lia. }
-  }
-  { unfold rename.
-    unfold Rename_term.
-  }
-    eauto using List.nth_error_None.
-    rewrite List.nth_error_None. unfold soe. }
-  induction sigma; simpl.
+Admitted.
 
+Theorem trans_te_substitution_aux:
+  forall t u,
+  trans t = u ->
+  forall sigma1 sigma2,
+  (forall x, trans (sigma1 x) = sigma2 x) ->
+  trans t.[sigma1] = u.[sigma2].
+Proof.
+  induction t using term_ind'; try solve [repeat (asimpl; intros; subst; f_equal; eauto)].
+  { asimpl; intros; subst. asimpl. f_equal.
+    eapply IHt; eauto.
+    { intros. induction x; asimpl; eauto.
+      eapply trans_te_renaming_0.
+      eauto.
+    }
+  }
+  { asimpl; intros; subst.
+    rewrite subst_monad_handle; repeat (f_equal; eauto).
+    induction H; asimpl; eauto; f_equal; eauto.
+  }
+  { intros; subst; asimpl; f_equal; eauto.
+    eapply IHt3; eauto.
+    { intros. induction x; asimpl; eauto.
+      eapply trans_te_renaming_0.
+      eauto.
+    }
+  }
+Qed.
 
 Theorem trans_te_substitution:
   forall t u,
@@ -184,27 +194,11 @@ Theorem trans_te_substitution:
   List.Forall2 (fun v1 v2 => trans_value v1 = v2) sigma1 sigma2 ->
   trans t.[subst_of_env sigma1] = u.[subst_of_env sigma2].
 Proof.
-  induction t using term_ind'; try solve [repeat (asimpl; intros; subst; f_equal; eauto)].
-  { simpl; intros; subst; asimpl.
-    unfold subst_of_env; simpl.
-    rename x into a.
-    generalize dependent a.
-    induction H0, a; asimpl; eauto.
-    { rewrite H; eauto. }
-  }
-  { asimpl; intros; subst. asimpl. f_equal.
-    admit "the induction hypothesis is not enought".
-  }
-  { asimpl; intros; subst.
-    rewrite subst_monad_handle; repeat (f_equal; eauto).
-    induction H1; asimpl; eauto.
-    all: admit "correct with the correct induction hypothesis.".
-  }
-  { intros; subst; asimpl; f_equal; eauto.
-
-    admit "should be trivial using trans_te_renaming_0". }
-  Fail next goal.
-Admitted.
+  intros.
+  eapply trans_te_substitution_aux; eauto.
+  intro a; revert a.
+  induction H0, a; asimpl; eauto. rewrite H0; eauto.
+Qed. 
 
 Require Import common.
 
@@ -228,7 +222,7 @@ Qed.
 
 
 Require Import typing.
-
+(* 
 Fixpoint trans_ty (ty: type) : type :=
   match ty with
   | TBool => TBool
@@ -277,7 +271,7 @@ Proof.
   { admit" need external lemma". }
   { induction op; simpl in *; inj; simpl; eauto. }
   { eapply correction_typing_value; eauto. }
-Admitted.
+Admitted. *)
 
 
 Lemma Forall2_map: forall sigma,
