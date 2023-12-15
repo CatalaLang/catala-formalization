@@ -97,10 +97,10 @@ Theorem term_ind' : forall P : term -> Prop,
        (forall t : {bind term}, P t -> P (Lam t)) ->
        (forall arg : term, P arg -> P (ErrorOnEmpty arg)) ->
        (forall arg : term, P arg -> P (DefaultPure arg)) ->
-       (forall (ts : list term),
+       forall (IHDef:forall (ts : list term),
         List.Forall P ts ->
         forall (tj : term),
-        P tj -> forall tc : term, P tc -> P (Default ts tj tc)) ->
+        P tj -> forall tc : term, P tc -> P (Default ts tj tc)),
        P Empty ->
        P Conflict ->
        (forall v : value, P (Value v)) ->
@@ -118,7 +118,14 @@ Theorem term_ind' : forall P : term -> Prop,
         forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
        forall t : term, P t.
 Proof.
-Admitted.
+  intros until t; revert t.
+  fix IHt 1; lock IHt.
+  induction t; eauto.
+  { eapply IHDef; eauto.
+    unlock IHt; clear -IHt.  
+    induction ts; econstructor; eauto.
+  }
+Qed.
 
 
 Lemma trans_te_renaming:
