@@ -31,11 +31,11 @@ faithfulness.
 
 To start developing, you first need to install opam. Then you can run the following commands:
 
-  opam switch create coq-catala 4.14.0
-  opam repo add coq-released https://coq.inria.fr/opam/released
-  eval $(opam env --switch=coq-catala --set-switch)
-  opam repository add coq-released --all-switches
-  opam install . --deps-only
+    opam switch create coq-catala 4.14.0
+    opam repo add coq-released https://coq.inria.fr/opam/released
+    eval $(opam env --switch=coq-catala --set-switch)
+    opam repository add coq-released --all-switches
+    opam install . --deps-only
 
 Once it is done, you can use dune to build the part of the project that build
 
