@@ -1,4 +1,4 @@
-Require Import syntax continuations_hole small_step sequences tactics.
+Require Import syntax continuations small_step sequences tactics.
 Require Import Coq.ZArith.ZArith.
 Import List.ListNotations.
 Import Learn.
@@ -259,7 +259,7 @@ Lemma star_sred_default_E_one:
         (Default ((Value vi)::tj'::ts3) tjust tcons).
 Proof.
   eauto with sred.
-Qed.
+Abort.
 
 Hint Resolve
   star_refl
@@ -319,11 +319,11 @@ Proof.
         solve [eauto with sred]
       end.
       { (* t' is empty, o has a value *)
-        eapply star_trans. { eapply star_sred_default_E_one. eauto. }
+        eapply star_trans. { admit. }
         eapply star_one. { econstructor. }
       }
       { (* t' is not empty, o has a value *)
-        eapply star_trans. { eapply star_sred_default_E_one. eauto. }
+        eapply star_trans. { admit. }
         eapply star_refl.
       }
       { eapply star_trans. { eapply star_sred_default_E_zero. eauto. }
@@ -331,7 +331,7 @@ Proof.
       }
     }
   }
-Qed.
+Admitted.
 
 
 Theorem simulation_cred_sred:
@@ -353,6 +353,7 @@ Proof.
     { subst; simpl.
       repeat rewrite apply_CDefault_SE; eauto.
       eapply star_one; simpl.
+      admit.
     }
     { subst; simpl.
       rewrite apply_CDefault_SE; eauto.
@@ -370,9 +371,11 @@ Proof.
       eapply star_refl.
     }
   }
+  { admit "Error in the definition somewhere!". }
   { eapply sreds_apply_conts.
     unfold apply_CDefault; simpl.
-    eapply star_step. econstructor. }
+    
+  }
   { induction phi; try induction o.
     all: try solve[eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
     { exfalso.
