@@ -11,7 +11,7 @@ Require Import Decidable PeanoNat.
 Require Eqdep_dec.
 
 From Ltac2 Require Import Ltac2.
-From Ltac2 Require Import Constr Std.
+From Ltac2 Require Import Constr Std Message Control List.
 Set Default Proof Mode "Classic".
 
 (* -------------------------------------------------------------------------- *)
@@ -315,3 +315,32 @@ Ltac2 smart_inversion c h :=
     )
   else Control.zero Match_failure
 .
+
+
+(** [econs] Is a tactic that tries to do econstructor only if the current type is in the list.
+*)
+Local Ltac2 econs_tactic l :=
+  let c := Control.goal () in
+  Control.enter 
+  (fun () =>
+    Std.intros false [];
+    if (match Unsafe.kind c with
+      | Unsafe.App c _ =>
+        Bool.and
+          (is_ind c)
+          (List.mem Constr.equal c l)
+      | Unsafe.Ind _ _ => (List.mem Constr.equal c l)
+      | _ => false
+      end)
+    then
+      (Std.constructor true)
+    else
+      ()).
+
+Ltac2 Notation "econs" l(list1(constr, ",")) := econs_tactic l.
+
+Goal forall n, exists n', n' = n+1.
+  repeat ltac2:(econs ex, nat).
+  eauto.
+Qed.
+
