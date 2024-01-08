@@ -3,408 +3,250 @@ Require Import Coq.ZArith.ZArith.
 Import List.ListNotations.
 
 
+(* From sred to cred. This is the hard direction, due to the combinatorial explosition of all states that correspond to the same term.
 
-(* -------------------------------------------------------------------------- *)
+Indeed, the main theorem of this section is proved using an simulation lemma [simulation_sred_cred].
 
-(* Translating a state into a term *)
+```coq
+Theorem simulation_sred_cred t1 t2:
+  sred t1 t2 ->
+  forall s1, match_conf s1 t1 -> inv_state s1 ->
+  exists s2,
+    (plus cred s1 s2)
+  /\ match_conf s2 t2 /\ inv_state s2.
+```
 
-Lemma EmptyOrNotEmpty:
-  forall t, (t = Empty) \/ (t <> Empty).
-Proof.
-  induction t; try solve [right; repeat intro; congruence|left; eauto].
-Qed.
+This theorem is proved using induction on [sred t1 t2] (around 40 cases). On each of those case, one should find all possible state [s1] that matches with [t1], or around 6 cases per cases. Leading to around 700 cases in the end. For each of those cases 700 one should find a reduction sequence toward s2 such that s2 matches with t2. This leads to new difficulties, since, we must find such a reduction (requiring additionall lemmas) and show that s2 matches with t2.
 
+*)
 
-Definition apply_CDefault b o ts tj tc t sigma : term :=
-  match b, t, o with
-  | Hole, Empty, Some v =>
-      Default ((Value v).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-  | Hole, Empty, None =>
-      Default (ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-  | _, _, Some v =>
-      Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-  | _, _,None =>
-      Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-  end.
-
-Lemma apply_CDefault_hole_some_empty:
-  forall v ts tj tc t sigma,
-    t = Empty ->
-    apply_CDefault Hole (Some v) ts tj tc t sigma =
-      Default ((Value v).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
-Proof.
-  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
-Qed.
-
-Lemma apply_CDefault_hole_none_empty:
-  forall ts tj tc t sigma,
-    t = Empty ->
-    apply_CDefault Hole None ts tj tc t sigma =
-      Default (ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
-Proof.
-  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
-Qed.
-
-Lemma apply_CDefault_hole_some_nempty:
-  forall v ts tj tc t sigma,
-    t <> Empty ->
-    apply_CDefault Hole (Some v) ts tj tc t sigma =
-      Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
-Proof.
-  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
-Qed.
-
-Lemma apply_CDefault_hole_none_nempty:
-  forall ts tj tc t sigma,
-    t <> Empty ->
-    apply_CDefault Hole None ts tj tc t sigma =
-      Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
-Proof.
-  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
-Qed.
-
-Lemma apply_CDefault_nohole_some:
-  forall v ts tj tc t sigma,
-    apply_CDefault NoHole (Some v) ts tj tc t sigma =
-      Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
-Proof.
-  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
-Qed.
-
-Lemma apply_CDefault_nohole_none:
-  forall ts tj tc t sigma,
-  apply_CDefault NoHole None ts tj tc t sigma =
-    Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
-Proof.
-  intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
-Qed.
-
-
-Ltac simpl_apply_CDefault := match goal with
-| [h1: ?t=Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
-  rewrite apply_CDefault_hole_some_empty in h2
-| [h1: ?t=Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
-  rewrite apply_CDefault_hole_none_empty in h2
-| [h1: ?t<>Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
-  rewrite apply_CDefault_hole_some_nempty in h2
-| [h1: ?t<>Empty, h2: context [apply_CDefault Hole (Some _) _ _ _ ?t _] |- _] =>
-  rewrite apply_CDefault_hole_none_nempty in h2
-| [h: context [apply_CDefault NoHole (Some _) _ _ _ ?t _] |- _] =>
-  rewrite apply_CDefault_nohole_some in h
-| [h: context [apply_CDefault NoHole None _ _ _ ?t _] |- _] =>
-  rewrite apply_CDefault_nohole_none in h
-end.
-
-
-
-
-Opaque apply_CDefault.
-
-(* This permits to simplify apply defaults using the EmptyOrNotEmpty lemma in an automatic fashon *)
-
-
-Definition apply_cont
-  (param1: term * list value)
-  (k: cont)
-  : term * list value :=
-  let '(t, sigma) := param1 in
-  match k with
-  | CAppR t2 =>
-    (App t t2.[subst_of_env sigma], sigma)
-  | CBinopL op v1 =>
-    (Binop op (Value v1) t, sigma)
-  | CBinopR op t2 =>
-    (Binop op t t2.[subst_of_env sigma], sigma)
-  | CClosure t_cl sigma_cl =>
-    (App (Value (Closure t_cl sigma_cl)) t, sigma)
-  | CReturn sigma' => (t, sigma')
-  | CDefault b o ts tj tc =>
-    (apply_CDefault b o ts tj tc t sigma, sigma)
-  | CDefaultBase tc =>
-    (Default nil t tc.[subst_of_env sigma], sigma)
-  | CMatch t1 t2 =>
-    (Match_ t t1.[subst_of_env sigma] t2.[up (subst_of_env sigma)], sigma)
-  | CSome =>
-    (ESome t, sigma)
-
-  | CIf t1 t2=>
-    (If t t1.[subst_of_env sigma] t2.[subst_of_env sigma], sigma)
-  end.
-
-Definition apply_conts
-  (kappa: list cont)
-  : term * list value -> term * list value :=
-  List.fold_left apply_cont kappa.
-
-Definition apply_return (r: result) :=
-  match r with
-  | RValue v => Value v
-  | REmpty => Empty
-  | RConflict => Conflict
-  end.
-
-Definition apply_state_aux (s: state): term * list value :=
-  match s with
-  | mode_eval t stack env =>
-    (apply_conts stack (t.[subst_of_env env], env))
-  | mode_cont stack env r =>
-    (apply_conts stack ((apply_return r), env))
-  end.
-
-(* We use an notation to be apple to simplify this definition. *)
-Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
-
-Inductive apply_conts' : list cont -> term -> list value -> term -> list value -> Prop := .
-
-Inductive apply_state_aux' : state -> term -> list value -> Prop :=
-  | apply_mode_eval:
-    forall stack t env t' env',
-      apply_conts' stack t.[subst_of_env env] env t' env' ->
-      apply_state_aux' (mode_eval t stack env) t' env'
-  (* | apply_mode_cont:
-    forall stack t env t' env',
-      apply_conts' stack t.[subst_of_env env]x² env t' env' ->
-      apply_state_aux' (mode_eval t stack env) t' env' *)
-.
-
-(* -------------------------------------------------------------------------- *)
-
-(* Require Import typing.
-
-Lemma apply_state_typing:
-  forall Delta Gamma s1 T,
-    jt_state Delta Gamma s1 T ->
-    jt_term Delta Gamma (apply_state s1) T.
-Proof.
-Abort. *)
-
-Lemma NEmpty_subst_of_env_NEmpty {t} sigma:
-  t <> Empty -> t.[subst_of_env sigma] <> Empty.
-Proof.
-  induction t; simpl; repeat intro; try congruence.
-  unfold subst_of_env in *.
-  induction (List.nth_error sigma x).
-  all: unfold ids, Ids_term in *; try congruence.
-Qed.
-
-
-Lemma Empty_eq_Empty : Empty = Empty.
-Proof.
-  reflexivity.
-Qed.
-
-Import Learn.
-
-Ltac dsimpl :=
-  repeat match goal with
-  (* (* | [h: ?t = Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
-    rewrite (apply_CDefault_SE h)
-  | [h: ?t = Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
-    rewrite (apply_CDefault_NE h) *)
-  | [h: ?t <> Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
-    rewrite (apply_CDefault_ST h)
-  | [h: ?t <> Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
-    rewrite (apply_CDefault_NT h)
-  (* | [h1: ?t = Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
-    rewrite (apply_CDefault_SE h1) in h2
-  | [h1: ?t = Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
-    rewrite (apply_CDefault_NE h1) in h2 *)
-  | [h1: ?t <> Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
-    rewrite (apply_CDefault_ST h1) in h2
-  | [h1: ?t <> Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
-    rewrite (apply_CDefault_NT h1) in h2 *)
-
-  | [h: ?t <> Empty |- context [?t.[subst_of_env ?sigma]]] =>
-    learn (NEmpty_subst_of_env_NEmpty sigma h)
-  | [h: _ /\ _ |- _] =>
-    destruct h
-  | [h: exists _, _ |- _] =>
-    destruct h
-
-  | _ => learn (Empty_eq_Empty) (* so the first two cases trigger*)
-  | _ => progress subst
-  | _ => progress asimpl
-  end.
-
-
-Inductive eq_value: value -> value -> Prop :=
-  | eq_closure:
-    forall t sigma,
-      eq_value (Closure t sigma) (Closure t.[up (subst_of_env sigma)] [])
-.
-
-Inductive match_conf : state -> term -> Prop :=
-  | match_conf_intro: forall s t,
-      t = apply_state s ->
-      match_conf s t
-
-  (* | match_value:
-    forall s v' v,
-      apply_state s = Value v' ->
-      eq_value v v'  ->
-      match_conf s (Value v) *)
-.
-
-
-Parameter match_value: forall {s v v'},
-  match_conf s (Value v) ->
-  eq_value v v' ->
-  match_conf s (Value v').
-
-
-
-Section APPLY_EXAMPLES.
-
-  Example test1:
-    forall t1 t2 t3,
-      fst (apply_conts [CBinopR Add t1; CAppR t2] (t3,[]))
-      = App (Binop Add t3 t1) t2.
-  Proof.
-    intros.
-    unfold apply_conts.
-    simpl; repeat rewrite subst_env_nil; asimpl.
-    eauto.
-  Qed.
-
-  Example test2: Binop Add (Value (Int 3)) (Value (Int 5)) = apply_state (mode_eval (Var 0) [CReturn [Int 5]; CBinopR Add (Var 0); CReturn []]
-  [Int 3; Int 5]).
-  Proof.
-    simpl; unfold subst_of_env; simpl.
-    eauto.
-  Qed.
-
-End APPLY_EXAMPLES.
 
 
 (* -------------------------------------------------------------------------- *)
 
-Definition env s:=
-  match s with
-  | mode_eval _ _ sigma => sigma
-  | mode_cont _ sigma _ => sigma
-  end
+Inductive Iapply_CDefault: is_hole -> option value -> list term -> term -> term -> term -> list value -> term -> Prop :=
+| ICDefault_hole_empty_some:
+  forall v ts sigma tj tc,
+  Iapply_CDefault Hole (Some v) ts tj tc Empty sigma (Default ((Value v).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma])
+| ICDefault_hole_empty_none:
+  forall ts sigma tj tc,
+  Iapply_CDefault Hole None ts tj tc Empty sigma (Default (ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma])
+| ICDefault_nohole_some:
+  forall v ts sigma tj t tc,
+  Iapply_CDefault NoHole (Some v) ts tj tc t sigma (Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma])
+| ICDefault_nohole_none:
+  forall ts sigma tj t tc,
+  Iapply_CDefault NoHole None ts tj tc t sigma (Default (t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma])
+| ICDefault_hole_noempty_some:
+  forall v ts sigma tj t tc,
+  t <> Empty ->
+  Iapply_CDefault Hole (Some v) ts tj tc t sigma (Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma])
+| ICDefault_hole_noempty_none:
+  forall ts sigma tj t tc,
+  t <> Empty ->
+  Iapply_CDefault Hole None ts tj tc t sigma (Default (t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma])
 .
 
-Lemma match_conf_coherent:
+
+Inductive Iapply_cont: term -> list value -> cont -> term -> list value -> Prop :=
+| ICAppR:
+  forall t sigma t2,
+  Iapply_cont t sigma (CAppR t2) (App t t2.[subst_of_env sigma]) sigma
+| ICBinopL:
+  forall t sigma op v1,
+  Iapply_cont t sigma (CBinopL op v1) (Binop op (Value v1) t) sigma
+| ICBinopR:
+  forall t sigma op t2,
+  Iapply_cont t sigma (CBinopR op t2) (Binop op t t2) sigma
+| ICClosure:
+  forall t sigma t_cl sigma_cl,
+  Iapply_cont t sigma (CClosure t_cl sigma_cl) (App (Value (Closure t_cl sigma_cl)) t) sigma
+| ICReturn:
+  forall t sigma sigma',
+  Iapply_cont t sigma (CReturn sigma') t sigma'
+| ICDefaultBase:
+  forall t sigma tc,
+  Iapply_cont t sigma (CDefaultBase tc) (Default nil t tc.[subst_of_env sigma]) sigma
+| ICMatch:
+  forall t sigma t1 t2,
+  Iapply_cont t sigma (CMatch t1 t2) (Match_ t t1.[subst_of_env sigma] t2.[up (subst_of_env sigma)]) sigma
+| ICSome:
   forall t sigma,
-    match_conf (mode_eval t [] sigma) t.[subst_of_env sigma].
+  Iapply_cont t sigma CSome (ESome t) sigma
+| ICIf:
+  forall t sigma t1 t2,
+  Iapply_cont t sigma (CIf t1 t2) (If t t1.[subst_of_env sigma] t2.[subst_of_env sigma]) sigma
+| ICErrorOnEmpty:
+  forall t sigma,
+  Iapply_cont t sigma CErrorOnEmpty (ErrorOnEmpty t) sigma
+| ICDefaultPure:
+  forall t sigma,
+  Iapply_cont t sigma CDefaultPure (DefaultPure t) sigma
+| ICDefault_hole_empty:
+  forall t t' sigma b o ts tj tc,
+  Iapply_CDefault b o ts tj tc t sigma t' ->
+  Iapply_cont t sigma (CDefault b o ts tj tc) t' sigma
+.
+
+
+Inductive Iapply_conts: term -> list value -> list cont -> term -> list value -> Prop :=
+  | ICNil:
+    forall t sigma,
+      Iapply_conts t sigma [] t sigma
+  | ICCons:
+    forall t1 sigma1 t2 sigma2 t3 sigma3 k kappa,
+      Iapply_cont t1 sigma1 k t2 sigma2 ->
+      Iapply_conts t2 sigma2 kappa t3 sigma3 ->
+      Iapply_conts t1 sigma1 (k :: kappa) t3 sigma3
+.
+
+Inductive Iapply_return: result -> term -> Prop :=
+| IRValue:
+  forall v,
+  Iapply_return (RValue v) (Value v)
+| IREmpty:
+  Iapply_return REmpty Empty
+| IRConflict:
+  Iapply_return RConflict Conflict
+.
+
+Inductive Iapply_state_aux: state -> term -> list value -> Prop :=
+| ISeval:
+  forall t1 sigma1 kappa t2  sigma2,
+  Iapply_conts t1 sigma1 kappa t2 sigma2 ->
+  Iapply_state_aux (mode_eval t1 kappa sigma1) t2 sigma2
+| IScont:
+  forall r t1 sigma1 kappa t2  sigma2,
+  Iapply_return r t1 ->
+  Iapply_conts t1 sigma1 kappa t2 sigma2 ->
+  Iapply_state_aux (mode_cont kappa sigma1 r) t2 sigma2
+.
+
+Inductive Iapply_state: state -> term -> Prop :=
+| IApply: forall s t sigma,
+  Iapply_state_aux s t sigma ->
+  Iapply_state s t.
+
+
+Lemma Iapply_CDefault_exhaustive:
+  forall b o ts tj tc t1 sigma1, exists t2,
+    Iapply_CDefault b o ts tj tc t1 sigma1 t2.
 Proof.
-  econstructor; simpl; eauto.
+  induction b, o, t1; repeat econstructor; intro; tryfalse.
 Qed.
+
+Lemma Iapply_cont_exhaustive:
+  forall k t1 sigma1, exists t2 sigma2,
+    Iapply_cont t1 sigma1 k t2 sigma2.
+Proof.
+  induction k; try solve [repeat econstructor].
+  * intros; edestruct Iapply_CDefault_exhaustive as [? H].
+    repeat econstructor; eapply H.
+Qed.
+
+Lemma Iapply_conts_exhaustive:
+  forall k t1 sigma1, exists t2 sigma2,
+    Iapply_conts t1 sigma1 k t2 sigma2.
+Proof.
+  induction k; repeat ltac2:(econs Iapply_conts, ex).
+  ltac2:(econs Iapply_conts).
+
+  * intros; edestruct Iapply_CDefault_exhaustive as [? H].
+    repeat econstructor; eapply H.
+Qed.
+
+Lemma Iapply_state_aux_exhaustive:
+  forall s, exists t sigma, Iapply_state_aux s t sigma.
+Proof.
+  admit "todo".
+Admitted.
+
+Lemma Iapply_state_exhaustive:
+  forall s, exists t, Iapply_state s t.
+Proof.
+  admit "todo".
+Admitted.
+
+Require Import Ltac2.Ltac2.
+Set Default Proof Mode "Classic".
+
+
+
+Ltac2 sinv_Iapply () :=
+  match! goal with
+  | [ h: Iapply_CDefault ?b ?o _ _ _ ?e _ _ |- _] =>
+    smart_inversion b h
+  | [ h : Iapply_cont _ _ ?c _ _ |- _ ] => smart_inversion c h
+  | [ h : Iapply_conts _ _ ?c _ _ |- _ ] => smart_inversion c h
+  | [ h : Iapply_return ?c _ |- _ ] => smart_inversion c h
+  | [ h : Iapply_state_aux ?c _ _ |- _ ] => smart_inversion c h
+  | [ h : Iapply_state ?c _ |- _ ] => smart_inversion c h
+  end.
+
+
+Lemma ICAppend:
+  forall t1 sigma1 t2 sigma2 t3 sigma3 k kappa,
+      Iapply_conts t2 sigma2 kappa t3 sigma3 ->
+      Iapply_cont t1 sigma1 k t2 sigma2 ->
+      Iapply_conts t1 sigma1 (kappa++[k]) t3 sigma3.
+Proof.
+Admitted.
+
+Lemma ICAppend_inv:
+  forall kappa t1 sigma1 t3 sigma3 k,
+      Iapply_conts t1 sigma1 (kappa++[k]) t3 sigma3 ->
+      exists t2 sigma2,
+      Iapply_conts t1 sigma1 kappa t2 sigma2 /\
+      Iapply_cont t2 sigma2 k t3 sigma3.
+Proof.
+  induction kappa; simpl.
+  { intros; repeat ltac2:(sinv_Iapply ()).
+    repeat econstructor; eauto.
+  }
+  { intros; repeat ltac2:(sinv_Iapply ()).
+    pose proof (IHkappa _ _ _ _ _ H7).
+    unpack.
+    repeat econstructor; eauto.
+  }
+Qed.
+
+Ltac2 sinv_Iapply2 () :=
+  match! goal with
+  | [ h: Iapply_CDefault ?b ?o _ _ _ ?e _ _ |- _] =>
+    smart_inversion b h
+  | [ h : Iapply_cont _ _ ?c _ _ |- _ ] => smart_inversion c h
+  | [ h : Iapply_conts _ _ ?c _ _ |- _ ] => smart_inversion c h
+  | [ h : Iapply_conts _ _ (_ ++ [_]) _ _ |- _ ] =>
+    
+    pose $(ICAppend_inv _ _ _ _ _ h)
+  | [ h : Iapply_return ?c _ |- _ ] => smart_inversion c h
+  | [ h : Iapply_state_aux ?c _ _ |- _ ] => smart_inversion c h
+  | [ h : Iapply_state ?c _ |- _ ] => smart_inversion c h
+  end.
+
+
 
 (* -------------------------------------------------------------------------- *)
-
-(* Attempt at proving a first simulation between sred and cred. *)
-
-Lemma apply_state_append_stack kappa s:
-  apply_state_aux (append_stack s kappa) = apply_conts kappa (apply_state_aux s).
-Proof.
-  induction s.
-  { induction kappa using List.rev_ind.
-    all: simpl.
-    all: autorewrite with list using eauto.
-    { unfold apply_conts.
-      eapply List.fold_left_app.
-    }
-  }
-  { induction kappa using List.rev_ind.
-    all: simpl.
-    all: autorewrite with list using eauto.
-    { unfold apply_conts.
-      eapply List.fold_left_app.
-    }
-  }
-Qed.
-
-Lemma with_stack_append_stack_cons:
-  forall s k kappa,
-  with_stack s (k :: kappa) = append_stack (with_stack s [k]) kappa.
-Proof.
-  intros.
-  induction s; simpl; eauto.
-Qed.
-
-
-Lemma with_stack_append_stack_app:
-  forall s kappa1 kappa2,
-  with_stack s (kappa1 ++ kappa2) =
-    append_stack (with_stack s kappa1) kappa2.
-Proof.
-  intros.
-  induction s; simpl; eauto.
-Qed.
-
-
-Lemma with_stack_stack: forall s, s = with_stack s (stack s).
-Proof.
-  induction s; simpl; eauto.
-Qed.
-
-Lemma snd_appply_conts_inj:
-  forall x1 x2,
-    snd x1 = snd x2 ->
-    forall kappa,
-    snd (apply_conts kappa x1) = snd (apply_conts kappa x2).
-Proof.
-  intros.
-  induction x1, x2; induction kappa using List.rev_ind.
-  { simpl in *; eauto. }
-  { unfold apply_conts in *; repeat rewrite List.fold_left_app; simpl.
-    remember (List.fold_left apply_cont kappa (a, b)) as y1.
-    remember (List.fold_left apply_cont kappa (t, l)) as y2.
-    induction y1, y2; simpl in IHkappa.
-    induction x.
-    all: unfold apply_cont; simpl in *; eauto; simpl.
-  }
-Qed.
-
-Lemma apply_conts_app:
-  forall kappa1 kappa2 p,
-    apply_conts (kappa1 ++ kappa2) p
-    = apply_conts kappa2 (apply_conts kappa1 p).
-Proof.
-  intros.
-  unfold apply_conts.
-  rewrite List.fold_left_app; eauto.
-Qed.
-
-Lemma apply_conts_cons:
-  forall k kappa p,
-    apply_conts (k :: kappa) p
-    = apply_conts kappa (apply_cont p k).
-Proof.
-  intros.
-  unfold apply_conts.
-  simpl; eauto.
-Qed.
-
-Lemma apply_conts_nil:
-  forall p,
-    apply_conts [] p = p.
-Proof.
-  intros.
-  unfold apply_conts.
-  simpl; eauto.
-Qed.
-
-#[global]
-Hint Rewrite apply_conts_app apply_conts_cons apply_conts_nil : apply_conts.
-
 
 Lemma cred_apply_state_sigma_stable s1 s2:
   cred s1 s2 ->
-  snd (apply_state_aux s1) = snd (apply_state_aux s2).
+  forall t1 sigma1 t2 sigma2,
+  Iapply_state_aux s1 t1 sigma1 ->
+  Iapply_state_aux s2 t2 sigma2 ->
+  sigma1 = sigma2.
 Proof.
   remember (stack s1) as kappa.
   intros Hcred; revert Heqkappa; revert Hcred; revert s2; revert s1.
   induction kappa using List.rev_ind.
   { induction 1; simpl; intros; subst; simpl.
-    all: tryfalse.
-    all: eauto. }
+    all: repeat ltac2:(sinv_Iapply ()); eauto.
+    all: tryfalse. }
   { intros s1 s2.
-    rewrite (with_stack_stack s1) at 3.
-    rewrite (with_stack_stack s2) at 2.
+
+    (* rewrite (with_stack_stack s1) at 3.
+    rewrite (with_stack_stack s2) at 2. *)
     induction 1; simpl stack; intros.
+    all: repeat ltac2:(sinv_Iapply ()); eauto.
     all: try match goal with [o: option value |- _] => induction o end.
     all: try solve [ simpl; eapply snd_appply_conts_inj; simpl; eauto].
     { simpl; eapply snd_appply_conts_inj; induction phi; simpl; eauto.
