@@ -1,6 +1,6 @@
 Require Import String.
 Require Import List.
-Require Import syntax continuations_hole tactics sequences.
+Require Import syntax continuations tactics sequences.
 Import List.ListNotations.
 Require Import Coq.ZArith.ZArith.
 
