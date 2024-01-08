@@ -4,8 +4,8 @@ synopsis: "Catala in coq"
 depends: [
   "dune" {>= "3.8"}
   "coq-core"
-  "odoc" {with-doc}
   "coq-autosubst"
+  "odoc" {with-doc}
 ]
 build: [
   ["dune" "subst"] {dev}
