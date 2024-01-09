@@ -18,9 +18,9 @@ Qed.
 Definition apply_CDefault o ts tj tc t sigma : term :=
   match (o, t) with
   | (Some v, Empty) =>
-      Default ((Value v).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+      Default ((Value (VPure v)).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
   | (Some v, _) =>
-      Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+      Default ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
   | (None, Empty) =>
       Default ((ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
   | (None, _) =>
@@ -40,7 +40,7 @@ Qed.
 Lemma apply_CDefault_ST: forall {v t ts tj tc sigma},
   t <> Empty ->
   apply_CDefault (Some v) ts tj tc t sigma =
-    Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+    Default ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
 .
 Proof.
 induction t; intros; tryfalse; injections; subst; eauto.
@@ -57,7 +57,7 @@ Qed.
 Lemma apply_CDefault_SE: forall {v t ts tj tc sigma},
   t = Empty ->
   apply_CDefault (Some v) ts tj tc t sigma =
-    Default ((Value v).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+    Default ((Value (VPure v)).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
 Proof.
 induction t; intros; tryfalse; injections; subst; eauto.
 Qed.
@@ -319,11 +319,11 @@ Proof.
         solve [eauto with sred]
       end.
       { (* t' is empty, o has a value *)
-        eapply star_trans. { admit. }
+        eapply star_trans. { eapply star_sred_default_E_one. eauto. }
         eapply star_one. { econstructor. }
       }
       { (* t' is not empty, o has a value *)
-        eapply star_trans. { admit. }
+        eapply star_trans. { eapply star_sred_default_E_one. eauto. }
         eapply star_refl.
       }
       { eapply star_trans. { eapply star_sred_default_E_zero. eauto. }
@@ -331,7 +331,7 @@ Proof.
       }
     }
   }
-Admitted.
+Qed.
 
 
 Theorem simulation_cred_sred:
@@ -345,7 +345,6 @@ Proof.
   all: try solve [eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
   { simpl; unfold subst_of_env; rewrite H; eauto with sequences. }
   { simpl. eapply sreds_apply_conts.
-    eapply star_one.
     admit "lambda related issue".
   }
   { eapply sreds_apply_conts.
@@ -353,7 +352,7 @@ Proof.
     { subst; simpl.
       repeat rewrite apply_CDefault_SE; eauto.
       eapply star_one; simpl.
-      admit.
+      econstructor.
     }
     { subst; simpl.
       rewrite apply_CDefault_SE; eauto.
@@ -370,19 +369,6 @@ Proof.
     { dsimpl.
       eapply star_refl.
     }
-  }
-  { admit "Error in the definition somewhere!". }
-  { eapply sreds_apply_conts.
-    unfold apply_CDefault; simpl.
-    
-  }
-  { induction phi; try induction o.
-    all: try solve[eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
-    { exfalso.
-      eapply H0; eauto.
-    }
-    { exfalso; eapply H; eauto. }
-    { exfalso; eapply H; eauto. }
   }
   { induction phi; try induction o.
     all: try solve[eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
