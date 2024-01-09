@@ -611,6 +611,39 @@ Proof.
   end.
 Qed.
 
+Lemma subst_of_env_ErrorOnEmpty {t t' env}:
+  ErrorOnEmpty t = t'.[subst_of_env env] ->
+  exists t1',
+    t = t1'.[subst_of_env env] /\
+    t' = ErrorOnEmpty t1'
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; injections; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
+
+Lemma subst_of_env_DefaultPure {t t' env}:
+  DefaultPure t = t'.[subst_of_env env] ->
+  exists t1',
+    t = t1'.[subst_of_env env] /\
+    t' = DefaultPure t1'
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; injections; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
+
+
 
 Lemma subst_of_env_Conflict {t' env}:
   Conflict = t'.[subst_of_env env] ->
@@ -742,6 +775,17 @@ Ltac unpack_subst_of_env_cons :=
     let Ht1 := fresh "Ht1" in
     let Ht := fresh "Ht" in
     destruct (subst_of_env_ESome h) as (t1 & Ht1 & Ht); subst; clear h
+  | [h: ErrorOnEmpty _ = _.[subst_of_env _] |- _] =>
+    let t1 := fresh "t1" in
+    let Ht1 := fresh "Ht1" in
+    let Ht := fresh "Ht" in
+    destruct (subst_of_env_ErrorOnEmpty h) as (t1 & Ht1 & Ht); subst; clear h
+  | [h: DefaultPure _ = _.[subst_of_env _] |- _] =>
+    let t1 := fresh "t1" in
+    let Ht1 := fresh "Ht1" in
+    let Ht := fresh "Ht" in
+    destruct (subst_of_env_DefaultPure h) as (t1 & Ht1 & Ht); subst; clear h
+
   | [h: Lam _ = _.[subst_of_env _] |- _] =>
     let t1 := fresh "t1" in
     let Ht1 := fresh "Ht1" in
@@ -1753,14 +1797,6 @@ Proof.
       rewrite apply_CDefault_nohole_none.
       repeat f_equal; eauto.
     }
-    { admit "subst lemma on ErrorOnEmpty". }
-    { admit "subst lemma on ErrorOnEmpty". }
-    { admit "subst lemma on ErrorOnEmpty". }
-    { admit "subst lemma on ErrorOnEmpty". }
-    { admit "subst lemma on DefaultPure". }
-    { admit "subst lemma on DefaultPure". }
-    { admit "subst lemma on DefaultPure". }
-    Fail Next Goal.
   }
   { (* induction step.*)
     intros t1 t2 Hred.
