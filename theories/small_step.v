@@ -269,6 +269,9 @@ Inductive sred: term -> term -> Prop :=
   | sred_eoe_value:
     forall v,
       sred (ErrorOnEmpty (Value (VPure v))) (Value v)
+  | sred_eoe_conflict:
+    sred (ErrorOnEmpty Conflict) (Conflict)
+  
 
   | sred_DefaultPure_value:
     forall v,
@@ -277,6 +280,8 @@ Inductive sred: term -> term -> Prop :=
     forall ta tb,
       sred ta tb ->
       sred (DefaultPure ta) (DefaultPure tb)
+  | sred_DefaultPure_conflit:
+    sred (DefaultPure Conflict) Conflict
 .
 
 
