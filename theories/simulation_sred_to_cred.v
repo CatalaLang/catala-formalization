@@ -1,4 +1,4 @@
-Require Import syntax continuations_hole small_step sequences tactics.
+Require Import syntax continuations small_step sequences tactics.
 Require Import Coq.ZArith.ZArith.
 Import List.ListNotations.
 
@@ -18,11 +18,11 @@ Qed.
 Definition apply_CDefault b o ts tj tc t sigma : term :=
   match b, t, o with
   | Hole, Empty, Some v =>
-      Default ((Value v).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+      Default ((Value (VPure v)).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
   | Hole, Empty, None =>
       Default (ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
   | _, _, Some v =>
-      Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+      Default ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
   | _, _,None =>
       Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
   end.
@@ -31,7 +31,7 @@ Lemma apply_CDefault_hole_some_empty:
   forall v ts tj tc t sigma,
     t = Empty ->
     apply_CDefault Hole (Some v) ts tj tc t sigma =
-      Default ((Value v).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+      Default ((Value (VPure v)).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
 Proof.
   intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
 Qed.
@@ -49,7 +49,7 @@ Lemma apply_CDefault_hole_some_nempty:
   forall v ts tj tc t sigma,
     t <> Empty ->
     apply_CDefault Hole (Some v) ts tj tc t sigma =
-      Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+      Default ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
 Proof.
   intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
 Qed.
@@ -129,6 +129,10 @@ Definition apply_cont
 
   | CIf t1 t2=>
     (If t t1.[subst_of_env sigma] t2.[subst_of_env sigma], sigma)
+  | CErrorOnEmpty =>
+    (ErrorOnEmpty t, sigma)
+  | CDefaultPure =>
+    (DefaultPure t, sigma)
   end.
 
 Definition apply_conts
@@ -408,9 +412,6 @@ Proof.
     all: try match goal with [o: option value |- _] => induction o end.
     all: try solve [ simpl; eapply snd_appply_conts_inj; simpl; eauto].
     { simpl; eapply snd_appply_conts_inj; induction phi; simpl; eauto.
-      { exfalso. eapply H0; eauto. }
-    }
-    { simpl; eapply snd_appply_conts_inj; induction phi; simpl; eauto.
       { exfalso. eapply H; eauto. }
     }
   }
@@ -477,9 +478,9 @@ Proof.
     rewrite <- List.app_comm_cons.
     intro H; edestruct (subst_of_env_cons H); unpack;
     repeat (asimpl in *; subst); injections.
-    edestruct (IHts1 _ _ _ H); unpack; repeat (asimpl in *; subst).
-    exists (x :: x1), x2.
-    repeat eexists.
+    pose proof (IHts1 _ _ _ H). unpack. subst.
+    exists (x :: ts1'), ts2'.
+    repeat econstructor.
   }
 Qed.
 
@@ -1475,7 +1476,7 @@ Lemma ignore_inv_state s1 t2:
   (exists s2, (plus cred s1 s2) /\ match_conf s2 t2 /\ inv_state s2).
 Proof.
   intros; unpack.
-  exists x; repeat split; inversion H1; subst; eauto.
+  exists s2; repeat split; inversion H1; subst; eauto.
   learn (plus_star H0).
   eapply star_cred_inv_state_stable; eauto.
 Qed.
@@ -1752,6 +1753,14 @@ Proof.
       rewrite apply_CDefault_nohole_none.
       repeat f_equal; eauto.
     }
+    { admit "subst lemma on ErrorOnEmpty". }
+    { admit "subst lemma on ErrorOnEmpty". }
+    { admit "subst lemma on ErrorOnEmpty". }
+    { admit "subst lemma on ErrorOnEmpty". }
+    { admit "subst lemma on DefaultPure". }
+    { admit "subst lemma on DefaultPure". }
+    { admit "subst lemma on DefaultPure". }
+    Fail Next Goal.
   }
   { (* induction step.*)
     intros t1 t2 Hred.
@@ -2053,8 +2062,8 @@ Proof.
       rewrite apply_conts_forall_return in Hred; eauto;
       inversion Hred].
 
-    { inversion H_inv; unpack.
-      inversion H57. }
+    { repeat split.
+      eapply star_step. }
     { learn (inv_state_mode_cont_CDefault_Hole_conts_empty _ _ _ _ _ _ _ H_inv).
       subst.
       inversion H27.
