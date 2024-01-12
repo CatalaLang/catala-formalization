@@ -17,6 +17,15 @@ Fixpoint monad_handle_one res (ts: list term) : term :=
       (Conflict)
   end.
 
+Fixpoint monad_handle_one' res (ts: list term) : term :=
+  match ts with
+  | nil => ESome res
+  | cons thead ttail =>
+    Match_ thead
+      (monad_handle_one' res ttail)
+      (Conflict)
+  end.
+
 Fixpoint monad_handle_zero ts tj tc: term :=
   match ts with
   | nil => If tj tc ENone
@@ -377,9 +386,9 @@ Fixpoint trans_conts (kappa: list cont) : list cont :=
   | CDefaultPure :: kappa => CSome :: trans_conts kappa
 
   | CDefault b None ts tj tc :: kappa =>
-    CMatch (monad_handle_zero (List.map trans ts) (trans tj) (trans tc)) (monad_handle_one (Var 0) (List.map trans ts)) :: kappa
+    CMatch (monad_handle_zero (List.map trans ts) (trans tj) (trans tc)) (monad_handle_one' (Var 0) (List.map trans ts)) :: trans_conts kappa
   | CDefault b (Some v) ts tj tc :: kappa =>
-    CMatch (monad_handle_one (Value (trans_value v)) (List.map trans ts)) (Conflict) :: kappa
+    CMatch (monad_handle_one' (Value (trans_value v)) (List.map trans ts)) (Conflict) :: trans_conts kappa
   end.
 
 Definition trans_return (r: result): result:=
@@ -449,7 +458,19 @@ Proof.
     eapply star_refl.
   }
   { admit. }
-  { admit. }
+  { induction o.
+    { eexists; split; asimpl; [|eapply star_refl].
+      eapply star_step; [econstructor|].
+      eapply star_step; [econstructor|].
+      eapply star_refl.
+    }
+    { eexists; split; asimpl; [|eapply star_refl].
+      eapply star_step; [econstructor|].
+      eapply star_step; [econstructor|].
+      eapply star_refl_eq; repeat f_equal.
+      admit.
+    }
+  }
   { admit. }
   { admit. }
   { admit. }
@@ -462,7 +483,7 @@ Proof.
     eapply star_refl.
   }
   {
-    induction phi.
+    induction phi; try induction o.
     all: eexists; split; asimpl; [|eapply star_refl].
     all: try solve [
       eapply star_one; econstructor;
@@ -474,9 +495,3 @@ Proof.
   }
   Fail next Goal.
 Admitted.
-
-
-
-
-
-
