@@ -348,3 +348,61 @@ Proof.
   }
   { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
 Qed.
+
+
+Require Import continuations.
+
+Definition option_map {A B} (f: A -> B) (o: option A) :=
+  match o with
+  | None => None
+  | Some v => Some (f v)
+  end.
+
+Fixpoint monad_handle_one (ts: list term) : term :=
+  match ts with
+  | nil => ESome (Var 0)
+  | cons thead ttail =>
+    Match_ (lift 1 thead)
+      (monad_handle_one ttail)
+      (Conflict)
+  end.
+
+Fixpoint trans_conts (k: cont): cont :=
+  match k with
+  | CAppR t2 :: kappa => CAppR (trans t2) :: trans_conts kappa
+  | CBinopL op v1 => CBinopL op (trans_value v1)
+  | CBinopR op t2 => CBinopR op (trans t2)
+  | CClosure t_cl sigma_cl => CClosure (trans t_cl) (List.map trans_value sigma_cl)
+  | CReturn sigma' => CReturn (List.map trans_value sigma')
+  | CDefault b None ts tj tc =>
+    monad_handle_zero
+      (List.map trans ts)
+      (trans tj)
+      (trans tc)
+  | CDefault b (Some v) ts tj tc =>
+    monad_handle_one
+      (Value (trans_value v))
+      (List.map trans ts)
+  | CDefaultBase tc => CIf (trans tc) ENone
+  | CMatch t1 t2 => CMatch (trans t1) (trans t2)
+  | CSome => CSome
+  | CIf t1 t2 => CIf (trans t1) (trans t2)
+  | CErrorOnEmpty => CMatch Conflict (Var 0)
+  | CDefaultPure => CSome
+  end.
+
+Definition trans_return (r: result): result:=
+  match r with
+  | RValue v => RValue (trans_value v)
+  | REmpty => RValue VNone
+  | RConflict => RConflict
+  end.
+
+Definition trans_state (s: state) : state :=
+  match s with
+  | mode_eval e kappa env =>
+    mode_eval (trans e) (List.map trans_cont kappa) (List.map trans_value env)
+  | mode_cont kappa env r =>
+    mode_cont (List.map trans_cont kappa) (List.map trans_value env) (trans_return r)
+  end
+.
