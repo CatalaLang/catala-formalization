@@ -8,12 +8,12 @@ Require Import typing.
 Notation monad_bind t1 t2 := (Match_ t1 ENone t2).
 
 
-Fixpoint monad_handle_one (ts: list term) : term :=
+Fixpoint monad_handle_one res (ts: list term) : term :=
   match ts with
-  | nil => ESome (Var 0)
+  | nil => ESome res
   | cons thead ttail =>
     Match_ (lift 1 thead)
-      (monad_handle_one ttail)
+      (monad_handle_one res ttail)
       (Conflict)
   end.
 
@@ -23,7 +23,7 @@ Fixpoint monad_handle_zero ts tj tc: term :=
   | cons thead ttail =>
     Match_ thead
       (monad_handle_zero ttail tj tc)
-      (monad_handle_one ttail)
+      (monad_handle_one (Var 0) ttail)
   end.
 
 Definition monad_handle ts tj tc: term :=
@@ -31,8 +31,8 @@ Definition monad_handle ts tj tc: term :=
 .
 
 Lemma subst_monad_handle_one :
-  forall ts sigma,
-  (monad_handle_one ts).[up sigma] = monad_handle_one ts..[sigma].
+  forall res ts sigma,
+  (monad_handle_one res ts).[up sigma] = monad_handle_one res.[up sigma] ts..[sigma].
 Proof.
   induction ts; repeat (asimpl; intros; f_equal; eauto).
 Qed.
@@ -377,9 +377,9 @@ Fixpoint trans_conts (kappa: list cont) : list cont :=
   | CDefaultPure :: kappa => CSome :: trans_conts kappa
 
   | CDefault b None ts tj tc :: kappa =>
-    magic
+    CMatch (monad_handle_zero (List.map trans ts) (trans tj) (trans tc)) (monad_handle_one (Var 0) (List.map trans ts)) :: kappa
   | CDefault b (Some v) ts tj tc :: kappa =>
-    magic
+    CMatch (monad_handle_one (Value (trans_value v)) (List.map trans ts)) (Conflict) :: kappa
   end.
 
 Definition trans_return (r: result): result:=
@@ -472,7 +472,8 @@ Proof.
     eapply star_step; [econstructor|]. { admit. }
     eapply star_refl.
   }
-
+  Fail next Goal.
+Admitted.
 
 
 
