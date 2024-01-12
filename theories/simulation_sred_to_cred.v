@@ -66,7 +66,7 @@ Qed.
 Lemma apply_CDefault_nohole_some:
   forall v ts tj tc t sigma,
     apply_CDefault NoHole (Some v) ts tj tc t sigma =
-      Default ((Value v).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+      Default ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
 Proof.
   intros; induction t; subst; unfold apply_CDefault; eauto; tryfalse.
 Qed.
@@ -2097,13 +2097,21 @@ Proof.
       try solve [exfalso;
       rewrite apply_conts_forall_return in Hred; eauto;
       inversion Hred].
-
-    { repeat split.
-      eapply star_step. }
+    { exfalso.
+      rewrite apply_conts_app in *.
+      simpl in *.
+      unfold apply_cont in *; sp; simpl in *.
+      rewrite apply_CDefault_hole_some_nempty in H10; eauto.
+      simpl in *.
+      injections.
+      eauto.
+    }
     { learn (inv_state_mode_cont_CDefault_Hole_conts_empty _ _ _ _ _ _ _ H_inv).
       subst.
-      inversion H27.
-      inversion H50.
+      inversion H10.
+      rewrite apply_CDefault_hole_none_empty in *; eauto.
+      Require Import common.
+      edestruct (fuck_stdlib _ _ H15).
     }
     { inversion H_inv; unpack.
       inversion H57.
@@ -2113,27 +2121,25 @@ Proof.
       inversion H27.
       inversion H50.
     }
-    {
-      exfalso.
-      rewrite apply_conts_app in *.
-      simpl in *.
-      unfold apply_cont in *; sp; simpl in *.
-      rewrite apply_conts_forall_return in H10; eauto.
-      rewrite apply_CDefault_hole_none_empty in *; eauto.
-      repeat injections.
-      Require Import common.
-      rewrite last_snd_apply_conts in *.
-      eapply fuck_stdlib; eauto.
+    { exfalso. 
+      clear -H_inv.
+      inversion H_inv; subst; unpack.
+      inversion H3.
     }
     { exfalso.
-      rewrite apply_conts_app in *.
-      simpl in *.
-      unfold apply_cont in *; sp; simpl in *.
-      rewrite apply_conts_forall_return in H10; eauto.
-      rewrite apply_CDefault_hole_some_empty in *; eauto.
-      repeat injections.
-      rewrite last_snd_apply_conts in *.
-      eapply fuck_stdlib; eauto.
+      assert (kappa = []). {
+        destruct (List.destruct_list kappa) as [(kk & kkappa & Hkappa)|]; eauto.
+        clear -H_inv Hkappa.
+        inversion H_inv; subst.
+        { injections; subst; unpack.
+          inversion H3.
+        }
+        { tryfalse. }
+      }
+      rewrite H50 in *; simpl in *.
+      clear -H27.
+      inversion H27; subst.
+      inversion H.
     }
   }
 

@@ -36,6 +36,10 @@ Inductive inv_no_default: type -> Prop :=
     inv_no_default (TOption T1)
 .
 
+Tutoriel matthieu soseau
+
+Compil vérifié vendredi aprem.
+
 Inductive inv_thunked_or_nodefault: type -> Prop :=
   | invArrowThunked:
     forall arg res,
@@ -333,6 +337,11 @@ Inductive jt_state: (string -> option type) -> list type -> state -> type -> Pro
       jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
       jt_state Delta Gamma2 (mode_cont kappa sigma r) T2
 .
+
+(*
+Lemma jt_state_correct:
+  "forall s, jt_state s -> jt_term (apply_state s)."
+*)
 
 Ltac2 sinv_jt () :=
   match! goal with
