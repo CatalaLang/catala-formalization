@@ -36,9 +36,6 @@ Inductive inv_no_default: type -> Prop :=
     inv_no_default (TOption T1)
 .
 
-Tutoriel matthieu soseau
-
-Compil vérifié vendredi aprem.
 
 Inductive inv_thunked_or_nodefault: type -> Prop :=
   | invArrowThunked:
