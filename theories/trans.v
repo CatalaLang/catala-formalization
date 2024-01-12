@@ -238,7 +238,7 @@ Qed.
 
 
 
-Theorem correction_continuations:
+Theorem correction_small_steps:
   forall s1 s2,
   (exists GGamma Gamma T, jt_term GGamma Gamma s1 T) ->
   sred s1 s2 ->
@@ -358,37 +358,28 @@ Definition option_map {A B} (f: A -> B) (o: option A) :=
   | Some v => Some (f v)
   end.
 
-Fixpoint monad_handle_one (ts: list term) : term :=
-  match ts with
-  | nil => ESome (Var 0)
-  | cons thead ttail =>
-    Match_ (lift 1 thead)
-      (monad_handle_one ttail)
-      (Conflict)
-  end.
+Lemma magic {A: Type}: A.
+Admitted.
 
-Fixpoint trans_conts (k: cont): cont :=
-  match k with
+Fixpoint trans_conts (kappa: list cont) : list cont :=
+  match kappa with
+  | nil => nil
   | CAppR t2 :: kappa => CAppR (trans t2) :: trans_conts kappa
-  | CBinopL op v1 => CBinopL op (trans_value v1)
-  | CBinopR op t2 => CBinopR op (trans t2)
-  | CClosure t_cl sigma_cl => CClosure (trans t_cl) (List.map trans_value sigma_cl)
-  | CReturn sigma' => CReturn (List.map trans_value sigma')
-  | CDefault b None ts tj tc =>
-    monad_handle_zero
-      (List.map trans ts)
-      (trans tj)
-      (trans tc)
-  | CDefault b (Some v) ts tj tc =>
-    monad_handle_one
-      (Value (trans_value v))
-      (List.map trans ts)
-  | CDefaultBase tc => CIf (trans tc) ENone
-  | CMatch t1 t2 => CMatch (trans t1) (trans t2)
-  | CSome => CSome
-  | CIf t1 t2 => CIf (trans t1) (trans t2)
-  | CErrorOnEmpty => CMatch Conflict (Var 0)
-  | CDefaultPure => CSome
+  | CBinopL op v1 :: kappa => CBinopL op (trans_value v1) :: trans_conts kappa
+  | CBinopR op t2 :: kappa => CBinopR op (trans t2) :: trans_conts kappa
+  | CClosure t_cl sigma_cl :: kappa => CClosure (trans t_cl) (List.map trans_value sigma_cl) :: trans_conts kappa
+  | CReturn sigma' :: kappa => CReturn (List.map trans_value sigma') :: trans_conts kappa
+  | CDefaultBase tc :: kappa => CIf (trans tc) ENone :: trans_conts kappa
+  | CMatch t1 t2 :: kappa => CMatch (trans t1) (trans t2) :: trans_conts kappa
+  | CSome :: kappa => CSome :: trans_conts kappa
+  | CIf t1 t2 :: kappa => CIf (trans t1) (trans t2) :: trans_conts kappa
+  | CErrorOnEmpty :: kappa => CMatch Conflict (Var 0) :: trans_conts kappa
+  | CDefaultPure :: kappa => CSome :: trans_conts kappa
+
+  | CDefault b None ts tj tc :: kappa =>
+    magic
+  | CDefault b (Some v) ts tj tc :: kappa =>
+    magic
   end.
 
 Definition trans_return (r: result): result:=
@@ -401,8 +392,90 @@ Definition trans_return (r: result): result:=
 Definition trans_state (s: state) : state :=
   match s with
   | mode_eval e kappa env =>
-    mode_eval (trans e) (List.map trans_cont kappa) (List.map trans_value env)
+    mode_eval (trans e) (trans_conts kappa) (List.map trans_value env)
   | mode_cont kappa env r =>
-    mode_cont (List.map trans_cont kappa) (List.map trans_value env) (trans_return r)
+    mode_cont (trans_conts kappa) (List.map trans_value env) (trans_return r)
   end
 .
+
+Theorem correction_continuations:
+  forall s1 s2,
+  (exists GGamma Gamma T, jt_state GGamma Gamma s1 T) ->
+  cred s1 s2 ->
+  exists target,
+    star cred
+      (trans_state s1) target /\
+    star cred
+      (trans_state s2) target.
+Proof.
+  intros s1 s2.
+  intros (GGamma & Gamma & T & Hty).
+  intros Hsred.
+  generalize dependent GGamma.
+  generalize dependent Gamma.
+  generalize dependent T.
+  induction Hsred; intros.
+  all: repeat multimatch goal with
+  | _ => sinv_jt
+  | [h1: forall _ _ _, jt_state _ _ ?u _ -> _, h2: jt_state _ _ ?u _ |- _] =>
+    learn (h1 _ _ _ h2);
+    clear h1
+  | [h: exists var, _ |- _] =>
+    let var := fresh var in
+    destruct h as (var & ?)
+  | [h: _ /\ _ |- _] =>
+    destruct h
+
+  end.
+  (* When the right hand side is the result of the left hand side. *)
+  all: try solve [
+    eexists; split; asimpl;
+    [|eapply star_refl];
+    eapply star_one; simpl; econstructor; eauto
+    ].
+  {
+    eexists; split; asimpl; [|eapply star_refl].
+    eapply star_one; simpl; econstructor; eauto using List.map_nth_error.
+  }
+  { eexists; split; asimpl; [|eapply star_refl].
+    eapply star_step; [econstructor|].
+    eapply star_step; [econstructor|].
+    eapply star_refl.
+  }
+  { eexists; split; asimpl; [|eapply star_refl].
+    eapply star_step; [econstructor|].
+    eapply star_step; [econstructor|]. { simpl; eauto. }
+    eapply star_step; [econstructor|].
+    eapply star_refl.
+  }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { eexists; split; asimpl; [|eapply star_refl].
+    eapply star_step; [econstructor|].
+    eapply star_step; [econstructor|].
+    eapply star_refl.
+  }
+  {
+    induction phi.
+    all: eexists; split; asimpl; [|eapply star_refl].
+    all: try solve [
+      eapply star_one; econstructor;
+      intros; simpl; repeat intro; tryfalse].
+  }
+  { eexists; split; asimpl; [|eapply star_refl].
+    eapply star_step; [econstructor|]. { admit. }
+    eapply star_refl.
+  }
+
+
+
+
+
+
+
