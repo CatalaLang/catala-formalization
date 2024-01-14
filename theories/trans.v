@@ -407,6 +407,14 @@ Definition trans_state (s: state) : state :=
   end
 .
 
+Lemma trans_value_op op v v1 v2:
+  Some v = get_op op v1 v2 ->
+  Some (trans_value v) = get_op op (trans_value v1) (trans_value v2).
+Proof.
+  intros.
+  induction op, v1, v2, v; simpl in *; tryfalse; eauto.
+Qed.
+
 Theorem correction_continuations:
   forall s1 s2,
   (exists GGamma Gamma T, jt_state GGamma Gamma s1 T) ->
@@ -436,51 +444,24 @@ Proof.
     destruct h
 
   end.
-  (* When the right hand side is the result of the left hand side. *)
+  (* try to just run on both side. *)
   all: try solve [
-    eexists; split; asimpl;
-    [|eapply star_refl];
-    eapply star_one; simpl; econstructor; eauto
-    ].
+    simpl; eexists; split;
+    repeat (eapply star_step; [econstructor; simpl; eauto|]);
+    eapply star_refl
+  ].
   {
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_one; simpl; econstructor; eauto using List.map_nth_error.
   }
-  { eexists; split; asimpl; [|eapply star_refl].
-    eapply star_step; [econstructor|].
-    eapply star_step; [econstructor|].
-    eapply star_refl.
+  { induction o; simpl; eexists; split; repeat (eapply star_step; [econstructor; simpl; eauto|]).
+    all: eapply star_refl_eq; eauto.
+    repeat f_equal.
+    admit.
   }
-  { eexists; split; asimpl; [|eapply star_refl].
-    eapply star_step; [econstructor|].
-    eapply star_step; [econstructor|]. { simpl; eauto. }
-    eapply star_step; [econstructor|].
-    eapply star_refl.
-  }
-  { admit. }
-  { induction o.
-    { eexists; split; asimpl; [|eapply star_refl].
-      eapply star_step; [econstructor|].
-      eapply star_step; [econstructor|].
-      eapply star_refl.
-    }
-    { eexists; split; asimpl; [|eapply star_refl].
-      eapply star_step; [econstructor|].
-      eapply star_step; [econstructor|].
-      eapply star_refl_eq; repeat f_equal.
-      admit.
-    }
-  }
-  { admit. }
-  { admit. }
-  { admit. }
-  { admit. }
-  { admit. }
-  { admit. }
-  { eexists; split; asimpl; [|eapply star_refl].
-    eapply star_step; [econstructor|].
-    eapply star_step; [econstructor|].
-    eapply star_refl.
+  { simpl; eexists; split; repeat (eapply star_step; [econstructor; simpl; eauto|]).
+    (* more involved. *)
+    admit.
   }
   {
     induction phi; try induction o.
@@ -490,8 +471,10 @@ Proof.
       intros; simpl; repeat intro; tryfalse].
   }
   { eexists; split; asimpl; [|eapply star_refl].
-    eapply star_step; [econstructor|]. { admit. }
+    eapply star_step; [econstructor|]. { eapply trans_value_op; eauto. }
     eapply star_refl.
   }
   Fail next Goal.
 Admitted.
+
+
