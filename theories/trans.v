@@ -386,7 +386,7 @@ Fixpoint trans_conts (kappa: list cont) : list cont :=
   | CDefaultPure :: kappa => CSome :: trans_conts kappa
 
   | CDefault b None ts tj tc :: kappa =>
-    CMatch (monad_handle_zero (List.map trans ts) (trans tj) (trans tc)) (monad_handle_one' (Var 0) (List.map trans ts)) :: trans_conts kappa
+    CMatch (monad_handle_zero (List.map trans ts) (trans tj) (trans tc)) (monad_handle_one (Var 0) (List.map trans ts)) :: trans_conts kappa
   | CDefault b (Some v) ts tj tc :: kappa =>
     CMatch (monad_handle_one' (Value (trans_value v)) (List.map trans ts)) (Conflict) :: trans_conts kappa
   end.
@@ -415,6 +415,62 @@ Proof.
   induction op, v1, v2, v; simpl in *; tryfalse; eauto.
 Qed.
 
+Lemma step_left {A: Type} {R: A -> A -> Prop} {a1 a2 b}:
+  R a1 a2 ->
+  (exists target,
+    star R a2 target /\ star R b target) ->
+  (exists target,
+    star R a1 target /\ star R b target).
+Proof.
+  intros; unpack; eexists; split;[eapply star_step|]; eauto.
+Qed.
+
+Lemma step_right {A: Type} {R: A -> A -> Prop} {a b1 b2}:
+  R b1 b2 ->
+  (exists target,
+    star R a target /\ star R b2 target) ->
+  (exists target,
+    star R a target /\ star R b1 target).
+Proof.
+  intros; unpack; eexists; split;[|eapply star_step]; eauto.
+Qed.
+
+Lemma star_step_left {A: Type} {R: A -> A -> Prop} {a1 a2 b}:
+  star R a1 a2 ->
+  (exists target,
+    star R a2 target /\ star R b target) ->
+  (exists target,
+    star R a1 target /\ star R b target).
+Proof.
+  intros Hstar; revert b.
+  induction Hstar; eauto; intros; unpack.
+  eapply step_left; eauto.
+Qed.
+
+Lemma star_step_right {A: Type} {R: A -> A -> Prop} {a b1 b2}:
+  star R b1 b2 ->
+  (exists target,
+    star R a target /\ star R b2 target) ->
+  (exists target,
+    star R a target /\ star R b1 target).
+Proof.
+  intros Hstar; revert a.
+  induction Hstar; eauto; intros; unpack.
+  eapply step_right; eauto.
+Qed.
+
+Lemma diagram_finish {A: Type} {R: A -> A -> Prop} {a}:
+  (exists target,
+    star R a target /\ star R a target).
+Proof.
+  eexists; split; eauto with sequences.
+Qed.
+
+(* Lemma star_step_lift:
+  forall s1 s2,
+    s1 *)
+
+
 Theorem correction_continuations:
   forall s1 s2,
   (exists GGamma Gamma T, jt_state GGamma Gamma s1 T) ->
@@ -425,6 +481,10 @@ Theorem correction_continuations:
     star cred
       (trans_state s2) target.
 Proof.
+  Ltac step := (
+    try (eapply step_left; [solve [econstructor; simpl; eauto]|]);
+    try (eapply step_right; [solve [econstructor; simpl; eauto]|])
+  ).
   intros s1 s2.
   intros (GGamma & Gamma & T & Hty).
   intros Hsred.
@@ -442,10 +502,16 @@ Proof.
     destruct h as (var & ?)
   | [h: _ /\ _ |- _] =>
     destruct h
-
   end.
+
+  (* all: try induction o; try induction phi; simpl; repeat (
+    try (eapply step_left; [solve [econstructor; eauto]|]);
+    try (eapply step_right; [solve [econstructor; eauto]|])
+  ).
+  all: try eapply diagram_finish. *)
   (* try to just run on both side. *)
   all: try solve [
+    try induction o; try induction phi;
     simpl; eexists; split;
     repeat (eapply star_step; [econstructor; simpl; eauto|]);
     eapply star_refl
@@ -454,14 +520,14 @@ Proof.
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_one; simpl; econstructor; eauto using List.map_nth_error.
   }
-  { induction o; simpl; eexists; split; repeat (eapply star_step; [econstructor; simpl; eauto|]).
-    all: eapply star_refl_eq; eauto.
-    repeat f_equal.
-    admit.
-  }
-  { simpl; eexists; split; repeat (eapply star_step; [econstructor; simpl; eauto|]).
-    (* more involved. *)
-    admit.
+  { simpl; repeat step.
+    induction ts; simpl.
+    { repeat step. eapply diagram_finish. }
+    { repeat step. unpack.
+      pose proof (IHts H2).
+      unpack.
+      admit.
+    }
   }
   {
     induction phi; try induction o.
