@@ -1,8 +1,8 @@
 Require Import syntax.
-
 Require Import small_step tactics.
 Require Import sequences.
 Require Import typing.
+
 
 
 Notation monad_bind t1 t2 := (Match_ t1 ENone t2).
@@ -367,9 +367,6 @@ Definition option_map {A B} (f: A -> B) (o: option A) :=
   | Some v => Some (f v)
   end.
 
-Lemma magic {A: Type}: A.
-Admitted.
-
 Fixpoint trans_conts (kappa: list cont) : list cont :=
   match kappa with
   | nil => nil
@@ -466,10 +463,27 @@ Proof.
   eexists; split; eauto with sequences.
 Qed.
 
-(* Lemma star_step_lift:
-  forall s1 s2,
-    s1 *)
+(* Require Import simulation_sred_to_cred. *)
 
+Import List.ListNotations.
+
+
+(* not true sadly *)
+(* Goal forall s1,
+  trans (apply_state s1) = apply_state (trans_state s1).
+Proof.
+  induction s1; induction kappa using List.rev_ind; simpl.
+  3: { induction result; simpl. } *)
+
+Lemma lift_preserved:
+  forall t sigma a v,
+  (star cred (mode_eval t [] sigma) a) ->
+  (star cred (mode_eval (lift 1 t) [CReturn sigma] (v::sigma)) a).
+Proof.
+Admitted.
+
+Lemma magic {A}: A.
+Admitted.
 
 Theorem correction_continuations:
   forall s1 s2,
@@ -504,18 +518,17 @@ Proof.
     destruct h
   end.
 
-  (* all: try induction o; try induction phi; simpl; repeat (
-    try (eapply step_left; [solve [econstructor; eauto]|]);
-    try (eapply step_right; [solve [econstructor; eauto]|])
+  all: try induction phi; try induction o; simpl; repeat (
+    try (eapply step_left; [solve [ 
+      econstructor; simpl; eauto;
+      repeat intro; tryfalse
+      ]|]);
+    try (eapply step_right; [solve [
+      econstructor; simpl; eauto;
+      repeat intro; tryfalse
+      ]|])
   ).
-  all: try eapply diagram_finish. *)
-  (* try to just run on both side. *)
-  all: try solve [
-    try induction o; try induction phi;
-    simpl; eexists; split;
-    repeat (eapply star_step; [econstructor; simpl; eauto|]);
-    eapply star_refl
-  ].
+  all: tryfalse; try eapply diagram_finish.
   {
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_one; simpl; econstructor; eauto using List.map_nth_error.
@@ -526,21 +539,13 @@ Proof.
     { repeat step. unpack.
       pose proof (IHts H2).
       unpack.
-      admit.
+      eapply magic.
     }
-  }
-  {
-    induction phi; try induction o.
-    all: eexists; split; asimpl; [|eapply star_refl].
-    all: try solve [
-      eapply star_one; econstructor;
-      intros; simpl; repeat intro; tryfalse].
   }
   { eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op; eauto. }
     eapply star_refl.
   }
-  Fail next Goal.
-Admitted.
-
+  Fail next goal.
+Qed.
 

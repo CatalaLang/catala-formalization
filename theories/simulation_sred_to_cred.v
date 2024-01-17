@@ -158,18 +158,6 @@ Definition apply_state_aux (s: state): term * list value :=
 (* We use an notation to be apple to simplify this definition. *)
 Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
 
-Inductive apply_conts' : list cont -> term -> list value -> term -> list value -> Prop := .
-
-Inductive apply_state_aux' : state -> term -> list value -> Prop :=
-  | apply_mode_eval:
-    forall stack t env t' env',
-      apply_conts' stack t.[subst_of_env env] env t' env' ->
-      apply_state_aux' (mode_eval t stack env) t' env'
-  (* | apply_mode_cont:
-    forall stack t env t' env',
-      apply_conts' stack t.[subst_of_env env]x² env t' env' ->
-      apply_state_aux' (mode_eval t stack env) t' env' *)
-.
 
 (* -------------------------------------------------------------------------- *)
 
