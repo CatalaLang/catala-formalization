@@ -381,94 +381,32 @@ Then, [trans_cont] would be simply be [map_cont trans_term trans_value] and [tra
 This is mostly the case, except for the default related continuations.
 *)
 
-Definition trans_cont (kappa: cont) : cont :=
+Fixpoint trans_conts (kappa: list cont) : list cont :=
   match kappa with
-  (* map_cont, inlined (lambda calculus cases) *)
-  | CAppR t2 => CAppR (trans t2)
-  | CBinopL op v1 => CBinopL op (trans_value v1)
-  | CBinopR op t2 => CBinopR op (trans t2)
-  | CClosure t_cl sigma_cl => CClosure (trans t_cl) (List.map trans_value sigma_cl)
-  | CReturn sigma' => CReturn (List.map trans_value sigma')
-  | CMatch t1 t2 => CMatch (trans t1) (trans t2)
-  | CSome => CSome
-  | CIf t1 t2 => CIf (trans t1) (trans t2)
+  | nil => nil
+  | CAppR t2 :: kappa => CAppR (trans t2) :: trans_conts kappa
+  | CBinopL op v1 :: kappa => CBinopL op (trans_value v1) :: trans_conts kappa
+  | CBinopR op t2 :: kappa => CBinopR op (trans t2) :: trans_conts kappa
+  | CClosure t_cl sigma_cl :: kappa => CClosure (trans t_cl) (List.map trans_value sigma_cl) :: trans_conts kappa
+  | CReturn sigma' :: kappa => CReturn (List.map trans_value sigma') :: trans_conts kappa
+  | CDefaultBase tc :: kappa => CIf (trans tc) ENone :: trans_conts kappa
+  | CMatch t1 t2 :: kappa => CMatch (trans t1) (trans t2) :: trans_conts kappa
+  | CSome :: kappa => CSome :: trans_conts kappa
+  | CIf t1 t2 :: kappa => CIf (trans t1) (trans t2) :: trans_conts kappa
+  | CErrorOnEmpty :: kappa => CMatch Conflict (Var 0) :: trans_conts kappa
+  | CDefaultPure :: kappa => CSome :: trans_conts kappa
+  | CDefault b None ts tj tc :: kappa =>
+    CMatch (monad_handle_zero (List.map trans ts) (trans tj) (trans tc)) (monad_handle_one (Var 0) (List.map trans ts)) :: trans_conts kappa
 
-  (* Default handling stuff *)
-  | CDefaultBase tc => CIf (trans tc) ENone
-  | CErrorOnEmpty => CMatch Conflict (Var 0)
-  | CDefaultPure => CSome
-  | CDefault b None ts tj tc =>
-    CMatch (monad_handle_zero (List.map trans ts) (trans tj) (trans tc)) (monad_handle_one (Var 0) (List.map trans ts))
+  | CDefault b (Some v) ts tj tc :: kappa =>
+    CMatch (
+      monad_handle_one'
+        (Value (trans_value v))
+        (List.map trans ts)
+      )
+      (Conflict) :: trans_conts kappa
 
-  (* For the case where CDefault holds an value, we could naivly implement in this way : *)
-  
-    | CDefault b (Some v) ts tj tc =>
-      CMatch (
-        monad_handle_one'
-          (Value (trans_value v))
-          (List.map trans ts)
-        ) (Conflict)
-  
-  (*
-  However, when trying to prove the simulation theorem, this leads to the following diagram: 
-  
-  exists target : state,
-    star cred 
-      (mode_eval
-        (monad_handle_one (Var 0) (List.map trans ts))
-        (CReturn (List.map trans_value sigma) :: trans_conts kappa)
-        (trans_value v :: List.map trans_value sigma))
-      target /\
-    star cred
-      (mode_eval 
-        (monad_handle_one' (Value (trans_value v)) (List.map trans ts))
-        (trans_conts kappa)
-        (List.map trans_value sigma))
-      target
-  
-  To move on, we could do an induction over ts. If the initizalisation is straightforward, the induction step is more hairy:
-
-    exists target : state,
-      star cred
-        (mode_eval
-          (monad_handle_one (Var 0) (List.map trans ts))
-          (CReturn (List.map trans_value sigma) :: trans_conts kappa)
-          (trans_value v :: List.map trans_value sigma))
-        target /\
-      star cred 
-        (mode_eval
-          (monad_handle_one' (Value (trans_value v)) (List.map trans ts))
-          (trans_conts kappa)
-          (List.map trans_value sigma))
-        target
-    
-    --------------------------------------------------------------------
-
-    exists target : state,
-      star cred
-        (mode_eval
-          (lift 1 (trans a))
-          (CMatch (monad_handle_one (Var 0) (List.map trans ts)) Conflict
-            :: CReturn (List.map trans_value sigma)
-            :: trans_conts kappa)
-          (trans_value v :: List.map trans_value sigma))
-          target /\
-      star cred
-        (mode_eval
-          (trans a)
-          (CMatch (monad_handle_one' (Value (trans_value v)) (List.map trans ts)) Conflict
-            :: trans_conts kappa)
-          (List.map trans_value sigma))
-        target
-    
-    While this is still true (assuming terminating execution), it requires multiple lemmas related to the behavior of lift on continuation semantics, and substitution within continuation (supposed to not have any free variables outside of the current sigma)
-
-    Hence, it is easier to modify the definition, so it modify the stack to have the same informations.
-
-    *)
   end.
-
-Definition trans_conts := List.map trans_cont.
 
 Definition trans_return (r: result): result:=
   match r with
@@ -541,6 +479,32 @@ Qed.
 
 Import List.ListNotations.
 
+Lemma thing: forall ts sigma v GGamma Gamma T,
+  List.Forall (fun ti : term => jt_term GGamma Gamma ti (TDefault T)) ts ->
+  exists target : state,
+    star cred (mode_eval (monad_handle_one (Var 0) (List.map trans ts))
+                ([CReturn (List.map trans_value sigma)])
+                (trans_value v :: List.map trans_value sigma))
+              target /\
+    star cred (mode_eval (monad_handle_one' (Value (trans_value v)) (List.map trans ts))
+                [] (List.map trans_value sigma))
+              target.
+Proof.
+  intros.
+  induction ts; simpl; unpack.
+  { repeat (
+      try (eapply step_left; [solve [ 
+        econstructor; simpl; eauto;
+        repeat intro; tryfalse
+        ]|]);
+      try (eapply step_right; [solve [
+        econstructor; simpl; eauto;
+        repeat intro; tryfalse
+        ]|])
+    ); eapply diagram_finish.
+  }
+
+Admitted.
 
 Theorem correction_continuations:
   forall s1 s2,
@@ -553,8 +517,8 @@ Theorem correction_continuations:
       (trans_state s2) target.
 Proof.
   Ltac step := (
-    try (eapply step_left; [solve [econstructor; simpl; eauto]|]);
-    try (eapply step_right; [solve [econstructor; simpl; eauto]|])
+    try (eapply step_left; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|]);
+    try (eapply step_right; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|])
   ).
   intros s1 s2.
   intros (GGamma & Gamma & T & Hty).
@@ -575,29 +539,15 @@ Proof.
     destruct h
   end.
 
-  all: try induction phi; try induction o; simpl; repeat (
-    try (eapply step_left; [solve [ 
-      econstructor; simpl; eauto;
-      repeat intro; tryfalse
-      ]|]);
-    try (eapply step_right; [solve [
-      econstructor; simpl; eauto;
-      repeat intro; tryfalse
-      ]|])
-  ).
-  all: tryfalse; try eapply diagram_finish.
+  all: try induction phi; try induction o;
+    try solve [simpl; repeat step; tryfalse; try eapply diagram_finish; eauto].
   {
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_one; simpl; econstructor; eauto using List.map_nth_error.
   }
-  { simpl; repeat step.
-    induction ts; simpl.
-    { repeat step. eapply diagram_finish. }
-    { repeat step. unpack.
-      pose proof (IHts H2).
-      unpack.
-      admit.
-    }
+  { simpl.
+    repeat step.
+    admit.
   }
   { eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
