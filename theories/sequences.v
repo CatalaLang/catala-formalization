@@ -6,6 +6,8 @@
 Require Import Classical.
 Require Import Relation_Operators.
 Require Import Operators_Properties.
+Require Import tactics.
+
 
 Set Implicit Arguments.
 
@@ -468,8 +470,7 @@ Qed.
 End DETERMINISM.
 
 
-
-Lemma step_left {A: Type} {R: A -> A -> Prop} {a1 a2 b}:
+Lemma step_left {R: A -> A -> Prop} {a1 a2 b}:
   R a1 a2 ->
   (exists target,
     star R a2 target /\ star R b target) ->
@@ -479,7 +480,7 @@ Proof.
   intros; unpack; eexists; split;[eapply star_step|]; eauto.
 Qed.
 
-Lemma step_right {A: Type} {R: A -> A -> Prop} {a b1 b2}:
+Lemma step_right {R: A -> A -> Prop} {a b1 b2}:
   R b1 b2 ->
   (exists target,
     star R a target /\ star R b2 target) ->
@@ -489,7 +490,7 @@ Proof.
   intros; unpack; eexists; split;[|eapply star_step]; eauto.
 Qed.
 
-Lemma star_step_left {A: Type} {R: A -> A -> Prop} {a1 a2 b}:
+Lemma star_step_left {R: A -> A -> Prop} {a1 a2 b}:
   star R a1 a2 ->
   (exists target,
     star R a2 target /\ star R b target) ->
@@ -501,7 +502,7 @@ Proof.
   eapply step_left; eauto.
 Qed.
 
-Lemma star_step_right {A: Type} {R: A -> A -> Prop} {a b1 b2}:
+Lemma star_step_right {R: A -> A -> Prop} {a b1 b2}:
   star R b1 b2 ->
   (exists target,
     star R a target /\ star R b2 target) ->
@@ -513,11 +514,11 @@ Proof.
   eapply step_right; eauto.
 Qed.
 
-Lemma diagram_finish {A: Type} {R: A -> A -> Prop} {a}:
+Lemma diagram_finish {R: A -> A -> Prop} {a}:
   (exists target,
     star R a target /\ star R a target).
 Proof.
-  eexists; split; eauto with sequences.
+  eexists; split; eapply star_refl.
 Qed.
 
 

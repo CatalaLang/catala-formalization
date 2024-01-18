@@ -256,6 +256,12 @@ Theorem correction_small_steps:
     star sred
       (trans s2) target.
 Proof.
+
+  Ltac step := (
+    try (eapply step_left; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|]);
+    try (eapply step_right; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|])
+  ).
+
   intros s1 s2.
   intros (GGamma & Gamma & T & Hty).
   intros Hsred.
@@ -424,56 +430,6 @@ Definition trans_state (s: state) : state :=
   end
 .
 
-Lemma step_left {A: Type} {R: A -> A -> Prop} {a1 a2 b}:
-  R a1 a2 ->
-  (exists target,
-    star R a2 target /\ star R b target) ->
-  (exists target,
-    star R a1 target /\ star R b target).
-Proof.
-  intros; unpack; eexists; split;[eapply star_step|]; eauto.
-Qed.
-
-Lemma step_right {A: Type} {R: A -> A -> Prop} {a b1 b2}:
-  R b1 b2 ->
-  (exists target,
-    star R a target /\ star R b2 target) ->
-  (exists target,
-    star R a target /\ star R b1 target).
-Proof.
-  intros; unpack; eexists; split;[|eapply star_step]; eauto.
-Qed.
-
-Lemma star_step_left {A: Type} {R: A -> A -> Prop} {a1 a2 b}:
-  star R a1 a2 ->
-  (exists target,
-    star R a2 target /\ star R b target) ->
-  (exists target,
-    star R a1 target /\ star R b target).
-Proof.
-  intros Hstar; revert b.
-  induction Hstar; eauto; intros; unpack.
-  eapply step_left; eauto.
-Qed.
-
-Lemma star_step_right {A: Type} {R: A -> A -> Prop} {a b1 b2}:
-  star R b1 b2 ->
-  (exists target,
-    star R a target /\ star R b2 target) ->
-  (exists target,
-    star R a target /\ star R b1 target).
-Proof.
-  intros Hstar; revert a.
-  induction Hstar; eauto; intros; unpack.
-  eapply step_right; eauto.
-Qed.
-
-Lemma diagram_finish {A: Type} {R: A -> A -> Prop} {a}:
-  (exists target,
-    star R a target /\ star R a target).
-Proof.
-  eexists; split; eauto with sequences.
-Qed.
 
 (* Require Import simulation_sred_to_cred. *)
 
@@ -503,8 +459,9 @@ Proof.
         ]|])
     ); eapply diagram_finish.
   }
-
 Admitted.
+
+Require Import sequences.
 
 Theorem correction_continuations:
   forall s1 s2,
@@ -516,10 +473,6 @@ Theorem correction_continuations:
     star cred
       (trans_state s2) target.
 Proof.
-  Ltac step := (
-    try (eapply step_left; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|]);
-    try (eapply step_right; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|])
-  ).
   intros s1 s2.
   intros (GGamma & Gamma & T & Hty).
   intros Hsred.
