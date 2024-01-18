@@ -500,6 +500,9 @@ Proof.
   }
   { simpl.
     repeat step.
+    induction ts; simpl.
+    { repeat step. eapply diagram_finish. }
+    { repeat step. }
     admit.
   }
   { eexists; split; asimpl; [|eapply star_refl].
