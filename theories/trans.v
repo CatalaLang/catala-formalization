@@ -502,8 +502,7 @@ Proof.
     repeat step.
     induction ts; simpl.
     { repeat step. eapply diagram_finish. }
-    { repeat step. }
-    admit.
+    { repeat step. admit. }
   }
   { eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
