@@ -448,16 +448,9 @@ Lemma thing: forall ts sigma v GGamma Gamma T,
 Proof.
   intros.
   induction ts; simpl; unpack.
-  { repeat (
-      try (eapply step_left; [solve [ 
-        econstructor; simpl; eauto;
-        repeat intro; tryfalse
-        ]|]);
-      try (eapply step_right; [solve [
-        econstructor; simpl; eauto;
-        repeat intro; tryfalse
-        ]|])
-    ); eapply diagram_finish.
+  { repeat step; eapply diagram_finish. }
+  { repeat step. 
+    admit.
   }
 Admitted.
 
@@ -500,14 +493,15 @@ Proof.
   }
   { simpl.
     repeat step.
-    induction ts; simpl.
-    { repeat step. eapply diagram_finish. }
-    { repeat step. admit. }
+    edestruct thing as (target & Htarget1 & Htarget2); eauto.
+    epose proof (append_stack_stable_star _ _ Htarget1 (trans_conts kappa)).
+    epose proof (append_stack_stable_star _ _ Htarget2 (trans_conts kappa)).
+    eexists; eauto.
   }
   { eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
     eapply star_refl.
   }
   Fail next goal.
-Admitted.
+Qed.
 
