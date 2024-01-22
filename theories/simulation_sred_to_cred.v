@@ -1551,7 +1551,7 @@ Proof.
   all: inversion Hs2; subst; eauto.
 Qed.
 
-Ltac info :=
+(* Ltac info :=
   match goal with
   | [ |- plus cred ?s1 _ /\ _ ] =>
     idtac s1 "//"
@@ -1560,7 +1560,9 @@ Ltac info :=
   | [ |- cred ?s1 _ /\ _ ] =>
     idtac s1 "//"
   | _ => idtac
-  end.
+  end. *)
+
+Ltac info := idtac.
 
 
 
@@ -1757,7 +1759,8 @@ Proof.
 
     (* When no more progress is possible, we can finaly introduce the evar corresponding to the goal term. This is to avoid having variable completing our evar that escape the scope they were defined in. *)
     | [ |- exists _, _] =>
-    idtac "---"; eexists
+      (* idtac "---"; *)
+      eexists
     | _ =>
       info;
       solve [split; [eapply star_refl|];
@@ -2019,7 +2022,8 @@ Proof.
 
     (* When no more progress is possible, we can finaly introduce the evar corresponding to the goal term. This is to avoid having variable completing our evar that escape the scope they were defined in. *)
     | [ |- exists _, _] =>
-      let P := type of Hred_current in idtac "---"; idtac P "//"; eexists
+      (* let P := type of Hred_current in idtac "---"; idtac P "//"; *)
+      eexists
     | _ =>
       first[solve [split; [info; eapply star_refl|];
       solve [
@@ -2038,7 +2042,7 @@ Proof.
         end
       (* For return cases *)
       | econstructor; simpl; rewrite subst_env_cons; asimpl; eauto
-      ]; idtac "ok"] | idtac "notok"]
+      ](*; idtac "ok" *)] (* |  idtac "notok" *)]
     end.
     
     all: try solve [ repeat match goal with
