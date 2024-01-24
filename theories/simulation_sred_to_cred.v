@@ -244,7 +244,6 @@ Parameter match_value: forall {s v v'},
   match_conf s (Value v').
 
 
-
 Section APPLY_EXAMPLES.
 
   Example test1:
