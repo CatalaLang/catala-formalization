@@ -486,10 +486,59 @@ Proof.
   intros; simpl; eauto.
 Qed.
 
+Definition map_cont (map_term: term -> term) (map_value: value -> value) (k: cont) : cont :=
+  match k with
+  | CAppR t2 => CAppR (map_term t2)
+  | CBinopL op v1 => CBinopL op (map_value v1)
+  | CBinopR op t2 => CBinopR op (map_term t2)
+  | CClosure t_cl sigma_cl => CClosure (t_cl) (List.map map_value sigma_cl)
+  | CReturn sigma' => CReturn (List.map map_value sigma')
+  | CDefaultBase tc => CIf (map_term tc) ENone
+  | CMatch t1 t2 => CMatch (map_term t1) (map_term t2)
+  | CSome => CSome
+  | CIf t1 t2 => CIf (map_term t1) (map_term t2)
+  | CErrorOnEmpty => CErrorOnEmpty
+  | CDefaultPure => CDefaultPure
+  | CDefault b None ts tj tc =>
+    CDefault b (None) (List.map map_term ts) (map_term tj) (map_term tc)
+  | CDefault b (Some v) ts tj tc =>
+    CDefault b (Some (map_value v)) (List.map map_term ts) (map_term tj) (map_term tc)
+  end.
+
+Fixpoint map_conts_until_return
+  map_term map_value (kappa: list cont) : list cont :=
+  match kappa with
+  | CReturn sigma :: kappa =>
+    CReturn (List.map map_value sigma) :: kappa
+  | h :: t =>
+    (map_cont map_term map_value h) :: (map_conts_until_return map_term map_value t)
+  | [] => [] 
+  end.
+
+Definition lift_state a s :=
+  match s with
+  | mode_eval t kappa sigma =>
+    mode_eval (lift 1 t) (map_conts_until_return (fun t => lift 1 t) (fun x => x) kappa) (a::sigma)
+  | mode_cont kappa sigma r =>
+    mode_cont (map_conts_until_return (fun t => lift 1 t) (fun x => x) kappa) (a::sigma) r
+  end.
+
+Goal
+  forall {v s1 s2},
+  cred s1 s2 ->
+  cred (lift_state v s1) (lift_state v s2).
+Proof.
+  induction 1.
+  all: try solve [simpl; econstructor].
+  all: admit.
+Abort.
+
+
+
 Lemma thing:
-  forall {t sigma sigma' r a},
+  forall {t sigma sigma' r v},
   star cred (mode_eval t [] sigma) (mode_cont [] sigma' r ) ->
-  star cred (mode_eval (lift 1 t) [] (a :: sigma)) (mode_cont [] (a:: sigma') r).
+  star cred (mode_eval (lift 1 t) [] (v :: sigma)) (mode_cont [] (v:: sigma') r).
 Admitted.
 
 Require Import simulation_sred_to_cred.
