@@ -12,17 +12,8 @@ Fixpoint monad_handle_one res (ts: list term) : term :=
   match ts with
   | nil => ESome res
   | cons thead ttail =>
-    Match_ (lift 1 thead)
-      (monad_handle_one res ttail)
-      (Conflict)
-  end.
-
-Fixpoint monad_handle_one' res (ts: list term) : term :=
-  match ts with
-  | nil => ESome res
-  | cons thead ttail =>
     Match_ thead
-      (monad_handle_one' res ttail)
+      (monad_handle_one res ttail)
       (Conflict)
   end.
 
@@ -32,7 +23,7 @@ Fixpoint monad_handle_zero ts tj tc: term :=
   | cons thead ttail =>
     Match_ thead
       (monad_handle_zero ttail tj tc)
-      (monad_handle_one (Var 0) ttail)
+      (monad_handle_one (Var 0) (List.map (fun t => lift 1 t) ttail))
   end.
 
 Definition monad_handle ts tj tc: term :=
@@ -402,16 +393,17 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
   | CErrorOnEmpty :: kappa => CMatch Conflict (Var 0) :: trans_conts kappa sigma
   | CDefaultPure :: kappa => CSome :: trans_conts kappa sigma
   | CDefault b None ts tj tc :: kappa =>
-    CMatch (monad_handle_zero (List.map trans ts) (trans tj) (trans tc)) (monad_handle_one (Var 0) (List.map trans ts)) :: trans_conts kappa sigma
+    (* same thing as monad_handle_zero but with first match unrolled as a continuation *)
+    CMatch (monad_handle_zero (List.map trans ts) (trans tj) (trans tc)) (monad_handle_one (Var 0) (List.map (fun t => lift 1 t) (List.map trans ts))) :: trans_conts kappa sigma
 
   | CDefault b (Some v) ts tj tc :: kappa =>
-    CReturn (trans_value v::sigma) ::
+    (* ideally, we would like the same thing as the monad_handle_one with first match unrolled, but sadly, the variable correcting to v is not binded *)
     CMatch (
       monad_handle_one
-        (Var 0)
+        (Value (trans_value v))
         (List.map trans ts)
       )
-      (Conflict) :: CReturn sigma :: trans_conts kappa sigma
+      (Conflict) :: trans_conts kappa sigma
 
   end.
 
@@ -432,43 +424,8 @@ Definition trans_state (s: state) : state :=
 .
 
 
-(* Require Import simulation_sred_to_cred. *)
-
 Import List.ListNotations.
 
-(* Lemma lift_cred:
-forall v e ts sigma, exists target,
-  star cred
-    (mode_eval (lift 1 e) [CMatch (monad_handle_one (Var 0) ts) Conflict; CReturn sigma] (v :: sigma))
-    target
-  /\
-  star cred
-    (mode_eval e [CMatch (monad_handle_one' (Value v) ts) Conflict] sigma)
-    target.
-Proof.
-
-Admitted.
-
-
-Lemma thing: forall ts sigma v GGamma Gamma T,
-  List.Forall (fun ti : term => jt_term GGamma Gamma ti (TDefault T)) ts ->
-  exists target : state,
-    star cred (mode_eval (monad_handle_one (Var 0) (List.map trans ts))
-                ([CReturn (List.map trans_value sigma)])
-                (trans_value v :: List.map trans_value sigma))
-              target /\
-    star cred (mode_eval (monad_handle_one' (Value (trans_value v)) (List.map trans ts))
-                [] (List.map trans_value sigma))
-              target.
-Proof.
-  intros.
-  induction ts; simpl; unpack.
-  { repeat step; eapply diagram_finish. }
-  { repeat step.
-    edestruct (lift_cred (trans_value v) (trans a) (List.map trans ts) (List.map trans_value sigma)) as (target1 & Ht1 & Ht2).
-    exists target1; eauto.
-  }
-Qed. *)
 
 Require Import sequences.
 
@@ -486,60 +443,6 @@ Proof.
   intros; simpl; eauto.
 Qed.
 
-Definition map_cont (map_term: term -> term) (map_value: value -> value) (k: cont) : cont :=
-  match k with
-  | CAppR t2 => CAppR (map_term t2)
-  | CBinopL op v1 => CBinopL op (map_value v1)
-  | CBinopR op t2 => CBinopR op (map_term t2)
-  | CClosure t_cl sigma_cl => CClosure (t_cl) (List.map map_value sigma_cl)
-  | CReturn sigma' => CReturn (List.map map_value sigma')
-  | CDefaultBase tc => CIf (map_term tc) ENone
-  | CMatch t1 t2 => CMatch (map_term t1) (map_term t2)
-  | CSome => CSome
-  | CIf t1 t2 => CIf (map_term t1) (map_term t2)
-  | CErrorOnEmpty => CErrorOnEmpty
-  | CDefaultPure => CDefaultPure
-  | CDefault b None ts tj tc =>
-    CDefault b (None) (List.map map_term ts) (map_term tj) (map_term tc)
-  | CDefault b (Some v) ts tj tc =>
-    CDefault b (Some (map_value v)) (List.map map_term ts) (map_term tj) (map_term tc)
-  end.
-
-Fixpoint map_conts_until_return
-  map_term map_value (kappa: list cont) : list cont :=
-  match kappa with
-  | CReturn sigma :: kappa =>
-    CReturn (List.map map_value sigma) :: kappa
-  | h :: t =>
-    (map_cont map_term map_value h) :: (map_conts_until_return map_term map_value t)
-  | [] => [] 
-  end.
-
-Definition lift_state a s :=
-  match s with
-  | mode_eval t kappa sigma =>
-    mode_eval (lift 1 t) (map_conts_until_return (fun t => lift 1 t) (fun x => x) kappa) (a::sigma)
-  | mode_cont kappa sigma r =>
-    mode_cont (map_conts_until_return (fun t => lift 1 t) (fun x => x) kappa) (a::sigma) r
-  end.
-
-Goal
-  forall {v s1 s2},
-  cred s1 s2 ->
-  cred (lift_state v s1) (lift_state v s2).
-Proof.
-  induction 1.
-  all: try solve [simpl; econstructor].
-  all: admit.
-Abort.
-
-
-
-Lemma thing:
-  forall {t sigma sigma' r v},
-  star cred (mode_eval t [] sigma) (mode_cont [] sigma' r ) ->
-  star cred (mode_eval (lift 1 t) [] (v :: sigma)) (mode_cont [] (v:: sigma') r).
-Admitted.
 
 Require Import simulation_sred_to_cred.
 
@@ -563,6 +466,18 @@ Proof.
     rewrite H; eauto.
   }
 Qed.
+
+Theorem correction_continuations:
+  forall s1 s2,
+  cred s1 s2 ->
+  exists target,
+    star cred
+      (trans_state s1) target /\
+    star cred
+      (trans_state s2) target.
+Proof.
+Abort.
+  
 
 Theorem correction_continuations:
   forall s1 s2,
@@ -600,37 +515,40 @@ Proof.
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_one; simpl; econstructor. eauto using List.map_nth_error.
   }
-  { simpl trans_state.
+  { simpl.
     repeat step.
-    assert (Hty: exists T', jt_state GGamma Gamma (mode_eval (trans th) [] (List.map trans_value sigma)) (T')). { admit. }
+    induction ts.
+    { simpl. repeat step. eapply diagram_finish. }
+    { simpl.
+      assert (Hty: exists T', jt_state GGamma Gamma (mode_eval (trans a) [] (List.map trans_value sigma)) (T')). { admit. }
+      unpack.
+      pose proof (correctness.correctness_technical _ _ _ _ Hty); unpack.
 
-    unpack.
+      eapply star_step_right.
+      {
+        rewrite append_stack_nil_eval.
+        eapply append_stack_stable_star.
+        eauto.
+        admit.
+      }
+    
+      eapply star_step_left.
+      {
+        rewrite append_stack_nil_eval.
+        eapply append_stack_stable_star.
+        admit.
+      }
 
-    pose proof (correctness.correctness_technical _ _ _ _ Hty); unpack.
-
-    eapply star_step_right.
-    {
-      rewrite append_stack_nil_eval.
-      eapply append_stack_stable_star.
-      eauto.
+      simpl.
+      repeat step.
+      repeat eexists; eapply star_refl_eq; eauto; repeat f_equal.
+      pose proof (star_cred_last _ _ H); simpl in *; eauto.
+      admit.
     }
-  
-    eapply star_step_left.
-    {
-      rewrite append_stack_nil_eval.
-      eapply append_stack_stable_star.
-      eapply thing.
-      eauto. 
-    }
-    simpl.
-    repeat step.
-    repeat eexists; eapply star_refl_eq; eauto; repeat f_equal.
-    pose proof (star_cred_last _ _ H); simpl in *; eauto.
   }
   { eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
     eapply star_refl.
   }
   Fail next goal.
-Admitted.
-
+Abort.
