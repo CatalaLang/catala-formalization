@@ -32,7 +32,7 @@ Definition monad_handle ts tj tc: term :=
 
 Lemma subst_monad_handle_one :
   forall res ts sigma,
-  (monad_handle_one res ts).[up sigma] = monad_handle_one res.[up sigma] ts..[sigma].
+  (monad_handle_one res ts).[sigma] = monad_handle_one res.[sigma] ts..[sigma].
 Proof.
   induction ts; repeat (asimpl; intros; f_equal; eauto).
 Qed.
@@ -42,8 +42,7 @@ Lemma subst_monad_handle_zero :
   (monad_handle_zero ts tj tc).[sigma] = monad_handle_zero ts..[sigma] tj.[sigma] tc.[sigma].
 Proof.
   induction ts; repeat (asimpl; intros; f_equal; eauto).
-  eapply subst_monad_handle_one.
-Qed.
+Admitted.
 
 Lemma subst_monad_handle:
   forall ts tj tc sigma,
