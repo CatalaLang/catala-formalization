@@ -3,21 +3,23 @@
     "tasks": [
         {
             "label": "dune-build",
-            "command": "dune", // Replace this with your external command
+            "command": "dune",
             "args": [
                 "build"
-            ], // Arguments for the external command
+            ],
             "type": "shell",
             "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         },
         {
             "dependsOn": "dune-build",
             "label": "coq-reload",
             "command": "${command:extension.coq.reset}",
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
+            "group": "build",
+            "problemMatcher": []
         }
     ]
 }

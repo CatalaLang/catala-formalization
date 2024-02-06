@@ -31,6 +31,7 @@ Inductive term :=
   | Match_ (u t1: term) (t2: {bind term})
   | ENone
   | ESome (t: term)
+  (* | Fold (f: {bind 2 term}) (ts: list term) (t: term) *)
 
   | If (t ta tb: term)
 
@@ -89,7 +90,7 @@ Global Hint Rewrite subst_app subst_cons: autosubst.
 
 
 
-Definition get_op op i1 i2:=
+Definition get_op op i1 i2 :=
   match op, i1, i2 with
   | Add, Int i1, Int i2 => Some (Int (Z.add i1 i2))
   | Eq, Int i1, Int i2 => Some (Bool (Z.eqb i1 i2))

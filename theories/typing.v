@@ -1,6 +1,6 @@
 Require Import String.
 Require Import List.
-Require Import syntax continuations_hole tactics sequences.
+Require Import syntax continuations tactics sequences.
 Import List.ListNotations.
 Require Import Coq.ZArith.ZArith.
 
@@ -35,6 +35,7 @@ Inductive inv_no_default: type -> Prop :=
     inv_no_default T1 ->
     inv_no_default (TOption T1)
 .
+
 
 Inductive inv_thunked_or_nodefault: type -> Prop :=
   | invArrowThunked:
@@ -334,6 +335,11 @@ Inductive jt_state: (string -> option type) -> list type -> state -> type -> Pro
       jt_state Delta Gamma2 (mode_cont kappa sigma r) T2
 .
 
+(*
+Lemma jt_state_correct:
+  "forall s, jt_state s -> jt_term (apply_state s)."
+*)
+
 Ltac2 sinv_jt () :=
   match! goal with
   | [ h: jt_term _ _ ?c _ |- _ ] => smart_inversion c h
@@ -517,7 +523,7 @@ In
     { repeat econs_inv; admit. }
     { repeat econs_inv; admit. }
     { repeat econs_inv; admit. }
-  Admitted.
+  Abort.
 
   (* (λ t. < t () | true :- pure 5>) (λ x. Ø) *)
   Example negative_1: ~ jt_term (fun _ => None) [] (App (Lam ((Default [App (Var 0) (Value (VUnit))] (Value (Bool true)) (DefaultPure (Value (Int 5)))))) (Lam Empty)) (TDefault TInteger).
@@ -628,7 +634,7 @@ Module correctness.
   Parameter measure: state -> nat.
   Parameter measure_decrease: forall s1 s2, cred s1 s2 -> measure s2 < measure s1.
 
-  Theorem correctness_technical s1:
+  Theorem correctness_technical_aux s1:
     forall Delta Gamma T,
       jt_state Delta Gamma s1 T ->
       exists s2,
@@ -651,6 +657,28 @@ Module correctness.
     Fail next goal.
   Qed.
 
+  Theorem correctness_technical s1:
+    forall Delta Gamma T,
+      jt_state Delta Gamma s1 T ->
+      exists r sigma,
+        star cred s1 (mode_cont [] sigma r)
+      .
+  Proof.
+    induction s1 using (Wf_nat.induction_ltof1 _ measure).
+    unfold Wf_nat.ltof in H.
+    intros ? ? ? HT.
+    destruct (progress _ _ _ _ HT).
+    * unpack.
+      edestruct (H s2).
+      { eapply measure_decrease; eauto. }
+      { eapply preservation; eauto. }
+      { unpack. eexists; eauto with sequences. }
+    * unpack.
+      induction s1; simpl in *; subst; inj.
+      repeat eexists; eapply star_refl; eauto.
+    Fail next goal.
+  Qed.
+
 
   Theorem correctness:
     forall Delta t T,
@@ -663,7 +691,7 @@ Module correctness.
   .
   Proof.
     intros.
-    destruct correctness_technical with
+    destruct correctness_technical_aux with
       (mode_eval t [] [])
       Delta
       ([]: list type)

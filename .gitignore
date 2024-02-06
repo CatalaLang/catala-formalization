@@ -2,3 +2,4 @@ _build
 .direnv
 .envrc
 .lia.cache
+_opam

@@ -24,6 +24,11 @@ Inductive result :=
   | RConflict
 .
 
+Inductive is_hole :=
+  | Hole
+  | NoHole
+.
+
 (* App (Var 0) (up t2) *)
 
 Inductive cont :=
@@ -35,13 +40,16 @@ Inductive cont :=
   | CBinopL (op: op) (v1: value) (* [op t1 \square] *)
   | CBinopR (op: op) (t2: term) (* [op \square t2] *)
   | CReturn (sigma: list value) (* call return *)
-  | CDefault (o: option value) (ts: list term) (tj: term) (tc: term)
+  | CDefault (b: is_hole) (o: option value) (ts: list term) (tj: term) (tc: term)
     (* [Def(o, ts, tj, tc)] *)
   | CDefaultBase (tc: term)
     (* [ <| \square :- tc >] *)
   | CMatch (t1: term) (t2: {bind term})
     (* [ match \square with None -> t1 | Some -> t2 end ] *)
+  | CIf (ta: term) (tb: term)
   | CSome
+  | CErrorOnEmpty
+  | CDefaultPure
 .
 
 Inductive state :=
@@ -50,6 +58,9 @@ Inductive state :=
 .
 
 Inductive cred: state -> state -> Prop :=
+
+
+  (** Rules related to the lambda calculus *)
   | cred_var:
     forall x kappa sigma v,
     List.nth_error sigma x = Some v ->
@@ -87,43 +98,83 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont (CReturn sigma::kappa) sigma_cl r)
       (mode_cont kappa sigma r)
 
+
+  (** Rules related to the defaults *)
+
+  | cred_defaultpure_intro:
+    forall e kappa sigma,
+    cred
+      (mode_eval (DefaultPure e) kappa sigma)
+      (mode_eval e (CDefaultPure::kappa) sigma)
+  | cred_defaultpure_elim:
+    forall kappa sigma v,
+    cred
+      (mode_cont (CDefaultPure::kappa) sigma (RValue v))
+      (mode_cont kappa sigma (RValue (VPure v)))
+
+  | cred_erroronempty_intro:
+    forall e kappa sigma,
+    cred
+      (mode_eval (ErrorOnEmpty e) kappa sigma)
+      (mode_eval e (CErrorOnEmpty::kappa) sigma)
+  | cred_erroronempty_elim_empty:
+    forall kappa sigma,
+    cred
+      (mode_cont (CErrorOnEmpty::kappa) sigma REmpty)
+      (mode_cont kappa sigma RConflict)
+  | cred_erroronempty_elim_other:
+    forall kappa sigma v,
+    cred
+      (mode_cont (CErrorOnEmpty::kappa) sigma (RValue (VPure v)))
+      (mode_cont kappa sigma (RValue v))
+
   | cred_default:
     forall ts tj tc kappa sigma,
     cred
       (mode_eval (Default ts tj tc) kappa sigma)
-      (mode_cont ((CDefault None ts tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma REmpty)
 
-  | cred_defaultunpack:
+  | cred_default_unpack:
     forall o th ts tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault o (th::ts) tj tc)::kappa) sigma REmpty)
-      (mode_eval th ((CDefault o ts tj tc)::kappa) sigma)
+      (mode_cont ((CDefault Hole o (th::ts) tj tc)::kappa) sigma REmpty)
+      (mode_eval th ((CDefault NoHole o ts tj tc)::kappa) sigma)
 
-  | cred_defaultnone:
+  | cred_default_value:
+    forall o ts tj tc kappa sigma v,
+    cred
+      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma (RValue (VPure v)))
+      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma (RValue (VPure v)))
+
+  | cred_default_value_none_to_some:
     forall ts tj tc kappa sigma v,
     cred
-      (mode_cont ((CDefault None ts tj tc)::kappa) sigma (RValue v))
-      (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma (RValue (VPure v)))
+      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma REmpty)
 
-  | cred_defaultconflict:
+  | cred_default_value_conflict:
     forall ts tj tc kappa sigma v v',
     cred
-      (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma (RValue v'))
+      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma (RValue (VPure v')))
       (mode_cont kappa sigma RConflict)
 
-  | cred_defaultvalue:
+  | cred_default_value_return:
     forall v tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault (Some v) [] tj tc)::kappa) sigma REmpty)
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont ((CDefault Hole (Some v) [] tj tc)::kappa) sigma REmpty)
+      (mode_cont kappa sigma (RValue (VPure v)))
 
-  (* | cred_defaultnonefinal: (* not needed *)
-    todo *)
+  (* empty *)
+  | cred_default_empty:
+    forall o ts tj tc kappa sigma,
+    cred
+      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma REmpty)
 
   | cred_defaultbase:
     forall tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault None [] tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault Hole None [] tj tc)::kappa) sigma REmpty)
       (mode_eval tj ((CDefaultBase tc)::kappa) sigma)
 
   | cred_defaultbasetrue:
@@ -136,15 +187,6 @@ Inductive cred: state -> state -> Prop :=
     forall tc kappa sigma,
     cred
       (mode_cont ((CDefaultBase tc)::kappa) sigma (RValue (Bool false)))
-      (mode_cont kappa sigma REmpty)
-
-  (* REmpty is catched by CDefault in the rule cdefaultbase. *)
-  | cred_empty:
-    forall phi kappa sigma,
-    (forall o ts tj tc, phi <> CDefault o ts tj tc) ->
-    (forall sigma', phi <> CReturn sigma') ->
-    cred
-      (mode_cont (phi::kappa) sigma REmpty)
       (mode_cont kappa sigma REmpty)
 
   (* Conflict panics and stop the execution of the program.
@@ -224,73 +266,22 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont (CSome::kappa) sigma (RValue v))
       (mode_cont kappa sigma (RValue (VSome v)))
+  | cred_if:
+    forall u t1 t2 kappa sigma,
+    cred
+      (mode_eval (If u t1 t2) kappa sigma)
+      (mode_eval u ((CIf t1 t2)::kappa) sigma)
+  | cred_if_none:
+    forall t1 t2 kappa sigma,
+    cred
+      (mode_cont ((CIf t1 t2)::kappa) sigma (RValue (Bool true)))
+      (mode_eval t1 kappa sigma)
+  | cred_if_some:
+    forall t1 t2 kappa sigma,
+    cred
+      (mode_cont ((CIf t1 t2) :: kappa) sigma (RValue (Bool false)))
+      (mode_eval t2 kappa sigma)
 .
-
-
-Declare Custom Entry latex.
-Declare Scope latex.
-
-  (* Base coq *)
-  Notation "'<LATEX>' e '</LATEX>'" := e (e custom latex): latex.
-  Notation "'<COQERROR>' x '</COQERROR>'" := x (in custom latex, x constr): latex.
-
-  Notation "'\ident{' x '}'" := (x) (x ident, in custom latex at level 0): latex.
-
-  Notation "'\synpunct{[]}'" := (@nil _) (in custom latex): latex.
-  Notation "'{' x '\syncons' l '}'" := (@cons _ x l) (in custom latex): latex.
-  Notation "'{' '[' x ']' '}'" := ([x]) (in custom latex): latex.
-  Notation "'{' '[' x ';'  y ']' '}'" := ([x; y]) (in custom latex): latex.
-  Notation "'{' '[' x ';'  y ']' '}'" := ([x; y]) (in custom latex): latex.
-  Notation "'{' '[' x ';'  y ';' z ']' '}'" := ([x; y; z]) (in custom latex): latex.
-  Notation "'{' '[' x ';'  y ';' z ';' w ']' '}'" := ([x; y; z; w]) (in custom latex): latex.
-
-  Notation "'{' \synnone '}'" := None (in custom latex): latex.
-  Notation "'{' '\synsome(' v ')' '}'" := (Some v) (in custom latex): latex.
-
-  (* Terms *)
-  Notation "'{' '\overline{\synvar{' x '}}' '}'" := (Var x) (in custom latex, x constr ): latex.
-  Notation "'{' '\synvar{' x '}' '}'" := (FreeVar x) (in custom latex): latex.
-  Notation "'{' t1  t2 '}'" := (App t1 t2) (in custom latex): latex.
-  Notation "'{' ( '\synlambda.' t ) '}'" := (Lam t) (in custom latex): latex.
-  Notation "'{' \synlet t2 \synin t1 '}'" := (App (Lam t1) t2) (in custom latex): latex.
-
-  Notation "'{' '\synlangle' ts '\synmid' tj '\synjust' tc '\synrangle' '}'" :=  (Default ts tj tc) (in custom latex): latex.
-  Notation "'{' '\ghostvalue' v '}'" := (Value (v)) (in custom latex): latex.
-  Notation "'{' t1 '\synpunct{' op '}' t2 '}'" := (Binop op t1 t2) (in custom latex): latex.
-
-
-  (* Closures *)
-  Notation "'{' '\square' '\synpunct{' op '}' e2 '}'" := (CBinopR op e2) (in custom latex): latex.
-  Notation "'{' '\square' e2 '}'" := (CAppR e2) (in custom latex): latex.
-  Notation "'{' v1 '\synpunct{' op '}' '\square' '}'" := (CBinopL op v1) (in custom latex): latex.
-  Notation "'{' '\synCClo(' t_cl ','  sigma_cl ')' '\square' '}'" := (CClosure t_cl sigma_cl) (in custom latex): latex.
-  Notation "'{' '\synDef(' o ',' ts ','  tj ','  tc ')' '}'" := (CDefault o ts tj tc) (in custom latex): latex.
-  Notation "'{' '\synReturn(' sigma ')' '}'" := (CReturn sigma) (in custom latex): latex.
-  Notation "'{' '\synlangle' '\square' '\synjust' tc '\synrangle' '}'" := (CDefaultBase tc) (in custom latex): latex.
-
-
-  (* Runtime Values *)
-  Notation "\syntrue" := true (in custom latex): latex.
-  Notation "\synfalse" := false (in custom latex): latex.
-  Notation "'{' \ghostbool b '}'" := (Bool b) (in custom latex): latex.
-  Notation "'{' \ghostint i '}'" := (Int i) (in custom latex, i constr): latex.
-  Notation "'{' '\synClo(' t ','  sigma ')' '}'" := (Closure t sigma) (in custom latex): latex.
-  (* Notation "'{' '\ghostvvalue'  v '}'" := (VValue v) (in custom latex): latex. *)
-
-  Notation "+" := Add (in custom latex): latex.
-
-
-  (* Results *)
-  Notation "'\synempty'" := REmpty (in custom latex): latex.
-  Notation "'\synconflict'" := RConflict (in custom latex): latex.
-  Notation "'{' v '}'" := (RValue v) (in custom latex): latex.
-
-  (* continuation mode *)
-  Notation "'{\leval'  t ,  kappa ,  sigma  '\reval}'" := (mode_eval t kappa  sigma) (in custom latex): latex.
-  Notation "'{\lcont'  kappa ,  sigma ,  v  '\rcont}'" := (mode_cont kappa sigma  v) (in custom latex): latex.
-  Notation "'{' s1  '\leadsto^*' s2 '}'" := (star cred s1 s2) (in custom latex): latex.
-  Notation "'{' s1  '\leadsto' s2 '}'" := (cred s1 s2) (in custom latex): latex.
-
 
 Notation "'cred' t1 t2" :=
   (cred t1 t2) (
@@ -317,52 +308,74 @@ Notation "'plus' 'cred' t1 t2" :=
   format "'plus'  'cred'  '[hv' t1  '/' t2 ']'"
 ).
 
-Section CRED_EXAMPLES.
-  Example wtf:
-  exists sigma',
-    star cred
-    (mode_eval
-      (* \synlet 5 \synin (\synlet 3 \synin \bar 0) +\ bar 0*)
-      (App
-        (Lam
-          (Binop
-            Add
-            (App (Lam (Var 0)) (Value (Int 3%Z)))
-            (Var 0)
-          )
-        )
-        (Value (Int 5%Z))
-      )
-      []
-      []
-    )
-    (mode_cont [] sigma' (RValue (Int 8%Z)))
-    .
-  Proof.
-    repeat econstructor.
-    (* (* step by step for demonstration purpose. *)
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    try eapply star_step; [econstructor; simpl; eauto|].
-    eapply star_refl. *)
-  Qed.
 
-End CRED_EXAMPLES.
+(* Declare Custom Entry latex.
+Declare Scope latex.
 
-Section CRED_PROPERTIES.
+  (* Base coq *)
+  Notation "'<LATEX>' e '</LATEX>'" := e (e custom latex): latex.
+  Notation "'<COQERROR>' x '</COQERROR>'" := x (in custom latex, x constr): latex.
+
+  Notation "'\ident{' x '}'" := (x) (x ident, in custom latex at level 0): latex.
+
+  Notation "'\synpunct{[]}'" := (@nil _) (in custom latex): latex.
+  Notation " x '\syncons' l " := (@cons _ x l) (in custom latex at level 20): latex.
+  Notation " '[' ']' " := ([]) (in custom latex): latex.
+  Notation " '[' x ']' " := ([x]) (in custom latex): latex.
+  Notation " '[' x ';'  y ']' " := ([x; y]) (in custom latex): latex.
+  Notation " '[' x ';'  y ']' " := ([x; y]) (in custom latex): latex.
+  Notation " '[' x ';'  y ';' z ']' " := ([x; y; z]) (in custom latex): latex.
+  Notation " '[' x ';'  y ';' z ';' w ']' " := ([x; y; z; w]) (in custom latex): latex.
+
+  Notation " \synnone " := None (in custom latex): latex.
+  Notation " '\synsome\left(' v '\right)' " := (Some v) (in custom latex): latex.
+
+  (* Terms *)
+  Notation " '\overline{\synvar{' x '}}' " := (Var x) (in custom latex, x constr ): latex.
+  Notation " '\synvar{' x '}' " := (FreeVar x) (in custom latex): latex.
+  Notation " t1  t2 " := (App t1 t2) (in custom latex at level 15): latex.
+  Notation " '\synlambda.' t " := (Lam t) (in custom latex at level 25): latex.
+  Notation " \synlet t2 \synin t1 " := (App (Lam t1) t2) (in custom latex at level 17): latex.
+
+  Notation " '\synlangle' ts '\synmid' tj '\synjust' tc '\synrangle' " :=  (Default ts tj tc) (in custom latex): latex.
+  Notation " '\ghostvalue{' v '}'" := (Value (v)) (in custom latex): latex.
+  Notation " t1 '\synpunct{' op '}' t2 " := (Binop op t1 t2) (in custom latex at level 19): latex.
+
+  Notation "'if' a 'then' b 'else' c 'end'" := (If a b c) (in custom latex).
+  Notation "'match' a 'with' 'None' => b 'Some' => c 'end'" := (Match_ a b c) (in custom latex).
+
+
+  (* Closures *)
+  Notation " '\square' '\synpunct{' op '}' e2 " := (CBinopR op e2) (in custom latex at level 0): latex.
+  Notation " '\square' e2 " := (CAppR e2) (in custom latex at level 0): latex.
+  Notation " v1 '\synpunct{' op '}' '\square' " := (CBinopL op v1) (in custom latex at level 0): latex.
+  Notation " '\synCClo(' t_cl ','  sigma_cl ')' '\square' " := (CClosure t_cl sigma_cl) (in custom latex at level 0): latex.
+  Notation " '\synDef(' o ',' ts ','  tj ','  tc ')' " := (CDefault o ts tj tc) (in custom latex at level 0): latex.
+  Notation " '\synReturn(' sigma ')' " := (CReturn sigma) (in custom latex at level 0): latex.
+  Notation " '\synlangle' '\square' '\synjust' tc '\synrangle' " := (CDefaultBase tc) (in custom latex at level 0): latex.
+
+
+  (* Runtime Values *)
+  Notation "\syntrue" := (Bool true) (in custom latex at level 0): latex.
+  Notation "\synfalse" := (Bool false) (in custom latex at level 0): latex.
+
+  Notation " \ghostint i " := (Int i) (in custom latex at level 0, i constr): latex.
+  Notation " '\synClo(' t ','  sigma ')' " := (Closure t sigma) (in custom latex): latex.
+  (* Notation " '\ghostvvalue'  v " := (VValue v) (in custom latex): latex. *)
+
+  (* Notation "+" := Add (in custom latex): latex. *)
+
+
+  (* Results *)
+  Notation "'\synempty'" := REmpty (in custom latex): latex.
+  Notation "'\synconflict'" := RConflict (in custom latex): latex.
+  Notation " v " := (RValue v) (in custom latex at level 0): latex.
+
+  (* continuation mode *)
+  Notation "'{\leval'  t ,  kappa ,  sigma  '\reval}'" := (mode_eval t kappa  sigma) (in custom latex at level 150): latex.
+  Notation "'{\lcont'  kappa ,  sigma ,  v  '\rcont}'" := (mode_cont kappa sigma  v) (in custom latex): latex.
+  Notation " s1  '\leadsto^*' s2 " := (star cred s1 s2) (in custom latex at level 20): latex.
+  Notation " s1  '\leadsto' s2 " := (cred s1 s2) (in custom latex at level 200): latex. *)
 
 (** STACK MANIPULATION *)
 
@@ -461,165 +474,6 @@ Proof.
   simpl; eauto.
 Qed.
 
-Theorem cred_append_stack_inv s s' n:
-  cred s s' ->
-  (fun x y => lastn n (stack x) = lastn n (stack y)) s s'->
-  cred
-    (with_stack s (droplastn n (stack s)))
-    (with_stack s' (droplastn n (stack s')))
-.
-Proof.
-  induction 1; simpl; intros; try econstructor.
-  all: repeat rewrite droplastn_cons; try econstructor.
-  all: try solve [eapply lastn_cons_length; eauto].
-  all: try eapply lastn_cons_cons_length; eauto; try congruence.
-  all: intro; injections; eapply fuck_stdlib; eauto.
-Qed.
-
-Theorem cred_star_append_stack_inv s s' n:
-  star (fun x y => cred x y /\ lastn n (stack x) = lastn n (stack y)) s s' ->
-  star cred
-    (with_stack s (droplastn n (stack s)))
-    (with_stack s' (droplastn n (stack s'))).
-Proof.
-  induction 1; unpack; econstructor.
-  { eapply cred_append_stack_inv; eauto. }
-  { eauto. }
-Qed.
-
-Theorem cred_stack_stack_inv_one s s' k:
-  star (fun x y => cred x y /\ lastn 1 (stack x) = lastn 1 (stack y)) s s' ->
-  stack s = [k] ->
-  stack s' = [k] ->
-  star cred (with_stack s []) (with_stack s' []).
-Proof.
-  intros Hcred Hs Hs'.
-  replace ([]) with (droplastn 1 (stack s)) at 1.
-  2:{ rewrite Hs; unfold droplastn; simpl; eauto. }
-  replace ([]) with (droplastn 1 (stack s')) at 1.
-  2:{ rewrite Hs'; unfold droplastn; simpl; eauto. }
-  eapply cred_star_append_stack_inv; eauto.
-Qed.
-
-
-(** Reduction don't modify the stack too much *)
-
-Lemma cred_stack_lenght_at_most_one s1 s2:
-  cred s1 s2 ->
-  let n1 := List.length (stack s1) in
-  let n2 := List.length (stack s2) in
-  n1 = n2 \/ n1 = S n2 \/ S n1 = n2.
-Proof.
-  induction 1; simpl; lia.
-Qed.
-
-Lemma cred_stack_lenght_at_most_one_precise s1 s2:
-  cred s1 s2 ->
-  let n1 := List.length (stack s1) in
-  let n2 := List.length (stack s2) in
-  False
-  \/ n1 = n2 /\ is_mode_cont s1 = true
-  \/ n1 = n2 /\ is_mode_eval s1 = true /\ is_mode_cont s2 = true /\ stack s1 = stack s2
-  \/ n1 = S n2 /\ is_mode_cont s1 = true
-  \/ S n1 = n2 /\ is_mode_eval s1 = true.
-Proof.
-  induction 1; try solve [ idtac
-    | simpl; left; repeat split
-    | simpl; right; left; repeat split
-    | simpl; right; right; left; repeat split
-    | simpl; right; right; right; left; repeat split
-    | simpl; right; right; right; right; left; repeat split
-    | simpl; lia]. 
-Qed.
-
-Lemma cred_lastn_stable_n_minus_one s1 s2 n:
-  List.length (stack s1) > n ->
-  List.length (stack s2) > n ->
-  cred s1 s2 ->
-  lastn n (stack s1) = lastn n (stack s2).
-Proof.
-  intros Hs1 Hs2.
-  induction 1; try solve [unfold lastn; case n; simpl in *; eauto];
-    simpl in *; repeat rewrite lastn_cons in *; eauto; try lia.
-Qed.
-
-Lemma cred_lastn_different s1 s2:
-  let n1 := List.length (stack s1) in
-  let n2 := List.length (stack s2) in
-  cred s1 s2 ->
-  lastn n1 (stack s1) <> lastn n1 (stack s2) ->
-  (n1 = S n2 /\ is_mode_cont s1 = true /\ lastn n2 (stack s1) = lastn n2 (stack s2))
-  \/ (n1 = n2 /\ is_mode_cont s1 = true /\ forall k, n1 = S k -> lastn k (stack s1) = lastn k (stack s2))
-  \/ (S n1 = n2 /\ False).
-Proof.
-  Ltac finish := try solve [repeat split; intros; injections; subst;
-      repeat rewrite lastn_length in *;
-      repeat rewrite lastn_length_cons in *;
-      eauto; tryfalse lia].
-  simpl.
-  induction 1; simpl; intros;
-  solve [ left; finish | right; left; finish | right; right finish].
-Qed.
-
-(* specialized versions of the previous lemma *)
-
-
-Lemma cred_stack_same_length_unmodified s1 s2:
-  cred s1 s2 ->
-  List.length (stack s1) = List.length (stack s2) ->
-  is_mode_cont s1 = true \/ stack s1 = stack s2 /\ is_mode_eval s1 = true /\ is_mode_cont s2 = true.
-Proof.
-  induction 1; try solve [simpl; try lia; eauto].
-Qed.
-
-Lemma cred_lastn_stable s1 s2 n:
-  List.length (stack s1) >= n ->
-  List.length (stack s2) >= n ->
-  cred s1 s2 ->
-  lastn n (stack s1) = lastn n (stack s2).
-Proof.
-  intros Hs1 Hs2.
-  induction 1;
-    try solve [ idtac
-      | unfold lastn; case n; simpl in *; eauto
-      | simpl in *; repeat rewrite lastn_cons in *; eauto
-    ].
-Abort.
-
-Lemma cred_lastn_stable s1 s2 n:
-  List.length (stack s1) > n ->
-  List.length (stack s2) > n ->
-  cred s1 s2 ->
-  lastn n (stack s1) = lastn n (stack s2).
-Proof.
-  intros Hs1 Hs2.
-  induction 1; try solve [unfold lastn; case n; simpl in *; eauto];
-    simpl in *; repeat rewrite lastn_cons in *; eauto; try lia.
-Qed.
-
-Lemma creds_lastn_stable_aux s1 s2 n:
-  star (fun a b => cred a b /\ List.length (stack a) > n /\ List.length (stack b) > n) s1 s2 ->
-  star (fun a b => cred a b /\ lastn n (stack a) = lastn n (stack b)) s1 s2.
-Proof.
-  induction 1; econstructor; unpack; eauto using cred_lastn_stable.
-Qed.
-
-Lemma creds_lastn_stable s1 s2 n:
-  n <? List.length (stack s2) = true ->
-  star (fun a b => cred a b /\ n <? List.length (stack a) = true) s1 s2 ->
-  star (fun a b => cred a b /\ lastn n (stack a) = lastn n (stack b)) s1 s2.
-Proof.
-  intros.
-  destruct creds_lastn_stable_aux with s1 s2 n; try solve [econstructor; eauto].
-  match goal with |[h: star _ _ _ |- _ ] => induction h using star_ind_n1 end.
-  unpack.
-  { econstructor. }
-  { eapply star_step_n1; unpack; repeat split; eauto; try lia. }
-Qed.
-
-
-
-
 (* PROPERTIES OF CRED *)
 
 Theorem cred_deterministic (s s1' s2': state):
@@ -632,10 +486,80 @@ Proof.
       epose proof h _ as tmp; exfalso; apply tmp; eauto
     end.
   all: try match goal with
-    [h: context [CDefault _ _ _ _ <> CDefault _ _ _ _] |- _ ] =>
-    epose proof h _ _ _ _ as tmp; exfalso; apply tmp; eauto
+    [h: context [CDefault _ _ _ _ _ <> CDefault _ _ _ _ _] |- _ ] =>
+    epose proof h _ _ _ _ _ as tmp; exfalso; apply tmp; eauto
     end.
 Qed.
+
+
+(** Our reduction sequences should have the folowing shape:
+* The head of kappa, if it exists can have any possible shape.
+* Each member of the tail should however not contain "Hole" inside their default terms.
+* This is explained by the invariant `inv_state`.
+
+*)
+
+Inductive inv_conts_no_hole: cont -> Prop :=
+| inv_CAppR (t2: term):
+  inv_conts_no_hole (CAppR (t2: term))
+| inv_CClosure (t_cl: {bind term}) (sigma_cl: list value):
+  inv_conts_no_hole (CClosure (t_cl: {bind term}) (sigma_cl: list value))
+| inv_CBinopL (op: op) (v1: value):
+  inv_conts_no_hole (CBinopL (op) (v1: value))
+| inv_CBinopR (op: op) (t2: term):
+  inv_conts_no_hole (CBinopR (op) (t2: term))
+| inv_CReturn (sigma: list value):
+  inv_conts_no_hole (CReturn (sigma: list value))
+| inv_CDefault (o: option value) (ts: list term) (tj: term) (tc: term):
+  inv_conts_no_hole (CDefault (NoHole) (o: option value) (ts: list term) (tj: term) (tc: term))
+| inv_CDefaultBase (tc: term):
+  inv_conts_no_hole (CDefaultBase (tc: term))
+| inv_CMatch (t1: term) (t2: {bind term}):
+  inv_conts_no_hole (CMatch (t1: term) (t2: {bind term}))
+| inv_CSome:
+  inv_conts_no_hole (CSome)
+| inv_If (ta tb: term):
+  inv_conts_no_hole (CIf ta tb)
+| inv_ErrorOnEmpty:
+  inv_conts_no_hole CErrorOnEmpty
+| inv_CDefaultPure:
+  inv_conts_no_hole CDefaultPure
+.
+
+Inductive inv_state: state -> Prop :=
+| inv_mode_eval t kappa env:
+  List.Forall inv_conts_no_hole kappa ->
+  inv_state (mode_eval t kappa env)
+| inv_mode_cont_cons k kappa env r:
+  List.Forall inv_conts_no_hole kappa ->
+  inv_state (mode_cont (k::kappa) env r)
+| inv_mode_cont_nil env r:
+  inv_state (mode_cont [] env r)
+.
+
+(* This property is indeed conserved by the cred relation. *)
+
+Theorem cred_inv_state_stable:
+  forall s1 s2,
+    cred s1 s2 ->
+    inv_state s1 ->
+    inv_state s2.
+Proof.
+  induction 1; inversion 1; subst; repeat econstructor; eauto.
+  all: destruct kappa; econstructor; unpack; eauto.
+Qed.
+
+Theorem star_cred_inv_state_stable:
+  forall s1 s2,
+    star cred s1 s2 ->
+    inv_state s1 ->
+    inv_state s2.
+Proof.
+  induction 1.
+  { eauto. }
+  { intros; eapply IHstar; eapply cred_inv_state_stable; eauto. }
+Qed.
+
 
 Theorem cred_stack_empty_irred:
   forall sigma v,
@@ -668,7 +592,6 @@ Proof.
   all: try remember (a::kappa) as kappa'.
   all: repeat rewrite droplastn_cons by (subst; simpl; lia).
   all: try solve [econstructor; eauto].
-  { inj; exfalso; eapply fuck_stdlib; eauto. }
 Qed.
 
 Theorem creds_stack_sub:
@@ -808,7 +731,3 @@ Proof.
     eapply creds_stack_sub; eauto.
   }
 Qed.
-
-End CRED_PROPERTIES.
-
-
