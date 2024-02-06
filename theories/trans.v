@@ -62,7 +62,21 @@ Fixpoint trans (t: term) : term :=
   | ErrorOnEmpty t => Match_ (trans t) Conflict (Var 0)
   | DefaultPure t => ESome (trans t)
   | Default ts tj tc =>
-    monad_handle (List.map trans ts) (trans tj) (trans tc)
+    Match_
+      (Fold 
+        (Lam (Lam 
+          (Match_
+            (Var 0)
+            (Var 1)
+            (Match_
+              (Var 2)
+              (Var 1)
+              (Conflict)
+            )
+          )))
+        (List.map trans ts) ENone)
+      (If (trans tj) (trans tc) ENone)
+      (ESome (Var 0))
   | Empty => ENone
   | Conflict => Conflict
 
@@ -92,7 +106,6 @@ with trans_value v :=
   end
 .
 
-Check term_ind.
 
 Theorem term_ind' : forall P : term -> Prop,
   (forall x : var, P (Var x)) ->
@@ -142,17 +155,8 @@ Lemma trans_te_renaming:
   trans t.[ren xi] = u.[ren xi].
 Proof.
   induction t using term_ind'; repeat (asimpl; intros; subst; f_equal; eauto).
-  { rewrite subst_monad_handle;
-    repeat (asimpl; intros; subst; f_equal; eauto).
-    induction H.
-    { simpl; eauto. }
-    { simpl; f_equal; eauto. }
-  }
-  {
-    induction H.
-    { simpl; eauto. }
-    { simpl; f_equal; eauto. }
-  }
+  { induction H; simpl; f_equal; eauto. }
+  { induction H; simpl; f_equal; eauto. }
 Qed.
 
 
@@ -181,9 +185,9 @@ Proof.
       eauto.
     }
   }
-  { asimpl; intros; subst.
-    rewrite subst_monad_handle; repeat (f_equal; eauto).
-    induction H; asimpl; eauto; f_equal; eauto.
+  { repeat (asimpl; intros; subst).
+    repeat f_equal; eauto.
+    induction H; asimpl; eauto; repeat f_equal; eauto.
   }
   { intros; subst; asimpl; f_equal; eauto.
     eapply IHt3; eauto.
@@ -192,8 +196,11 @@ Proof.
       eauto.
     }
   }
-  { admit. }
-Admitted.
+  { repeat (asimpl; intros; subst).
+    repeat f_equal; eauto.
+    induction H; asimpl; eauto; repeat f_equal; eauto.
+  }
+Qed.
 
 Theorem trans_te_substitution:
   forall t,
@@ -258,8 +265,8 @@ Theorem correction_small_steps:
 Proof.
 
   Ltac step := (
-    try (eapply step_left; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|]);
-    try (eapply step_right; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|])
+    try (eapply step_left; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|]);
+    try (eapply step_right; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|])
   ).
 
   intros s1 s2.
@@ -282,85 +289,32 @@ Proof.
   
   end.
   (* When the right hand side is the result of the left hand side. *)
-  all: try solve [
-    eexists; split; asimpl;
-    [|eapply star_refl];
-    eapply star_one; simpl; econstructor; eauto
-    ].
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|].
+  all: try solve [simpl; repeat step; eapply diagram_finish].
+  { asimpl. repeat step. eexists; split; simpl trans; [|eapply star_refl; fail].
     rewrite <- List.map_cons.
     eapply star_refl_eq.
     symmetry.
     eapply trans_te_substitution; eauto.
-
     eapply Forall2_map.
   }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
-    eapply star_refl.
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step.
+    eapply step_left. { econstructor; simpl; eapply trans_value_op_correct; eauto. }
+    eapply diagram_finish.
   }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|].
-    eapply star_step; [econstructor|].
-    asimpl.
-    eapply star_refl.
-  }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|].
-    eapply star_step; [econstructor|].
-    eapply star_refl.
-  }
-  {
-    eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|].
-    asimpl.
-    eapply star_step; [econstructor|].
-    eapply star_refl.
-  }
-  { eexists; split; simpl trans.
-    2:{
-      eapply star_step; [econstructor|].
-      eapply star_refl.
-    }
-    eapply star_step; [econstructor|].
-    asimpl.
-    eapply star_step; [econstructor; econstructor|].
-    eapply star_step; [econstructor|].
-    eapply star_refl.
-  }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor; econstructor|].
-    eapply star_step; [econstructor|].
-    eapply star_refl.
-  }
-  { eexists; split; asimpl.
-    { eapply star_step; [econstructor|].
-      eapply star_sred_match_cond; asimpl; eauto. }
-    { eapply star_step; [econstructor|].
-      eapply star_sred_match_cond; asimpl; eauto. }
-  }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|].
-    eapply star_refl_eq.
-    rewrite trans_te_substitution_0; eauto.
-  }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor; econstructor|].
-    eapply star_step; [econstructor|].
-    eapply star_refl.
-  }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step. eexists; split; asimpl; eapply star_refl_eq; eauto.
+    eapply trans_te_substitution_0. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
 Qed.
 
 
