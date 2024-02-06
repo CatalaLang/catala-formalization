@@ -298,6 +298,11 @@ Inductive sred: term -> term -> Prop :=
     sred
       (Fold f ts t1)
       (Fold f ts t2)
+  | sred_Fold_Conflict:
+    forall f ts ,
+    sred
+      (Fold f ts Conflict)
+      (Conflict)
 .
 
 
