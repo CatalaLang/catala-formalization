@@ -271,7 +271,6 @@ Inductive sred: term -> term -> Prop :=
       sred (ErrorOnEmpty (Value (VPure v))) (Value v)
   | sred_eoe_conflict:
     sred (ErrorOnEmpty Conflict) (Conflict)
-  
 
   | sred_DefaultPure_value:
     forall v,
@@ -282,6 +281,23 @@ Inductive sred: term -> term -> Prop :=
       sred (DefaultPure ta) (DefaultPure tb)
   | sred_DefaultPure_conflit:
     sred (DefaultPure Conflict) Conflict
+
+  | sred_Fold_rec:
+    forall f h t v,
+    sred
+      (Fold f (h::t) (Value v))
+      (Fold f (t) (App (App f h) (Value v)))
+  | sred_Fold_init:
+    forall f v,
+    sred
+      (Fold f ([]) (Value v))
+      (Value v)
+  | sred_Fold_step:
+    forall f ts t1 t2,
+    sred t1 t2 ->
+    sred
+      (Fold f ts t1)
+      (Fold f ts t2)
 .
 
 
@@ -480,6 +496,20 @@ Proof.
   }
 Qed.
 
+Lemma star_sred_fold:
+    forall f ts u1 u2,
+    star sred u1 u2 ->
+      star sred
+        (Fold f ts u1)
+        (Fold f ts u2).
+Proof.
+  induction 1.
+  { eapply star_refl. }
+  { eapply star_step; [|eapply IHstar].
+    econstructor; eauto.
+  }
+Qed.
+
 Hint Resolve
   star_sred_app_left
   star_sred_app_right
@@ -494,6 +524,7 @@ Hint Resolve
   star_sred_empty_empty
   star_sred_erroronempty
   star_sred_defaultpure
+  star_sred_fold
 : sred sred_star.
 
 Hint Constructors sred : sred.
