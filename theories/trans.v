@@ -76,6 +76,8 @@ Fixpoint trans (t: term) : term :=
 
   | If t ta tb =>
     If (trans t) (trans ta) (trans tb)
+  | Fold f ts acc =>
+    Fold (trans f) (List.map trans ts) (trans acc)
   end
 
 with trans_value v :=
@@ -90,37 +92,43 @@ with trans_value v :=
   end
 .
 
+Check term_ind.
+
 Theorem term_ind' : forall P : term -> Prop,
-       (forall x : var, P (Var x)) ->
-       (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
-       (forall t : {bind term}, P t -> P (Lam t)) ->
-       (forall arg : term, P arg -> P (ErrorOnEmpty arg)) ->
-       (forall arg : term, P arg -> P (DefaultPure arg)) ->
-       forall (IHDef:forall (ts : list term),
-        List.Forall P ts ->
-        forall (tj : term),
-        P tj -> forall tc : term, P tc -> P (Default ts tj tc)),
-       P Empty ->
-       P Conflict ->
-       (forall v : value, P (Value v)) ->
-       (forall x : String.string, P (FreeVar x)) ->
-       (forall (op : op) (t1 : term),
-        P t1 -> forall t2 : term, P t2 -> P (Binop op t1 t2)) ->
-       (forall u : term,
-        P u ->
-        forall t1 : term,
-        P t1 -> forall t2 : {bind term}, P t2 -> P (Match_ u t1 t2)) ->
-       P ENone ->
-       (forall t : term, P t -> P (ESome t)) ->
-       (forall t : term,
-        P t ->
-        forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
-       forall t : term, P t.
+  (forall x : var, P (Var x)) ->
+  (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
+  (forall t : {bind term}, P t -> P (Lam t)) ->
+  (forall arg : term, P arg -> P (ErrorOnEmpty arg)) ->
+  (forall arg : term, P arg -> P (DefaultPure arg)) ->
+  forall (IHDef: forall (ts : list term), List.Forall P ts -> forall (tj : term),
+  P tj -> forall tc : term, P tc -> P (Default ts tj tc)),
+  P Empty ->
+  P Conflict ->
+  (forall v : value, P (Value v)) ->
+  (forall x : String.string, P (FreeVar x)) ->
+  (forall (op : op) (t1 : term),
+  P t1 -> forall t2 : term, P t2 -> P (Binop op t1 t2)) ->
+  (forall u : term,
+  P u ->
+  forall t1 : term,
+  P t1 -> forall t2 : {bind term}, P t2 -> P (Match_ u t1 t2)) ->
+  P ENone ->
+  (forall t : term, P t -> P (ESome t)) ->
+  forall (IHFold: forall f : {bind 2 of term},
+  P f -> forall (ts : list term), List.Forall P ts -> forall (t : term), P t -> P (Fold f ts t)),
+  (forall t : term,
+  P t ->
+  forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
+  forall t : term, P t.
 Proof.
   intros until t; revert t.
   fix IHt 1; lock IHt.
   induction t; eauto.
   { eapply IHDef; eauto.
+    unlock IHt; clear -IHt.  
+    induction ts; econstructor; eauto.
+  }
+  { eapply IHFold; eauto.
     unlock IHt; clear -IHt.  
     induction ts; econstructor; eauto.
   }
@@ -138,10 +146,12 @@ Proof.
     repeat (asimpl; intros; subst; f_equal; eauto).
     induction H.
     { simpl; eauto. }
-    { simpl. f_equal.
-      { eapply H; eauto. }
-      { eapply IHForall. }
-    }
+    { simpl; f_equal; eauto. }
+  }
+  {
+    induction H.
+    { simpl; eauto. }
+    { simpl; f_equal; eauto. }
   }
 Qed.
 
@@ -182,7 +192,8 @@ Proof.
       eauto.
     }
   }
-Qed.
+  { admit. }
+Admitted.
 
 Theorem trans_te_substitution:
   forall t,
@@ -402,7 +413,8 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
         (List.map trans ts)
       )
       (Conflict) :: trans_conts kappa sigma
-
+  | CFold f ts :: kappa =>
+    CFold f (List.map trans ts) :: trans_conts kappa sigma
   end.
 
 Definition trans_return (r: result): result:=
@@ -441,42 +453,6 @@ Proof.
   intros; simpl; eauto.
 Qed.
 
-
-Require Import simulation_sred_to_cred.
-
-Lemma cred_last:
-  forall s1 s2,
-    cred s1 s2 ->
-    last (stack s1) (env s1) = last (stack s2) (env s2).
-Proof.
-  induction 1; try induction phi; simpl; eauto.
-  { exfalso. eapply H; eauto. }
-Qed.
-
-Lemma star_cred_last:
-  forall s1 s2,
-    star cred s1 s2 ->
-    last (stack s1) (env s1) = last (stack s2) (env s2).
-Proof.
-  induction 1 as [|? ? ? Hstep Hstar].
-  { eauto. }
-  { pose proof (cred_last _ _ Hstep).
-    rewrite H; eauto.
-  }
-Qed.
-
-Theorem correction_continuations:
-  forall s1 s2,
-  cred s1 s2 ->
-  exists target,
-    star cred
-      (trans_state s1) target /\
-    star cred
-      (trans_state s2) target.
-Proof.
-Abort.
-  
-
 Theorem correction_continuations:
   forall s1 s2,
   (exists GGamma Gamma T, jt_state GGamma Gamma s1 T) ->
@@ -513,36 +489,7 @@ Proof.
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_one; simpl; econstructor. eauto using List.map_nth_error.
   }
-  { simpl.
-    repeat step.
-    induction ts.
-    { simpl. repeat step. eapply diagram_finish. }
-    { simpl. repeat step.
-      assert (Hty: exists T', jt_state GGamma Gamma (mode_eval (trans a) [] (List.map trans_value sigma)) (T')). { admit. }
-      unpack.
-      pose proof (correctness.correctness_technical _ _ _ _ Hty); unpack.
-
-      eapply star_step_right.
-      {
-        rewrite append_stack_nil_eval.
-        eapply append_stack_stable_star.
-        eauto.
-      }
-    
-      eapply star_step_left.
-      {
-        rewrite append_stack_nil_eval.
-        eapply append_stack_stable_star.
-        admit.
-      }
-
-      simpl.
-      repeat step.
-      repeat eexists; eapply star_refl_eq; eauto; repeat f_equal.
-      pose proof (star_cred_last _ _ H); simpl in *; eauto.
-      admit.
-    }
-  }
+  { admit.  }
   { eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
     eapply star_refl.
