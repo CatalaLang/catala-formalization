@@ -186,16 +186,15 @@ Proof.
 Qed.
 
 Theorem trans_te_substitution:
-  forall t u,
-  trans t = u ->
+  forall t,
   forall sigma1 sigma2,
   List.Forall2 (fun v1 v2 => trans_value v1 = v2) sigma1 sigma2 ->
-  trans t.[subst_of_env sigma1] = u.[subst_of_env sigma2].
+  trans t.[subst_of_env sigma1] = (trans t).[subst_of_env sigma2].
 Proof.
   intros.
   eapply trans_te_substitution_aux; eauto.
   intro a; revert a.
-  induction H0, a; asimpl; eauto. rewrite H0; eauto.
+  induction H, a; asimpl; eauto. rewrite H; eauto.
 Qed. 
 
 Require Import common.
@@ -519,7 +518,7 @@ Proof.
     repeat step.
     induction ts.
     { simpl. repeat step. eapply diagram_finish. }
-    { simpl.
+    { simpl. repeat step.
       assert (Hty: exists T', jt_state GGamma Gamma (mode_eval (trans a) [] (List.map trans_value sigma)) (T')). { admit. }
       unpack.
       pose proof (correctness.correctness_technical _ _ _ _ Hty); unpack.
@@ -529,7 +528,6 @@ Proof.
         rewrite append_stack_nil_eval.
         eapply append_stack_stable_star.
         eauto.
-        admit.
       }
     
       eapply star_step_left.
