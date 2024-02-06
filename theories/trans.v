@@ -264,7 +264,7 @@ Theorem correction_small_steps:
       (trans s2) target.
 Proof.
 
-  Ltac step := (
+  Local Ltac step := (
     try (eapply step_left; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|]);
     try (eapply step_right; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|])
   ).
@@ -356,19 +356,11 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
   | CErrorOnEmpty :: kappa => CMatch Conflict (Var 0) :: trans_conts kappa sigma
   | CDefaultPure :: kappa => CSome :: trans_conts kappa sigma
   | CDefault b None ts tj tc :: kappa =>
-    (* same thing as monad_handle_zero but with first match unrolled as a continuation *)
-    CMatch (monad_handle_zero (List.map trans ts) (trans tj) (trans tc)) (monad_handle_one (Var 0) (List.map (fun t => lift 1 t) (List.map trans ts))) :: trans_conts kappa sigma
-
+    magic
   | CDefault b (Some v) ts tj tc :: kappa =>
-    (* ideally, we would like the same thing as the monad_handle_one with first match unrolled, but sadly, the variable correcting to v is not binded *)
-    CMatch (
-      monad_handle_one
-        (Value (trans_value v))
-        (List.map trans ts)
-      )
-      (Conflict) :: trans_conts kappa sigma
+    magic
   | CFold f ts :: kappa =>
-    CFold f (List.map trans ts) :: trans_conts kappa sigma
+    CFold (trans f) (List.map trans ts) :: trans_conts kappa sigma
   end.
 
 Definition trans_return (r: result): result:=
@@ -417,6 +409,12 @@ Theorem correction_continuations:
     star cred
       (trans_state s2) target.
 Proof.
+
+  Local Ltac step' := (
+    try (eapply step_left; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|]);
+    try (eapply step_right; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|])
+  ).
+
   intros s1 s2.
   intros (GGamma & Gamma & T & Hty).
   intros Hsred.
@@ -438,12 +436,12 @@ Proof.
 
   all: try induction phi; try induction o.
   all:
-    try solve [simpl; repeat step; tryfalse; try eapply diagram_finish; eauto].
+    try solve [simpl; repeat step'; tryfalse; try eapply diagram_finish; eauto].
   {
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_one; simpl; econstructor. eauto using List.map_nth_error.
   }
-  { admit.  }
+  { simpl. repeat step.  }
   { eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
     eapply star_refl.
