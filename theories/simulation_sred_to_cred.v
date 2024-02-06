@@ -187,37 +187,6 @@ Qed.
 
 Import Learn.
 
-Ltac dsimpl :=
-  repeat match goal with
-  (* (* | [h: ?t = Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
-    rewrite (apply_CDefault_SE h)
-  | [h: ?t = Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
-    rewrite (apply_CDefault_NE h) *)
-  | [h: ?t <> Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
-    rewrite (apply_CDefault_ST h)
-  | [h: ?t <> Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
-    rewrite (apply_CDefault_NT h)
-  (* | [h1: ?t = Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
-    rewrite (apply_CDefault_SE h1) in h2
-  | [h1: ?t = Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
-    rewrite (apply_CDefault_NE h1) in h2 *)
-  | [h1: ?t <> Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
-    rewrite (apply_CDefault_ST h1) in h2
-  | [h1: ?t <> Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
-    rewrite (apply_CDefault_NT h1) in h2 *)
-
-  | [h: ?t <> Empty |- context [?t.[subst_of_env ?sigma]]] =>
-    learn (NEmpty_subst_of_env_NEmpty sigma h)
-  | [h: _ /\ _ |- _] =>
-    destruct h
-  | [h: exists _, _ |- _] =>
-    destruct h
-
-  | _ => learn (Empty_eq_Empty) (* so the first two cases trigger*)
-  | _ => progress subst
-  | _ => progress asimpl
-  end.
-
 
 Inductive eq_value: value -> value -> Prop :=
   | eq_closure:
@@ -671,21 +640,6 @@ Proof.
   end.
 Qed.
 
-(* Lemma subst_of_env_Var {x t' env}:
-  Var x = t'.[subst_of_env env] ->
-  t' = Var (x - List.length env) /\ x >= List.length env.
-Proof.
-  destruct t'; asimpl; intros; tryfalse; inj; eauto.
-  unfold subst_of_env in H.
-  match goal with
-  | [h: _ = subst_of_env ?env ?x |- _ ] =>
-    unfold subst_of_env in h;
-    destruct (List.nth_error env x);
-    inj
-  end.
-Qed. *)
-
-
 Lemma subst_of_env_Forall_Empty {ts env}:
   List.Forall (eq Empty) ts..[subst_of_env env] ->
   List.Forall (eq Empty) ts.
@@ -833,103 +787,6 @@ Ltac unpack_subst_of_env_cons :=
 .
 
 (* -------------------------------------------------------------------------- *)
-
-(* The following dead code was related to an old version of the semantics that used the count of non-empty values inside the Default to reduce. *)
-
-(* Definition count_f
-  {A}
-  (p: A -> bool)
-  := fix count_f (l : list A) { struct l} : nat :=
-  match l with
-  | [] => 0
-  | y :: tl => let n := count_f tl in if p y then S n else n
-  end.
-
-Lemma count_f_app
-  {A}
-  (p: A -> bool)
-  (l1 l2: list A) :
-  count_f p (l1 ++ l2) = count_f p l1 + count_f p l2.
-Proof.
-  induction l1.
-  { simpl; eauto. }
-  { simpl; rewrite IHl1.
-    induction (p a); lia.
-  }
-Qed.
-
-Lemma count_f_cons
-  {A}
-  (p: A -> bool)
-  (a: A)
-  (l: list A) :
-  count_f p (a :: l) = let n := count_f p l in if p a then S n else n.
-Proof.
-  simpl; eauto.
-Qed.
-
-Lemma count_occ_decomp:
-  forall [A : Type]
-  [p: A -> bool]
-	(l : list A)
-  [n: nat],
-  count_f p l = S n ->
-  exists l1 x l2,
-    l1 ++ x :: l2 = l /\
-    p x = true /\
-    List.forallb (fun x => negb (p x)) l1 = true /\
-    count_f p l2 = n.
-Proof.
-Admitted.
-
-Parameter eqb_term: term -> term -> bool.
-Parameter eqb_term_ok: forall t1 t2, t1 = t2 <-> eqb_term t1 t2 = true.
-
-(* It is always possible to get a smallest ti and tj. *)
-Lemma default_conflict_sort: forall ts ts1 ti ts2 tj ts3,
-  List.Forall is_value ts ->
-  ti <> Empty ->
-  tj <> Empty ->
-  ts = ts1 ++ ti :: ts2 ++ tj :: ts3 ->
-  exists ts1 ti ts2 tj ts3,
-    List.Forall (eq Empty) ts1 /\
-    List.Forall (eq Empty) ts2 /\
-    ti <> Empty /\
-    tj <> Empty /\
-    ts = ts1 ++ ti :: ts2 ++ tj :: ts3.
-Proof.
-  intros ts ts1 ti ts2 tj ts3 Hts Hti Htj Htseq.
-  assert (Hcount:
-    count_f (fun t => negb (eqb_term Empty t)) ts >= 2
-  ).
-  { rewrite Htseq.
-    assert (Hti': eqb_term Empty ti = false). { admit. }
-    assert (Htj': eqb_term Empty tj = false). { admit. }
-    repeat (
-      try rewrite count_f_app;
-      try rewrite count_f_cons;
-      try rewrite Hti';
-      try rewrite Htj';
-      simpl
-    ); lia.
-  }
-  assert (Hcount': exists n, count_f (fun t : term => negb (eqb_term Empty t)) ts = S (S n)).
-  { induction Hcount; eauto.
-    destruct IHHcount as [n Hn].
-    exists (S n); eauto.
-  }
-  clear Hcount; rename Hcount' into Hcount.
-  destruct Hcount as [n Hcount].
-
-  destruct (count_occ_decomp ts Hcount) as
-    (ts1' & ti' & ts2' & H1 & H2 & H3 & Hcount').
-  destruct (count_occ_decomp ts2' Hcount') as
-    (ts2'' & tj'' & ts3'' & H1' & H2' & H3' & _).
-
-  exists ts1', ti', ts2'', tj'', ts3''; repeat split.
-  { admit. } { admit. } { admit. } { admit. }
-  { clear Htseq. subst; eauto. }
-Admitted. *)
 
 
 Lemma cred_default_head_empty:
