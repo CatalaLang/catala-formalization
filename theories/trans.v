@@ -3,54 +3,19 @@ Require Import small_step tactics.
 Require Import sequences.
 Require Import typing.
 
-
-
-Notation monad_bind t1 t2 := (Match_ t1 ENone t2).
-
-
-Fixpoint monad_handle_one res (ts: list term) : term :=
-  match ts with
-  | nil => ESome res
-  | cons thead ttail =>
-    Match_ thead
-      (monad_handle_one res ttail)
-      (Conflict)
-  end.
-
-Fixpoint monad_handle_zero ts tj tc: term :=
-  match ts with
-  | nil => If tj tc ENone
-  | cons thead ttail =>
-    Match_ thead
-      (monad_handle_zero ttail tj tc)
-      (monad_handle_one (Var 0) (List.map (fun t => lift 1 t) ttail))
-  end.
-
-Definition monad_handle ts tj tc: term :=
-  monad_handle_zero ts tj tc
-.
-
-Lemma subst_monad_handle_one :
-  forall res ts sigma,
-  (monad_handle_one res ts).[sigma] = monad_handle_one res.[sigma] ts..[sigma].
-Proof.
-  induction ts; repeat (asimpl; intros; f_equal; eauto).
-Qed.
-
-Lemma subst_monad_handle_zero :
-  forall ts tj tc sigma,
-  (monad_handle_zero ts tj tc).[sigma] = monad_handle_zero ts..[sigma] tj.[sigma] tc.[sigma].
-Proof.
-  induction ts; repeat (asimpl; intros; f_equal; eauto).
-Admitted.
-
-Lemma subst_monad_handle:
-  forall ts tj tc sigma,
-  (monad_handle ts tj tc).[sigma] = monad_handle ts..[sigma] tj.[sigma] tc.[sigma].
-Proof.
-  eapply subst_monad_handle_zero.
-Qed.
-
+Definition process_exceptions := 
+  (Lam (* x => *) (Lam (* y => *) 
+    (Match_ (Var 0 (* y *)) (* with *)
+      (* | None => *)
+        (Var 1 (* y *))
+      (* | Some z => *)
+        (Match_ (Var 2 (* x *)) (* with *)
+          (* | None => *)
+            (Var 1 (* y *))
+          (* | Some w => *)
+            (Conflict)
+        )
+      ))).
 
 Fixpoint trans (t: term) : term :=
   match t with
@@ -62,7 +27,12 @@ Fixpoint trans (t: term) : term :=
   | ErrorOnEmpty t => Match_ (trans t) Conflict (Var 0)
   | DefaultPure t => ESome (trans t)
   | Default ts tj tc =>
-    monad_handle (List.map trans ts) (trans tj) (trans tc)
+    Match_
+      (Fold 
+        process_exceptions
+        (List.map trans ts) ENone)
+      (If (trans tj) (trans tc) ENone)
+      (ESome (Var 0))
   | Empty => ENone
   | Conflict => Conflict
 
@@ -76,6 +46,8 @@ Fixpoint trans (t: term) : term :=
 
   | If t ta tb =>
     If (trans t) (trans ta) (trans tb)
+  | Fold f ts acc =>
+    Fold (trans f) (List.map trans ts) (trans acc)
   end
 
 with trans_value v :=
@@ -90,37 +62,42 @@ with trans_value v :=
   end
 .
 
+
 Theorem term_ind' : forall P : term -> Prop,
-       (forall x : var, P (Var x)) ->
-       (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
-       (forall t : {bind term}, P t -> P (Lam t)) ->
-       (forall arg : term, P arg -> P (ErrorOnEmpty arg)) ->
-       (forall arg : term, P arg -> P (DefaultPure arg)) ->
-       forall (IHDef:forall (ts : list term),
-        List.Forall P ts ->
-        forall (tj : term),
-        P tj -> forall tc : term, P tc -> P (Default ts tj tc)),
-       P Empty ->
-       P Conflict ->
-       (forall v : value, P (Value v)) ->
-       (forall x : String.string, P (FreeVar x)) ->
-       (forall (op : op) (t1 : term),
-        P t1 -> forall t2 : term, P t2 -> P (Binop op t1 t2)) ->
-       (forall u : term,
-        P u ->
-        forall t1 : term,
-        P t1 -> forall t2 : {bind term}, P t2 -> P (Match_ u t1 t2)) ->
-       P ENone ->
-       (forall t : term, P t -> P (ESome t)) ->
-       (forall t : term,
-        P t ->
-        forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
-       forall t : term, P t.
+  (forall x : var, P (Var x)) ->
+  (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
+  (forall t : {bind term}, P t -> P (Lam t)) ->
+  (forall arg : term, P arg -> P (ErrorOnEmpty arg)) ->
+  (forall arg : term, P arg -> P (DefaultPure arg)) ->
+  forall (IHDef: forall (ts : list term), List.Forall P ts -> forall (tj : term),
+  P tj -> forall tc : term, P tc -> P (Default ts tj tc)),
+  P Empty ->
+  P Conflict ->
+  (forall v : value, P (Value v)) ->
+  (forall x : String.string, P (FreeVar x)) ->
+  (forall (op : op) (t1 : term),
+  P t1 -> forall t2 : term, P t2 -> P (Binop op t1 t2)) ->
+  (forall u : term,
+  P u ->
+  forall t1 : term,
+  P t1 -> forall t2 : {bind term}, P t2 -> P (Match_ u t1 t2)) ->
+  P ENone ->
+  (forall t : term, P t -> P (ESome t)) ->
+  forall (IHFold: forall f : {bind 2 of term},
+  P f -> forall (ts : list term), List.Forall P ts -> forall (t : term), P t -> P (Fold f ts t)),
+  (forall t : term,
+  P t ->
+  forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
+  forall t : term, P t.
 Proof.
   intros until t; revert t.
   fix IHt 1; lock IHt.
   induction t; eauto.
   { eapply IHDef; eauto.
+    unlock IHt; clear -IHt.  
+    induction ts; econstructor; eauto.
+  }
+  { eapply IHFold; eauto.
     unlock IHt; clear -IHt.  
     induction ts; econstructor; eauto.
   }
@@ -134,15 +111,8 @@ Lemma trans_te_renaming:
   trans t.[ren xi] = u.[ren xi].
 Proof.
   induction t using term_ind'; repeat (asimpl; intros; subst; f_equal; eauto).
-  { rewrite subst_monad_handle;
-    repeat (asimpl; intros; subst; f_equal; eauto).
-    induction H.
-    { simpl; eauto. }
-    { simpl. f_equal.
-      { eapply H; eauto. }
-      { eapply IHForall. }
-    }
-  }
+  { induction H; simpl; f_equal; eauto. }
+  { induction H; simpl; f_equal; eauto. }
 Qed.
 
 
@@ -171,9 +141,9 @@ Proof.
       eauto.
     }
   }
-  { asimpl; intros; subst.
-    rewrite subst_monad_handle; repeat (f_equal; eauto).
-    induction H; asimpl; eauto; f_equal; eauto.
+  { repeat (asimpl; intros; subst).
+    repeat f_equal; eauto.
+    induction H; asimpl; eauto; repeat f_equal; eauto.
   }
   { intros; subst; asimpl; f_equal; eauto.
     eapply IHt3; eauto.
@@ -181,6 +151,10 @@ Proof.
       eapply trans_te_renaming_0.
       eauto.
     }
+  }
+  { repeat (asimpl; intros; subst).
+    repeat f_equal; eauto.
+    induction H; asimpl; eauto; repeat f_equal; eauto.
   }
 Qed.
 
@@ -246,9 +220,9 @@ Theorem correction_small_steps:
       (trans s2) target.
 Proof.
 
-  Ltac step := (
-    try (eapply step_left; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|]);
-    try (eapply step_right; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|])
+  Local Ltac step := (
+    try (eapply step_left; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|]);
+    try (eapply step_right; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|])
   ).
 
   intros s1 s2.
@@ -271,85 +245,32 @@ Proof.
   
   end.
   (* When the right hand side is the result of the left hand side. *)
-  all: try solve [
-    eexists; split; asimpl;
-    [|eapply star_refl];
-    eapply star_one; simpl; econstructor; eauto
-    ].
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|].
+  all: try solve [simpl; repeat step; eapply diagram_finish].
+  { asimpl. repeat step. eexists; split; simpl trans; [|eapply star_refl; fail].
     rewrite <- List.map_cons.
     eapply star_refl_eq.
     symmetry.
     eapply trans_te_substitution; eauto.
-
     eapply Forall2_map.
   }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
-    eapply star_refl.
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step.
+    eapply step_left. { econstructor; simpl; eapply trans_value_op_correct; eauto. }
+    eapply diagram_finish.
   }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|].
-    eapply star_step; [econstructor|].
-    asimpl.
-    eapply star_refl.
-  }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|].
-    eapply star_step; [econstructor|].
-    eapply star_refl.
-  }
-  {
-    eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|].
-    asimpl.
-    eapply star_step; [econstructor|].
-    eapply star_refl.
-  }
-  { eexists; split; simpl trans.
-    2:{
-      eapply star_step; [econstructor|].
-      eapply star_refl.
-    }
-    eapply star_step; [econstructor|].
-    asimpl.
-    eapply star_step; [econstructor; econstructor|].
-    eapply star_step; [econstructor|].
-    eapply star_refl.
-  }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor; econstructor|].
-    eapply star_step; [econstructor|].
-    eapply star_refl.
-  }
-  { eexists; split; asimpl.
-    { eapply star_step; [econstructor|].
-      eapply star_sred_match_cond; asimpl; eauto. }
-    { eapply star_step; [econstructor|].
-      eapply star_sred_match_cond; asimpl; eauto. }
-  }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor|].
-    eapply star_refl_eq.
-    rewrite trans_te_substitution_0; eauto.
-  }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { eexists; split; simpl trans; [|eapply star_refl; fail].
-    eapply star_step; [econstructor; econstructor|].
-    eapply star_step; [econstructor|].
-    eapply star_refl.
-  }
-  { eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step. eexists; split; asimpl; eapply star_refl_eq; eauto.
+    eapply trans_te_substitution_0. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
 Qed.
 
 
@@ -376,6 +297,8 @@ Then, [trans_cont] would be simply be [map_cont trans_term trans_value] and [tra
 This is mostly the case, except for the default related continuations.
 *)
 
+(* Hypothesis magic: forall {A: Type}, A. *)
+
 Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
   match kappa with
   | nil => nil
@@ -391,18 +314,29 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
   | CErrorOnEmpty :: kappa => CMatch Conflict (Var 0) :: trans_conts kappa sigma
   | CDefaultPure :: kappa => CSome :: trans_conts kappa sigma
   | CDefault b None ts tj tc :: kappa =>
-    (* same thing as monad_handle_zero but with first match unrolled as a continuation *)
-    CMatch (monad_handle_zero (List.map trans ts) (trans tj) (trans tc)) (monad_handle_one (Var 0) (List.map (fun t => lift 1 t) (List.map trans ts))) :: trans_conts kappa sigma
-
+    (CClosure
+      (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
+      (sigma))::
+    (CAppR (Value VNone))::
+    (CFold 
+      process_exceptions
+      (List.map trans ts))::
+    (CMatch
+      (If (trans tj) (trans tc) ENone)
+      (ESome (Var 0))) :: trans_conts kappa sigma
   | CDefault b (Some v) ts tj tc :: kappa =>
-    (* ideally, we would like the same thing as the monad_handle_one with first match unrolled, but sadly, the variable correcting to v is not binded *)
-    CMatch (
-      monad_handle_one
-        (Value (trans_value v))
-        (List.map trans ts)
-      )
-      (Conflict) :: trans_conts kappa sigma
-
+    (CClosure
+      (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
+      (sigma))::
+    (CAppR (Value (VSome (trans_value v))))::
+    (CFold 
+      process_exceptions
+      (List.map trans ts))::
+    (CMatch
+      (If (trans tj) (trans tc) ENone)
+      (ESome (Var 0))) :: trans_conts kappa sigma
+  | CFold f ts :: kappa =>
+    CFold (trans f) (List.map trans ts) :: trans_conts kappa sigma
   end.
 
 Definition trans_return (r: result): result:=
@@ -441,42 +375,6 @@ Proof.
   intros; simpl; eauto.
 Qed.
 
-
-Require Import simulation_sred_to_cred.
-
-Lemma cred_last:
-  forall s1 s2,
-    cred s1 s2 ->
-    last (stack s1) (env s1) = last (stack s2) (env s2).
-Proof.
-  induction 1; try induction phi; simpl; eauto.
-  { exfalso. eapply H; eauto. }
-Qed.
-
-Lemma star_cred_last:
-  forall s1 s2,
-    star cred s1 s2 ->
-    last (stack s1) (env s1) = last (stack s2) (env s2).
-Proof.
-  induction 1 as [|? ? ? Hstep Hstar].
-  { eauto. }
-  { pose proof (cred_last _ _ Hstep).
-    rewrite H; eauto.
-  }
-Qed.
-
-Theorem correction_continuations:
-  forall s1 s2,
-  cred s1 s2 ->
-  exists target,
-    star cred
-      (trans_state s1) target /\
-    star cred
-      (trans_state s2) target.
-Proof.
-Abort.
-  
-
 Theorem correction_continuations:
   forall s1 s2,
   (exists GGamma Gamma T, jt_state GGamma Gamma s1 T) ->
@@ -487,6 +385,12 @@ Theorem correction_continuations:
     star cred
       (trans_state s2) target.
 Proof.
+
+  Local Ltac step' := (
+    try (eapply step_left; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|]);
+    try (eapply step_right; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|])
+  ).
+
   intros s1 s2.
   intros (GGamma & Gamma & T & Hty).
   intros Hsred.
@@ -508,44 +412,14 @@ Proof.
 
   all: try induction phi; try induction o.
   all:
-    try solve [simpl; repeat step; tryfalse; try eapply diagram_finish; eauto].
+    try solve [simpl; repeat step'; tryfalse; try eapply diagram_finish; eauto].
   {
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_one; simpl; econstructor. eauto using List.map_nth_error.
-  }
-  { simpl.
-    repeat step.
-    induction ts.
-    { simpl. repeat step. eapply diagram_finish. }
-    { simpl. repeat step.
-      assert (Hty: exists T', jt_state GGamma Gamma (mode_eval (trans a) [] (List.map trans_value sigma)) (T')). { admit. }
-      unpack.
-      pose proof (correctness.correctness_technical _ _ _ _ Hty); unpack.
-
-      eapply star_step_right.
-      {
-        rewrite append_stack_nil_eval.
-        eapply append_stack_stable_star.
-        eauto.
-      }
-    
-      eapply star_step_left.
-      {
-        rewrite append_stack_nil_eval.
-        eapply append_stack_stable_star.
-        admit.
-      }
-
-      simpl.
-      repeat step.
-      repeat eexists; eapply star_refl_eq; eauto; repeat f_equal.
-      pose proof (star_cred_last _ _ H); simpl in *; eauto.
-      admit.
-    }
   }
   { eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
     eapply star_refl.
   }
-  Fail next goal.
-Abort.
+  Fail Next Obligation.
+Qed.

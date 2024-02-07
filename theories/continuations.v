@@ -50,6 +50,7 @@ Inductive cont :=
   | CSome
   | CErrorOnEmpty
   | CDefaultPure
+  | CFold (f: term) (ts: list term)
 .
 
 Inductive state :=
@@ -281,6 +282,27 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont ((CIf t1 t2) :: kappa) sigma (RValue (Bool false)))
       (mode_eval t2 kappa sigma)
+
+  | cred_fold_intro:
+    forall f ts acc kappa sigma,
+    cred
+      (mode_eval (Fold f ts acc) kappa sigma)
+      (mode_eval acc (CFold f ts :: kappa) sigma)
+  | cred_fold_rec:
+    forall f h ts v kappa sigma,
+    cred
+      (mode_cont (CFold f (h::ts) :: kappa) sigma (RValue v))
+      (mode_eval (App (App f h) (Value v)) (CFold f ts :: kappa) sigma)
+  | cred_fold_init:
+    forall f v kappa sigma,
+    cred
+      (mode_cont (CFold f [] :: kappa) sigma (RValue v))
+      (mode_cont kappa sigma (RValue v))
+  | cred_fold_conflict:
+    forall f ts kappa sigma,
+    cred
+      (mode_cont (CFold f ts :: kappa) sigma RConflict)
+      (mode_cont kappa sigma RConflict)
 .
 
 Notation "'cred' t1 t2" :=
@@ -437,6 +459,7 @@ Theorem append_stack_stable s s':
   cred (append_stack s k) (append_stack s' k).
 Proof.
   induction 1; intros; asimpl; try econstructor; eauto.
+  repeat intro; inj.
 Qed.
 
 Theorem append_stack_stable_star s s':
@@ -524,6 +547,9 @@ Inductive inv_conts_no_hole: cont -> Prop :=
   inv_conts_no_hole CErrorOnEmpty
 | inv_CDefaultPure:
   inv_conts_no_hole CDefaultPure
+| inv_CFold:
+  forall f ts,
+  inv_conts_no_hole (CFold f ts)
 .
 
 Inductive inv_state: state -> Prop :=
@@ -592,6 +618,11 @@ Proof.
   all: try remember (a::kappa) as kappa'.
   all: repeat rewrite droplastn_cons by (subst; simpl; lia).
   all: try solve [econstructor; eauto].
+  {
+    repeat rewrite lastn_def_firstn in *; simpl in *.
+    inj.
+    exfalso; eapply fuck_stdlib; eauto.
+  }
 Qed.
 
 Theorem creds_stack_sub:

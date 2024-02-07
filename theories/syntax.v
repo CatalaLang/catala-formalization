@@ -31,7 +31,7 @@ Inductive term :=
   | Match_ (u t1: term) (t2: {bind term})
   | ENone
   | ESome (t: term)
-  (* | Fold (f: {bind 2 term}) (ts: list term) (t: term) *)
+  | Fold (f: term) (ts: list term) (t: term)
 
   | If (t ta tb: term)
 
@@ -243,6 +243,22 @@ Proof.
     reflexivity. }
 Qed.
 
+Lemma fv_Fold_eq:
+  forall k f ts acc,
+  fv k (Fold f ts acc)  <-> fv k f /\ (List.Forall (fv k) ts) /\ fv k acc.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. repeat split; eauto.
+    { eapply thing; assumption. }
+  }
+  { unpack. rewrite H, H1; repeat f_equal.
+    pose proof (thing ts) as Hrw.
+    rewrite Hrw.
+    eauto.
+  }
+Qed.
+
+
 Lemma fv_Value_eq:
   forall k v,
   fv k (Value v) <-> True.
@@ -263,4 +279,5 @@ Hint Rewrite
   fv_ErrorOnEmpty_eq
   fv_DefaultPure_eq
   fv_Value_eq
+  fv_Fold_eq
   : fv.

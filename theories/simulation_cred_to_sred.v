@@ -91,6 +91,8 @@ Definition apply_cont
     (ErrorOnEmpty t, sigma)
   | CDefaultPure =>
     (DefaultPure t, sigma)
+  | CFold f ts =>
+    (Fold f.[subst_of_env sigma] ts..[subst_of_env sigma] t, sigma)
   end.
 
 Definition apply_conts
@@ -382,4 +384,5 @@ Proof.
     replace t2.[Value v .: subst_of_env sigma] with t2.[up (subst_of_env sigma)].[Value v/] by autosubst.
     econstructor.
   }
+  Fail Next Obligation.
 Admitted.

@@ -395,21 +395,6 @@ Proof.
     - right; exists a, b; repeat split; eauto; econstructor; eauto.
 Qed.
 
-Lemma takewhile_Prop:
-  forall R U a c,
-  (forall x y, {U x y}+{~ U x y}) ->
-  star R a c ->
-  star (fun a b => R a b /\ U a b) a c \/
-  exists b b',
-  star (fun a b => R a b /\ U a b) a b
-  /\ star R b' c
-  /\ R b b'
-  /\ ~ U b b'.
-Proof.
-  admit.
-Admitted.
-
-
 
 (** Additional properties for deterministic transition relations. *)
 
