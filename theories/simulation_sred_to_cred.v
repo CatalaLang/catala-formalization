@@ -133,6 +133,8 @@ Definition apply_cont
     (ErrorOnEmpty t, sigma)
   | CDefaultPure =>
     (DefaultPure t, sigma)
+  | CFold f ts =>
+    (Fold f.[subst_of_env sigma] ts..[subst_of_env sigma] t, sigma)
   end.
 
 Definition apply_conts
@@ -531,6 +533,26 @@ Proof.
   { repeat eexists. }
 Qed.
 
+Lemma subst_of_env_Fold {f ts ti t' env}:
+  Fold f ts ti = t'.[subst_of_env env] ->
+  exists f' ts' ti',
+    f = f'.[subst_of_env env]
+    /\ ts = ts'..[subst_of_env env]
+    /\ ti = ti'.[subst_of_env env]
+    /\ t' = Fold f' ts' ti'
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto.
+  { match goal with
+    | [h: _ = subst_of_env ?env ?x |- _ ] =>
+      unfold subst_of_env in h;
+      destruct (List.nth_error env x);
+      inj
+    end.
+  }
+  { repeat eexists. }
+Qed.
+
 Lemma subst_of_env_If {u t1 t2 t' env}:
   If u t1 t2 = t'.[subst_of_env env] ->
   exists u' t1' t2',
@@ -688,6 +710,15 @@ Ltac unpack_subst_of_env_cons :=
     let Ht2 := fresh "Ht2" in
     let Ht := fresh "Ht" in
     destruct (subst_of_env_Match_ h) as (u & t1 & t2 & Hu & Ht1 & Ht2 & Ht); subst; clear h
+  | [h: Fold _ _ _ = _.[subst_of_env _] |- _] =>
+    let f := fresh "f" in
+    let ts := fresh "ts" in
+    let ti := fresh "t" in
+    let Hf := fresh "Hf" in
+    let Hts := fresh "Hts" in
+    let Hti := fresh "Hti" in
+    let Ht := fresh "Ht" in
+    destruct (subst_of_env_Fold h) as (f & ts & ti & Hf & Hts & Hti & Ht); subst; clear h
   | [h: If _ _ _ = _.[subst_of_env _] |- _] =>
     let u := fresh "u" in
     let t1 := fresh "ta" in
