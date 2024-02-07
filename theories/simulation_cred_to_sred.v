@@ -384,4 +384,5 @@ Proof.
     replace t2.[Value v .: subst_of_env sigma] with t2.[up (subst_of_env sigma)].[Value v/] by autosubst.
     econstructor.
   }
+  Fail Next Obligation.
 Admitted.
