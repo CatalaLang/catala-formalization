@@ -50,7 +50,7 @@ Inductive cont :=
   | CSome
   | CErrorOnEmpty
   | CDefaultPure
-  | CFold (f: {bind 2 of term}) (ts: list term)
+  | CFold (f: term) (ts: list term)
 .
 
 Inductive state :=
