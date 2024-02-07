@@ -1,7 +1,6 @@
 Require Import syntax.
 Require Import small_step tactics.
 Require Import sequences.
-Require Import typing.
 
 Definition process_exceptions := 
   (Lam (* x => *) (Lam (* y => *) 
@@ -211,7 +210,6 @@ Qed.
 
 Theorem correction_small_steps:
   forall s1 s2,
-  (exists GGamma Gamma T, jt_term GGamma Gamma s1 T) ->
   sred s1 s2 ->
   exists target,
     star sred
@@ -226,23 +224,14 @@ Proof.
   ).
 
   intros s1 s2.
-  intros (GGamma & Gamma & T & Hty).
   intros Hsred.
-  generalize dependent GGamma.
-  generalize dependent Gamma.
-  generalize dependent T.
   induction Hsred; intros.
   all: repeat multimatch goal with
-  | _ => sinv_jt
-  | [h1: forall _ _ _, jt_term _ _ ?u _ -> _, h2: jt_term _ _ ?u _ |- _] =>
-    learn (h1 _ _ _ h2);
-    clear h1
   | [h: exists var, _ |- _] =>
     let var := fresh var in
     destruct h as (var & ?)
   | [h: _ /\ _ |- _] =>
     destruct h
-  
   end.
   (* When the right hand side is the result of the left hand side. *)
   all: try solve [simpl; repeat step; eapply diagram_finish].
@@ -266,6 +255,7 @@ Proof.
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step. eexists; split; asimpl; eapply star_refl_eq; eauto.
     eapply trans_te_substitution_0. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
@@ -375,15 +365,14 @@ Proof.
   intros; simpl; eauto.
 Qed.
 
-Theorem correction_continuations:
-  forall s1 s2,
-  (exists GGamma Gamma T, jt_state GGamma Gamma s1 T) ->
-  cred s1 s2 ->
-  exists target,
-    star cred
-      (trans_state s1) target /\
-    star cred
-      (trans_state s2) target.
+  Theorem correction_continuations:
+    forall s1 s2,
+    cred s1 s2 ->
+    exists target,
+      star cred
+        (trans_state s1) target /\
+      star cred
+        (trans_state s2) target.
 Proof.
 
   Local Ltac step' := (
@@ -392,23 +381,8 @@ Proof.
   ).
 
   intros s1 s2.
-  intros (GGamma & Gamma & T & Hty).
   intros Hsred.
-  generalize dependent GGamma.
-  generalize dependent Gamma.
-  generalize dependent T.
   induction Hsred; intros.
-  all: repeat multimatch goal with
-  | _ => sinv_jt
-  | [h1: forall _ _ _, jt_state _ _ ?u _ -> _, h2: jt_state _ _ ?u _ |- _] =>
-    learn (h1 _ _ _ h2);
-    clear h1
-  | [h: exists var, _ |- _] =>
-    let var := fresh var in
-    destruct h as (var & ?)
-  | [h: _ /\ _ |- _] =>
-    destruct h
-  end.
 
   all: try induction phi; try induction o.
   all:
@@ -417,6 +391,7 @@ Proof.
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_one; simpl; econstructor. eauto using List.map_nth_error.
   }
+  { exfalso; eauto. eapply H; eauto. }
   { eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
     eapply star_refl.
