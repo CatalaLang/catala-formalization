@@ -91,6 +91,8 @@ Definition apply_cont
     (ErrorOnEmpty t, sigma)
   | CDefaultPure =>
     (DefaultPure t, sigma)
+  | CFold f ts =>
+    (Fold f.[subst_of_env sigma] ts..[subst_of_env sigma] t, sigma)
   end.
 
 Definition apply_conts
