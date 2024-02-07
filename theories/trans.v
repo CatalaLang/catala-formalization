@@ -3,55 +3,6 @@ Require Import small_step tactics.
 Require Import sequences.
 Require Import typing.
 
-
-
-Notation monad_bind t1 t2 := (Match_ t1 ENone t2).
-
-
-Fixpoint monad_handle_one res (ts: list term) : term :=
-  match ts with
-  | nil => ESome res
-  | cons thead ttail =>
-    Match_ thead
-      (monad_handle_one res ttail)
-      (Conflict)
-  end.
-
-Fixpoint monad_handle_zero ts tj tc: term :=
-  match ts with
-  | nil => If tj tc ENone
-  | cons thead ttail =>
-    Match_ thead
-      (monad_handle_zero ttail tj tc)
-      (monad_handle_one (Var 0) (List.map (fun t => lift 1 t) ttail))
-  end.
-
-Definition monad_handle ts tj tc: term :=
-  monad_handle_zero ts tj tc
-.
-
-Lemma subst_monad_handle_one :
-  forall res ts sigma,
-  (monad_handle_one res ts).[sigma] = monad_handle_one res.[sigma] ts..[sigma].
-Proof.
-  induction ts; repeat (asimpl; intros; f_equal; eauto).
-Qed.
-
-Lemma subst_monad_handle_zero :
-  forall ts tj tc sigma,
-  (monad_handle_zero ts tj tc).[sigma] = monad_handle_zero ts..[sigma] tj.[sigma] tc.[sigma].
-Proof.
-  induction ts; repeat (asimpl; intros; f_equal; eauto).
-Admitted.
-
-Lemma subst_monad_handle:
-  forall ts tj tc sigma,
-  (monad_handle ts tj tc).[sigma] = monad_handle ts..[sigma] tj.[sigma] tc.[sigma].
-Proof.
-  eapply subst_monad_handle_zero.
-Qed.
-
-
 Fixpoint trans (t: term) : term :=
   match t with
   | Var x => Var x
@@ -341,6 +292,8 @@ Then, [trans_cont] would be simply be [map_cont trans_term trans_value] and [tra
 This is mostly the case, except for the default related continuations.
 *)
 
+(* Hypothesis magic: forall {A: Type}, A. *)
+
 Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
   match kappa with
   | nil => nil
@@ -356,9 +309,45 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
   | CErrorOnEmpty :: kappa => CMatch Conflict (Var 0) :: trans_conts kappa sigma
   | CDefaultPure :: kappa => CSome :: trans_conts kappa sigma
   | CDefault b None ts tj tc :: kappa =>
-    magic
+    (CClosure
+      (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
+      (sigma))::
+    (CAppR (Value VNone))::
+    (CFold 
+      (Lam (Lam 
+        (Match_
+          (Var 0)
+          (Var 1)
+          (Match_
+            (Var 2)
+            (Var 1)
+            (Conflict)
+          )
+        )))
+      (List.map trans ts))::
+    (CMatch
+      (If (trans tj) (trans tc) ENone)
+      (ESome (Var 0))) :: trans_conts kappa sigma
   | CDefault b (Some v) ts tj tc :: kappa =>
-    magic
+  (CClosure
+    (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
+    (sigma))::
+  (CAppR (Value (VSome (trans_value v))))::
+  (CFold 
+    (Lam (Lam 
+      (Match_
+        (Var 0)
+        (Var 1)
+        (Match_
+          (Var 2)
+          (Var 1)
+          (Conflict)
+        )
+      )))
+    (List.map trans ts))::
+  (CMatch
+    (If (trans tj) (trans tc) ENone)
+    (ESome (Var 0))) :: trans_conts kappa sigma
   | CFold f ts :: kappa =>
     CFold (trans f) (List.map trans ts) :: trans_conts kappa sigma
   end.
@@ -441,10 +430,9 @@ Proof.
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_one; simpl; econstructor. eauto using List.map_nth_error.
   }
-  { simpl. repeat step.  }
   { eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
     eapply star_refl.
   }
   Fail next goal.
-Abort.
+Qed.
