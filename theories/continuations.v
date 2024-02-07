@@ -463,8 +463,7 @@ Proof.
 Qed.
 
 Theorem append_stack_stable_star s s':
-  star cred s s'
-  ->
+  star cred s s' ->
   forall k,
   star cred (append_stack s k) (append_stack s' k).
 Proof.

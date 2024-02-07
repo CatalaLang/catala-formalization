@@ -196,23 +196,23 @@ Inductive eq_value: value -> value -> Prop :=
       eq_value (Closure t sigma) (Closure t.[up (subst_of_env sigma)] [])
 .
 
-Inductive match_conf : state -> term -> Prop :=
+Inductive match_state : state -> term -> Prop :=
   | match_conf_intro: forall s t,
       t = apply_state s ->
-      match_conf s t
+      match_state s t
 
   (* | match_value:
     forall s v' v,
       apply_state s = Value v' ->
       eq_value v v'  ->
-      match_conf s (Value v) *)
+      match_state s (Value v) *)
 .
 
 
 Parameter match_value: forall {s v v'},
-  match_conf s (Value v) ->
+  match_state s (Value v) ->
   eq_value v v' ->
-  match_conf s (Value v').
+  match_state s (Value v').
 
 
 Section APPLY_EXAMPLES.
@@ -249,7 +249,7 @@ Definition env s:=
 
 Lemma match_conf_coherent:
   forall t sigma,
-    match_conf (mode_eval t [] sigma) t.[subst_of_env sigma].
+    match_state (mode_eval t [] sigma) t.[subst_of_env sigma].
 Proof.
   econstructor; simpl; eauto.
 Qed.
@@ -844,8 +844,8 @@ Import Learn.
 
 Ltac match_conf1 :=
   match goal with
-  | [ |- match_conf _ _ ] => econstructor
-  (* | [h: match_conf _ _ |- _ ] =>
+  | [ |- match_state _ _ ] => econstructor
+  (* | [h: match_state _ _ |- _ ] =>
     inversion h; subst; clear h *)
   | [ h: plus cred ?s1 ?s2 |- _] =>
     learn (plus_star h)
@@ -1063,8 +1063,8 @@ Proof.
 Qed.
 
 Lemma match_conf_eval_app_CReturn {e kappa sigma env0 t}:
-  match_conf (mode_eval e (kappa ++ [CReturn sigma]) env0) t ->
-  match_conf (mode_eval e (kappa) env0) t.
+  match_state (mode_eval e (kappa ++ [CReturn sigma]) env0) t ->
+  match_state (mode_eval e (kappa) env0) t.
 Proof.
   intros MC; inversion MC; subst; clear MC.
   econstructor.
@@ -1075,8 +1075,8 @@ Proof.
 Qed.
 
 Lemma match_conf_cont_app_CReturn {result kappa sigma env0 t}:
-  match_conf (mode_cont (kappa ++ [CReturn sigma]) env0 result) t ->
-  match_conf (mode_cont (kappa) env0 result) t.
+  match_state (mode_cont (kappa ++ [CReturn sigma]) env0 result) t ->
+  match_state (mode_cont (kappa) env0 result) t.
 Proof.
   intros MC; inversion MC; subst; clear MC.
   econstructor.
@@ -1086,7 +1086,7 @@ Proof.
   eauto.
 Qed.
 
-Ltac match_conf :=
+Ltac match_state :=
   repeat match goal with
   | [h: Value _ = fst (apply_conts _ (apply_return _, _)) |- _ ] =>
     learn (value_apply_conts_inversion_cont h);
@@ -1151,14 +1151,14 @@ Lemma cred_apply_state_Emtpy {s2}:
 Proof.
   induction s2; simpl; intros H.
   { learn (empty_apply_conts_inversion_eval (eq_sym H)).
-    match_conf; unpack_subst_of_env_cons.
+    match_state; unpack_subst_of_env_cons.
 
     replace kappa with (kappa ++ []) at 1 by eapply List.app_nil_r .
     eapply star_step. { econstructor. }
     eapply cred_process_return; eauto.
   }
   { learn (empty_apply_conts_inversion_eval (eq_sym H)).
-    match_conf; unpack_subst_of_env_cons.
+    match_state; unpack_subst_of_env_cons.
 
     replace kappa with (kappa ++ []) at 1 by eapply List.app_nil_r .
     eapply cred_process_return; eauto.
@@ -1287,7 +1287,7 @@ Ltac repeat_cstep_info :=
 (* -------------------------------------------------------------------------- *)
 
 Ltac aexists t :=
-  exists t; unlock; subst; split; [repeat cstep|match_conf].
+  exists t; unlock; subst; split; [repeat cstep|match_state].
 
 (* -------------------------------------------------------------------------- *)
 
@@ -1331,15 +1331,15 @@ Qed.
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
-  forall s1, match_conf s1 t1 ->
+  forall s1, match_state s1 t1 ->
   exists s2,
     (plus cred s1 s2)
-  /\ match_conf s2 t2.
+  /\ match_state s2 t2.
 Abort.
 
-(* The global proof strategy is to do an induction on [sred t1 t2], then we consider all possible [s1] such that [match_conf s1 t1]. Thanks to those two jypothesis ([sred t1 t2] and [match_conf s1 s2]), we know a few things about the general shape of [s1]. So we can do a few reductions on [s1], leading to a new state [s2] when we cannot be sure to reduce anymore. Because our semantics are deterministic, we have a good chance of getting to the correct [s2], ie an state such that [match_conf s2 t2] holds.
+(* The global proof strategy is to do an induction on [sred t1 t2], then we consider all possible [s1] such that [match_state s1 t1]. Thanks to those two hypothesis ([sred t1 t2] and [match_state s1 s2]), we know a few things about the general shape of [s1]. So we can do a few reductions on [s1], leading to a new state [s2] when we cannot be sure to reduce anymore. Because our semantics are deterministic, we have a good chance of getting to the correct [s2], ie an state such that [match_state s2 t2] holds.
 
-In more technicals details, we implement the interpretor to derive [star cred s1 s2] using ltac. All possible transitions (possibly multi-steps) are in the form [match goal with |[... |- star cred (* special shape *) _ /\ _ ] => some lemma]. The second part of the [_ /\ _] is the [match_conf]: since when we reduce we don't know s2, we need to keep this member as long as possible, to in the end do an [star_refl] and try to prove [match_conf s2 t2]. Hence, we leverage the following very basic logic theorem at this point:
+In more technicals details, we implement the interpretor to derive [star cred s1 s2] using ltac. All possible transitions (possibly multi-steps) are in the form [match goal with |[... |- star cred (* special shape *) _ /\ _ ] => some lemma]. The second part of the [_ /\ _] is the [match_state]: since when we reduce we don't know s2, we need to keep this member as long as possible, to in the end do an [star_refl] and try to prove [match_state s2 t2]. Hence, we leverage the following very basic logic theorem at this point:
 
 *)
 
@@ -1391,8 +1391,8 @@ Qed.
 
 Lemma ignore_inv_state s1 t2:
   inv_state s1 ->
-  (exists s2, (plus cred s1 s2) /\ match_conf s2 t2) ->
-  (exists s2, (plus cred s1 s2) /\ match_conf s2 t2 /\ inv_state s2).
+  (exists s2, (plus cred s1 s2) /\ match_state s2 t2) ->
+  (exists s2, (plus cred s1 s2) /\ match_state s2 t2 /\ inv_state s2).
 Proof.
   intros; unpack.
   exists s2; repeat split; inversion H1; subst; eauto.
@@ -1407,17 +1407,17 @@ Lemma induction_case_CReturn
   (IHkappa: forall t1 t2 : term,
             sred t1 t2 ->
             forall s1 : state,
-            match_conf s1 t1 ->
+            match_state s1 t1 ->
             kappa = stack s1 ->
             inv_state s1 ->
-            exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2 /\ inv_state s2):
+            exists s2 : state, plus cred s1 s2 /\ match_state s2 t2 /\ inv_state s2):
   forall t1 t2 : term,
     sred t1 t2 ->
     forall s1 : state,
-      match_conf s1 t1 ->
+      match_state s1 t1 ->
       kappa ++ [CReturn sigma] = stack s1 ->
       inv_state s1 ->
-      exists s2 : state, plus cred s1 s2 /\ match_conf s2 t2 /\ inv_state s2
+      exists s2 : state, plus cred s1 s2 /\ match_state s2 t2 /\ inv_state s2
 .
 Proof.
   intros t1 t2 Hsred.
@@ -1437,28 +1437,14 @@ Proof.
   all: aexists (append_stack s2 [CReturn sigma]).
   all: inversion Hs2; subst; eauto.
 Qed.
-
-(* Ltac info :=
-  match goal with
-  | [ |- plus cred ?s1 _ /\ _ ] =>
-    idtac s1 "//"
-  | [ |- star cred ?s1 _ /\ _ ] =>
-    idtac s1 "//"
-  | [ |- cred ?s1 _ /\ _ ] =>
-    idtac s1 "//"
-  | _ => idtac
-  end. *)
-
 Ltac info := idtac.
-
-
 
 Theorem simulation_sred_cred t1 t2:
   sred t1 t2 ->
-  forall s1, match_conf s1 t1 -> inv_state s1 ->
+  forall s1, match_state s1 t1 -> inv_state s1 ->
   exists s2,
     (plus cred s1 s2)
-  /\ match_conf s2 t2 /\ inv_state s2.
+  /\ match_state s2 t2 /\ inv_state s2.
 Proof.
   intros Hred s1 MC.
   remember (stack s1) as kappa.
@@ -1479,20 +1465,20 @@ Proof.
     (* induction hypothesis *)
     | [h1: forall t1 t2, sred t1 t2 -> _, h2: sred ?t1 ?t2 |- _] =>
       learn (h1 _ _ h2)
-    | [h1: forall s, match_conf s ?u.[subst_of_env ?env] -> _ |- _] =>
+    | [h1: forall s, match_state s ?u.[subst_of_env ?env] -> _ |- _] =>
       let s1 := constr:(mode_eval u [] env) in
-      assert (tmp: match_conf s1 u.[subst_of_env env]) by (econstructor; simpl; eauto);
+      assert (tmp: match_state s1 u.[subst_of_env env]) by (econstructor; simpl; eauto);
       learn (h1 s1 tmp);
       clear tmp
     | [h1: ?kappa = stack (mode_eval ?u ?kappa ?env0) -> _ |- _] =>
       simpl in h1
-    | [h1: forall s, match_conf s (fst (apply_conts ?kappa (?e.[subst_of_env ?sigma], ?sigma))) -> _ |- _] =>
+    | [h1: forall s, match_state s (fst (apply_conts ?kappa (?e.[subst_of_env ?sigma], ?sigma))) -> _ |- _] =>
       let s1 := constr:(mode_eval e kappa sigma) in
-      assert (tmp: match_conf s1 (fst (apply_conts kappa (e.[subst_of_env sigma], sigma)))) by (econstructor; simpl; eauto);
+      assert (tmp: match_state s1 (fst (apply_conts kappa (e.[subst_of_env sigma], sigma)))) by (econstructor; simpl; eauto);
       learn (h1 s1 tmp)
-    | [h1: forall s, match_conf s (fst (apply_conts ?kappa (apply_return ?r, ?sigma))) -> _ |- _] =>
+    | [h1: forall s, match_state s (fst (apply_conts ?kappa (apply_return ?r, ?sigma))) -> _ |- _] =>
       let s1 := constr:(mode_cont kappa sigma r) in
-      assert (tmp: match_conf s1 (fst (apply_conts kappa (apply_return r, sigma)))) by (econstructor; simpl; eauto);
+      assert (tmp: match_state s1 (fst (apply_conts kappa (apply_return r, sigma)))) by (econstructor; simpl; eauto);
       learn (h1 s1 tmp)
     | [h: inv_state ?s -> _ |- _] =>
       assert (tmp: inv_state s) by (repeat econstructor);
@@ -1514,7 +1500,7 @@ Proof.
       learn (plus_star h)
     | [h: _ /\ _ |- _] => destruct h
     | [h: exists _, _ |- _] => destruct h
-    | [h: match_conf _ _ |- _] =>
+    | [h: match_state _ _ |- _] =>
       inversion h; clear h; subst
     | _ => progress rewrite last_snd_apply_conts in *
 
@@ -1688,65 +1674,28 @@ Proof.
     all: intros MC Heqkappa; revert MC; simpl in Heqkappa; subst.
     all: intros MC; inversion MC; simpl; subst.
     all: first [rewrite append_stack_eval in * | repeat rewrite append_stack_cont in *].
-
-    all: match_conf; try solve [tryfalse]; subst.
-
-
-    (* all: match goal with
-      | [|- context [mode_eval ?t (?kappa ++ [?k]) ?env0]] =>
-        remember (mode_eval t kappa env0) as s1'; lock Heqs1'
-      | [|- context [mode_cont (?kappa ++ [?k]) ?env0 ?r]] =>
-        remember (mode_cont kappa env0 r) as s1'; lock Heqs1'
-      end. *)
+    all: match_state; try solve [tryfalse]; subst.
     all: unpack_subst_of_env_cons.
-(* 
-    88:{
-      inversion MC; subst; clear MC.
-      rewrite append_stack_eval in *.
-      rewrite apply_state_append_stack in *.
-      simpl in *.
-      unfold apply_cont in *.
-      match goal with
-        | [h: context [let '(_, _) := ?p in _] |- _] =>
-          rewrite (surjective_pairing p) in h
-      end.
-      simpl in *.
-      match goal with
-      |[hneq: ?t <> Empty, h: context[apply_CDefault Hole None _ _ _ ?t _] |- _] =>
-        rewrite (apply_CDefault_hole_none_nempty _ _ _ _ _  hneq) in h
-      end.
-      injections.
-      simpl in H0.
-      injection H0.
-      first [
-        rewrite apply_CDefault_hole_none_empty in *;
-        rewrite apply_CDefault_hole_none_nempty in *;
-        rewrite apply_CDefault_hole_some_empty in *;
-        rewrite apply_CDefault_hole_some_nempty in *;
-        rewrite apply_CDefault_nohole_none in *;
-        rewrite apply_CDefault_nohole_some in *].
-    } *)
     all: intros H_inv; eapply ignore_inv_state; [eauto|].
-
     all: repeat multimatch goal with
     (* induction hypothesis *)
 
     | [h1: forall t1 t2, sred t1 t2 -> _, h2: sred ?t1 ?t2 |- _] =>
       learn (h1 _ _ h2)
-    | [h1: forall s, match_conf s ?u.[subst_of_env ?env] -> _ |- _] =>
+    | [h1: forall s, match_state s ?u.[subst_of_env ?env] -> _ |- _] =>
       let s1 := constr:(mode_eval u [] env) in
-      assert (tmp: match_conf s1 u.[subst_of_env env]) by (econstructor; simpl; eauto);
+      assert (tmp: match_state s1 u.[subst_of_env env]) by (econstructor; simpl; eauto);
       learn (h1 s1 tmp);
       clear tmp
     | [h1: ?kappa = stack (mode_eval ?u ?kappa ?env0) -> _ |- _] =>
       simpl in h1
-    | [h1: forall s, match_conf s (fst (apply_conts ?kappa (?e.[subst_of_env ?sigma], ?sigma))) -> _ |- _] =>
+    | [h1: forall s, match_state s (fst (apply_conts ?kappa (?e.[subst_of_env ?sigma], ?sigma))) -> _ |- _] =>
       let s1 := constr:(mode_eval e kappa sigma) in
-      assert (tmp: match_conf s1 (fst (apply_conts kappa (e.[subst_of_env sigma], sigma)))) by (econstructor; simpl; eauto);
+      assert (tmp: match_state s1 (fst (apply_conts kappa (e.[subst_of_env sigma], sigma)))) by (econstructor; simpl; eauto);
       learn (h1 s1 tmp)
-    | [h1: forall s, match_conf s (fst (apply_conts ?kappa (apply_return ?r, ?sigma))) -> _ |- _] =>
+    | [h1: forall s, match_state s (fst (apply_conts ?kappa (apply_return ?r, ?sigma))) -> _ |- _] =>
       let s1 := constr:(mode_cont kappa sigma r) in
-      assert (tmp: match_conf s1 (fst (apply_conts kappa (apply_return r, sigma)))) by (econstructor; simpl; eauto);
+      assert (tmp: match_state s1 (fst (apply_conts kappa (apply_return r, sigma)))) by (econstructor; simpl; eauto);
       learn (h1 s1 tmp)
 
     | [h: inv_state ?s -> _ |- _] =>
@@ -1770,7 +1719,7 @@ Proof.
     | [h: _ /\ _ |- _] => destruct h
     | [h: exists _, _ |- _] =>
       destruct h
-    | [h: match_conf _ _ |- _] =>
+    | [h: match_state _ _ |- _] =>
       inversion h; clear h; subst
     | _ => progress rewrite last_snd_apply_conts in *
 
