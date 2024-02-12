@@ -175,10 +175,11 @@ Inductive inv_value: value -> value -> Prop :=
 Inductive inv_state: state -> term -> Prop :=
   | InvBase: forall s,
     inv_state s (apply_state s)
-  | InvValue: forall s v v',
-    inv_state s (Value v) ->
-    inv_value v v' ->
-    inv_state s (Value v')
+  | InvValue: forall s v1,
+    inv_state s (Value v1) ->
+    forall v2,
+    inv_value v1 v2 ->
+    inv_state s (Value v2)
 .
 
 Lemma apply_conts_app:
@@ -244,7 +245,7 @@ Proof.
   induction 1; econstructor; eauto using sred_apply_conts.
 Qed.
 
-Lemma inv_state_value:
+Lemma inv_state_value_aux:
   forall s t,
   inv_state s t ->
   forall v, t = Value v ->
@@ -274,7 +275,7 @@ Proof.
   { intros v1 Hv1.
     induction 1.
     { eexists; split; eauto with sequences. }
-    { destruct IHinv_state as [v0 ?]; eauto; unpack.
+    { destruct IHinv_state as [v3 ?]; eauto; unpack.
       inj; subst.
       eexists; split; eauto.
       eapply star_step_n1; eauto.
@@ -288,9 +289,68 @@ Proof.
   }
 Qed.
 
-Lemma 
+Lemma inv_state_value {s v0}:
+  inv_state s (Value v0) ->
+  exists v,
+    star inv_value v v0 /\ apply_state s = Value v.
+Proof.
+  intros.
+  eapply inv_state_value_aux; eauto.
+Qed.
 
 Theorem simulation_cred_sred:
+  forall s1 s2,
+    cred s1 s2 ->
+    star sred (apply_state s1) (apply_state s2).
+Proof.
+  (* already prooved *)
+Admitted.
+
+Lemma value_apply_conts_inversion_eval {v kappa t env0}:
+  Value v = fst (apply_conts kappa (t, env0)) ->
+  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
+  (Value v = t))
+  .
+Proof.
+  (* imported from cred_to_sred *)
+Admitted.
+
+Lemma nth_error_subst_of_env {x sigma v}:
+  List.nth_error sigma x = Some v ->
+  Value v = subst_of_env sigma x.
+Proof.
+  intros.
+  unfold subst_of_env.
+  rewrite H.
+  eauto.
+Qed.
+
+Lemma star_sred_Value { v t}:
+  star sred (Value v) t -> t = Value v.
+Proof.
+  induction 1 using star_ind_n1; eauto; subst.
+  inversion H.
+Qed.
+
+Lemma inv_state_from_equiv {v1 v2 s}:
+  apply_state s = Value v1 ->
+  star inv_value v1 v2 ->
+  inv_state s (Value v2).
+Proof.
+  intros H1 H2. revert H2 H1.
+  induction 1 using star_ind_n1; intros.
+  { rewrite <- H1.
+    econstructor.
+  }
+  {
+    pose proof (IHstar H1).
+    econstructor; eauto.  
+  }
+Qed.
+
+
+
+Theorem simulation_cred_sred_inv:
   forall s1 s2,
     cred s1 s2 ->
     forall t1,
@@ -298,13 +358,68 @@ Theorem simulation_cred_sred:
     exists t2,
     inv_state s2 t2 /\ star sred t1 t2.
 Proof.
-  induction 1.
+  intros s1 s2 Hs1s2.
+  pose proof (Hs1s2) as Hs1s2'.
+  induction Hs1s2'.
   all: intros tt1 IHt1.
   all: inversion IHt1; subst; clear IHt1.
   all: simpl.
-  
-  2: { eexists; split; [|eapply star_refl].
-    pose proof (inv_state_nvalue _ _ H0).
+  all: try solve [pose proof (simulation_cred_sred _ _ Hs1s2);
+  eexists; split; eauto; econstructor].
+  {
+    pose proof (inv_state_value H0); unpack. simpl in *.
+    symmetry in H3.
+    pose proof (value_apply_conts_inversion_eval H3); unpack.
+    pose proof (nth_error_subst_of_env H).
+    rewrite <- H5 in H6; inj. (* could be automatized if only coq used egraphs... *)
 
+    eexists; split; [|eapply star_refl].
+    pose proof (simulation_cred_sred _ _ Hs1s2).
+    simpl apply_state_aux at 1 in H6.
+    rewrite <- H3 in H6. (* here to... *)
+    pose proof (star_sred_Value H6).
+    eapply inv_state_from_equiv; eauto with sequences.
+  }
+
+  {
+    pose proof (inv_state_value H); unpack. simpl in *.
+    symmetry in H2.
+    pose proof (value_apply_conts_inversion_eval H2); unpack.
+    congruence.
+  }
+
+  {
+    pose proof (inv_state_value H); unpack. simpl in *.
+    symmetry in H2.
+    pose proof (value_apply_conts_inversion_eval H2); unpack.
+    congruence.
+  }
+
+  {
+    pose proof (inv_state_value H); unpack. simpl in *.
+    symmetry in H2.
+    pose proof (value_apply_conts_inversion_eval H2); unpack.
+    congruence.
+  }
+
+  {
+    pose proof (inv_state_value H); unpack. simpl in *.
+    symmetry in H2.
+    pose proof (value_apply_conts_inversion_eval H2); unpack.
+    congruence.
+  }
+
+  {
+    pose proof (inv_state_value H); unpack. simpl in *.
+    symmetry in H2.
+    pose proof (value_apply_conts_inversion_eval H2); unpack.
+    induction r; simpl in *; inj.
+
+    eexists; split; [|eapply star_refl].
+    pose proof (simulation_cred_sred _ _ Hs1s2).
+    simpl apply_state_aux at 1 in H4.
+    rewrite <- H2 in H4. (* here to... *)
+    pose proof (star_sred_Value H4).
+    eapply inv_state_from_equiv; eauto with sequences.
   }
 Qed.
