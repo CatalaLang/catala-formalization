@@ -4,6 +4,8 @@ Require Import Autosubst_FreeVars.
 Require Import String.
 Require Import Coq.ZArith.ZArith.
 Require Import tactics.
+
+From Equations Require Import Equations.
 Import List.ListNotations.
 
 Inductive term :=
@@ -132,8 +134,37 @@ Inductive sred: term -> term -> Prop :=
         (App t2 u)
 .
 
-Require Import sequences.
+Inductive sim_term: term -> term -> Prop :=
+  | sim_term_1: forall x y, x = y -> sim_term (Var x) (Var y)
+  | sim_term_2: forall t1 t2 u1 u2,
+    sim_term t1 u1 ->
+    sim_term t2 u2 ->
+    sim_term (App t1 t2) (App u1 u2)
+  | sim_term_3: forall t1 u1,
+    sim_term t1 u1 ->
+    sim_term (Lam t1) (Lam u1)
+  | sim_term_4: forall v1 w1,
+    sim_value v1 w1 ->
+    sim_term (Value v1) (Value w1)
+with sim_value: value -> value -> Prop :=
+  | sim_value_1: forall t1 t2 sigma1 sigma2,
+    sim_term t1.[up (subst_of_env sigma1)] t2.[up (subst_of_env sigma2)] ->
+    sim_value (Closure t1 sigma1) (Closure t2 sigma2)
+.
 
+(* this is obviously an equivalence relation. *)
+
+Require Import Coq.Classes.SetoidClass.
+
+Instance Reflexive_sim_term : Reflexive sim_term. Admitted.
+Instance Transtive_sim_term : Transitive sim_term. Admitted.
+Instance Symmetric_sim_term : Symmetric sim_term. Admitted.
+Instance Equivalence_sim_term : Equivalence sim_term. Admitted.
+
+Instance Setoid_term: @Setoid term := {
+  equiv := sim_term;
+  setoid_equiv := Equivalence_sim_term
+}.
 
 Definition apply_cont
   (param1: term * list value)
@@ -169,17 +200,15 @@ Definition apply_state_aux (s: state): term * list value :=
 (* We use an notation to be apple to simplify this definition. *)
 Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
 
-Inductive inv_value: value -> value -> Prop :=
-.
 
 Inductive inv_state: state -> term -> Prop :=
   | InvBase: forall s,
     inv_state s (apply_state s)
-  | InvValue: forall s v1,
-    inv_state s (Value v1) ->
-    forall v2,
-    inv_value v1 v2 ->
-    inv_state s (Value v2)
+  | InvValue: forall s t1,
+    inv_state s t1 ->
+    forall t2,
+    sim_term t1 t2 ->
+    inv_state s t2
 .
 
 Lemma apply_conts_app:
@@ -235,6 +264,8 @@ Proof.
   }
 Qed.
 
+Require Import sequences.
+
 Theorem star_sred_apply_conts: forall kappa t t' sigma,
   star sred t t' ->
   star sred
@@ -246,65 +277,116 @@ Proof.
 Qed.
 
 Lemma inv_state_value_aux:
-  forall s t,
-  inv_state s t ->
-  forall v, t = Value v ->
-  exists v',
-    star inv_value v' v /\ apply_state s = Value v'.
+  forall s t1,
+  inv_state s t1 ->
+  exists t,
+    sim_term t1 t /\ apply_state s = t.
 Proof.
   induction 1.
-  { eexists; split; eauto. econstructor. }
+  { eexists; split; eauto. reflexivity. }
   { intros; inj; subst.
     edestruct IHinv_state; eauto; unpack.
     eexists; split; eauto.
-    eauto with sequences.
+    symmetry.
+    etransitivity.
+    symmetry.
+    eauto.
+    eauto.
   }
 Qed.
 
-Definition sym {T} R (x y:T) := R x y \/ R y x.
 
-Lemma inv_state_nvalue_aux:
-  forall s t,
-  inv_state s t ->
-  forall v1, t = Value v1 ->
-  forall t2, inv_state s t2 ->
-  exists v2, t2  = Value v2 /\ star (sym inv_value) v1 v2.
+Lemma inv_state_from_equiv {t2 s}:
+  sim_term (apply_state s) t2 ->
+  inv_state s t2.
 Proof.
-  unfold sym.
-  induction 1.
-  { intros v1 Hv1.
-    induction 1.
-    { eexists; split; eauto with sequences. }
-    { destruct IHinv_state as [v3 ?]; eauto; unpack.
-      inj; subst.
-      eexists; split; eauto.
-      eapply star_step_n1; eauto.
-    }
-  }
-  {
-    intros; inj; subst.
-    edestruct IHinv_state as [v2 ?]; eauto; unpack; subst.
-    eexists; split; eauto.
-    eapply star_step; eauto.
-  }
+  repeat econstructor; eauto.
 Qed.
 
-Lemma inv_state_value {s v0}:
-  inv_state s (Value v0) ->
-  exists v,
-    star inv_value v v0 /\ apply_state s = Value v.
+Lemma inv_state_apply_conts {kappa t1 t2 sigma}:
+  sim_term t1 t2 ->
+  sim_term
+    (fst (apply_conts kappa (t1, sigma)))
+    (fst (apply_conts kappa (t2, sigma))).
+Proof.
+  revert sigma t1 t2.
+  induction kappa as [|k kappa] using List.rev_ind; simpl; eauto.
+  induction k; intros; repeat rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl.
+  { econstructor. eapply IHkappa; eauto.
+    repeat rewrite last_snd_apply_conts.
+    reflexivity.
+  }
+  { econstructor.
+    { reflexivity. }
+    { eapply IHkappa; eauto. }
+  }
+  { eapply IHkappa; eauto. }
+Qed.
+
+Lemma fv_1_subst_upn { t k sigma }:
+  fv k t ->
+    t.[upn k sigma] = t.
+Proof.
+  revert k sigma.
+  induction t; simpl; intros.
+  { admit.
+    (* fv k (Var x) <-> x < k
+    upn k sigma x = Var x <-> x < k *)
+  }
+  { rewrite IHt1. rewrite IHt2. eauto. all: admit "ok". }
+  { rewrite fold_up_upn. rewrite IHt; eauto. all: admit "ok". }
+  { eauto. }
+Admitted.
+
+Lemma iterate_1: forall {A : Type} (f : A -> A) (a : A), iterate f 1 a = f a.
 Proof.
   intros.
-  eapply inv_state_value_aux; eauto.
+  rewrite iterate_S, iterate_0; eauto.
 Qed.
+
+Lemma fv_1_subst_up { t sigma }:
+  fv 1 t ->
+    t.[up sigma] = t.
+Proof.
+  replace (up sigma) with (upn 1 sigma) by eapply iterate_1.
+  eapply fv_1_subst_upn.
+Qed.
+
 
 Theorem simulation_cred_sred:
   forall s1 s2,
     cred s1 s2 ->
-    star sred (apply_state s1) (apply_state s2).
+    exists t,
+      inv_state s2 t /\
+      star sred (apply_state s1) t.
 Proof.
-  (* already prooved *)
+  induction 1; try induction o.
+  all: simpl.
+  all: try solve [eexists; split; [eapply InvBase|]; eapply star_refl].
+  { eexists; split; [eapply InvBase|].
+    simpl; unfold subst_of_env; rewrite H; eauto with sequences. }
+  {
+    eexists; split.
+    2:{ eapply star_sred_apply_conts. eapply star_one. econstructor. }
+    eapply inv_state_from_equiv.
+    eapply inv_state_apply_conts.
+    simpl.
+    econstructor.
+    econstructor.
+    (* require the invariant that terms inside closures are closed. *)
+    assert (fv 1 (t.[up (subst_of_env sigma)])). { admit. }
+    replace (t.[up (subst_of_env sigma)].[up (subst_of_env [])]) with (t.[up (subst_of_env sigma)]).
+    reflexivity.
+    symmetry.
+    eapply fv_1_subst_up.
+    eauto.
+  }
+  { eexists; split; [eapply InvBase|]; simpl.
+    eapply star_sred_apply_conts.
+    repeat econstructor.
+  }
 Admitted.
+
 
 Lemma value_apply_conts_inversion_eval {v kappa t env0}:
   Value v = fst (apply_conts kappa (t, env0)) ->
@@ -332,21 +414,6 @@ Proof.
   inversion H.
 Qed.
 
-Lemma inv_state_from_equiv {v1 v2 s}:
-  apply_state s = Value v1 ->
-  star inv_value v1 v2 ->
-  inv_state s (Value v2).
-Proof.
-  intros H1 H2. revert H2 H1.
-  induction 1 using star_ind_n1; intros.
-  { rewrite <- H1.
-    econstructor.
-  }
-  {
-    pose proof (IHstar H1).
-    econstructor; eauto.  
-  }
-Qed.
 
 
 
@@ -366,8 +433,10 @@ Proof.
   all: simpl.
   all: try solve [pose proof (simulation_cred_sred _ _ Hs1s2);
   eexists; split; eauto; econstructor].
+  
   {
-    pose proof (inv_state_value H0); unpack. simpl in *.
+    admit.
+    pose proof (inv_state_value H); unpack. simpl in *.
     symmetry in H3.
     pose proof (value_apply_conts_inversion_eval H3); unpack.
     pose proof (nth_error_subst_of_env H).

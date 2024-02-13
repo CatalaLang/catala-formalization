@@ -344,3 +344,12 @@ Goal forall n, exists n', n' = n+1.
   eauto.
 Qed.
 
+
+Ltac sp :=
+  repeat match goal with
+  | [ |- context [let '(_, _) := ?p in _]] =>
+    rewrite (surjective_pairing p)
+  | [h: context [let '(_, _) := ?p in _] |- _] =>
+    rewrite (surjective_pairing p) in h
+  end
+.
