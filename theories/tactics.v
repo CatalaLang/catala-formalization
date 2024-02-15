@@ -209,7 +209,10 @@ Module Learn.
     but unifiable type term *)
     | [ Hlearnt: @Learnt P |- _ ] =>
       fail 0 "already knew" P "through" Hlearnt
-    | _ => pose proof H; pose proof (AlreadyLearnt H)
+    | _ =>
+      pose proof H;
+      let l := fresh "L" in
+      pose proof (AlreadyLearnt H) as l
     end.
 
   Tactic Notation "learn" constr(H) := learn_fact H.
