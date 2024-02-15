@@ -4,9 +4,10 @@ Require Import Autosubst_FreeVars.
 Require Import String.
 Require Import Coq.ZArith.ZArith.
 Require Import tactics.
-
-From Equations Require Import Equations.
 Import List.ListNotations.
+
+Require Import Coq.Classes.SetoidClass.
+
 
 Inductive term :=
   (* Lambda calculus part of the language*)
@@ -134,6 +135,11 @@ Inductive sred: term -> term -> Prop :=
         (App t2 u)
 .
 
+
+(*** Equivalence relation definition ***)
+
+
+
 Inductive sim_term: term -> term -> Prop :=
   | sim_term_1: forall x y, x = y -> sim_term (Var x) (Var y)
   | sim_term_2: forall t1 t2 u1 u2,
@@ -153,16 +159,55 @@ with sim_value: value -> value -> Prop :=
 .
 
 Scheme term_value_ind := Induction for term Sort Prop
-with value_term_ind := Induction for value Sort Prop.
+  with value_term_ind := Induction for value Sort Prop.
 
 Scheme sim_term_sim_value_ind := Induction for sim_term Sort Prop
 with sim_value_sim_term_ind := Induction for sim_value Sort Prop.
 
-Check sim_term_sim_value_ind.
+Theorem term_indudction
+	 : forall (P : term -> Prop) (P0 : value -> Prop),
+       (forall x : var, P (Var x)) ->
+       (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
+       (forall t : {bind term}, P t -> P (Lam t)) ->
+       (forall v : value, P0 v -> P (Value v)) ->
+       (forall t : {bind term},
+        P t -> forall sigma : list value, P0 (Closure t sigma)) ->
+       (forall t : term, P t) /\ forall v : value, P0 v.
+Proof.
+  split.
+  eapply term_value_ind; eauto.
+  eapply value_term_ind; eauto.
+Qed.
 
-(* this is obviously an equivalence relation. *)
 
-Require Import Coq.Classes.SetoidClass.
+
+Theorem sim_ind
+	 : forall (P : forall t t0 : term, sim_term t t0 -> Prop)
+         (P0 : forall v v0 : value, sim_value v v0 -> Prop),
+       (forall (x y : var) (e : x = y), P (Var x) (Var y) (sim_term_1 x y e)) ->
+       (forall (t1 t2 u1 u2 : term) (s : sim_term t1 u1),
+        P t1 u1 s ->
+        forall s0 : sim_term t2 u2,
+        P t2 u2 s0 -> P (App t1 t2) (App u1 u2) (sim_term_2 t1 t2 u1 u2 s s0)) ->
+       (forall (t1 u1 : term) (s : sim_term t1 u1),
+        P t1 u1 s -> P (Lam t1) (Lam u1) (sim_term_3 t1 u1 s)) ->
+       (forall (v1 w1 : value) (s : sim_value v1 w1),
+        P0 v1 w1 s -> P (Value v1) (Value w1) (sim_term_4 v1 w1 s)) ->
+       (forall (t1 t2 : term) (sigma1 sigma2 : list value)
+          (s : sim_term t1.[up (subst_of_env sigma1)]
+                 t2.[up (subst_of_env sigma2)]),
+        P t1.[up (subst_of_env sigma1)] t2.[up (subst_of_env sigma2)] s ->
+        P0 (Closure t1 sigma1) (Closure t2 sigma2)
+          (sim_value_1 t1 t2 sigma1 sigma2 s)) ->
+       (forall (t t0 : term) (s : sim_term t t0), P t t0 s) /\ (forall (v v0 : value) (s : sim_value v v0), P0 v v0 s)
+.
+split.
+eapply sim_term_sim_value_ind; eauto.
+eapply sim_value_sim_term_ind; eauto.
+Qed.
+
+
+(* this is obviously an equivalence relation, and substitution is an morphism. *)
 
 Lemma sim_term_ren:
   forall t1 t2,
@@ -190,30 +235,36 @@ Proof.
   }
 Qed.
 
-Lemma sim_term_reflexive: Reflexive sim_term.
-  intro.
-  einduction x using term_value_ind.
-  1-4: econstructor; eauto.
-  { eapply IHt. }
-  { simpl.
-    econstructor.
-    eapply sim_term_subst; eauto.
-    induction x0; asimpl.
-    { econstructor; eauto. }
-    { eapply sim_term_ren. (* this is false. *) }
-  }
+Lemma sim_term_reflexive: Reflexive sim_term /\ Reflexive sim_value.
+  (*** This proof is false. We need to have a stronger induction principle to prove this. ***)
+  eapply term_indudction.
+  { econstructor; eauto. }
+  { econstructor; eauto. }
+  { econstructor; eauto. }
+  { econstructor; eauto. }
+  { econstructor; eauto. admit. }
+Abort.
+
+Lemma sim_symmetric: Symmetric sim_term /\ Symmetric sim_value.
+  eapply sim_ind; econstructor; eauto.
+Qed.
+
+Lemma sim_transitive:
+  (forall x y : term, sim_term x y -> forall z, sim_term y z -> sim_term x z) /\
+  (forall x y : value, sim_value x y -> forall z, sim_value y z -> sim_value x z).
+  unfold Transitive.
+  eapply sim_ind.
+  { inversion 1; eauto. }
+  { intros. inversion H1; subst; econstructor; eauto. }
+  { intros. inversion H0; subst; econstructor; eauto. }
+  { intros. inversion H0; subst; econstructor; eauto. }
+  { intros. inversion H0; subst; econstructor; eauto. }
+Qed.
 
 Instance Reflexive_sim_term : Reflexive sim_term. Admitted.
-Instance Transtive_sim_term : Transitive sim_term. Admitted.
-Instance Symmetric_sim_term : Symmetric sim_term. Admitted.
-Instance Equivalence_sim_term : Equivalence sim_term. Admitted.
+Instance Symmetric_sim_term : Symmetric sim_term. destruct sim_symmetric; eauto. Qed.
+Instance Transtive_sim_term : Transitive sim_term. destruct sim_transitive; eauto. Qed.
 
-Check Symmetric_sim_term.
-
-Instance Setoid_term: @Setoid term := {
-  equiv := sim_term;
-  setoid_equiv := Equivalence_sim_term
-}.
 
 Definition apply_cont
   (param1: term * list value)
@@ -436,14 +487,6 @@ Proof.
   }
 Admitted.
 
-
-Lemma value_apply_conts_inversion_eval {v kappa t env0}:
-  Value v = fst (apply_conts kappa (t, env0)) ->
-  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
-  (Value v = t))
-  .
-  (* imported from cred_to_sred *)
-Admitted.
 
 Lemma nth_error_subst_of_env {x sigma v}:
   List.nth_error sigma x = Some v ->
