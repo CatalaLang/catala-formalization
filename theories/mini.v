@@ -152,9 +152,56 @@ with sim_value: value -> value -> Prop :=
     sim_value (Closure t1 sigma1) (Closure t2 sigma2)
 .
 
+Scheme term_value_ind := Induction for term Sort Prop
+with value_term_ind := Induction for value Sort Prop.
+
+Scheme sim_term_sim_value_ind := Induction for sim_term Sort Prop
+with sim_value_sim_term_ind := Induction for sim_value Sort Prop.
+
+Check sim_term_sim_value_ind.
+
 (* this is obviously an equivalence relation. *)
 
 Require Import Coq.Classes.SetoidClass.
+
+Lemma sim_term_ren:
+  forall t1 t2,
+    sim_term t1 t2 ->
+    forall xi,
+      sim_term t1.[ren xi] t2.[ren xi].
+Proof.
+  induction 1; intros; subst; asimpl.
+  all: try econstructor; eauto.
+Qed.
+
+Lemma sim_term_subst:
+  forall t1 t2,
+    sim_term t1 t2 ->
+    forall sigma1 sigma2,
+      (forall x, sim_term (sigma1 x) (sigma2 x)) ->
+      sim_term t1.[sigma1] t2.[sigma2].
+Proof.
+  induction 1; intros; subst; asimpl.
+  all: try econstructor; eauto.
+  { eapply IHsim_term.
+    induction x; asimpl.
+    { econstructor; eauto. }
+    { eapply sim_term_ren; eauto. }
+  }
+Qed.
+
+Lemma sim_term_reflexive: Reflexive sim_term.
+  intro.
+  einduction x using term_value_ind.
+  1-4: econstructor; eauto.
+  { eapply IHt. }
+  { simpl.
+    econstructor.
+    eapply sim_term_subst; eauto.
+    induction x0; asimpl.
+    { econstructor; eauto. }
+    { eapply sim_term_ren. (* this is false. *) }
+  }
 
 Instance Reflexive_sim_term : Reflexive sim_term. Admitted.
 Instance Transtive_sim_term : Transitive sim_term. Admitted.
