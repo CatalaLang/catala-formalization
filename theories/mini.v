@@ -524,6 +524,21 @@ Notation "'sim_value' t1 t2" :=
   format "'sim_value'  '[hv' t1  '/' t2 ']'"
 ).
 
+Lemma subst_of_env_nil_ids:
+  subst_of_env [] = ids.
+Proof.
+  eapply FunctionalExtensionality.functional_extensionality.
+  induction x; unfold subst_of_env; simpl; eauto.
+Qed.
+
+Lemma subst_env_cons v sigma:
+  subst_of_env (v :: sigma) = (Value v) .: subst_of_env sigma.
+Proof.
+  eapply FunctionalExtensionality.functional_extensionality.
+  induction x; asimpl; eauto.
+Qed.
+
+
 Lemma proper_inv_state_sred:
   forall t1 t2,
     sred t1 t2 ->
@@ -534,11 +549,18 @@ Lemma proper_inv_state_sred:
 Proof.
   induction 1; inversion 1; subst.
   { repeat econstructor.
-    admit "need subst related ".
+    rewrite subst_of_env_nil_ids.
+    rewrite up_id; asimpl.
+    eauto.
   }
   { inversion H2; inversion H4; inversion H1; subst.
-    repeat econstructor. 
-    admit "need subst related inv_term".
+    repeat econstructor.
+    clear -H6 H11.
+    replace (t.[subst_of_env (v :: sigma')]) with t.[up (subst_of_env sigma')].[Value v/] by (rewrite subst_env_cons; asimpl; eauto).
+    replace (t2.[subst_of_env (w0 :: sigma2)]) with t2.[up (subst_of_env sigma2)].[Value w0/] by (rewrite subst_env_cons; asimpl; eauto).
+    eapply sim_term_subst; eauto.
+    { induction x; simpl; econstructor; eauto. }
+    
   }
   { learn (IHsred _ H5); unpack.
     inversion H3; subst.
