@@ -304,7 +304,7 @@ Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsi
 Inductive inv_state: state -> term -> Prop :=
   | InvBase: forall s,
     inv_state s (apply_state s)
-  | InvValue: forall s t1,
+  | InvStep: forall s t1,
     inv_state s t1 ->
     forall t2,
     sim_term t1 t2 ->
@@ -423,20 +423,74 @@ Proof.
   { eapply IHkappa; eauto. }
 Qed.
 
+Lemma lift_inj_EVar:
+  forall t x,
+  lift 1 t = Var (S x) <-> t = Var x.
+Proof.
+  split; intros.
+  { eauto using lift_inj. }
+  { subst. eauto. }
+Qed.
+
+
+Lemma fv_Var_eq:
+  forall k x,
+  fv k (Var x) <-> x < k.
+Proof.
+  unfold fv. asimpl. induction k; intros.
+  { asimpl. split; intros; exfalso.
+    { unfold ids, Ids_term in *. injections.
+      eapply Nat.neq_succ_diag_l. eauto. }
+    { lia. }
+  }
+  (* Step. *)
+  { destruct x; asimpl.
+    { split; intros. { lia. } { reflexivity. }
+  }
+    rewrite lift_inj_EVar. rewrite IHk. lia. }
+Qed.
+
+
+Lemma fv_Lam_eq:
+  forall k t,
+  fv k (Lam t) <-> fv (S k) t.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. eauto. }
+  { unpack. congruence. }
+Qed.
+
+Lemma fv_App_eq:
+  forall k t1 t2,
+  fv k (App t1 t2) <-> fv k t1 /\ fv k t2.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. eauto. }
+  { unpack. congruence. }
+Qed.
+
+
+#[export]
+Hint Rewrite
+  fv_Var_eq
+  fv_Lam_eq
+  fv_App_eq
+  : fv.
+
 Lemma fv_1_subst_upn { t k sigma }:
   fv k t ->
     t.[upn k sigma] = t.
 Proof.
   revert k sigma.
   induction t; simpl; intros.
-  { admit.
-    (* fv k (Var x) <-> x < k
-    upn k sigma x = Var x <-> x < k *)
+  { rewrite fv_Var_eq in *. 
+    eapply upn_k_sigma_x; eauto.
+    eapply SubstLemmas_term.
   }
-  { rewrite IHt1. rewrite IHt2. eauto. all: admit "ok". }
-  { rewrite fold_up_upn. rewrite IHt; eauto. all: admit "ok". }
+  { rewrite IHt1, IHt2; fv; unpack; eauto. }
+  { rewrite fold_up_upn, IHt; fv; eauto. }
   { eauto. }
-Admitted.
+Qed.
 
 Lemma iterate_1: forall {A : Type} (f : A -> A) (a : A), iterate f 1 a = f a.
 Proof.
@@ -452,6 +506,12 @@ Proof.
   eapply fv_1_subst_upn.
 Qed.
 
+Lemma subst_of_env_nil_ids:
+  subst_of_env [] = ids.
+Proof.
+  eapply FunctionalExtensionality.functional_extensionality.
+  induction x; unfold subst_of_env; simpl; eauto.
+Qed.
 
 Theorem simulation_cred_sred:
   forall s1 s2,
@@ -473,19 +533,17 @@ Proof.
     simpl.
     econstructor.
     econstructor.
-    (* require the invariant that terms inside closures are closed. *)
-    assert (fv 1 (t.[up (subst_of_env sigma)])). { admit. }
     replace (t.[up (subst_of_env sigma)].[up (subst_of_env [])]) with (t.[up (subst_of_env sigma)]).
     reflexivity.
-    symmetry.
-    eapply fv_1_subst_up.
+    rewrite subst_of_env_nil_ids.
+    asimpl.
     eauto.
   }
   { eexists; split; [eapply InvBase|]; simpl.
     eapply star_sred_apply_conts.
     repeat econstructor.
   }
-Admitted.
+Qed.
 
 
 Lemma nth_error_subst_of_env {x sigma v}:
@@ -524,12 +582,7 @@ Notation "'sim_value' t1 t2" :=
   format "'sim_value'  '[hv' t1  '/' t2 ']'"
 ).
 
-Lemma subst_of_env_nil_ids:
-  subst_of_env [] = ids.
-Proof.
-  eapply FunctionalExtensionality.functional_extensionality.
-  induction x; unfold subst_of_env; simpl; eauto.
-Qed.
+
 
 Lemma subst_env_cons v sigma:
   subst_of_env (v :: sigma) = (Value v) .: subst_of_env sigma.
@@ -571,7 +624,8 @@ Proof.
     learn (IHsred _ H3); unpack.
     repeat econstructor; eauto.
   }
-Admitted.
+Qed.
+
 
 Lemma proper_inv_state_star_sred:
   forall t1 t2,
