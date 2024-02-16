@@ -740,7 +740,45 @@ Definition stack s :=
   | mode_eval _ kappa _ => kappa
   end.
 
-  Lemma subst_of_env_App {t1 t2 t' env}:
+Definition with_stack s kappa :=
+  match s with
+  | mode_cont _ sigma r => mode_cont kappa sigma r
+  | mode_eval t _ sigma => mode_eval t kappa sigma
+end.
+
+Definition append_stack s kappa :=
+  with_stack s (stack s ++ kappa).
+
+Lemma append_stack_all {s}:
+  s = append_stack (with_stack s []) (stack s).
+Proof.
+  induction s; intros; simpl in *; subst; reflexivity.
+Qed.
+
+Lemma append_stack_app {s kappa1 kappa2}:
+  stack s = kappa1 ++ kappa2 ->
+  s = append_stack (with_stack s kappa1) kappa2.
+Proof.
+  induction s; intros; simpl in *; subst; reflexivity.
+Qed.
+
+Lemma cred_append_stack {s1 s2}:
+  cred s1 s2 ->
+  forall {kappa},
+  cred (append_stack s1 kappa) (append_stack s2 kappa).
+Proof.
+  induction 1; intros; simpl; econstructor; eauto.
+Qed.
+
+Lemma star_cred_append_stack {s1 s2}:
+  star cred s1 s2 ->
+  forall {kappa},
+  star cred (append_stack s1 kappa) (append_stack s2 kappa).
+Proof.
+  induction 1; intros; econstructor; eauto using cred_append_stack.
+Qed.
+
+Lemma subst_of_env_App {t1 t2 t' env}:
   App t1 t2 = t'.[subst_of_env env] ->
   exists (t1' t2': term),
     t1 = t1'.[subst_of_env env]
@@ -775,15 +813,12 @@ Qed.
 
 Lemma subst_of_env_Value {v t' env}:
   Value v = t'.[subst_of_env env] ->
-  t' = Value v \/ exists x, t' = Var x /\ subst_of_env env x = Value v.
+  t' = Value v \/ exists x, t' = Var x /\ List.nth_error env x = Some v.
 Proof.
-  destruct t'; asimpl; intros; tryfalse; inj; eauto;
-  match goal with
-  | [h: _ = subst_of_env ?env ?x |- _ ] =>
-    unfold subst_of_env in h;
-    destruct (List.nth_error env x);
-    inj
-  end.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto.
+  unfold subst_of_env in *.
+  remember (List.nth_error env x) as o.
+  induction o; subst; tryfalse; inj; eauto.
 Qed.
 
 Ltac subst_of_env :=
@@ -834,8 +869,16 @@ Proof.
   induction kappa as [|k kappa] using List.rev_ind.
   { induction s1; simpl; intro Hkappa; subst; simpl.
     { remember e.[subst_of_env env] as t1.
-      induction 1; repeat subst_of_env.
-      all: try repeat (eapply star_step_prop; [econstructor|]).
+      intros t2 Ht1t2.
+      generalize dependent env.
+      generalize dependent e.
+      induction Ht1t2; intros; repeat subst_of_env.
+      all: try repeat (eapply star_step_prop; [econstructor; eauto|]).
+
+      (* Reflexivity cases. *)
+      all: try solve [
+          eapply star_refl_prop; eapply inv_state_from_equiv; simpl; try reflexivity
+      ].
       2:{ eapply star_step_prop.  }
       { learn (subst_of_env_Lam Heqt1); unpack; subst.
         eapply star_step_prop; [econstructor|].
