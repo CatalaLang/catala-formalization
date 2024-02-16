@@ -137,6 +137,13 @@ Proof.
 Qed.
 
 
+Lemma nth_error_cons {A} {t: A} {x ts}:
+  List.nth_error (t :: ts ) (S x) = List.nth_error ts x.
+Proof.
+  induction x; simpl; eauto.
+Qed.
+
+
 (* Such that [l = lastn n l ++ firstn n l] *)
 Definition droplastn {A} n (l: list A) := List.firstn ((List.length l) - n) l.
 

@@ -82,6 +82,13 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl)))
       (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
+  
+  | cred_value:
+    forall v kappa sigma,
+    cred
+      (mode_eval (Value v) kappa sigma)
+      (mode_cont kappa sigma (RValue v))
+      
 
   | cred_beta:
     forall t_cl sigma_cl kappa sigma v,
@@ -235,15 +242,79 @@ Proof.
   }
 Qed.
 
+
+(* For reflexivity, we need to do an induction on the size of terms. *)
+
+Program Fixpoint size_term t := 
+  match t with
+  | Var _ => 0
+  | App t1 t2 => S (size_term t1 + size_term t2)
+  | Lam t => S (size_term t)
+  | Value v => S (size_value v)
+  end
+with size_value v :=
+  match v with
+  | Closure t env => S (size_term t + (List.fold_left (Nat.add) (List.map size_value env) 0))
+  end.
+
+
+
+Theorem term_indudction'
+  : forall (P : term -> Prop) (P0 : value -> Prop),
+      (forall x : var, P (Var x)) ->
+      (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
+      (forall t : {bind term}, P t -> P (Lam t)) ->
+      (forall v : value, P0 v -> P (Value v)) ->
+      (forall t,
+       P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)) ->
+      (forall t : term, P t) /\ (forall v : value, P0 v).
+Proof.
+Admitted.
+
+
+Lemma subst_of_env_nil_ids:
+  subst_of_env [] = ids.
+Proof.
+  eapply FunctionalExtensionality.functional_extensionality.
+  induction x; unfold subst_of_env; simpl; eauto.
+Qed.
+
+Require Import common.
+
+Lemma subst_of_env_cons {t ts n}:
+  subst_of_env (t :: ts) (S n) = subst_of_env ts n.
+Proof.
+  unfold subst_of_env.
+  rewrite nth_error_cons; simpl.
+  eauto.
+Qed.
+
+
 Lemma sim_term_reflexive: Reflexive sim_term /\ Reflexive sim_value.
-  (*** This proof is false. We need to have a stronger induction principle to prove this. ***)
-  eapply term_indudction.
+  eapply term_indudction'.
   { econstructor; eauto. }
   { econstructor; eauto. }
   { econstructor; eauto. }
   { econstructor; eauto. }
-  { econstructor; eauto. admit. }
-Abort.
+  { econstructor; eauto.
+    eapply sim_term_subst.
+    { eauto. }
+    { intro x; case x; asimpl.
+      { econstructor; eauto. }
+      { intros; eapply sim_term_ren.
+        revert n.
+        induction sigma.
+        { rewrite subst_of_env_nil_ids; econstructor; eauto. }
+        { inversion H0; subst; intros. case n; asimpl.
+          { econstructor; eauto. }
+          { intros. rewrite subst_of_env_cons.
+            eapply IHsigma; eauto.
+          }
+        }
+      }
+    }
+  }
+Qed.
 
 Lemma sim_symmetric: Symmetric sim_term /\ Symmetric sim_value.
   eapply sim_ind; econstructor; eauto.
@@ -261,7 +332,7 @@ Lemma sim_transitive:
   { intros. inversion H0; subst; econstructor; eauto. }
 Qed.
 
-Instance Reflexive_sim_term : Reflexive sim_term. Admitted.
+Instance Reflexive_sim_term : Reflexive sim_term. eapply sim_term_reflexive. Qed.
 Instance Symmetric_sim_term : Symmetric sim_term. destruct sim_symmetric; eauto. Qed.
 Instance Transtive_sim_term : Transitive sim_term. destruct sim_transitive; eauto. Qed.
 
@@ -506,12 +577,7 @@ Proof.
   eapply fv_1_subst_upn.
 Qed.
 
-Lemma subst_of_env_nil_ids:
-  subst_of_env [] = ids.
-Proof.
-  eapply FunctionalExtensionality.functional_extensionality.
-  induction x; unfold subst_of_env; simpl; eauto.
-Qed.
+
 
 Theorem simulation_cred_sred:
   forall s1 s2,
@@ -664,3 +730,150 @@ Proof.
   eapply inv_state_from_equiv.
   etransitivity; [symmetry|]; eauto.
 Qed.
+
+
+(*** From sred to cred ***)
+
+Definition stack s :=
+  match s with
+  | mode_cont kappa _ _ => kappa
+  | mode_eval _ kappa _ => kappa
+  end.
+
+  Lemma subst_of_env_App {t1 t2 t' env}:
+  App t1 t2 = t'.[subst_of_env env] ->
+  exists (t1' t2': term),
+    t1 = t1'.[subst_of_env env]
+    /\ t2 = t2'.[subst_of_env env]
+    /\ t' = App t1' t2'
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
+
+Lemma subst_of_env_Lam {t t' env}:
+  Lam (t: {bind term}) = t'.[subst_of_env env] ->
+  exists (t1': {bind term}),
+    t = t1'.[up (subst_of_env env)] /\
+    t' = Lam t1'
+.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
+
+Lemma subst_of_env_Value {v t' env}:
+  Value v = t'.[subst_of_env env] ->
+  t' = Value v \/ exists x, t' = Var x /\ subst_of_env env x = Value v.
+Proof.
+  destruct t'; asimpl; intros; tryfalse; inj; eauto;
+  match goal with
+  | [h: _ = subst_of_env ?env ?x |- _ ] =>
+    unfold subst_of_env in h;
+    destruct (List.nth_error env x);
+    inj
+  end.
+Qed.
+
+Ltac subst_of_env :=
+  match goal with
+  | [h: App _ _ = _.[subst_of_env _] |- _] =>
+    learn (subst_of_env_App h); clear h; unzip; subst
+  | [h: Lam _ = _.[subst_of_env _] |- _] =>
+    learn (subst_of_env_Lam h); clear h; unzip; subst
+  | [h: Value _ = _.[subst_of_env _] |- _] =>
+    learn (subst_of_env_Value h); clear h; unzip; subst
+  end.
+
+Lemma star_refl_prop { A } { R: A -> A -> Prop}{P s1}:
+  P s1 ->
+  (exists s, P s /\ star R s1 s).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply star_refl; eauto.
+Qed.
+
+Lemma star_step_prop { A } { R: A -> A -> Prop}{P s1 s2}:
+  R s1 s2 ->
+  (exists s, P s /\ star R s2 s) ->
+  (exists s, P s /\ star R s1 s).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply star_step; eauto.
+Qed.
+
+Lemma star_trans_prop { A } { R: A -> A -> Prop}{P s1 s2}:
+  star R s1 s2 ->
+  (exists s, P s /\ star R s2 s) ->
+  (exists s, P s /\ star R s1 s).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply star_trans; eauto.
+Qed.
+
+Theorem simulation_sred_cred_base:
+  forall s1 t2,
+    sred (apply_state s1) t2 ->
+    exists s2,
+      inv_state s2 t2 /\ star cred s1 s2.
+Proof.
+  intros s1.
+  remember (stack s1) as kappa.
+  revert s1 Heqkappa.
+  induction kappa as [|k kappa] using List.rev_ind.
+  { induction s1; simpl; intro Hkappa; subst; simpl.
+    { remember e.[subst_of_env env] as t1.
+      induction 1; repeat subst_of_env.
+      all: try repeat (eapply star_step_prop; [econstructor|]).
+      2:{ eapply star_step_prop.  }
+      { learn (subst_of_env_Lam Heqt1); unpack; subst.
+        eapply star_step_prop; [econstructor|].
+        eapply star_refl_prop.
+        eapply inv_state_from_equiv; simpl.
+        repeat econstructor.
+        rewrite subst_of_env_nil_ids.
+        asimpl; reflexivity.
+      }
+      { learn (subst_of_env_App Heqt1); unpack; subst.
+        learn (subst_of_env_Value H); destruct H1; unpack; subst.
+        learn (subst_of_env_Value H0).
+      }
+      { admit. }
+      { admit. }
+    }
+    { induction result0; simpl; inversion 1. }
+  }
+  { induction s1; simpl; intro Hkappa; subst; simpl; induction k.
+    all: rewrite apply_conts_app; simpl in *.
+    { simpl in *; subst.
+      intros.
+      
+
+      rewrite  }
+
+
+
+  }
+
+
+Theorem simulation_sred_cred:
+  forall t1 t2,
+    sred t1 t2 ->
+    forall s1,
+      inv_state s1 t1 ->
+      exists s2,
+        inv_state s2 t2 /\ star cred s1 s2.
+Proof.
+  induction 1.
+  
