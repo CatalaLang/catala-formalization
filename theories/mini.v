@@ -778,6 +778,13 @@ Proof.
   induction 1; intros; econstructor; eauto using cred_append_stack.
 Qed.
 
+Lemma apply_state_append_stack {s kappa}:
+  apply_state_aux (append_stack s kappa) =
+  apply_conts kappa (apply_state_aux s).
+Proof.
+  induction s; simpl; unfold apply_conts; eapply List.fold_left_app.
+Qed.
+
 Lemma subst_of_env_App {t1 t2 t' env}:
   App t1 t2 = t'.[subst_of_env env] ->
   exists (t1' t2': term),
@@ -857,6 +864,22 @@ Proof.
   eapply star_trans; eauto.
 Qed.
 
+Lemma cred_snd_apply_sate {s1 s2}:
+  cred s1 s2 ->
+  snd (apply_state_aux s1) = snd (apply_state_aux s2).
+Proof.
+  induction 1; simpl; repeat rewrite last_snd_apply_conts; eauto.
+Qed.
+
+Lemma star_cred_snd_apply_sate {s1 s2}:
+  star cred s1 s2 ->
+  snd (apply_state_aux s1) = snd (apply_state_aux s2).
+Proof.
+  induction 1; eauto.
+  rewrite <- IHstar.
+  eapply cred_snd_apply_sate; eauto.
+Qed.
+
 Theorem simulation_sred_cred_base:
   forall s1 t2,
     sred (apply_state s1) t2 ->
@@ -879,35 +902,50 @@ Proof.
       all: try solve [
           eapply star_refl_prop; eapply inv_state_from_equiv; simpl; try reflexivity
       ].
-      2:{ eapply star_step_prop.  }
-      { learn (subst_of_env_Lam Heqt1); unpack; subst.
-        eapply star_step_prop; [econstructor|].
-        eapply star_refl_prop.
-        eapply inv_state_from_equiv; simpl.
-        repeat econstructor.
-        rewrite subst_of_env_nil_ids.
-        asimpl; reflexivity.
+
+      { eapply star_refl_prop; eapply inv_state_from_equiv.
+        asimpl. repeat econstructor.
+        rewrite subst_of_env_nil_ids; asimpl; reflexivity. 
       }
-      { learn (subst_of_env_App Heqt1); unpack; subst.
-        learn (subst_of_env_Value H); destruct H1; unpack; subst.
-        learn (subst_of_env_Value H0).
+      { learn (IHHt1t2 _ _ eq_refl); unpack.
+        eapply star_trans_prop.
+        rewrite append_stack_all; eapply star_cred_append_stack; simpl; eauto.
+
+        eapply star_refl_prop; eapply inv_state_from_equiv; simpl.
+        rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+        econstructor; eauto; try reflexivity.
+        
+        learn (inversion_inv_state _ _ H); unpack; subst; symmetry; eauto.
       }
-      { admit. }
-      { admit. }
+      { learn (IHHt1t2 _ _ eq_refl); unpack.
+        eapply star_trans_prop.
+        rewrite append_stack_all; eapply star_cred_append_stack; simpl; eauto.
+
+        eapply star_refl_prop; eapply inv_state_from_equiv; simpl.
+        rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+        econstructor; eauto; try reflexivity.
+
+        learn (inversion_inv_state _ _ H); unpack; subst; symmetry; eauto.
+      }
+      { learn (IHHt1t2 _ _ eq_refl); unpack.
+        eapply star_trans_prop.
+        rewrite append_stack_all; eapply star_cred_append_stack; simpl; eauto.
+
+        eapply star_refl_prop; eapply inv_state_from_equiv; simpl.
+        rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+        econstructor; eauto; try reflexivity.
+        { learn (inversion_inv_state _ _ H); unpack; subst; symmetry; eauto. }
+        { learn (star_cred_snd_apply_sate H0); simpl in *; subst.
+          reflexivity.
+        }
+      }
     }
-    { induction result0; simpl; inversion 1. }
+    {
+      induction result0; simpl; inversion 1.
+    }
   }
-  { induction s1; simpl; intro Hkappa; subst; simpl; induction k.
-    all: rewrite apply_conts_app; simpl in *.
-    { simpl in *; subst.
-      intros.
-      
-
-      rewrite  }
-
-
-
-  }
+  { admit. }
+Admitted.
 
 
 Theorem simulation_sred_cred:
@@ -918,5 +956,5 @@ Theorem simulation_sred_cred:
       exists s2,
         inv_state s2 t2 /\ star cred s1 s2.
 Proof.
-  induction 1.
+  
   
