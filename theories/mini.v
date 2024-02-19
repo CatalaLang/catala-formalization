@@ -965,6 +965,12 @@ Proof.
   simpl; eauto.
 Qed.
 
+Lemma apply_conts_Value_apply_state {v kappa env}:
+(fst (apply_conts kappa (Value v, env))) = apply_state (mode_cont kappa env (RValue v)).
+Proof.
+  simpl; eauto.
+Qed.
+
 
 
 Theorem simulation_sred_cred_base:
@@ -1050,6 +1056,7 @@ Proof.
     all: try solve [
       eapply star_refl_prop; eapply inv_state_from_equiv; simpl; unfold apply_cont; sp; simpl; reflexivity
     ].
+    all: try match goal with [|-context [CReturn ]] => admit end.
     { rewrite subst_apply_state in Ht2t3.
       epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
 
@@ -1114,18 +1121,50 @@ Proof.
     {
       inversion Ht2t3.
     }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
+    { rewrite subst_apply_state in Ht2t3.
+      epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
+
+      match goal with
+      | [h:inv_state _ _ |- _] => learn (inversion_inv_state _ _ h); clear h; unpack; subst
+      end.
+
+      eapply star_trans_prop; [rewrite append_stack_all; eapply star_cred_append_stack; eauto|simpl].
+
+      eapply star_refl_prop.
+      eapply inv_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+      econstructor; first[reflexivity| symmetry; eauto].
+    }
+    { rewrite apply_conts_Value_apply_state in Ht2t3.
+      epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
+
+      match goal with
+      | [h:inv_state _ _ |- _] => learn (inversion_inv_state _ _ h); clear h; unpack; subst
+      end.
+
+      eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|simpl with_stack].
+      
+      eapply star_refl_prop.
+      eapply inv_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+      econstructor; [symmetry; eauto|].
+      pose proof (star_cred_snd_apply_sate H0); simpl in *; rewrite snd_apply_conts_last in *; rewrite H1.
+      reflexivity.
+    }
+    { rewrite apply_conts_Value_apply_state in Ht2t3.
+      epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
+
+      match goal with
+      | [h:inv_state _ _ |- _] => learn (inversion_inv_state _ _ h); clear h; unpack; subst
+      end.
+
+      eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|simpl with_stack].
+
+      eapply star_refl_prop.
+      eapply inv_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+      econstructor; first [reflexivity|symmetry; eauto].
+    }
+    {
+      inversion Ht2t3.
+    }
   }
 Admitted.
 
@@ -1148,5 +1187,3 @@ Proof.
   symmetry.
   etransitivity; eauto.
 Qed.
-
-  
