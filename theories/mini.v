@@ -7,6 +7,8 @@ Require Import tactics.
 Import List.ListNotations.
 
 Require Import Coq.Classes.SetoidClass.
+Require Import Wellfounded.
+
 
 
 Inductive term :=
@@ -254,10 +256,58 @@ Program Fixpoint size_term t :=
   end
 with size_value v :=
   match v with
-  | Closure t env => S (size_term t + (List.fold_left (Nat.add) (List.map size_value env) 0))
+  | Closure t env => S (size_term t + (List.list_sum (List.map size_value env)))
+  end.
+
+Definition size (x : term + value) :=
+  match x with
+  | inl t => size_term t
+  | inr v => size_value v
   end.
 
 
+Theorem term_value_induction
+: forall {P : term -> Prop} {P0 : value -> Prop}
+    {HVar: forall x : var, P (Var x)}
+    {HApp: forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)}
+    {HLam: forall t : {bind term}, P t -> P (Lam t)}
+    {HValue: forall v : value, P0 v -> P (Value v)}
+    {HClosure: forall t,
+      P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)},
+    (forall x : term + value, match x with | inl t => P t | inr v => P0 v end).
+Proof.
+  induction x as [x IHx] using (
+    well_founded_induction
+      (wf_inverse_image _ nat _ size 
+      PeanoNat.Nat.lt_wf_0)).
+  { destruct x.
+    { destruct t; try first [
+        eapply HVar|
+        eapply HApp|
+        eapply HLam|
+        eapply HValue
+      ].
+      1: eapply (IHx (inl t1)).
+      2: eapply (IHx (inl t2)).
+      3: eapply (IHx (inl t)).
+      4: eapply (IHx (inr v)).
+      all: simpl; lia.
+    }
+    { destruct v; try first [
+        eapply HClosure
+      ].
+      { eapply (IHx (inl t)); simpl; lia. }
+      {
+        induction sigma; econstructor; eauto.
+        { eapply (IHx (inr a)); simpl; lia. }
+
+        eapply IHsigma; intros.
+        { eapply IHx. simpl in *; lia. }
+      }
+      
+    }
+  }
+Qed.
 
 Theorem term_indudction'
   : forall (P : term -> Prop) (P0 : value -> Prop),
@@ -269,8 +319,13 @@ Theorem term_indudction'
        P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)) ->
       (forall t : term, P t) /\ (forall v : value, P0 v).
 Proof.
-Admitted.
+  split; intros.
+  eapply (term_value_induction (inl t)).
+  eapply (term_value_induction (inr v)).
 
+  Unshelve.
+  all: eauto.
+Qed.
 
 Lemma subst_of_env_nil_ids:
   subst_of_env [] = ids.
@@ -924,7 +979,6 @@ Proof.
   }
 Qed.
 
-Require Import Wellfounded.
 
 Theorem rev_ind_wf {A}:
   forall P: list A -> Prop,
