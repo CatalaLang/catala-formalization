@@ -972,6 +972,48 @@ Proof.
 Qed.
 
 
+Lemma fst_apply_conts_CReturn {kappa sigma t}:
+  fst (apply_conts (kappa ++ [CReturn sigma]) t) = fst (apply_conts kappa t).
+Proof.
+  rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl; eauto.
+Qed.
+
+(* The handling of CReturn is orthogonal to the other continuations, hence we proove it in a different way. *)
+Lemma induction_case_CReturn
+  (sigma: list value)
+  (kappa: list cont)
+  (IHkappa: forall s1 : state,
+            kappa = stack s1 ->
+            forall t2 : term,
+            sred (fst (apply_state_aux s1)) t2 ->
+            exists s2 : state, inv_state s2 t2 /\ star cred s1 s2):
+
+  forall s1 : state,
+  kappa ++ [CReturn sigma] = stack s1 ->
+  forall t2 : term,
+  sred (fst (apply_state_aux s1)) t2 ->
+  exists s2 : state, inv_state s2 t2 /\ star cred s1 s2
+.
+Proof.
+  intros.
+  assert (Heq: fst (apply_state_aux s1) = fst (apply_state_aux (with_stack s1 kappa))).
+  { induction s1; simpl in *; subst; rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl; eauto. }
+
+  rewrite Heq in *.
+
+  epose proof (IHkappa _ _ _ H0); unpack.
+  learn (inversion_inv_state _ _ H1); unpack.
+  induction s1; simpl in *; subst.
+
+  all: eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl; reflexivity]]; eapply star_cred_append_stack; simpl; eauto|].
+  all: eapply star_refl_prop; eapply inv_state_from_equiv; simpl.
+  all: induction s2; simpl in *; subst; rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl; eauto.
+  all: symmetry; eauto.
+
+  Unshelve.
+  induction s1; simpl; eauto.
+Qed.
+
 
 Theorem simulation_sred_cred_base:
   forall s1 t2,
@@ -1040,6 +1082,11 @@ Proof.
   { induction s1; induction k; try match goal with [r: result |- _]=> induction r end; simpl; intro Hkappa; subst; simpl.
     all: rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl.
     all: intros t3 Ht2t3.
+
+    all: try match goal with [|-context [CReturn ]] =>
+    eapply induction_case_CReturn; eauto; simpl;
+    try rewrite fst_apply_conts_CReturn; eauto end.
+
     all: match typeof Ht2t3 with sred ?u1 ?u2 => remember u1 as u end.
     generalize dependent env; generalize dependent e.
     all: induction Ht2t3; intros; inj; tryfalse.
@@ -1056,7 +1103,7 @@ Proof.
     all: try solve [
       eapply star_refl_prop; eapply inv_state_from_equiv; simpl; unfold apply_cont; sp; simpl; reflexivity
     ].
-    all: try match goal with [|-context [CReturn ]] => admit end.
+    
     { rewrite subst_apply_state in Ht2t3.
       epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
 
@@ -1166,7 +1213,11 @@ Proof.
       inversion Ht2t3.
     }
   }
-Admitted.
+
+  Unshelve.
+  all: simpl; try reflexivity.
+  all: try rewrite List.app_length; simpl; lia.
+Qed.
 
 
 Theorem simulation_sred_cred:
