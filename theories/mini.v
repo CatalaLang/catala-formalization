@@ -738,7 +738,7 @@ Proof.
   }
   { learn (IHsred _ H5); unpack.
     inversion H3; subst.
-    inversion H6; subst.
+    inversion H7; subst.
     repeat econstructor; eauto.
   }
   {
@@ -780,7 +780,7 @@ Proof.
   | [h: inv_state  _ _ |- _] =>
     learn (inversion_inv_state _ _ h); unpack; subst
   end.
-  learn (proper_inv_state_star_sred _ _ H0 _ (symmetry H2)); unpack.
+  learn (proper_inv_state_star_sred _ _ H1 _ (symmetry H4)); unpack.
   eexists; split; [|eauto].
   eapply inv_state_from_equiv.
   etransitivity; [symmetry|]; eauto.
@@ -1124,7 +1124,7 @@ Proof.
         rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
         econstructor; eauto; try reflexivity.
         { learn (inversion_inv_state _ _ H); unpack; subst; symmetry; eauto. }
-        { learn (star_cred_snd_apply_sate H0); simpl in *; subst.
+        { learn (star_cred_snd_apply_sate H2); simpl in *; subst.
           reflexivity.
         }
       }
@@ -1285,9 +1285,9 @@ Proof.
   intros ? ? Ht1t2 ? Hs1t1.
   learn (inversion_inv_state _ _ Hs1t1); unpack; subst; clear Hs1t1.
   learn (proper_inv_state_sred _ _ Ht1t2 _ H); unpack.
-  learn (simulation_sred_cred_base _ _ H1); unpack; subst.
+  learn (simulation_sred_cred_base _ _ H3); unpack; subst.
   eexists; split; eauto.
-  learn (inversion_inv_state _ _ H2); unpack; subst; clear H2.
+  learn (inversion_inv_state _ _ H4); unpack; subst; clear H2.
   eapply inv_state_from_equiv.
   symmetry.
   etransitivity; eauto.

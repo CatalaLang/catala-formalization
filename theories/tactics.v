@@ -229,8 +229,7 @@ Module Learn.
       fail 0 "already knew" P "through" Hlearnt
     | _ =>
       pose proof H;
-      let l := fresh "L" in
-      pose proof (AlreadyLearnt H) as l
+      pose proof (AlreadyLearnt H)
     end.
 
   Tactic Notation "learn" constr(H) := learn_fact H.
