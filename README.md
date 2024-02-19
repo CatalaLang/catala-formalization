@@ -37,7 +37,7 @@ To start developing, you first need to install opam. Then you can run the follow
     opam repository add coq-released --all-switches
     opam install . --deps-only
 
-Once it is done, you can use dune to build the part of the project that build
+Once it is done, you can use dune to build the Coq developement
 
     dune build
 
