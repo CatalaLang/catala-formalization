@@ -893,32 +893,6 @@ Ltac subst_of_env :=
     learn (subst_of_env_Value h); clear h; unzip; subst
   end.
 
-Lemma star_refl_prop { A } { R: A -> A -> Prop}{P s1}:
-  P s1 ->
-  (exists s, P s /\ star R s1 s).
-Proof.
-  intros; unpack; eexists; split; eauto.
-  eapply star_refl; eauto.
-Qed.
-
-Lemma star_step_prop { A } { R: A -> A -> Prop}{P s1 s2}:
-  R s1 s2 ->
-  (exists s, P s /\ star R s2 s) ->
-  (exists s, P s /\ star R s1 s).
-Proof.
-  intros; unpack; eexists; split; eauto.
-  eapply star_step; eauto.
-Qed.
-
-Lemma star_trans_prop { A } { R: A -> A -> Prop}{P s1 s2}:
-  star R s1 s2 ->
-  (exists s, P s /\ star R s2 s) ->
-  (exists s, P s /\ star R s1 s).
-Proof.
-  intros; unpack; eexists; split; eauto.
-  eapply star_trans; eauto.
-Qed.
-
 Lemma cred_snd_apply_sate {s1 s2}:
   cred s1 s2 ->
   snd (apply_state_aux s1) = snd (apply_state_aux s2).
