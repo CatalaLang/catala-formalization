@@ -2,6 +2,9 @@ Require Export Autosubst.Autosubst.
 Require Export AutosubstExtra.
 Require Import String.
 Require Import Coq.ZArith.ZArith.
+Require Export Coq.Classes.RelationClasses.
+Require Import Ltac2.Ltac2.
+Set Default Proof Mode "Classic".
 
 Require Import tactics.
 
@@ -562,3 +565,31 @@ Instance Transtive_sim_term : Transitive sim_term. Admitted.
 Instance Reflexive_sim_value : Reflexive sim_value. eapply sim_term_refl. Qed. 
 Instance Symmetric_sim_value : Symmetric sim_value. Admitted.
 Instance Transtive_sim_value : Transitive sim_value. Admitted.
+
+
+Local Ltac2 sinv_sim_term () :=
+  match! goal with
+  | [ h: sim_term _ ?c |- _ ] => smart_inversion c h
+  | [ h: sim_term ?c _ |- _ ] => smart_inversion c h
+  | [ h: sim_value _ ?c |- _ ] => smart_inversion c h
+  | [ h: sim_value ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 _ (_ :: _) _ |- _ ] => 
+    Std.inversion Std.FullInversion (Std.ElimOnIdent h) None None;
+    Std.subst_all ();
+    Std.clear [h]
+  | [ h: List.Forall2 _ _ (_ :: _) |- _ ] => 
+    Std.inversion Std.FullInversion (Std.ElimOnIdent h) None None;
+    Std.subst_all ();
+    Std.clear [h]
+
+  | [ h: List.Forall2 _ [] _ |- _ ] => 
+    Std.inversion Std.FullInversion (Std.ElimOnIdent h) None None;
+    Std.subst_all ();
+    Std.clear [h]
+  | [ h: List.Forall2 _ _ [] |- _ ] => 
+    Std.inversion Std.FullInversion (Std.ElimOnIdent h) None None;
+    Std.subst_all ();
+    Std.clear [h]
+  end.
+
+Ltac sinv_sim_term := ltac2:(sinv_sim_term ()).

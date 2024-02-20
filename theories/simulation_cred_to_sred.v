@@ -372,7 +372,7 @@ Proof.
   all: try eapply IHkappa; eauto.
   all: repeat rewrite snd_apply_conts_last.
   all: try reflexivity.
-  { induction o; unfold apply_CDefault. admit "need to show that sim_term Empty v => sim_term Empty". }
+  { admit "need to show that sim_term Empty v => sim_term Empty". }
   { induction ts; asimpl; econstructor; try reflexivity; eauto. }
 Admitted.
 
@@ -400,7 +400,7 @@ Proof.
   { eapply star_sred_apply_conts. eauto. }
 Qed.
 
-Theorem simulation_cred_sred:
+Theorem simulation_cred_sred_base:
   forall s1 s2,
   cred s1 s2 ->
   exists t,
@@ -441,3 +441,79 @@ Proof.
     reflexivity.
   }
 Admitted.
+
+
+(*** Lifting of this result ***)
+
+
+
+Lemma proper_inv_state_sred:
+  forall t1 t2,
+    sred t1 t2 ->
+    forall u1,
+      sim_term t1 u1 ->
+      exists u2,
+        sim_term t2 u2 /\ sred u1 u2.
+Proof.
+  induction 1; intros; repeat sinv_sim_term; subst.
+  (* induction hypothesis *)
+  all: repeat match goal with
+    | [ih: forall x, ?P x -> _, h: ?P _ |- _] => 
+      learn (ih _ h); unpack; subst end.
+
+  (* Most cases are trivial. *)
+  all: try solve[repeat econstructor; eauto].
+
+  { repeat econstructor.
+    rewrite soe_nil.
+    asimpl.
+    eauto.
+  }
+  { repeat econstructor.
+    admit "need to replace the substitution into two substitutions". 
+  }
+  { admit "binop". }
+  { repeat econstructor.
+    eapply sim_term_subst; eauto.
+    induction x; simpl; repeat econstructor; eauto.
+  }
+Admitted.
+
+Lemma proper_inv_state_star_sred:
+  forall t1 t2,
+    star sred t1 t2 ->
+    forall u1,
+      sim_term t1 u1 ->
+      exists u2,
+        sim_term t2 u2 /\ star sred u1 u2.
+Proof.
+  induction 1 using star_ind_n1.
+  { repeat econstructor; eauto. }
+  { intros ? Ht1.
+    learn (IHstar _ Ht1); unpack.
+    learn (proper_inv_state_sred _ _ H _ H1); unpack.
+    eexists; split; eauto.
+    eapply star_step_n1; eauto.
+  }
+Qed.
+
+Theorem simulation_cred_sred:
+  forall s1 s2,
+    cred s1 s2 ->
+    forall t1,
+      inv_state s1 t1 ->
+      exists t2,
+        inv_state s2 t2 /\ star sred t1 t2.
+Proof.
+  intros ? ? Hs1s2 ? Hs1t1.
+  learn (simulation_cred_sred_base _ _ Hs1s2); unpack; subst.
+  repeat match goal with
+  | [h: inv_state  _ _ |- _] =>
+    learn (inv_state_inversion _ _ h); unpack; subst
+  end.
+  symmetry in H4.
+  learn (proper_inv_state_star_sred _ _ H1 _ H4); unpack.
+  eexists; split; [|eauto].
+  eapply inv_state_from_equiv.
+  etransitivity; [symmetry|]; eauto.
+Qed.
