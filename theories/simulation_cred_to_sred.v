@@ -253,16 +253,6 @@ Proof.
   eauto with sred.
 Qed.
 
-Lemma star_sred_default_E_one:
-    forall vi tj tj' ts3 tjust tcons,
-      star sred tj tj' ->
-      star sred
-        (Default ((Value vi)::tj::ts3) tjust tcons)
-        (Default ((Value vi)::tj'::ts3) tjust tcons).
-Proof.
-  eauto with sred.
-Abort.
-
 Hint Resolve
   star_refl
 : sred.
@@ -380,7 +370,7 @@ Proof.
   }
   { eapply sreds_apply_conts.
     eapply star_one.
-    rewrite subst_env_cons.
+    rewrite soe_cons.
     replace t2.[Value v .: subst_of_env sigma] with t2.[up (subst_of_env sigma)].[Value v/] by autosubst.
     econstructor.
   }

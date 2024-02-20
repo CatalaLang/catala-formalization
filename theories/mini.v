@@ -354,7 +354,7 @@ Proof.
   induction x; unfold subst_of_env; simpl; eauto.
 Qed.
 
-Lemma subst_of_env_cons {t ts n}:
+Lemma subst_of_env_cons_S {t ts n}:
   subst_of_env (t :: ts) (S n) = subst_of_env ts n.
 Proof.
   unfold subst_of_env.
@@ -377,7 +377,7 @@ Lemma sim_term_reflexive: Reflexive sim_term /\ Reflexive sim_value.
         { rewrite subst_of_env_nil_ids; econstructor; eauto. }
         { inversion H0; subst; intros. case n; asimpl.
           { econstructor; eauto. }
-          { intros. rewrite subst_of_env_cons.
+          { intros. rewrite subst_of_env_cons_S.
             eapply IHsigma; eauto.
           }
         }
@@ -644,7 +644,7 @@ Notation "'sim_value' t1 t2" :=
 
 
 
-Lemma subst_env_cons v sigma:
+Lemma subst_of_env_cons v sigma:
   subst_of_env (v :: sigma) = (Value v) .: subst_of_env sigma.
 Proof.
   eapply FunctionalExtensionality.functional_extensionality.
@@ -669,8 +669,8 @@ Proof.
   { inversion H2; inversion H4; inversion H1; subst.
     repeat econstructor.
     clear -H6 H11.
-    replace (t.[subst_of_env (v :: sigma')]) with t.[up (subst_of_env sigma')].[Value v/] by (rewrite subst_env_cons; asimpl; eauto).
-    replace (t2.[subst_of_env (w0 :: sigma2)]) with t2.[up (subst_of_env sigma2)].[Value w0/] by (rewrite subst_env_cons; asimpl; eauto).
+    replace (t.[subst_of_env (v :: sigma')]) with t.[up (subst_of_env sigma')].[Value v/] by (rewrite subst_of_env_cons; asimpl; eauto).
+    replace (t2.[subst_of_env (w0 :: sigma2)]) with t2.[up (subst_of_env sigma2)].[Value w0/] by (rewrite subst_of_env_cons; asimpl; eauto).
     eapply sim_term_subst; eauto.
     { induction x; simpl; econstructor; eauto. }
     

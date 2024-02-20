@@ -224,7 +224,7 @@ Section APPLY_EXAMPLES.
   Proof.
     intros.
     unfold apply_conts.
-    simpl; repeat rewrite subst_env_nil; asimpl.
+    simpl; repeat rewrite soe_nil; asimpl.
     eauto.
   Qed.
 
@@ -1662,7 +1662,7 @@ Proof.
         | _ => progress f_equal
         end
       (* For return cases *)
-      | econstructor; simpl; rewrite subst_env_cons; asimpl; eauto
+      | econstructor; simpl; rewrite soe_cons; asimpl; eauto
       ]]
     end.
     { (* Lambda case *)
@@ -1928,7 +1928,7 @@ Proof.
         | _ => progress f_equal
         end
       (* For return cases *)
-      | econstructor; simpl; rewrite subst_env_cons; asimpl; eauto
+      | econstructor; simpl; rewrite soe_cons; asimpl; eauto
       ](*; idtac "ok" *)] (* |  idtac "notok" *)]
     end.
     
