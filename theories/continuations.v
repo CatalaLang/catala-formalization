@@ -443,6 +443,14 @@ Definition append_env s sigma2 :=
   end
 .
 
+Lemma append_stack_app {s kappa1 kappa2}:
+  stack s = kappa1 ++ kappa2 ->
+  s = append_stack (with_stack s kappa1) kappa2.
+Proof.
+  induction s; intros; simpl in *; subst; reflexivity.
+Qed.
+
+
 Lemma append_stack_def s kappa:
   append_stack s kappa = with_stack s (stack s ++ kappa).
 Proof.
@@ -562,6 +570,20 @@ Inductive inv_state: state -> Prop :=
 | inv_mode_cont_nil env r:
   inv_state (mode_cont [] env r)
 .
+
+Lemma inv_state_append_stack {s kappa}:
+  inv_state s ->
+  List.Forall inv_conts_no_hole kappa ->
+  inv_state (append_stack s kappa).
+Proof.
+  inversion 1; simpl; intros.
+  econstructor; eapply List.Forall_app; eauto.
+  econstructor; eapply List.Forall_app; eauto.
+  { induction kappa; unpack.
+    all: econstructor; eauto.
+  }
+Qed.
+  
 
 (* This property is indeed conserved by the cred relation. *)
 
