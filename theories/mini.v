@@ -44,27 +44,6 @@ intros; inj; eauto.
 Qed.
 
 
-
-Scheme term_value_ind := Induction for term Sort Prop
-  with value_term_ind := Induction for value Sort Prop.
-
-
-Theorem term_indudction
-	 : forall (P : term -> Prop) (P0 : value -> Prop),
-       (forall x : var, P (Var x)) ->
-       (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
-       (forall t : {bind term}, P t -> P (Lam t)) ->
-       (forall v : value, P0 v -> P (Value v)) ->
-       (forall t : {bind term},
-        P t -> forall sigma : list value, P0 (Closure t sigma)) ->
-       (forall t : term, P t) /\ forall v : value, P0 v.
-Proof.
-  split.
-  eapply term_value_ind; eauto.
-  eapply value_term_ind; eauto.
-Qed.
-
-
 (* Strong induction principle for terms *)
 
 Program Fixpoint size_term t := 
@@ -129,7 +108,7 @@ Proof.
   }
 Qed.
 
-Theorem term_indudction'
+Theorem term_ind'
   : forall (P : term -> Prop) (P0 : value -> Prop),
       (forall x : var, P (Var x)) ->
       (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
@@ -385,7 +364,7 @@ Qed.
 
 
 Lemma sim_term_reflexive: Reflexive sim_term /\ Reflexive sim_value.
-  eapply term_indudction'.
+  eapply term_ind'.
   all: econstructor; eauto.
   {
     eapply sim_term_subst.
