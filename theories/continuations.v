@@ -443,6 +443,12 @@ Definition append_env s sigma2 :=
   end
 .
 
+Lemma append_stack_all {s}:
+  s = append_stack (with_stack s []) (stack s).
+Proof.
+  induction s; intros; simpl in *; subst; reflexivity.
+Qed.
+
 Lemma append_stack_app {s kappa1 kappa2}:
   stack s = kappa1 ++ kappa2 ->
   s = append_stack (with_stack s kappa1) kappa2.

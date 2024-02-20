@@ -566,6 +566,14 @@ Instance Reflexive_sim_value : Reflexive sim_value. eapply sim_term_refl. Qed.
 Instance Symmetric_sim_value : Symmetric sim_value. Admitted.
 Instance Transtive_sim_value : Transitive sim_value. Admitted.
 
+Instance Reflexive_Forall2_sim_term : Reflexive (List.Forall2 sim_term).
+  intro.
+  induction x; econstructor; eauto; reflexivity.
+Qed.
+Instance Reflexive_Forall2_sim_value : Reflexive (List.Forall2 sim_value).
+  intro.
+  induction x; econstructor; eauto; reflexivity.
+Qed.
 
 Local Ltac2 sinv_sim_term () :=
   match! goal with

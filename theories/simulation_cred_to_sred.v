@@ -373,7 +373,6 @@ Proof.
   all: repeat rewrite snd_apply_conts_last.
   all: try reflexivity.
   { admit "need to show that sim_term Empty v => sim_term Empty". }
-  { induction ts; asimpl; econstructor; try reflexivity; eauto. }
 Admitted.
 
 
