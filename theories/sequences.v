@@ -144,35 +144,6 @@ Proof.
   induction 2; eauto.
 Qed.
 
-(* Smart constructors for forward simulation diagrams *)
-
-Lemma star_refl_prop {P R a}:
-  P a ->
-  (exists b, P b /\ star R a b).
-Proof.
-  intros; unpack; eexists; split; eauto.
-  eapply star_refl; eauto.
-Qed.
-
-Lemma star_step_prop {R P a b}:
-  R a b ->
-  (exists c, P c /\ star R b c) ->
-  (exists c, P c /\ star R a c).
-Proof.
-  intros; unpack; eexists; split; eauto.
-  eapply star_step; eauto.
-Qed.
-
-Lemma star_trans_prop { R P a b}:
-  star R a b ->
-  (exists c, P c /\ star R b c) ->
-  (exists c, P c /\ star R a c).
-Proof.
-  intros; unpack; eexists; split; eauto.
-  eapply star_trans; eauto.
-Qed.
-
-
 (** One or several transitions: transitive closure of [R]. *)
 
 Inductive plus R: A -> A -> Prop :=
@@ -535,6 +506,61 @@ Proof.
   eexists; split; eapply star_refl.
 Qed.
 
+
+(* Smart constructors for forward simulation diagrams *)
+
+Lemma star_refl_prop {P R a}:
+  P a ->
+  (exists b, P b /\ star R a b).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply star_refl; eauto.
+Qed.
+
+Lemma star_step_prop {R P a b}:
+  R a b ->
+  (exists c, P c /\ star R b c) ->
+  (exists c, P c /\ star R a c).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply star_step; eauto.
+Qed.
+
+Lemma star_trans_prop { R P a b}:
+  star R a b ->
+  (exists c, P c /\ star R b c) ->
+  (exists c, P c /\ star R a c).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply star_trans; eauto.
+Qed.
+
+Lemma plus_star_trans_prop { R P a b }:
+  plus R a b ->
+  (exists c, P c /\ star R b c) ->
+  (exists c, P c /\ plus R a c).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply plus_star_trans; eauto.
+Qed.
+
+Lemma star_plus_trans_prop { R P a b }:
+  star R a b ->
+  (exists c, P c /\ plus R b c) ->
+  (exists c, P c /\ plus R a c).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply star_plus_trans; eauto.
+Qed.
+
+Lemma plus_step_prop {R P a b}:
+  R a b ->
+  (exists c, P c /\ star R b c) ->
+  (exists c, P c /\ plus R a c).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply plus_left; eauto.
+Qed.
 
 End SEQUENCES.
 
