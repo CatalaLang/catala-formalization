@@ -1487,7 +1487,7 @@ Proof.
   eapply cred_snd_apply_sate; eauto.
 Qed.
 
-Theorem simulation_sred_cred s1 t2:
+Theorem simulation_sred_cred_base s1 t2:
   sred (apply_state s1) t2 ->
   inv_state s1 ->
   exists s2,
@@ -1543,4 +1543,77 @@ Proof.
   { admit "todo". }
 Admitted.
 
+Lemma proper_sim_state_sred:
+  forall t1 t2,
+    sred t1 t2 ->
+    forall u1,
+      sim_term t1 u1 ->
+      exists u2,
+        sim_term t2 u2 /\ sred u1 u2.
+Proof.
+  induction 1; intros; repeat sinv_sim_term; subst.
+  (* induction hypothesis *)
+  all: repeat match goal with
+    | [ih: forall x, ?P x -> _, h: ?P _ |- _] => 
+      learn (ih _ h); unpack; subst end.
+
+  (* Most cases are trivial. *)
+  all: try solve[repeat econstructor; eauto].
+
+  { repeat econstructor.
+    rewrite soe_nil.
+    asimpl.
+    eauto.
+  }
+  { repeat econstructor.
+    admit "need to replace the substitution into two substitutions". 
+  }
+  { induction op2, v1, v2; simpl in *; tryfalse; inj; repeat sinv_sim_term.
+    all: repeat econstructor.
+  }
+  { repeat econstructor.
+    eapply sim_term_subst; eauto.
+    induction x; simpl; repeat econstructor; eauto.
+  }
+Admitted.
+
+Lemma proper_sim_state_star_sred:
+  forall t1 t2,
+    star sred t1 t2 ->
+    forall u1,
+      sim_term t1 u1 ->
+      exists u2,
+        sim_term t2 u2 /\ star sred u1 u2.
+Proof.
+  induction 1 using star_ind_n1.
+  { repeat econstructor; eauto. }
+  { intros ? Ht1.
+    learn (IHstar _ Ht1); unpack.
+    learn (proper_sim_state_sred _ _ H _ H1); unpack.
+    eexists; split; eauto.
+    eapply star_step_n1; eauto.
+  }
+Qed.
+
+
+Theorem simulation_sred_cred:
+  forall t1 t2,
+    sred t1 t2 ->
+    forall s1,
+      inv_state s1 ->
+      sim_state s1 t1 ->
+      exists s2,
+      inv_state s2 /\ sim_state s2 t2 /\ plus cred s1 s2.
+Proof.
+  intros ? ? Ht1t2 ? Hs1 Hs1t1.
+  learn (sim_state_inversion _ _ Hs1t1); unpack; subst; clear Hs1t1.
+  learn (proper_sim_state_sred _ _ Ht1t2 _ H); unpack.
+  learn (simulation_sred_cred_base _ _ H3 Hs1); unpack; subst.
+  eexists; repeat split; eauto.
+  { learn (sim_state_inversion _ _ H4); unpack; subst.
+    eapply sim_state_from_equiv.
+    symmetry.
+    etransitivity; eauto.
+  }
+Qed.
 

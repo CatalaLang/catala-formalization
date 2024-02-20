@@ -471,7 +471,9 @@ Proof.
   { repeat econstructor.
     admit "need to replace the substitution into two substitutions". 
   }
-  { admit "binop". }
+  { induction op2, v1, v2; simpl in *; tryfalse; inj; repeat sinv_sim_term.
+    all: repeat econstructor.
+  }
   { repeat econstructor.
     eapply sim_term_subst; eauto.
     induction x; simpl; repeat econstructor; eauto.
