@@ -382,6 +382,13 @@ Proof.
   eauto.
 Qed.
 
+Lemma subst_of_env_decompose { t v sigma }:
+  t.[subst_of_env (v :: sigma)] = t.[up (subst_of_env sigma)].[Value v/].
+Proof.
+  asimpl; rewrite soe_cons.
+  eauto.
+Qed.
+
 (* Strong induction princple for terms and values *)
 
 Theorem term_value_ind

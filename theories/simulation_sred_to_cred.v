@@ -1566,7 +1566,9 @@ Proof.
     eauto.
   }
   { repeat econstructor.
-    admit "need to replace the substitution into two substitutions". 
+    repeat rewrite subst_of_env_decompose.
+    eapply sim_term_subst; eauto.
+    { induction x; asimpl; repeat econstructor; eauto. }
   }
   { induction op2, v1, v2; simpl in *; tryfalse; inj; repeat sinv_sim_term.
     all: repeat econstructor.
@@ -1575,7 +1577,7 @@ Proof.
     eapply sim_term_subst; eauto.
     induction x; simpl; repeat econstructor; eauto.
   }
-Admitted.
+Qed.
 
 Lemma proper_sim_state_star_sred:
   forall t1 t2,
