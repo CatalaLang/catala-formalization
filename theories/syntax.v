@@ -45,6 +45,7 @@ with value :=
   | VPure (v: value)
 .
 
+
 Require Import Autosubst_FreeVars.
 #[export] Instance Ids_term : Ids term. derive. Defined.
 #[export] Instance Idslemmas_term : IdsLemmas term.
