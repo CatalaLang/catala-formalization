@@ -54,6 +54,24 @@ Ltac unpack :=
       destruct h
     end.
 
+Ltac unzip :=
+  repeat match goal with
+  | [h: _ /\ _ |- _ ] =>
+    destruct h
+  | [h: _ \/ _ |- _ ] =>
+    destruct h
+  |[h: exists x, _ |- _] =>
+    let x := fresh x in
+    destruct h as [x h]
+  |[h: List.Forall _ (_ :: _) |- _] =>
+    inversion h;
+    subst;
+    clear h
+  |[h: List.Forall _ (_ ++ _) |- _] =>
+    rewrite List.Forall_app in h;
+    destruct h
+  end.
+
 Section unpack_tests.
   Example unpacking_forall_ex1 {A} (P: A -> Prop) l1 l2:
     List.Forall P (l1 ++ l2)
@@ -209,7 +227,9 @@ Module Learn.
     but unifiable type term *)
     | [ Hlearnt: @Learnt P |- _ ] =>
       fail 0 "already knew" P "through" Hlearnt
-    | _ => pose proof H; pose proof (AlreadyLearnt H)
+    | _ =>
+      pose proof H;
+      pose proof (AlreadyLearnt H)
     end.
 
   Tactic Notation "learn" constr(H) := learn_fact H.
@@ -344,3 +364,12 @@ Goal forall n, exists n', n' = n+1.
   eauto.
 Qed.
 
+
+Ltac sp :=
+  repeat match goal with
+  | [ |- context [let '(_, _) := ?p in _]] =>
+    rewrite (surjective_pairing p)
+  | [h: context [let '(_, _) := ?p in _] |- _] =>
+    rewrite (surjective_pairing p) in h
+  end
+.

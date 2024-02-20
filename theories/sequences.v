@@ -144,6 +144,35 @@ Proof.
   induction 2; eauto.
 Qed.
 
+(* Smart constructors for forward simulation diagrams *)
+
+Lemma star_refl_prop {P R a}:
+  P a ->
+  (exists b, P b /\ star R a b).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply star_refl; eauto.
+Qed.
+
+Lemma star_step_prop {R P a b}:
+  R a b ->
+  (exists c, P c /\ star R b c) ->
+  (exists c, P c /\ star R a c).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply star_step; eauto.
+Qed.
+
+Lemma star_trans_prop { R P a b}:
+  star R a b ->
+  (exists c, P c /\ star R b c) ->
+  (exists c, P c /\ star R a c).
+Proof.
+  intros; unpack; eexists; split; eauto.
+  eapply star_trans; eauto.
+Qed.
+
+
 (** One or several transitions: transitive closure of [R]. *)
 
 Inductive plus R: A -> A -> Prop :=
@@ -299,11 +328,11 @@ Proof.
   (P := fun a => exists b, star R a b /\ P b).
   (* Proof that the invariant is preserved. *)
   { clear dependent a.
-  intros a (b&hStar&hPb).
-  inversion hStar; subst.
-  { destruct (Hinv b hPb) as [c [hPlus ?]].
-    inversion hPlus; subst. eauto. }
-  { eauto. }
+    intros a (b&hStar&hPb).
+    inversion hStar; subst.
+    { destruct (Hinv b hPb) as [c [hPlus ?]].
+      inversion hPlus; subst. eauto. }
+    { eauto. }
   }
   (* Proof that the invariant initially holds. *)
   { eauto with star. }
