@@ -118,28 +118,28 @@ Definition apply_state_aux (s: state): term * list value :=
 (* We use an notation to be apple to simplify this definition. *)
 Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
 
-Inductive inv_state: state -> term -> Prop :=
+Inductive sim_state: state -> term -> Prop :=
   | InvBase: forall s,
-    inv_state s (apply_state s)
+    sim_state s (apply_state s)
   | InvStep: forall s t1,
-    inv_state s t1 ->
+    sim_state s t1 ->
     forall t2,
     sim_term t1 t2 ->
-    inv_state s t2
+    sim_state s t2
 .
 
-(* Smart constructors and inversion for the inv_state inductive *)
+(* Smart constructors and inversion for the sim_state inductive *)
 
-Lemma inv_state_inversion:
+Lemma sim_state_inversion:
   forall s t1,
-  inv_state s t1 ->
+  sim_state s t1 ->
   exists t,
     sim_term t1 t /\ apply_state s = t.
 Proof.
   induction 1.
   { eexists; split; eauto. reflexivity. }
   { intros; inj; subst.
-    edestruct IHinv_state; eauto; unpack.
+    edestruct IHsim_state; eauto; unpack.
     eexists; split; eauto.
     symmetry.
     etransitivity.
@@ -149,9 +149,9 @@ Proof.
   }
 Qed.
 
-Lemma inv_state_from_equiv {t2 s}:
+Lemma sim_state_from_equiv {t2 s}:
   sim_term (apply_state s) t2 ->
-  inv_state s t2.
+  sim_state s t2.
 Proof.
   repeat econstructor; eauto.
 Qed.
@@ -359,7 +359,7 @@ Theorem sred_apply_conts: forall kappa t t' sigma,
   eauto with sequences.
 Qed.
 
-Lemma inv_state_apply_conts {kappa t1 t2 sigma}:
+Lemma sim_term_apply_conts {kappa t1 t2 sigma}:
   sim_term t1 t2 ->
   sim_term
     (fst (apply_conts kappa (t1, sigma)))
@@ -396,7 +396,7 @@ Lemma sim_term_star_sred_apply_counts {t1 t2' kappa sigma}:
   star sred (fst (apply_conts kappa (t1, sigma))) t2).
 Proof.
   intros; unpack; eexists; split.
-  { eapply inv_state_apply_conts. eauto. }
+  { eapply sim_term_apply_conts. eauto. }
   { eapply star_sred_apply_conts. eauto. }
 Qed.
 
@@ -404,7 +404,7 @@ Theorem simulation_cred_sred_base:
   forall s1 s2,
   cred s1 s2 ->
   exists t,
-    inv_state s2 t /\
+    sim_state s2 t /\
     star sred (apply_state s1) t.
 Proof.
   Local Ltac step := eapply star_step_prop;[solve[econstructor; eauto]|].
@@ -412,7 +412,7 @@ Proof.
   pose proof Hs1s2' as Hs1s2.
   eapply (impli_under_exists).
   intros.
-  eapply inv_state_from_equiv.
+  eapply sim_state_from_equiv.
   eapply H.
   induction Hs1s2'; try induction o; try induction phi.
   all: try destruct (EmptyOrNotEmpty th).
@@ -447,7 +447,7 @@ Admitted.
 
 
 
-Lemma proper_inv_state_sred:
+Lemma proper_sim_state_sred:
   forall t1 t2,
     sred t1 t2 ->
     forall u1,
@@ -479,7 +479,7 @@ Proof.
   }
 Admitted.
 
-Lemma proper_inv_state_star_sred:
+Lemma proper_sim_state_star_sred:
   forall t1 t2,
     star sred t1 t2 ->
     forall u1,
@@ -491,7 +491,7 @@ Proof.
   { repeat econstructor; eauto. }
   { intros ? Ht1.
     learn (IHstar _ Ht1); unpack.
-    learn (proper_inv_state_sred _ _ H _ H1); unpack.
+    learn (proper_sim_state_sred _ _ H _ H1); unpack.
     eexists; split; eauto.
     eapply star_step_n1; eauto.
   }
@@ -501,19 +501,19 @@ Theorem simulation_cred_sred:
   forall s1 s2,
     cred s1 s2 ->
     forall t1,
-      inv_state s1 t1 ->
+      sim_state s1 t1 ->
       exists t2,
-        inv_state s2 t2 /\ star sred t1 t2.
+        sim_state s2 t2 /\ star sred t1 t2.
 Proof.
   intros ? ? Hs1s2 ? Hs1t1.
   learn (simulation_cred_sred_base _ _ Hs1s2); unpack; subst.
   repeat match goal with
-  | [h: inv_state  _ _ |- _] =>
-    learn (inv_state_inversion _ _ h); unpack; subst
+  | [h: sim_state  _ _ |- _] =>
+    learn (sim_state_inversion _ _ h); unpack; subst
   end.
   symmetry in H4.
-  learn (proper_inv_state_star_sred _ _ H1 _ H4); unpack.
+  learn (proper_sim_state_star_sred _ _ H1 _ H4); unpack.
   eexists; split; [|eauto].
-  eapply inv_state_from_equiv.
+  eapply sim_state_from_equiv.
   etransitivity; [symmetry|]; eauto.
 Qed.

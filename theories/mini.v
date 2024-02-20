@@ -447,30 +447,30 @@ Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsi
 
 
 
-(*** Main inv_state definition ***)
+(*** Main sim_state definition ***)
 
-Inductive inv_state: state -> term -> Prop :=
+Inductive sim_state: state -> term -> Prop :=
   | InvBase: forall s,
-    inv_state s (apply_state s)
+    sim_state s (apply_state s)
   | InvStep: forall s t1,
-    inv_state s t1 ->
+    sim_state s t1 ->
     forall t2,
     sim_term t1 t2 ->
-    inv_state s t2
+    sim_state s t2
 .
 
-(* Smart constructors and inversion for the inv_state inductive *)
+(* Smart constructors and inversion for the sim_state inductive *)
 
-Lemma inversion_inv_state:
+Lemma inversion_sim_state:
   forall s t1,
-  inv_state s t1 ->
+  sim_state s t1 ->
   exists t,
     sim_term t1 t /\ apply_state s = t.
 Proof.
   induction 1.
   { eexists; split; eauto. reflexivity. }
   { intros; inj; subst.
-    edestruct IHinv_state; eauto; unpack.
+    edestruct IHsim_state; eauto; unpack.
     eexists; split; eauto.
     symmetry.
     etransitivity.
@@ -480,9 +480,9 @@ Proof.
   }
 Qed.
 
-Lemma inv_state_from_equiv {t2 s}:
+Lemma sim_state_from_equiv {t2 s}:
   sim_term (apply_state s) t2 ->
-  inv_state s t2.
+  sim_state s t2.
 Proof.
   repeat econstructor; eauto.
 Qed.
@@ -553,7 +553,7 @@ Proof.
   induction 1; econstructor; eauto using sred_apply_conts.
 Qed.
 
-Lemma inv_state_apply_conts {kappa t1 t2 sigma}:
+Lemma sim_state_apply_conts {kappa t1 t2 sigma}:
   sim_term t1 t2 ->
   sim_term
     (fst (apply_conts kappa (t1, sigma)))
@@ -578,7 +578,7 @@ Theorem simulation_cred_sred_base:
   forall s1 s2,
     cred s1 s2 ->
     exists t,
-      inv_state s2 t /\
+      sim_state s2 t /\
       star sred (apply_state s1) t.
 Proof.
   induction 1; try induction o.
@@ -589,8 +589,8 @@ Proof.
   {
     eexists; split.
     2:{ eapply star_sred_apply_conts. eapply star_one. econstructor. }
-    eapply inv_state_from_equiv.
-    eapply inv_state_apply_conts.
+    eapply sim_state_from_equiv.
+    eapply sim_state_apply_conts.
     simpl.
     econstructor.
     econstructor.
@@ -652,7 +652,7 @@ Proof.
 Qed.
 
 
-Lemma proper_inv_state_sred:
+Lemma proper_sim_state_sred:
   forall t1 t2,
     sred t1 t2 ->
     forall u1,
@@ -687,7 +687,7 @@ Proof.
 Qed.
 
 
-Lemma proper_inv_state_star_sred:
+Lemma proper_sim_state_star_sred:
   forall t1 t2,
     star sred t1 t2 ->
     forall u1,
@@ -699,7 +699,7 @@ Proof.
   { repeat econstructor; eauto. }
   { intros ? Ht1.
     learn (IHstar _ Ht1); unpack.
-    learn (proper_inv_state_sred _ _ H _ H1); unpack.
+    learn (proper_sim_state_sred _ _ H _ H1); unpack.
     eexists; split; eauto.
     eapply star_step_n1; eauto.
   }
@@ -709,19 +709,19 @@ Theorem simulation_cred_sred:
   forall s1 s2,
     cred s1 s2 ->
     forall t1,
-      inv_state s1 t1 ->
+      sim_state s1 t1 ->
       exists t2,
-        inv_state s2 t2 /\ star sred t1 t2.
+        sim_state s2 t2 /\ star sred t1 t2.
 Proof.
   intros ? ? Hs1s2 ? Hs1t1.
   learn (simulation_cred_sred_base _ _ Hs1s2); unpack; subst.
   repeat match goal with
-  | [h: inv_state  _ _ |- _] =>
-    learn (inversion_inv_state _ _ h); unpack; subst
+  | [h: sim_state  _ _ |- _] =>
+    learn (inversion_sim_state _ _ h); unpack; subst
   end.
-  learn (proper_inv_state_star_sred _ _ H1 _ (symmetry H4)); unpack.
+  learn (proper_sim_state_star_sred _ _ H1 _ (symmetry H4)); unpack.
   eexists; split; [|eauto].
-  eapply inv_state_from_equiv.
+  eapply sim_state_from_equiv.
   etransitivity; [symmetry|]; eauto.
 Qed.
 
@@ -953,13 +953,13 @@ Lemma induction_case_CReturn
             kappa = stack s1 ->
             forall t2 : term,
             sred (fst (apply_state_aux s1)) t2 ->
-            exists s2 : state, inv_state s2 t2 /\ star cred s1 s2):
+            exists s2 : state, sim_state s2 t2 /\ star cred s1 s2):
 
   forall s1 : state,
   kappa ++ [CReturn sigma] = stack s1 ->
   forall t2 : term,
   sred (fst (apply_state_aux s1)) t2 ->
-  exists s2 : state, inv_state s2 t2 /\ star cred s1 s2
+  exists s2 : state, sim_state s2 t2 /\ star cred s1 s2
 .
 Proof.
   intros.
@@ -969,11 +969,11 @@ Proof.
   rewrite Heq in *.
 
   epose proof (IHkappa _ _ _ H0); unpack.
-  learn (inversion_inv_state _ _ H1); unpack.
+  learn (inversion_sim_state _ _ H1); unpack.
   induction s1; simpl in *; subst.
 
   all: eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl; reflexivity]]; eapply star_cred_append_stack; simpl; eauto|].
-  all: eapply star_refl_prop; eapply inv_state_from_equiv; simpl.
+  all: eapply star_refl_prop; eapply sim_state_from_equiv; simpl.
   all: induction s2; simpl in *; subst; rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl; eauto.
   all: symmetry; eauto.
 
@@ -986,7 +986,7 @@ Theorem simulation_sred_cred_base:
   forall s1 t2,
     sred (apply_state s1) t2 ->
     exists s2,
-      inv_state s2 t2 /\ star cred s1 s2.
+      sim_state s2 t2 /\ star cred s1 s2.
 Proof.
   intros s1.
   remember (stack s1) as kappa.
@@ -1002,10 +1002,10 @@ Proof.
 
       (* Reflexivity cases. *)
       all: try solve [
-          eapply star_refl_prop; eapply inv_state_from_equiv; simpl; try reflexivity
+          eapply star_refl_prop; eapply sim_state_from_equiv; simpl; try reflexivity
       ].
 
-      { eapply star_refl_prop; eapply inv_state_from_equiv.
+      { eapply star_refl_prop; eapply sim_state_from_equiv.
         asimpl. repeat econstructor.
         rewrite subst_of_env_nil_ids; asimpl; reflexivity. 
       }
@@ -1013,30 +1013,30 @@ Proof.
         eapply star_trans_prop.
         rewrite append_stack_all; eapply star_cred_append_stack; simpl; eauto.
 
-        eapply star_refl_prop; eapply inv_state_from_equiv; simpl.
+        eapply star_refl_prop; eapply sim_state_from_equiv; simpl.
         rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
         econstructor; eauto; try reflexivity.
         
-        learn (inversion_inv_state _ _ H); unpack; subst; symmetry; eauto.
+        learn (inversion_sim_state _ _ H); unpack; subst; symmetry; eauto.
       }
       { learn (IHHt1t2 _ _ eq_refl); unpack.
         eapply star_trans_prop.
         rewrite append_stack_all; eapply star_cred_append_stack; simpl; eauto.
 
-        eapply star_refl_prop; eapply inv_state_from_equiv; simpl.
+        eapply star_refl_prop; eapply sim_state_from_equiv; simpl.
         rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
         econstructor; eauto; try reflexivity.
 
-        learn (inversion_inv_state _ _ H); unpack; subst; symmetry; eauto.
+        learn (inversion_sim_state _ _ H); unpack; subst; symmetry; eauto.
       }
       { learn (IHHt1t2 _ _ eq_refl); unpack.
         eapply star_trans_prop.
         rewrite append_stack_all; eapply star_cred_append_stack; simpl; eauto.
 
-        eapply star_refl_prop; eapply inv_state_from_equiv; simpl.
+        eapply star_refl_prop; eapply sim_state_from_equiv; simpl.
         rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
         econstructor; eauto; try reflexivity.
-        { learn (inversion_inv_state _ _ H); unpack; subst; symmetry; eauto. }
+        { learn (inversion_sim_state _ _ H); unpack; subst; symmetry; eauto. }
         { learn (star_cred_snd_apply_sate H2); simpl in *; subst.
           reflexivity.
         }
@@ -1068,20 +1068,20 @@ Proof.
       repeat (eapply star_trans_prop; [solve[eapply Forall_CReturn_star_cred; eauto]|])
     ).
     all: try solve [
-      eapply star_refl_prop; eapply inv_state_from_equiv; simpl; unfold apply_cont; sp; simpl; reflexivity
+      eapply star_refl_prop; eapply sim_state_from_equiv; simpl; unfold apply_cont; sp; simpl; reflexivity
     ].
     
     { rewrite subst_apply_state in Ht2t3.
       epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
 
       match goal with
-      | [h:inv_state _ _ |- _] => learn (inversion_inv_state _ _ h); clear h; unpack; subst
+      | [h:sim_state _ _ |- _] => learn (inversion_sim_state _ _ h); clear h; unpack; subst
       end.
 
       eapply star_trans_prop; [rewrite append_stack_all; eapply star_cred_append_stack; eauto|simpl].
 
       eapply star_refl_prop.
-      eapply inv_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
       econstructor; first[reflexivity| symmetry; eauto].
     }
     {
@@ -1089,13 +1089,13 @@ Proof.
       epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
 
       match goal with
-      | [h:inv_state _ _ |- _] => learn (inversion_inv_state _ _ h); clear h; unpack; subst
+      | [h:sim_state _ _ |- _] => learn (inversion_sim_state _ _ h); clear h; unpack; subst
       end.
 
       eapply star_trans_prop; [rewrite append_stack_all; eapply star_cred_append_stack; eauto|simpl].
 
       eapply star_refl_prop.
-      eapply inv_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
       econstructor; first[reflexivity| symmetry; eauto].
     }
     {
@@ -1103,14 +1103,14 @@ Proof.
       epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
 
       match goal with
-      | [h:inv_state _ _ |- _] => learn (inversion_inv_state _ _ h); clear h; unpack; subst
+      | [h:sim_state _ _ |- _] => learn (inversion_sim_state _ _ h); clear h; unpack; subst
       end.
 
 
       eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl;eauto]]; eapply star_cred_append_stack; eauto|simpl].
 
       eapply star_refl_prop.
-      eapply inv_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
       econstructor; first[reflexivity| symmetry; eauto].
 
       rewrite <- (star_cred_snd_apply_sate H0).
@@ -1122,14 +1122,14 @@ Proof.
       epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
 
       match goal with
-      | [h:inv_state _ _ |- _] => learn (inversion_inv_state _ _ h); clear h; unpack; subst
+      | [h:sim_state _ _ |- _] => learn (inversion_sim_state _ _ h); clear h; unpack; subst
       end.
 
 
       eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl;eauto]]; eapply star_cred_append_stack; eauto|simpl].
 
       eapply star_refl_prop.
-      eapply inv_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
       econstructor; first[reflexivity| symmetry; eauto].
     }
     {
@@ -1139,26 +1139,26 @@ Proof.
       epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
 
       match goal with
-      | [h:inv_state _ _ |- _] => learn (inversion_inv_state _ _ h); clear h; unpack; subst
+      | [h:sim_state _ _ |- _] => learn (inversion_sim_state _ _ h); clear h; unpack; subst
       end.
 
       eapply star_trans_prop; [rewrite append_stack_all; eapply star_cred_append_stack; eauto|simpl].
 
       eapply star_refl_prop.
-      eapply inv_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
       econstructor; first[reflexivity| symmetry; eauto].
     }
     { rewrite apply_conts_Value_apply_state in Ht2t3.
       epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
 
       match goal with
-      | [h:inv_state _ _ |- _] => learn (inversion_inv_state _ _ h); clear h; unpack; subst
+      | [h:sim_state _ _ |- _] => learn (inversion_sim_state _ _ h); clear h; unpack; subst
       end.
 
       eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|simpl with_stack].
       
       eapply star_refl_prop.
-      eapply inv_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
       econstructor; [symmetry; eauto|].
       pose proof (star_cred_snd_apply_sate H0); simpl in *; rewrite snd_apply_conts_last in *; rewrite H1.
       reflexivity.
@@ -1167,13 +1167,13 @@ Proof.
       epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
 
       match goal with
-      | [h:inv_state _ _ |- _] => learn (inversion_inv_state _ _ h); clear h; unpack; subst
+      | [h:sim_state _ _ |- _] => learn (inversion_sim_state _ _ h); clear h; unpack; subst
       end.
 
       eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|simpl with_stack].
 
       eapply star_refl_prop.
-      eapply inv_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
+      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
       econstructor; first [reflexivity|symmetry; eauto].
     }
     {
@@ -1193,17 +1193,17 @@ Theorem simulation_sred_cred:
   forall t1 t2,
     sred t1 t2 ->
     forall s1,
-      inv_state s1 t1 ->
+      sim_state s1 t1 ->
       exists s2,
-        inv_state s2 t2 /\ star cred s1 s2.
+        sim_state s2 t2 /\ star cred s1 s2.
 Proof.
   intros ? ? Ht1t2 ? Hs1t1.
-  learn (inversion_inv_state _ _ Hs1t1); unpack; subst; clear Hs1t1.
-  learn (proper_inv_state_sred _ _ Ht1t2 _ H); unpack.
+  learn (inversion_sim_state _ _ Hs1t1); unpack; subst; clear Hs1t1.
+  learn (proper_sim_state_sred _ _ Ht1t2 _ H); unpack.
   learn (simulation_sred_cred_base _ _ H3); unpack; subst.
   eexists; split; eauto.
-  learn (inversion_inv_state _ _ H4); unpack; subst; clear H2.
-  eapply inv_state_from_equiv.
+  learn (inversion_sim_state _ _ H4); unpack; subst; clear H2.
+  eapply sim_state_from_equiv.
   symmetry.
   etransitivity; eauto.
 Qed.
