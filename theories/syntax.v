@@ -557,3 +557,8 @@ Qed.
 Instance Reflexive_sim_term : Reflexive sim_term. eapply sim_term_refl. Qed. 
 Instance Symmetric_sim_term : Symmetric sim_term. Admitted.
 Instance Transtive_sim_term : Transitive sim_term. Admitted.
+
+
+Instance Reflexive_sim_value : Reflexive sim_value. eapply sim_term_refl. Qed. 
+Instance Symmetric_sim_value : Symmetric sim_value. Admitted.
+Instance Transtive_sim_value : Transitive sim_value. Admitted.

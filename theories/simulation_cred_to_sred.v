@@ -118,6 +118,43 @@ Definition apply_state_aux (s: state): term * list value :=
 (* We use an notation to be apple to simplify this definition. *)
 Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
 
+Inductive inv_state: state -> term -> Prop :=
+  | InvBase: forall s,
+    inv_state s (apply_state s)
+  | InvStep: forall s t1,
+    inv_state s t1 ->
+    forall t2,
+    sim_term t1 t2 ->
+    inv_state s t2
+.
+
+(* Smart constructors and inversion for the inv_state inductive *)
+
+Lemma inv_state_inversion:
+  forall s t1,
+  inv_state s t1 ->
+  exists t,
+    sim_term t1 t /\ apply_state s = t.
+Proof.
+  induction 1.
+  { eexists; split; eauto. reflexivity. }
+  { intros; inj; subst.
+    edestruct IHinv_state; eauto; unpack.
+    eexists; split; eauto.
+    symmetry.
+    etransitivity.
+    symmetry.
+    eauto.
+    eauto.
+  }
+Qed.
+
+Lemma inv_state_from_equiv {t2 s}:
+  sim_term (apply_state s) t2 ->
+  inv_state s t2.
+Proof.
+  repeat econstructor; eauto.
+Qed.
 
 
 Lemma NEmpty_subst_of_env_NEmpty {t} sigma:
@@ -201,24 +238,7 @@ Proof.
   }
 Qed.
 
-Lemma cred_process_return {kappa1 env0 result}: forall kappa2,
-  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa1 ->
-  star cred
-    (mode_cont (kappa1 ++ kappa2) env0 result)
-    (mode_cont kappa2 (last kappa1 env0) result)
-  .
-Proof.
-  intros. revert env0.
-  induction H as [|? kappa1 [env1 Hk]]; subst; simpl; intros.
-  { eapply star_refl. }
-  { eapply star_step. { econstructor. }
-    eapply IHForall.
-  }
-Qed.
-
-
-
-Lemma last_snd_apply_conts :
+Lemma snd_apply_conts_last :
   forall kappa env0 t, (snd (apply_conts kappa (t, env0))) = (last kappa env0).
 Proof.
   induction kappa.
@@ -257,7 +277,7 @@ Hint Resolve
   star_refl
 : sred.
 
-Theorem sreds_apply_conts: forall kappa t t' sigma,
+Theorem star_sred_apply_conts: forall kappa t t' sigma,
   star sred t t' ->
   star sred
     (fst (apply_conts kappa (t, sigma)))
@@ -280,7 +300,7 @@ Proof.
         rewrite (surjective_pairing p) in h
       end; simpl.
 
-    all: repeat rewrite last_snd_apply_conts.
+    all: repeat rewrite snd_apply_conts_last.
 
     all: try solve [eauto with sred].
     { induction o.
@@ -326,53 +346,98 @@ Proof.
 Qed.
 
 
+(* In particular, this apply too on single transition step *)
+
+Theorem sred_apply_conts: forall kappa t t' sigma,
+  sred t t' ->
+  star sred
+    (fst (apply_conts kappa (t, sigma)))
+    (fst (apply_conts kappa (t', sigma)))
+.
+  intros.
+  eapply star_sred_apply_conts.
+  eauto with sequences.
+Qed.
+
+Lemma inv_state_apply_conts {kappa t1 t2 sigma}:
+  sim_term t1 t2 ->
+  sim_term
+    (fst (apply_conts kappa (t1, sigma)))
+    (fst (apply_conts kappa (t2, sigma))).
+Proof.
+  revert sigma t1 t2.
+  induction kappa as [|k kappa] using List.rev_ind; simpl; eauto.
+  induction k; intros; repeat rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl.
+  all: repeat econstructor.
+  all: try eapply IHkappa; eauto.
+  all: repeat rewrite snd_apply_conts_last.
+  all: try reflexivity.
+  { induction o; unfold apply_CDefault. admit "need to show that sim_term Empty v => sim_term Empty". }
+  { induction ts; asimpl; econstructor; try reflexivity; eauto. }
+Admitted.
+
+
+Lemma impli_under_exists {X: Type} {P Q R: X -> Prop}:
+  (forall x, P x -> Q x) ->
+  (exists x, P x /\ R x) ->
+  (exists x, Q x /\ R x).
+Proof.
+  intros; unpack.
+  eexists; eauto.
+Qed.
+
+Lemma sim_term_star_sred_apply_counts {t1 t2' kappa sigma}: 
+(exists t2,
+  sim_term t2' t2 /\
+  star sred t1 t2
+) ->
+(exists t2 : term,
+  sim_term (fst (apply_conts kappa (t2', sigma))) t2 /\
+  star sred (fst (apply_conts kappa (t1, sigma))) t2).
+Proof.
+  intros; unpack; eexists; split.
+  { eapply inv_state_apply_conts. eauto. }
+  { eapply star_sred_apply_conts. eauto. }
+Qed.
+
 Theorem simulation_cred_sred:
   forall s1 s2,
-    cred s1 s2 ->
-    star sred (apply_state s1) (apply_state s2).
+  cred s1 s2 ->
+  exists t,
+    inv_state s2 t /\
+    star sred (apply_state s1) t.
 Proof.
-  induction 1; try induction o.
-  all: simpl.
-  all: try solve [eapply star_refl].
-  all: try solve [eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
-  { simpl; unfold subst_of_env; rewrite H; eauto with sequences. }
-  { simpl. eapply sreds_apply_conts.
-    admit "lambda related issue".
+  Local Ltac step := eapply star_step_prop;[solve[econstructor; eauto]|].
+  intros s1 s2 Hs1s2'.
+  pose proof Hs1s2' as Hs1s2.
+  eapply (impli_under_exists).
+  intros.
+  eapply inv_state_from_equiv.
+  eapply H.
+  induction Hs1s2'; try induction o; try induction phi.
+  all: try destruct (EmptyOrNotEmpty th).
+  all: dsimpl; try eapply sim_term_star_sred_apply_counts.
+  all: repeat step.
+  all: try solve [
+    eapply star_refl_prop;
+    simpl; reflexivity].
+  { eapply star_refl_prop.
+    unfold subst_of_env; rewrite H.
+    reflexivity.
   }
-  { eapply sreds_apply_conts.
-    destruct (EmptyOrNotEmpty th).
-    { subst; simpl.
-      repeat rewrite apply_CDefault_SE; eauto.
-      eapply star_one; simpl.
-      econstructor.
-    }
-    { subst; simpl.
-      rewrite apply_CDefault_SE; eauto.
-      rewrite apply_CDefault_ST; eauto. 2:{ eapply NEmpty_subst_of_env_NEmpty; eauto. }
-      eapply star_refl.
-    }
+  { eapply star_refl_prop.
+    repeat econstructor.
+    rewrite soe_nil; asimpl.
+    reflexivity.
   }
-  { eapply sreds_apply_conts.
-    destruct (EmptyOrNotEmpty th).
-    { subst; simpl; repeat rewrite apply_CDefault_SE; eauto.
-      asimpl.
-      eapply star_one; econstructor.
-    }
-    { dsimpl.
-      eapply star_refl.
-    }
+  { admit "one too may steps". }
+  { exfalso.
+    eapply H; eauto.
   }
-  { induction phi; try induction o.
-    all: try solve[eapply sreds_apply_conts; eapply star_one; econstructor; eauto].
-    { exfalso.
-      eapply H; eauto.
-    }
-  }
-  { eapply sreds_apply_conts.
-    eapply star_one.
+  { admit "this one as well". }
+  { eapply star_refl_prop.
+    asimpl.
     rewrite soe_cons.
-    replace t2.[Value v .: subst_of_env sigma] with t2.[up (subst_of_env sigma)].[Value v/] by autosubst.
-    econstructor.
+    reflexivity.
   }
-  Fail Next Obligation.
 Admitted.
