@@ -452,7 +452,7 @@ Qed.
 
 (** Reductions are stable if stack is append. *)
 
-Theorem append_stack_stable s s':
+Theorem cred_append_stack s s':
   (* If you can do a transition, then you can do the same transition with additional informations on the stack. *)
   cred s s' ->
   forall k,
@@ -462,7 +462,7 @@ Proof.
   repeat intro; inj.
 Qed.
 
-Theorem append_stack_stable_star s s':
+Theorem star_cred_append_stack s s':
   star cred s s'
   ->
   forall k,
@@ -470,17 +470,17 @@ Theorem append_stack_stable_star s s':
 Proof.
   induction 1; intros.
   * eauto with sequences.
-  * eapply star_step; eauto using append_stack_stable.
+  * eapply star_step; eauto using cred_append_stack.
 Qed.
 
-Theorem append_stack_stable_plus s s':
+Theorem plus_cred_append_stack s s':
   plus cred s s'
   ->
   forall k,
   plus cred (append_stack s k) (append_stack s' k).
 Proof.
   induction 1; intros.
-  econstructor; try eapply append_stack_stable; try eapply append_stack_stable_star; eauto.
+  econstructor; try eapply cred_append_stack; try eapply star_cred_append_stack; eauto.
 Qed.
 
 Theorem append_stack_cont kappa1 kappa2 sigma r:
