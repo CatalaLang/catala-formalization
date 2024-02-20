@@ -5,10 +5,16 @@ Require Import String.
 Require Import Coq.ZArith.ZArith.
 Require Import tactics.
 Import List.ListNotations.
+Require Import common.
+Require Import sequences.
+
+
 
 Require Import Coq.Classes.SetoidClass.
 Require Import Wellfounded.
 
+
+(*** Definitions of terms and continuations for mini-ml ***)
 
 
 Inductive term :=
@@ -37,141 +43,11 @@ Lemma ids_inj:
 intros; inj; eauto.
 Qed.
 
-Inductive cont :=
-  | CAppR (t2: term) (* [\square t2] *)
-  | CClosure (t_cl: {bind term}) (sigma_cl: list value)
-  (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices,
-     there is no variable x. *)
-  | CReturn (sigma: list value) (* call return *)
-.
 
-Inductive result :=
-  | RValue (v: value)
-.
-
-
-Inductive state :=
-  | mode_eval (e: term) (kappa: list cont) (env: list value)
-  | mode_cont (kappa: list cont) (env: list value) (result: result)
-.
-
-
-Inductive cred: state -> state -> Prop :=
-
-
-  (** Rules related to the lambda calculus *)
-  | cred_var:
-    forall x kappa sigma v,
-    List.nth_error sigma x = Some v ->
-    cred
-      (mode_eval (Var x) kappa sigma)
-      (mode_cont kappa sigma (RValue v))
-
-  | cred_app:
-    forall t1 t2 kappa sigma,
-    cred
-      (mode_eval (App t1 t2) kappa sigma)
-      (mode_eval t1 ((CAppR t2) :: kappa) sigma)
-
-  | cred_clo:
-    forall t kappa sigma,
-    cred
-      (mode_eval (Lam t) kappa sigma)
-      (mode_cont kappa sigma (RValue (Closure t sigma)))
-
-  | cred_arg:
-    forall t2 kappa sigma tcl sigmacl,
-    cred
-      (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl)))
-      (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
-  
-  | cred_value:
-    forall v kappa sigma,
-    cred
-      (mode_eval (Value v) kappa sigma)
-      (mode_cont kappa sigma (RValue v))
-      
-
-  | cred_beta:
-    forall t_cl sigma_cl kappa sigma v,
-    cred
-      (mode_cont ((CClosure t_cl sigma_cl)::kappa) sigma (RValue v))
-      (mode_eval t_cl (CReturn sigma::kappa)  (v :: sigma_cl))
-
-  | cred_return:
-    forall sigma_cl kappa sigma r,
-    cred
-      (mode_cont (CReturn sigma::kappa) sigma_cl r)
-      (mode_cont kappa sigma r)
-.
-
-Import List.ListNotations.
-Require Import Autosubst_FreeVars.
-Open Scope list.
-
-Definition subst_of_env sigma :=
-  fun n =>
-  match List.nth_error sigma n with
-  | None => ids (n - List.length sigma)
-  | Some t => Value t
-  end
-.
-
-
-Inductive sred: term -> term -> Prop :=
-  | sred_lam:
-    forall t,
-      sred
-        (Lam t)
-        (Value (Closure t []))
-
-  | sred_beta:
-    forall t v sigma',
-      sred
-        (App (Value (Closure t sigma')) (Value v))
-        (t.[subst_of_env (v :: sigma')])
-  | sred_app_right:
-    forall t u1 u2 sigma,
-      sred (u1) (u2) ->
-      sred
-        (App (Value (Closure t sigma)) u1)
-        (App (Value (Closure t sigma)) u2)
-  | sred_app_left:
-    forall t1 t2 u,
-      sred (t1) (t2) ->
-      sred
-        (App t1 u)
-        (App t2 u)
-.
-
-
-(*** Equivalence relation definition ***)
-
-
-
-Inductive sim_term: term -> term -> Prop :=
-  | sim_term_1: forall x y, x = y -> sim_term (Var x) (Var y)
-  | sim_term_2: forall t1 t2 u1 u2,
-    sim_term t1 u1 ->
-    sim_term t2 u2 ->
-    sim_term (App t1 t2) (App u1 u2)
-  | sim_term_3: forall t1 u1,
-    sim_term t1 u1 ->
-    sim_term (Lam t1) (Lam u1)
-  | sim_term_4: forall v1 w1,
-    sim_value v1 w1 ->
-    sim_term (Value v1) (Value w1)
-with sim_value: value -> value -> Prop :=
-  | sim_value_1: forall t1 t2 sigma1 sigma2,
-    sim_term t1.[up (subst_of_env sigma1)] t2.[up (subst_of_env sigma2)] ->
-    sim_value (Closure t1 sigma1) (Closure t2 sigma2)
-.
 
 Scheme term_value_ind := Induction for term Sort Prop
   with value_term_ind := Induction for value Sort Prop.
 
-Scheme sim_term_sim_value_ind := Induction for sim_term Sort Prop
-with sim_value_sim_term_ind := Induction for sim_value Sort Prop.
 
 Theorem term_indudction
 	 : forall (P : term -> Prop) (P0 : value -> Prop),
@@ -189,63 +65,7 @@ Proof.
 Qed.
 
 
-
-Theorem sim_ind
-	 : forall (P : forall t t0 : term, sim_term t t0 -> Prop)
-         (P0 : forall v v0 : value, sim_value v v0 -> Prop),
-       (forall (x y : var) (e : x = y), P (Var x) (Var y) (sim_term_1 x y e)) ->
-       (forall (t1 t2 u1 u2 : term) (s : sim_term t1 u1),
-        P t1 u1 s ->
-        forall s0 : sim_term t2 u2,
-        P t2 u2 s0 -> P (App t1 t2) (App u1 u2) (sim_term_2 t1 t2 u1 u2 s s0)) ->
-       (forall (t1 u1 : term) (s : sim_term t1 u1),
-        P t1 u1 s -> P (Lam t1) (Lam u1) (sim_term_3 t1 u1 s)) ->
-       (forall (v1 w1 : value) (s : sim_value v1 w1),
-        P0 v1 w1 s -> P (Value v1) (Value w1) (sim_term_4 v1 w1 s)) ->
-       (forall (t1 t2 : term) (sigma1 sigma2 : list value)
-          (s : sim_term t1.[up (subst_of_env sigma1)]
-                 t2.[up (subst_of_env sigma2)]),
-        P t1.[up (subst_of_env sigma1)] t2.[up (subst_of_env sigma2)] s ->
-        P0 (Closure t1 sigma1) (Closure t2 sigma2)
-          (sim_value_1 t1 t2 sigma1 sigma2 s)) ->
-       (forall (t t0 : term) (s : sim_term t t0), P t t0 s) /\ (forall (v v0 : value) (s : sim_value v v0), P0 v v0 s)
-.
-split.
-eapply sim_term_sim_value_ind; eauto.
-eapply sim_value_sim_term_ind; eauto.
-Qed.
-
-
-(* this is obviously an equivalence relation, and substitution is an morphism. *)
-
-Lemma sim_term_ren:
-  forall t1 t2,
-    sim_term t1 t2 ->
-    forall xi,
-      sim_term t1.[ren xi] t2.[ren xi].
-Proof.
-  induction 1; intros; subst; asimpl.
-  all: try econstructor; eauto.
-Qed.
-
-Lemma sim_term_subst:
-  forall t1 t2,
-    sim_term t1 t2 ->
-    forall sigma1 sigma2,
-      (forall x, sim_term (sigma1 x) (sigma2 x)) ->
-      sim_term t1.[sigma1] t2.[sigma2].
-Proof.
-  induction 1; intros; subst; asimpl.
-  all: try econstructor; eauto.
-  { eapply IHsim_term.
-    induction x; asimpl.
-    { econstructor; eauto. }
-    { eapply sim_term_ren; eauto. }
-  }
-Qed.
-
-
-(* For reflexivity, we need to do an induction on the size of terms. *)
+(* Strong induction principle for terms *)
 
 Program Fixpoint size_term t := 
   match t with
@@ -327,14 +147,233 @@ Proof.
   all: eauto.
 Qed.
 
+
+Inductive cont :=
+  | CAppR (t2: term) (* [\square t2] *)
+  | CClosure (t_cl: {bind term}) (sigma_cl: list value)
+  (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices,
+     there is no variable x. *)
+  | CReturn (sigma: list value) (* call return *)
+.
+
+Inductive result :=
+  | RValue (v: value)
+.
+
+
+Inductive state :=
+  | mode_eval (e: term) (kappa: list cont) (env: list value)
+  | mode_cont (kappa: list cont) (env: list value) (result: result)
+.
+
+
+(*** continuation step semantics ***)
+
+Inductive cred: state -> state -> Prop :=
+
+
+  (** Rules related to the lambda calculus *)
+  | cred_var:
+    forall x kappa sigma v,
+    List.nth_error sigma x = Some v ->
+    cred
+      (mode_eval (Var x) kappa sigma)
+      (mode_cont kappa sigma (RValue v))
+
+  | cred_app:
+    forall t1 t2 kappa sigma,
+    cred
+      (mode_eval (App t1 t2) kappa sigma)
+      (mode_eval t1 ((CAppR t2) :: kappa) sigma)
+
+  | cred_clo:
+    forall t kappa sigma,
+    cred
+      (mode_eval (Lam t) kappa sigma)
+      (mode_cont kappa sigma (RValue (Closure t sigma)))
+
+  | cred_arg:
+    forall t2 kappa sigma tcl sigmacl,
+    cred
+      (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl)))
+      (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
+  
+  | cred_value:
+    forall v kappa sigma,
+    cred
+      (mode_eval (Value v) kappa sigma)
+      (mode_cont kappa sigma (RValue v))
+      
+
+  | cred_beta:
+    forall t_cl sigma_cl kappa sigma v,
+    cred
+      (mode_cont ((CClosure t_cl sigma_cl)::kappa) sigma (RValue v))
+      (mode_eval t_cl (CReturn sigma::kappa)  (v :: sigma_cl))
+
+  | cred_return:
+    forall sigma_cl kappa sigma r,
+    cred
+      (mode_cont (CReturn sigma::kappa) sigma_cl r)
+      (mode_cont kappa sigma r)
+.
+
+Import List.ListNotations.
+Require Import Autosubst_FreeVars.
+Open Scope list.
+
+Definition subst_of_env sigma :=
+  fun n =>
+  match List.nth_error sigma n with
+  | None => ids (n - List.length sigma)
+  | Some t => Value t
+  end
+.
+
+
+(*** small step semantics ***)
+
+Inductive sred: term -> term -> Prop :=
+  | sred_lam:
+    forall t,
+      sred
+        (Lam t)
+        (Value (Closure t []))
+
+  | sred_beta:
+    forall t v sigma',
+      sred
+        (App (Value (Closure t sigma')) (Value v))
+        (t.[subst_of_env (v :: sigma')])
+  | sred_app_right:
+    forall t u1 u2 sigma,
+      sred (u1) (u2) ->
+      sred
+        (App (Value (Closure t sigma)) u1)
+        (App (Value (Closure t sigma)) u2)
+  | sred_app_left:
+    forall t1 t2 u,
+      sred (t1) (t2) ->
+      sred
+        (App t1 u)
+        (App t2 u)
+.
+
+
+(*** Equivalence relation definition ***)
+
+Inductive sim_term: term -> term -> Prop :=
+  | sim_term_1: forall x y, x = y -> sim_term (Var x) (Var y)
+  | sim_term_2: forall t1 t2 u1 u2,
+    sim_term t1 u1 ->
+    sim_term t2 u2 ->
+    sim_term (App t1 t2) (App u1 u2)
+  | sim_term_3: forall t1 u1,
+    sim_term t1 u1 ->
+    sim_term (Lam t1) (Lam u1)
+  | sim_term_4: forall v1 w1,
+    sim_value v1 w1 ->
+    sim_term (Value v1) (Value w1)
+with sim_value: value -> value -> Prop :=
+  | sim_value_1: forall t1 t2 sigma1 sigma2,
+    sim_term t1.[up (subst_of_env sigma1)] t2.[up (subst_of_env sigma2)] ->
+    sim_value (Closure t1 sigma1) (Closure t2 sigma2)
+.
+
+
+(* We prove three main properties on this simulation property : *)
+
+(* It is an equivalence class *)
+
+Instance Reflexive_sim_term : Reflexive sim_term. Abort.
+Instance Symmetric_sim_term : Symmetric sim_term. Abort.
+Instance Transtive_sim_term : Transitive sim_term. Abort.
+
+(* It is proper with respect to substitution *)
+
+
+Lemma sim_term_ren:
+  forall t1 t2,
+    sim_term t1 t2 ->
+    forall xi,
+      sim_term t1.[ren xi] t2.[ren xi].
+Abort.
+
+Lemma sim_term_subst:
+  forall t1 t2,
+    sim_term t1 t2 ->
+    forall sigma1 sigma2,
+      (forall x, sim_term (sigma1 x) (sigma2 x)) ->
+      sim_term t1.[sigma1] t2.[sigma2].
+Abort.
+
+Section SIM_PROPERTIES.
+
+Scheme sim_term_sim_value_ind := Induction for sim_term Sort Prop
+  with sim_value_sim_term_ind := Induction for sim_value Sort Prop.
+
+
+(* To generate the following precise induction principle, just show the sim_term_sim_value_ind and copy the common hypothesis, and change the output. *)
+
+Theorem sim_ind
+	 : forall (P : forall t t0 : term, sim_term t t0 -> Prop)
+         (P0 : forall v v0 : value, sim_value v v0 -> Prop),
+       (forall (x y : var) (e : x = y), P (Var x) (Var y) (sim_term_1 x y e)) ->
+       (forall (t1 t2 u1 u2 : term) (s : sim_term t1 u1),
+        P t1 u1 s ->
+        forall s0 : sim_term t2 u2,
+        P t2 u2 s0 -> P (App t1 t2) (App u1 u2) (sim_term_2 t1 t2 u1 u2 s s0)) ->
+       (forall (t1 u1 : term) (s : sim_term t1 u1),
+        P t1 u1 s -> P (Lam t1) (Lam u1) (sim_term_3 t1 u1 s)) ->
+       (forall (v1 w1 : value) (s : sim_value v1 w1),
+        P0 v1 w1 s -> P (Value v1) (Value w1) (sim_term_4 v1 w1 s)) ->
+       (forall (t1 t2 : term) (sigma1 sigma2 : list value)
+          (s : sim_term t1.[up (subst_of_env sigma1)]
+                 t2.[up (subst_of_env sigma2)]),
+        P t1.[up (subst_of_env sigma1)] t2.[up (subst_of_env sigma2)] s ->
+        P0 (Closure t1 sigma1) (Closure t2 sigma2)
+          (sim_value_1 t1 t2 sigma1 sigma2 s)) ->
+       (forall (t t0 : term) (s : sim_term t t0), P t t0 s) /\ (forall (v v0 : value) (s : sim_value v v0), P0 v v0 s)
+.
+Proof.
+  split.
+  eapply sim_term_sim_value_ind; eauto.
+  eapply sim_value_sim_term_ind; eauto.
+Qed.
+
+
+Lemma sim_term_ren:
+  forall t1 t2,
+    sim_term t1 t2 ->
+    forall xi,
+      sim_term t1.[ren xi] t2.[ren xi].
+Proof.
+  induction 1; intros; subst; asimpl.
+  all: try econstructor; eauto.
+Qed.
+
+Lemma sim_term_subst:
+  forall t1 t2,
+    sim_term t1 t2 ->
+    forall sigma1 sigma2,
+      (forall x, sim_term (sigma1 x) (sigma2 x)) ->
+      sim_term t1.[sigma1] t2.[sigma2].
+Proof.
+  induction 1; intros; subst; asimpl.
+  all: try econstructor; eauto.
+  { eapply IHsim_term.
+    induction x; asimpl.
+    { econstructor; eauto. }
+    { eapply sim_term_ren; eauto. }
+  }
+Qed.
+
 Lemma subst_of_env_nil_ids:
   subst_of_env [] = ids.
 Proof.
   eapply FunctionalExtensionality.functional_extensionality.
   induction x; unfold subst_of_env; simpl; eauto.
 Qed.
-
-Require Import common.
 
 Lemma subst_of_env_cons {t ts n}:
   subst_of_env (t :: ts) (S n) = subst_of_env ts n.
@@ -347,11 +386,8 @@ Qed.
 
 Lemma sim_term_reflexive: Reflexive sim_term /\ Reflexive sim_value.
   eapply term_indudction'.
-  { econstructor; eauto. }
-  { econstructor; eauto. }
-  { econstructor; eauto. }
-  { econstructor; eauto. }
-  { econstructor; eauto.
+  all: econstructor; eauto.
+  {
     eapply sim_term_subst.
     { eauto. }
     { intro x; case x; asimpl.
@@ -387,10 +423,14 @@ Lemma sim_transitive:
   { intros. inversion H0; subst; econstructor; eauto. }
 Qed.
 
+End SIM_PROPERTIES.
+
 Instance Reflexive_sim_term : Reflexive sim_term. eapply sim_term_reflexive. Qed.
 Instance Symmetric_sim_term : Symmetric sim_term. destruct sim_symmetric; eauto. Qed.
 Instance Transtive_sim_term : Transitive sim_term. destruct sim_transitive; eauto. Qed.
 
+
+(*** Translating state into terms by unfolding the continuations stack len ***)
 
 Definition apply_cont
   (param1: term * list value)
@@ -427,6 +467,9 @@ Definition apply_state_aux (s: state): term * list value :=
 Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
 
 
+
+(*** Main inv_state definition ***)
+
 Inductive inv_state: state -> term -> Prop :=
   | InvBase: forall s,
     inv_state s (apply_state s)
@@ -437,6 +480,35 @@ Inductive inv_state: state -> term -> Prop :=
     inv_state s t2
 .
 
+(* Smart constructors and inversion for the inv_state inductive *)
+
+Lemma inversion_inv_state:
+  forall s t1,
+  inv_state s t1 ->
+  exists t,
+    sim_term t1 t /\ apply_state s = t.
+Proof.
+  induction 1.
+  { eexists; split; eauto. reflexivity. }
+  { intros; inj; subst.
+    edestruct IHinv_state; eauto; unpack.
+    eexists; split; eauto.
+    symmetry.
+    etransitivity.
+    symmetry.
+    eauto.
+    eauto.
+  }
+Qed.
+
+Lemma inv_state_from_equiv {t2 s}:
+  sim_term (apply_state s) t2 ->
+  inv_state s t2.
+Proof.
+  repeat econstructor; eauto.
+Qed.
+
+
 Lemma apply_conts_app:
   forall kappa1 kappa2 p,
     apply_conts (kappa1 ++ kappa2) p
@@ -446,6 +518,7 @@ Proof.
   unfold apply_conts.
   rewrite List.fold_left_app; eauto.
 Qed.
+
 
 Fixpoint last (l: list cont) (env0: list value) : list value :=
   match l with
@@ -490,7 +563,6 @@ Proof.
   }
 Qed.
 
-Require Import sequences.
 
 Theorem star_sred_apply_conts: forall kappa t t' sigma,
   star sred t t' ->
@@ -500,33 +572,6 @@ Theorem star_sred_apply_conts: forall kappa t t' sigma,
 .
 Proof.
   induction 1; econstructor; eauto using sred_apply_conts.
-Qed.
-
-Lemma inversion_inv_state:
-  forall s t1,
-  inv_state s t1 ->
-  exists t,
-    sim_term t1 t /\ apply_state s = t.
-Proof.
-  induction 1.
-  { eexists; split; eauto. reflexivity. }
-  { intros; inj; subst.
-    edestruct IHinv_state; eauto; unpack.
-    eexists; split; eauto.
-    symmetry.
-    etransitivity.
-    symmetry.
-    eauto.
-    eauto.
-  }
-Qed.
-
-
-Lemma inv_state_from_equiv {t2 s}:
-  sim_term (apply_state s) t2 ->
-  inv_state s t2.
-Proof.
-  repeat econstructor; eauto.
 Qed.
 
 Lemma inv_state_apply_conts {kappa t1 t2 sigma}:
@@ -549,92 +594,8 @@ Proof.
   { eapply IHkappa; eauto. }
 Qed.
 
-Lemma lift_inj_EVar:
-  forall t x,
-  lift 1 t = Var (S x) <-> t = Var x.
-Proof.
-  split; intros.
-  { eauto using lift_inj. }
-  { subst. eauto. }
-Qed.
-
-
-Lemma fv_Var_eq:
-  forall k x,
-  fv k (Var x) <-> x < k.
-Proof.
-  unfold fv. asimpl. induction k; intros.
-  { asimpl. split; intros; exfalso.
-    { unfold ids, Ids_term in *. injections.
-      eapply Nat.neq_succ_diag_l. eauto. }
-    { lia. }
-  }
-  (* Step. *)
-  { destruct x; asimpl.
-    { split; intros. { lia. } { reflexivity. }
-  }
-    rewrite lift_inj_EVar. rewrite IHk. lia. }
-Qed.
-
-
-Lemma fv_Lam_eq:
-  forall k t,
-  fv k (Lam t) <-> fv (S k) t.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-Lemma fv_App_eq:
-  forall k t1 t2,
-  fv k (App t1 t2) <-> fv k t1 /\ fv k t2.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-
-#[export]
-Hint Rewrite
-  fv_Var_eq
-  fv_Lam_eq
-  fv_App_eq
-  : fv.
-
-Lemma fv_1_subst_upn { t k sigma }:
-  fv k t ->
-    t.[upn k sigma] = t.
-Proof.
-  revert k sigma.
-  induction t; simpl; intros.
-  { rewrite fv_Var_eq in *. 
-    eapply upn_k_sigma_x; eauto.
-    eapply SubstLemmas_term.
-  }
-  { rewrite IHt1, IHt2; fv; unpack; eauto. }
-  { rewrite fold_up_upn, IHt; fv; eauto. }
-  { eauto. }
-Qed.
-
-Lemma iterate_1: forall {A : Type} (f : A -> A) (a : A), iterate f 1 a = f a.
-Proof.
-  intros.
-  rewrite iterate_S, iterate_0; eauto.
-Qed.
-
-Lemma fv_1_subst_up { t sigma }:
-  fv 1 t ->
-    t.[up sigma] = t.
-Proof.
-  replace (up sigma) with (upn 1 sigma) by eapply iterate_1.
-  eapply fv_1_subst_upn.
-Qed.
-
-
-
-Theorem simulation_cred_sred:
+(* Base theorem *)
+Theorem simulation_cred_sred_base:
   forall s1 s2,
     cred s1 s2 ->
     exists t,
@@ -665,7 +626,6 @@ Proof.
     repeat econstructor.
   }
 Qed.
-
 
 Lemma nth_error_subst_of_env {x sigma v}:
   List.nth_error sigma x = Some v ->
@@ -766,7 +726,7 @@ Proof.
   }
 Qed.
 
-Theorem simulation_cred_sred_inv:
+Theorem simulation_cred_sred:
   forall s1 s2,
     cred s1 s2 ->
     forall t1,
@@ -775,7 +735,7 @@ Theorem simulation_cred_sred_inv:
         inv_state s2 t2 /\ star sred t1 t2.
 Proof.
   intros ? ? Hs1s2 ? Hs1t1.
-  learn (simulation_cred_sred _ _ Hs1s2); unpack; subst.
+  learn (simulation_cred_sred_base _ _ Hs1s2); unpack; subst.
   repeat match goal with
   | [h: inv_state  _ _ |- _] =>
     learn (inversion_inv_state _ _ h); unpack; subst
@@ -1247,6 +1207,8 @@ Proof.
   all: try rewrite List.app_length; simpl; lia.
 Qed.
 
+
+(* Lifting the result *)
 
 Theorem simulation_sred_cred:
   forall t1 t2,
