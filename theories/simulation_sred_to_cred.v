@@ -1624,31 +1624,50 @@ Proof.
       | [h: plus _ _ _ |- _] => learn (plus_star h)
       | [h: sim_state _ _ |- _] => learn (sim_state_inversion _ _ h); unpack
       | [h: star _ _ _ |- _] => learn (star_cred_snd_apply_sate h)
+      | [h: inv_state (append_stack _ _) |- _] => learn (inv_state_app h)
+      | [h: inv_state (mode_eval _ ( _ ++ _) _) |- _] => 
+          erewrite append_stack_app in Hs2; [|solve[simpl; eauto]]; simpl with_stack in Hs2
+        | [h: inv_state (mode_cont ( _ ++ _) _ _) |- _] => 
+          erewrite append_stack_app in Hs2; [|solve[simpl; eauto]]; simpl with_stack in Hs2
+      | [h: sred (fst (apply_conts _ _)) _ |- _] =>
+        rewrite apply_conts_apply_state in h;
+        unshelve epose proof (IHkappa_wf _ _ _ _ Ht2t3 eq_refl _);
+        [ solve[rewrite List.app_length; simpl; lia]
+        | solve[eauto]
+        |];
+        unpack
       end.
     all: repeat rewrite snd_apply_conts_last in *.
     all: injections; subst.
 
     (* possible reduction steps*)
     all: repeat (
-      repeat (eapply star_trans_prop;
-      [solve [rewrite append_stack_all; eapply star_cred_append_stack;simpl;eauto]|]);
-      repeat (eapply plus_step_prop; [solve[econstructor; repeat intro; inj; eauto]|]);
+      repeat (eapply plus_star_trans_prop; [solve[
+          erewrite append_stack_app;[|solve[simpl; eauto]];
+          eapply plus_cred_append_stack;
+          simpl;
+          eauto
+      ]|]);
+      repeat (eapply star_trans_prop; [solve[
+          rewrite append_stack_all;
+          eapply star_cred_append_stack;
+          simpl;
+          eauto
+      ]|]);
+      repeat (eapply plus_step_prop;[solve[
+        econstructor;
+        repeat intro;
+        inj;
+        eauto
+      ]|]);
       repeat (eapply star_step_prop; [solve[econstructor; repeat intro; inj; eauto]|]);
       repeat (eapply star_plus_trans_prop; [solve[eapply Forall_CReturn_star_cred; eauto]|]);
       repeat (eapply star_trans_prop; [solve[eapply Forall_CReturn_star_cred; eauto]|]);
       simpl
     ).
 
-    10: {
-        rewrite apply_conts_apply_state in Ht2t3.
-        unshelve epose proof (IHkappa_wf _ _ _ _ Ht2t3 _ _).
-        3:{ simpl. reflexivity. (* COQ ERROR HERE *) }
-        solve[rewrite List.app_length; simpl; lia].
-        | solve[eauto]
-        | solve[repeat econstructor]|];
-        unpack.
-      
-    }
+    all: try match goal with [|-context[plus]] => admit end.
+
     all: (* finish it off *)
       try (eapply star_refl_prop; eapply sim_state_from_equiv).
     all: (* for recursive cases, we apply the induction hypothesis and lift it using append_stack *)
@@ -1662,14 +1681,7 @@ Proof.
       | symmetry; eauto
       | rewrite soe_cons; asimpl; reflexivity
     ].
-    {
-      match goal with
-      
-      end.
-    }
-    all: match goal with
-    | [h: ]
-
+    
     all: admit.
 Admitted.
 
