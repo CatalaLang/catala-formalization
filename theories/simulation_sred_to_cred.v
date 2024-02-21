@@ -940,7 +940,7 @@ Proof.
   all: simpl_apply_CDefault'; tryfalse.
 Qed.
 
-Lemma value_apply_conts_inversion_eval {v kappa t env0}:
+Lemma value_apply_conts {v kappa t env0}:
   Value v = fst (apply_conts kappa (t, env0)) ->
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
   (Value v = t))
@@ -976,7 +976,7 @@ Lemma value_apply_conts_inversion_cont {v kappa result env0}:
   RValue v = result.
 Proof.
   intros H.
-  destruct (value_apply_conts_inversion_eval H) as (Hkappa & Hv).
+  destruct (value_apply_conts H) as (Hkappa & Hv).
   all: induction result; simpl in *.
   all: try congruence.
   { injections; subst; eauto. }
@@ -1006,7 +1006,7 @@ Proof.
   }
 Qed.
 
-Lemma empty_apply_conts_inversion_eval {kappa t env0}:
+Lemma empty_apply_conts {kappa t env0}:
   Empty = fst (apply_conts kappa (t, env0)) ->
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
   (Empty = t)).
@@ -1028,7 +1028,7 @@ Proof.
   }
 Qed.
 
-Lemma conflict_apply_conts_inversion_eval {kappa t env0}:
+Lemma conflict_apply_conts {kappa t env0}:
   Conflict = fst (apply_conts kappa (t, env0)) ->
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa /\ (
   (Conflict = t)).
@@ -1059,16 +1059,16 @@ Ltac match_conf :=
     learn (value_apply_conts_inversion_cont h);
     clear h
   | [h: Value _ = fst (apply_conts _ (_, _)) |- _ ] =>
-    learn (value_apply_conts_inversion_eval h);
+    learn (value_apply_conts h);
     clear h
   | [h: Conflict = fst (apply_conts _ (_, _)) |- _ ] =>
-    learn (conflict_apply_conts_inversion_eval h);
+    learn (conflict_apply_conts h);
     clear h
   | [h: Empty = fst (apply_conts _ (_, _)) |- _ ] =>
-    learn (empty_apply_conts_inversion_eval h);
+    learn (empty_apply_conts h);
     clear h
   | [h: fst (apply_conts _ (_, _)) = Empty |- _ ] =>
-    learn (empty_apply_conts_inversion_eval (eq_sym h));
+    learn (empty_apply_conts (eq_sym h));
     clear h
   | _ => progress match_conf1
   | _ => progress unpack
@@ -1117,14 +1117,14 @@ Lemma cred_apply_state_Emtpy {s2}:
   star cred s2 (mode_cont [] (last (stack s2) (env s2)) REmpty).
 Proof.
   induction s2; simpl; intros H.
-  { learn (empty_apply_conts_inversion_eval (eq_sym H)).
+  { learn (empty_apply_conts (eq_sym H)).
     match_conf; unpack_subst_of_env_cons.
 
     replace kappa with (kappa ++ []) at 1 by eapply List.app_nil_r .
     eapply star_step. { econstructor. }
     eapply cred_process_return; eauto.
   }
-  { learn (empty_apply_conts_inversion_eval (eq_sym H)).
+  { learn (empty_apply_conts (eq_sym H)).
     match_conf; unpack_subst_of_env_cons.
 
     replace kappa with (kappa ++ []) at 1 by eapply List.app_nil_r .
@@ -1415,17 +1415,19 @@ Lemma induction_case_CReturn
   (sigma: list value)
   (kappa: list cont)
   (IHkappa: forall s1 : state,
+            inv_state s1 ->
             kappa = stack s1 ->
             forall t2 : term,
             sred (fst (apply_state_aux s1)) t2 ->
             exists s2 : state, (sim_state s2 t2 /\ inv_state s2) /\ plus cred s1 s2 ):
 
   forall s1 : state,
+  inv_state s1 ->
   kappa ++ [CReturn sigma] = stack s1 ->
   forall t2 : term,
   sred (fst (apply_state_aux s1)) t2 ->
   exists s2 : state, (sim_state s2 t2 /\ inv_state s2) /\ plus cred s1 s2 
-  .
+.
 Proof.
   intros.
   assert (Heq: fst (apply_state_aux s1) = fst (apply_state_aux (with_stack s1 kappa))).
@@ -1433,8 +1435,8 @@ Proof.
 
   rewrite Heq in *.
 
-  epose proof (IHkappa _ _ _ H0); unpack.
-  learn (sim_state_inversion _ _ H1); unpack.
+  epose proof (IHkappa _ _ _ _ H1); unpack.
+  learn (sim_state_inversion _ _ H2); unpack.
   induction s1; simpl in *; subst.
 
   all: eapply plus_star_trans_prop; [erewrite append_stack_app; [|solve[simpl; reflexivity]]; eapply plus_cred_append_stack; simpl; eauto |].
@@ -1446,7 +1448,9 @@ Proof.
   all: eapply inv_state_append_stack; repeat econstructor; eauto.
 
   Unshelve.
-  induction s1; simpl; eauto.
+  2: induction s1; simpl; eauto.
+  1: induction s1; simpl in *; subst;
+    progress first [eapply inv_state_mode_eval_append |eapply inv_state_mode_cont_append]; eauto.
 Qed.
 
 (* Ltac info :=
@@ -1486,6 +1490,43 @@ Proof.
   rewrite <- IHstar.
   eapply cred_snd_apply_sate; eauto.
 Qed.
+
+Lemma fst_apply_conts_CReturn {kappa sigma t}:
+  fst (apply_conts (kappa ++ [CReturn sigma]) t) = fst (apply_conts kappa t).
+Proof.
+  rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl; eauto.
+Qed.
+
+Lemma inv_state_app { s kappa1 }:
+  inv_state (append_stack s kappa1) ->
+  inv_state s.
+Proof.
+  induction s; inversion 1; subst; unpack.
+  { econstructor; eauto. }
+  { destruct kappa; econstructor.
+    rewrite <- List.app_comm_cons in *; inj; unpack.
+    eauto.
+  }
+  { destruct kappa; econstructor.
+    rewrite <- List.app_comm_cons in *; inj; unpack.
+  }
+Qed.
+
+Lemma Forall_CReturn_star_cred {kappa1 env0 result kappa2}:
+  List.Forall (fun k => exists sigma, k = CReturn sigma) kappa1 ->
+  star cred
+    (mode_cont (kappa1 ++ kappa2) env0 result)
+    (mode_cont kappa2 (last kappa1 env0) result)
+  .
+Proof.
+  intros. revert env0.
+  induction H as [|? kappa1 [env1 Hk]]; subst; simpl; intros.
+  { eapply star_refl. }
+  { eapply star_step. { econstructor. }
+    eapply IHForall.
+  }
+Qed.
+
 
 Theorem simulation_sred_cred_base s1 t2:
   sred (apply_state s1) t2 ->
@@ -1540,7 +1581,40 @@ Proof.
     ].
     { rewrite soe_nil; asimpl; reflexivity. }
   }
-  { admit "todo". }
+  { induction s1; induction k; try match goal with [r: result |- _]=> induction r end; simpl; intros Ht1t2 Hkappa; pose proof Ht1t2 as Ht1t2'; revert Ht1t2'; subst; simpl.
+    all: lock Ht1t2.
+    all: 
+      repeat rewrite apply_conts_app in *; simpl in *; unfold apply_cont in *; sp; simpl in *.
+    all: intros Ht2t3 Hs2.
+
+    all: try match goal with [|-context [CReturn ]] =>
+    solve [eapply induction_case_CReturn; eauto; simpl;
+    try rewrite fst_apply_conts_CReturn; eauto] end.
+    all: eapply ignore_inv_state; [eauto|].
+    all: match typeof Ht2t3 with sred ?u1 ?u2 => remember u1 as u end.
+    all: induction Ht2t3; intros; inj; tryfalse.
+    all: repeat match goal with
+      | [h: Value _ = fst (apply_conts _ _) |- _] =>
+        learn (value_apply_conts h); clear h; unpack; repeat unpack_subst_of_env_cons
+      | [h: Conflict = fst (apply_conts _ _) |- _] =>
+        learn (conflict_apply_conts h); clear h; unpack; repeat unpack_subst_of_env_cons
+      | [h: Empty = fst (apply_conts _ _) |- _] =>
+        learn (empty_apply_conts h); clear h; unpack; repeat unpack_subst_of_env_cons
+      end.
+    all: repeat rewrite snd_apply_conts_last in *.
+    all: injections; subst.
+
+    (* possible reduction steps*)
+    all: repeat (
+      repeat (eapply plus_step_prop; [solve[econstructor; eauto|econstructor; repeat intro; inj]|]);
+      repeat (eapply star_step_prop; [solve[econstructor; eauto|econstructor; repeat intro; inj]|]);
+      repeat (eapply star_plus_trans_prop; [solve[eapply Forall_CReturn_star_cred; eauto]|]);
+      repeat (eapply star_trans_prop; [solve[eapply Forall_CReturn_star_cred; eauto]|])
+    ).
+    all: try solve [
+      eapply star_refl_prop; eapply sim_state_from_equiv; simpl; unfold apply_cont; sp; simpl; reflexivity
+    ].
+    all: admit.
 Admitted.
 
 Lemma proper_sim_state_sred:
@@ -1597,7 +1671,6 @@ Proof.
   }
 Qed.
 
-
 Theorem simulation_sred_cred:
   forall t1 t2,
     sred t1 t2 ->
@@ -1618,4 +1691,3 @@ Proof.
     etransitivity; eauto.
   }
 Qed.
-
