@@ -1527,6 +1527,19 @@ Proof.
   }
 Qed.
 
+Lemma subst_of_env_apply_state { t sigma }:
+  t.[subst_of_env sigma] = apply_state (mode_eval t [] sigma).
+Proof.
+  simpl; eauto.
+Qed.
+
+Lemma apply_conts_apply_state {t kappa env}:
+(fst (apply_conts kappa (t.[subst_of_env env], env))) = apply_state (mode_eval t kappa env).
+Proof.
+  simpl; eauto.
+Qed.
+
+
 
 Theorem simulation_sred_cred_base s1 t2:
   sred (apply_state s1) t2 ->
@@ -1600,20 +1613,63 @@ Proof.
         learn (conflict_apply_conts h); clear h; unpack; repeat unpack_subst_of_env_cons
       | [h: Empty = fst (apply_conts _ _) |- _] =>
         learn (empty_apply_conts h); clear h; unpack; repeat unpack_subst_of_env_cons
+
+      | [h: sred _.[subst_of_env _] _ |- _] =>
+        rewrite subst_of_env_apply_state in h;
+        unshelve epose proof (IHkappa_wf [] _ _ _ h _ _);
+        [ solve[rewrite List.app_length; simpl; lia]
+        | solve[eauto]
+        | solve[repeat econstructor]|];
+        unpack
+      | [h: plus _ _ _ |- _] => learn (plus_star h)
+      | [h: sim_state _ _ |- _] => learn (sim_state_inversion _ _ h); unpack
+      | [h: star _ _ _ |- _] => learn (star_cred_snd_apply_sate h)
       end.
     all: repeat rewrite snd_apply_conts_last in *.
     all: injections; subst.
 
     (* possible reduction steps*)
     all: repeat (
-      repeat (eapply plus_step_prop; [solve[econstructor; eauto|econstructor; repeat intro; inj]|]);
-      repeat (eapply star_step_prop; [solve[econstructor; eauto|econstructor; repeat intro; inj]|]);
+      repeat (eapply star_trans_prop;
+      [solve [rewrite append_stack_all; eapply star_cred_append_stack;simpl;eauto]|]);
+      repeat (eapply plus_step_prop; [solve[econstructor; repeat intro; inj; eauto]|]);
+      repeat (eapply star_step_prop; [solve[econstructor; repeat intro; inj; eauto]|]);
       repeat (eapply star_plus_trans_prop; [solve[eapply Forall_CReturn_star_cred; eauto]|]);
-      repeat (eapply star_trans_prop; [solve[eapply Forall_CReturn_star_cred; eauto]|])
+      repeat (eapply star_trans_prop; [solve[eapply Forall_CReturn_star_cred; eauto]|]);
+      simpl
     ).
-    all: try solve [
-      eapply star_refl_prop; eapply sim_state_from_equiv; simpl; unfold apply_cont; sp; simpl; reflexivity
+
+    10: {
+        rewrite apply_conts_apply_state in Ht2t3.
+        unshelve epose proof (IHkappa_wf _ _ _ _ Ht2t3 _ _).
+        3:{ simpl. reflexivity. (* COQ ERROR HERE *) }
+        solve[rewrite List.app_length; simpl; lia].
+        | solve[eauto]
+        | solve[repeat econstructor]|];
+        unpack.
+      
+    }
+    all: (* finish it off *)
+      try (eapply star_refl_prop; eapply sim_state_from_equiv).
+    all: (* for recursive cases, we apply the induction hypothesis and lift it using append_stack *)
+      try rewrite apply_state_append_stack; simpl in *; subst; unfold apply_cont; sp; simpl.
+    all: (* for default cases *)
+      try simpl_apply_CDefault.
+    all: repeat econstructor.
+    all: try solve
+      [ reflexivity
+      | eauto
+      | symmetry; eauto
+      | rewrite soe_cons; asimpl; reflexivity
     ].
+    {
+      match goal with
+      
+      end.
+    }
+    all: match goal with
+    | [h: ]
+
     all: admit.
 Admitted.
 
