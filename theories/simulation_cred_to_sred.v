@@ -16,15 +16,21 @@ Qed.
 
 
 Definition apply_CDefault o ts tj tc t sigma : term :=
-  match (o, t) with
-  | (Some v, Empty) =>
+  match o with
+  | Some v =>
+    match t with
+    | Empty =>
       Default ((Value (VPure v)).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-  | (Some v, _) =>
+    | _ =>
       Default ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-  | (None, Empty) =>
+    end
+  | None =>
+    match t with
+    | Empty =>
       Default ((ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-  | (None, _) =>
+    | _ =>
       Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+    end
   end.
 
 (* This permits to simplify apply defaults using the EmptyOrNotEmpty lemma in an automatic fashon *)
@@ -372,8 +378,21 @@ Proof.
   all: try eapply IHkappa; eauto.
   all: repeat rewrite snd_apply_conts_last.
   all: try reflexivity.
-  { admit "need to show that sim_term Empty v => sim_term Empty". }
-Admitted.
+  { learn (IHkappa sigma _ _ H).
+    assert (fst (apply_conts kappa (t1, sigma)) = Empty <-> fst (apply_conts kappa (t2, sigma)) = Empty).
+    { split; intros; rewrite H2 in *; inversion H0; eauto. }
+    destruct (EmptyOrNotEmpty (fst (apply_conts kappa (t1, sigma)))).
+    { rewrite H3 in *; destruct H2; rewrite H2; eauto.
+      induction o; simpl; reflexivity.
+    }
+    {
+      assert (fst (apply_conts kappa (t2, sigma)) <> Empty).
+      { intro; rewrite H2 in *; eapply H3; eauto. }
+      induction o; repeat first [rewrite apply_CDefault_NT| rewrite apply_CDefault_ST]; eauto.
+      all: repeat econstructor; try reflexivity; eauto.
+    }
+  }
+Qed.
 
 
 Lemma impli_under_exists {X: Type} {P Q R: X -> Prop}:
@@ -432,8 +451,11 @@ Proof.
   { admit "one too may steps". }
   { exfalso.
     eapply H; eauto.
+    admit.
   }
   { admit "this one as well". }
+  { admit. }
+  { induction o; simpl; repeat step; eapply star_refl_prop; reflexivity. }
   { eapply star_refl_prop.
     asimpl.
     rewrite soe_cons.

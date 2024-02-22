@@ -46,7 +46,7 @@ Qed.
 
 (* Strong induction principle for terms *)
 
-Program Fixpoint size_term t := 
+Fixpoint size_term t := 
   match t with
   | Var _ => 0
   | App t1 t2 => S (size_term t1 + size_term t2)
@@ -119,11 +119,8 @@ Theorem term_ind'
       (forall t : term, P t) /\ (forall v : value, P0 v).
 Proof.
   split; intros.
-  eapply (term_value_induction (inl t)).
-  eapply (term_value_induction (inr v)).
-
-  Unshelve.
-  all: eauto.
+  unshelve eapply (term_value_induction (inl t)); eauto.
+  unshelve eapply (term_value_induction (inr v)); eauto.
 Qed.
 
 
@@ -258,6 +255,8 @@ with sim_value: value -> value -> Prop :=
     sim_term t1.[up (subst_of_env sigma1)] t2.[up (subst_of_env sigma2)] ->
     sim_value (Closure t1 sigma1) (Closure t2 sigma2)
 .
+
+(* "ca ne me choque pas, mais je trouve ça dommage" parce que en small steps, je fais de la subst. C'est artificiel d'utiliser des subtitution et pas un lambda calcul small steps. *)
 
 
 (* We prove three main properties on this simulation property : *)
@@ -581,11 +580,14 @@ Theorem simulation_cred_sred_base:
       sim_state s2 t /\
       star sred (apply_state s1) t.
 Proof.
-  induction 1; try induction o.
+  intros s1 s2 Hs1s2'.
+  pose proof (Hs1s2') as Hs1s2.
+  induction Hs1s2'; try induction o.
   all: simpl.
   all: try solve [eexists; split; [eapply InvBase|]; eapply star_refl].
   { eexists; split; [eapply InvBase|].
-    simpl; unfold subst_of_env; rewrite H; eauto with sequences. }
+    simpl; unfold subst_of_env; rewrite H; eauto with sequences.
+  }
   {
     eexists; split.
     2:{ eapply star_sred_apply_conts. eapply star_one. econstructor. }
@@ -997,6 +999,7 @@ Proof.
       intros t2 Ht1t2.
       generalize dependent env.
       generalize dependent e.
+      
       induction Ht1t2; intros; repeat subst_of_env.
       all: try repeat (eapply star_step_prop; [econstructor; eauto|]).
 

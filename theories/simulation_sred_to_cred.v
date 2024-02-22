@@ -1789,14 +1789,36 @@ Proof.
       | rewrite soe_cons; asimpl; reflexivity
     ].
 
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
-Admitted.
+    { inversion Hs2; subst; unpack; inversion H15. }
+    { inversion Hs2; subst; unpack; inversion H15. }
+    { learn (inv_state_mode_cont_CDefault_Hole_conts_empty _ _ _ _ _ _ _ Hs2); subst.
+      inversion H3; subst.
+      inversion H11.
+    }
+    { 
+      learn (inv_state_mode_cont_CDefault_Hole_conts_empty _ _ _ _ _ _ _ Hs2); subst.
+      inversion H3; subst.
+      inversion H11.
+    }
+    { learn (inv_state_mode_cont_CDefault_Hole_conts_empty _ _ _ _ _ _ _ Hs2); subst.
+      inversion H3; subst.
+      inversion H11.
+    }
+    { learn (inv_state_mode_cont_CDefault_Hole_conts_empty _ _ _ _ _ _ _ Hs2); subst.
+      inversion H3; subst.
+      inversion H11.
+    }
+    { learn (inv_state_mode_cont_CDefault_Hole_conts_empty _ _ _ _ _ _ _ Hs2); subst.
+      inversion H3; subst.
+      inversion H11.
+    }
+    { learn (inv_state_mode_cont_CDefault_Hole_conts_empty _ _ _ _ _ _ _ Hs2); subst.
+      inversion H3; subst.
+      inversion H11.
+    }
+  }
+Qed.
+
 
 Lemma proper_sim_state_sred:
   forall t1 t2,
