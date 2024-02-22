@@ -3,6 +3,10 @@ Require Import Coq.ZArith.ZArith.
 Import List.ListNotations.
 
 
+From Ltac2 Require Import Ltac2.
+From Ltac2 Require Import Constr Std Message Control List Int.
+Set Default Proof Mode "Classic".
+
 
 (* -------------------------------------------------------------------------- *)
 
@@ -26,6 +30,61 @@ Definition apply_CDefault b o ts tj tc t sigma : term :=
   | _, _,None =>
       Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
   end.
+
+(* An other tentative of writing thise would be *)
+
+Definition apply_CDefault_case_hole o ts t sigma := 
+  match t with
+  | Empty => 
+    match o with
+    | Some v => ((Value (VPure v)).[subst_of_env sigma]::ts..[subst_of_env sigma])
+    | None => ts..[subst_of_env sigma]
+    end
+  | _ =>
+    match o with
+    | Some v => ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma])
+    | None => t::ts..[subst_of_env sigma]
+    end
+  end.
+
+Lemma apply_CDefault_case_hole_empty {o ts t sigma} :
+  (t = Empty) ->
+  apply_CDefault_case_hole o ts t sigma = match o with
+  | Some v => ((Value (VPure v)).[subst_of_env sigma]::ts..[subst_of_env sigma])
+  | None => ts..[subst_of_env sigma]
+  end.
+Proof. intros; subst; eauto. Qed.
+
+Lemma apply_CDefault_case_hole_nempty {o ts t sigma} :
+  (t <> Empty) ->
+  apply_CDefault_case_hole o ts t sigma = match o with
+  | Some v => ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma])
+  | None => t::ts..[subst_of_env sigma]
+  end.
+Proof. induction t; intros; subst; eauto; tryfalse. Qed.
+
+  
+
+Definition apply_CDefault_usable b o ts tj tc t sigma := 
+  Default (
+    match b with
+    | Hole =>
+      apply_CDefault_case_hole o ts t sigma
+    | NoHole =>
+      match o with
+      | Some v => ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma])
+      | None => t::ts..[subst_of_env sigma]
+      end
+    end
+  ) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+
+Lemma apply_CDefault_apply_CDefault_usable {b o ts tj tc t sigma}:
+  apply_CDefault b o ts tj tc t sigma
+  = apply_CDefault_usable b o ts tj tc t sigma.
+Proof.
+  induction b, o; induction t; subst; simpl; try reflexivity.
+Qed.
+
 
 Lemma apply_CDefault_hole_some_empty:
   forall v ts tj tc t sigma,
@@ -175,15 +234,6 @@ Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsi
 
 
 (* -------------------------------------------------------------------------- *)
-
-(* Require Import typing.
-
-Lemma apply_state_typing:
-  forall Delta Gamma s1 T,
-    jt_state Delta Gamma s1 T ->
-    jt_term Delta Gamma (apply_state s1) T.
-Proof.
-Abort. *)
 
 Lemma NEmpty_subst_of_env_NEmpty {t} sigma:
   t <> Empty -> t.[subst_of_env sigma] <> Empty.
@@ -1609,7 +1659,8 @@ Proof.
     ].
     { rewrite soe_nil; asimpl; reflexivity. }
   }
-  { induction s1; induction k; try match goal with [r: result |- _]=> induction r end; simpl; intros Ht1t2 Hkappa; pose proof Ht1t2 as Ht1t2'; revert Ht1t2'; subst; simpl.
+  { induction s1; induction k; try induction o; try induction b;
+    try match goal with [r: result |- _]=> induction r end; simpl; intros Ht1t2 Hkappa; pose proof Ht1t2 as Ht1t2'; revert Ht1t2'; subst; simpl.
     all: lock Ht1t2.
     all: 
       repeat rewrite apply_conts_app in *; simpl in *; unfold apply_cont in *; sp; simpl in *.
@@ -1620,7 +1671,15 @@ Proof.
     try rewrite fst_apply_conts_CReturn; eauto] end.
     all: eapply ignore_inv_state; [eauto|].
     all: match typeof Ht2t3 with sred ?u1 ?u2 => remember u1 as u end.
-    all: induction Ht2t3; intros; inj; tryfalse.
+    all: induction Ht2t3; intros; try rewrite apply_CDefault_apply_CDefault_usable in *; unfold apply_CDefault_usable in *; try match goal with
+    [h: context [ apply_CDefault_case_hole _ _ ?t _ ] |- _ ] =>
+      let Hrw := fresh "H" in
+      destruct (EmptyOrNotEmpty t) as [Hrw|Hrw];
+      [
+        rewrite (apply_CDefault_case_hole_empty Hrw) in *; symmetry in Hrw|
+        rewrite (apply_CDefault_case_hole_nempty Hrw) in *
+      ]
+    end; inj; tryfalse.
     all: repeat (match goal with
       | [h: Value _ = fst (apply_conts _ _) |- _] =>
         learn (value_apply_conts h); clear h; unpack; repeat unpack_subst_of_env_cons
@@ -1707,8 +1766,6 @@ Proof.
       simpl
     ).
 
-    all: try match goal with [|-context[plus]] => match goal with [|-context[CDefault]] => admit end end.
-
     all: (* finish it off *)
       try (eapply star_refl_prop; eapply sim_state_from_equiv).
     all: (* for recursive cases, we apply the induction hypothesis and lift it using append_stack *)
@@ -1726,6 +1783,8 @@ Proof.
       | symmetry; eauto
       | rewrite soe_cons; asimpl; reflexivity
     ].
+
+    all: admit.
 Admitted.
 
 Lemma proper_sim_state_sred:
