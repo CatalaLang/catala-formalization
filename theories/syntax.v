@@ -49,6 +49,123 @@ with value :=
 .
 
 
+Fixpoint size_term (t : term) : nat :=
+  match t with
+  | Var _ => 0
+  | App t1 t2 => S (size_term t1 + size_term t2)
+  | Lam t => S (size_term t)
+  | Value v => S (size_value v)
+  | ErrorOnEmpty arg => S (size_term arg)
+  | DefaultPure arg => S (size_term arg)
+  | Default ts tj tc => S (List.list_sum (List.map size_term ts) + size_term tj + size_term tc)
+  | Empty => 0
+  | Conflict => 0
+  | FreeVar _ => 0
+  | Binop _ t1 t2 => S (size_term t1 + size_term t2)
+  | Match_ u t1 t2 => S (size_term u + size_term t1 + size_term t2)
+  | ENone => 0
+  | ESome t => S (size_term t)
+  | Fold f ts t => S (size_term f + List.list_sum (List.map size_term ts) + size_term t)
+  | If t ta tb => S (size_term t + size_term ta + size_term tb)
+  end
+with size_value (v : value) : nat :=
+  match v with
+  | Bool _ => 0
+  | Int _ => 0
+  | Closure t sigma => S (size_term t +  (List.list_sum (List.map size_value sigma)))
+  | VNone => 0
+  | VUnit => 0
+  | VSome v => S (size_value v)
+  | VPure v => S (size_value v)
+  end.
+
+Definition size_term_value (x : term + value) :=
+  match x with
+  | inl t => size_term t
+  | inr v => size_value v
+  end.
+
+(* Scheme term_ind_aux := Induction for term Sort Prop
+with value_ind_aux := Induction for value Sort Prop. *)
+
+Require Import Wellfounded.
+
+Lemma term_ind_aux (P: term -> Prop) (P0: value -> Prop):
+  (forall t, P t) /\ (forall v, P0 v) <->
+  (forall x: term + value, match x with inl t => P t | inr v => P0 v end).
+Proof.
+  split; intros.
+  { destruct x; unpack; eauto. }
+  { split; intros. eapply (H (inl _)). eapply (H (inr _)). }
+Qed.
+
+Lemma term_value_ind
+	 : forall (P : term -> Prop) (P0 : value -> Prop),
+       (forall x : var, P (Var x)) ->
+       (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
+       (forall t : {bind term}, P t -> P (Lam t)) ->
+       (forall arg : term, P arg -> P (ErrorOnEmpty arg)) ->
+       (forall arg : term, P arg -> P (DefaultPure arg)) ->
+       (forall (ts : list term), List.Forall P ts -> forall (tj : term),
+        P tj -> forall tc : term, P tc -> P (Default ts tj tc)) ->
+       P Empty ->
+       P Conflict ->
+       (forall v : value, P0 v -> P (Value v)) ->
+       (forall x : string, P (FreeVar x)) ->
+       (forall (op : op) (t1 : term),
+        P t1 -> forall t2 : term, P t2 -> P (Binop op t1 t2)) ->
+       (forall u : term,
+        P u ->
+        forall t1 : term,
+        P t1 -> forall t2 : {bind term}, P t2 -> P (Match_ u t1 t2)) ->
+       P ENone ->
+       (forall t : term, P t -> P (ESome t)) ->
+       (forall f : term,
+        P f -> forall (ts : list term), List.Forall P ts -> forall (t : term), P t -> P (Fold f ts t)) ->
+       (forall t : term,
+        P t ->
+        forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
+       (forall b : bool, P0 (Bool b)) ->
+       (forall i : Z, P0 (Int i)) ->
+       (forall t : {bind term},
+        P t -> forall sigma : list value, List.Forall P0 sigma -> P0 (Closure t sigma)) ->
+       P0 VNone ->
+       P0 VUnit ->
+       (forall v : value, P0 v -> P0 (VSome v)) ->
+       (forall v : value, P0 v -> P0 (VPure v)) ->
+       (forall t, P t) /\ (forall v, P0 v).
+Proof.
+  intros.
+  rewrite term_ind_aux.
+  induction x as [x IHx] using (
+    well_founded_induction
+      (wf_inverse_image _ nat _ size_term_value 
+      PeanoNat.Nat.lt_wf_0)).
+  
+  lock IHx.
+
+  intros.
+  destruct x.
+  { destruct t.
+    all: match goal with
+    | [h: _ |- _] => eapply h
+    end.
+    all: unlock IHx.
+    all: try match goal with [|- List.Forall _ ?ts] => induction ts; econstructor; eauto end.
+    all: try (first [eapply (IHx (inl _))| eapply (IHx (inr _))]; simpl; lia).
+    all: eapply IHts; intros; eapply IHx; simpl in *; lia.
+  }
+  { destruct v.
+    all: match goal with
+    | [h: _ |- _] => eapply h
+    end.
+    all: unlock IHx.
+    all: try match goal with [|- List.Forall _ ?ts] => induction ts; econstructor; eauto end.
+    all: try (first [eapply (IHx (inl _))| eapply (IHx (inr _))]; simpl; lia).
+    all: eapply IHsigma; intros; eapply IHx; simpl in *; lia.
+  }
+Qed.
+
 Require Import Autosubst_FreeVars.
 #[export] Instance Ids_term : Ids term. derive. Defined.
 #[export] Instance Idslemmas_term : IdsLemmas term.
