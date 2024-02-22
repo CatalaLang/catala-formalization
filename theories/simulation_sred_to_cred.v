@@ -1695,6 +1695,7 @@ Proof.
         | solve[eauto]
         | solve[repeat econstructor]|];
         unpack
+
       | [h: plus _ _ _ |- _] => learn (plus_star h)
       | [h: sim_state _ _ |- _] => learn (sim_state_inversion _ _ h); unpack
       | [h: star _ _ _ |- _] => learn (star_cred_snd_apply_sate h)
@@ -1723,6 +1724,7 @@ Proof.
         |];
         unpack
 
+      (* unsound sred case *)
       | [h: sred (Value _) _ |- _] => inversion h
       | [h: sred Empty _ |- _] => inversion h
       | [h: sred Conflict _ |- _] => inversion h
@@ -1730,12 +1732,14 @@ Proof.
 
     (* possible reduction steps*)
     all: repeat (
+      (* reduction with a stack after, plus version *)
       repeat (eapply plus_star_trans_prop; [solve[
           erewrite append_stack_app;[|solve[simpl; eauto]];
           eapply plus_cred_append_stack;
           simpl;
           eauto
       ]|]);
+      (* reduction with a stack after, star then plus (this must be after the previous one) *)
       repeat (eapply star_plus_trans_prop; [solve[
           erewrite append_stack_app;[|solve[simpl; eauto]];
           eapply star_cred_append_stack;
@@ -1770,6 +1774,7 @@ Proof.
       try (eapply star_refl_prop; eapply sim_state_from_equiv).
     all: (* for recursive cases, we apply the induction hypothesis and lift it using append_stack *)
       try rewrite apply_state_append_stack; simpl in *; subst; unfold apply_cont; sp; simpl.
+    all: try rewrite apply_CDefault_apply_CDefault_usable; unfold apply_CDefault_usable.
     all: (* for default cases *)
       try simpl_apply_CDefault.
     all: try rewrite snd_apply_conts_last in *.
@@ -1784,7 +1789,13 @@ Proof.
       | rewrite soe_cons; asimpl; reflexivity
     ].
 
-    all: admit.
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
 Admitted.
 
 Lemma proper_sim_state_sred:
