@@ -368,7 +368,6 @@ Qed.
 
 (* -------------------------------------------------------------------------- *)
 
-
 (* Lemmas related to reducing substo_of_env_sthg *)
 
 Lemma subst_of_env_Value_Var:
@@ -1539,7 +1538,23 @@ Proof.
   simpl; eauto.
 Qed.
 
+Lemma apply_conts_apply_state_value {v kappa env}:
+(fst (apply_conts kappa (Value v, env))) = apply_state (mode_cont kappa env (RValue v)).
+Proof.
+  simpl; eauto.
+Qed.
 
+Lemma apply_conts_apply_state_conflict {kappa env}:
+(fst (apply_conts kappa (Conflict, env))) = apply_state (mode_cont kappa env (RConflict)).
+Proof.
+  simpl; eauto.
+Qed.
+
+Lemma apply_conts_apply_state_empty {kappa env}:
+(fst (apply_conts kappa (Empty, env))) = apply_state (mode_cont kappa env (REmpty)).
+Proof.
+  simpl; eauto.
+Qed.
 
 Theorem simulation_sred_cred_base s1 t2:
   sred (apply_state s1) t2 ->
@@ -1606,7 +1621,7 @@ Proof.
     all: eapply ignore_inv_state; [eauto|].
     all: match typeof Ht2t3 with sred ?u1 ?u2 => remember u1 as u end.
     all: induction Ht2t3; intros; inj; tryfalse.
-    all: repeat match goal with
+    all: repeat (match goal with
       | [h: Value _ = fst (apply_conts _ _) |- _] =>
         learn (value_apply_conts h); clear h; unpack; repeat unpack_subst_of_env_cons
       | [h: Conflict = fst (apply_conts _ _) |- _] =>
@@ -1636,15 +1651,41 @@ Proof.
         | solve[eauto]
         |];
         unpack
-      end.
-    all: repeat rewrite snd_apply_conts_last in *.
-    all: injections; subst.
+
+      | [h: sred (fst (apply_conts _ _)) _ |- _] =>
+        first
+        [ rewrite apply_conts_apply_state_value in h
+        | rewrite apply_conts_apply_state_conflict in h
+        | rewrite apply_conts_apply_state_empty in h
+        ];
+        unshelve epose proof (IHkappa_wf _ _ _ _ Ht2t3 eq_refl _);
+        [ solve[rewrite List.app_length; simpl; lia]
+        | solve[eauto]
+        |];
+        unpack
+
+      | [h: sred (Value _) _ |- _] => inversion h
+      | [h: sred Empty _ |- _] => inversion h
+      | [h: sred Conflict _ |- _] => inversion h
+      end; repeat rewrite snd_apply_conts_last in *; injections; subst).
 
     (* possible reduction steps*)
     all: repeat (
       repeat (eapply plus_star_trans_prop; [solve[
           erewrite append_stack_app;[|solve[simpl; eauto]];
           eapply plus_cred_append_stack;
+          simpl;
+          eauto
+      ]|]);
+      repeat (eapply star_plus_trans_prop; [solve[
+          erewrite append_stack_app;[|solve[simpl; eauto]];
+          eapply star_cred_append_stack;
+          simpl;
+          eauto
+      ]|]);
+      repeat (eapply star_trans_prop; [solve[
+          erewrite append_stack_app;[|solve[simpl; eauto]];
+          eapply star_cred_append_stack;
           simpl;
           eauto
       ]|]);
@@ -1666,7 +1707,7 @@ Proof.
       simpl
     ).
 
-    all: try match goal with [|-context[plus]] => admit end.
+    all: try match goal with [|-context[plus]] => match goal with [|-context[CDefault]] => admit end end.
 
     all: (* finish it off *)
       try (eapply star_refl_prop; eapply sim_state_from_equiv).
@@ -1674,15 +1715,17 @@ Proof.
       try rewrite apply_state_append_stack; simpl in *; subst; unfold apply_cont; sp; simpl.
     all: (* for default cases *)
       try simpl_apply_CDefault.
+    all: try rewrite snd_apply_conts_last in *.
     all: repeat econstructor.
+    all: repeat match goal with
+    | [h: _ = snd (apply_state_aux _) |- _] => rewrite <- h in *
+    end.
     all: try solve
       [ reflexivity
       | eauto
       | symmetry; eauto
       | rewrite soe_cons; asimpl; reflexivity
     ].
-    
-    all: admit.
 Admitted.
 
 Lemma proper_sim_state_sred:
