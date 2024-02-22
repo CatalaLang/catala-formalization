@@ -14,24 +14,29 @@ Proof.
   induction t; try solve [right; repeat intro; congruence|left; eauto].
 Qed.
 
+Definition if_is_empty {A} (th: term) (x y: A) :=
+    match th with | Empty => x | _ => y end.
+
+Lemma match_nempty {A} {th: term} {x y: A}:
+  th <> Empty ->
+  if_is_empty th x y = y.
+Proof.
+  induction th; intros; try reflexivity; tryfalse.
+Qed.
 
 Definition apply_CDefault o ts tj tc t sigma : term :=
+  Default
   match o with
   | Some v =>
-    match t with
-    | Empty =>
-      Default ((Value (VPure v)).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-    | _ =>
-      Default ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-    end
+    if_is_empty t 
+      ((Value (VPure v)).[subst_of_env sigma]::ts..[subst_of_env sigma])
+      ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma])
   | None =>
-    match t with
-    | Empty =>
-      Default ((ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-    | _ =>
-      Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
-    end
-  end.
+    if_is_empty t 
+      ((ts)..[subst_of_env sigma])
+      (t::(ts)..[subst_of_env sigma])
+  end
+  tj.[subst_of_env sigma] tc.[subst_of_env sigma].
 
 (* This permits to simplify apply defaults using the EmptyOrNotEmpty lemma in an automatic fashon *)
 
@@ -270,7 +275,6 @@ Qed.
   We are now ready to demonstrate the simulation theorem between continuation-style semantics (`cred`) and small-step semantics (`sred`). This demonstration hinges the following lemma that ensures compositionality when applying a continuation stack.
 *)
 
-
 Lemma star_sred_default_E_zero:
     forall ti ti' ts2 tj tc,
       star sred ti ti' ->
@@ -386,10 +390,12 @@ Proof.
       induction o; simpl; reflexivity.
     }
     {
-      assert (fst (apply_conts kappa (t2, sigma)) <> Empty).
-      { intro; rewrite H2 in *; eapply H3; eauto. }
-      induction o; repeat first [rewrite apply_CDefault_NT| rewrite apply_CDefault_ST]; eauto.
-      all: repeat econstructor; try reflexivity; eauto.
+      learn ((proj1 (not_iff_compat H2)) H3).
+      induction o; repeat rewrite (hole_none_nempty _); repeat rewrite (hole_some_nempty _).
+      all: repeat match goal with
+      | [h: _ <> Empty |- _] => rewrite (match_nempty h)
+      end.
+      all: repeat econstructor; first [eauto; reflexivity].
     }
   }
 Qed.
@@ -435,10 +441,13 @@ Proof.
   induction Hs1s2'; try induction o; try induction phi.
   all: try destruct (EmptyOrNotEmpty th).
   all: dsimpl; try eapply sim_term_star_sred_apply_counts.
+  all: try solve [
+    eapply star_refl_prop;
+    simpl; reflexivity; eauto].
   all: repeat step.
   all: try solve [
     eapply star_refl_prop;
-    simpl; reflexivity].
+    simpl; reflexivity; eauto].
   { eapply star_refl_prop.
     unfold subst_of_env; rewrite H.
     reflexivity.
@@ -448,20 +457,14 @@ Proof.
     rewrite soe_nil; asimpl.
     reflexivity.
   }
-  { admit "one too may steps". }
-  { exfalso.
-    eapply H; eauto.
-    admit.
-  }
-  { admit "this one as well". }
-  { admit. }
+  { exfalso; eapply H; eauto. } 
   { induction o; simpl; repeat step; eapply star_refl_prop; reflexivity. }
   { eapply star_refl_prop.
     asimpl.
     rewrite soe_cons.
     reflexivity.
   }
-Admitted.
+Qed.
 
 
 (*** Lifting of this result ***)
