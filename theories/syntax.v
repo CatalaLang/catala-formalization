@@ -514,7 +514,9 @@ Proof.
   eauto.
 Qed.
 
+
 (* Strong induction princple for terms and values *)
+
 
 Theorem term_value_ind
   : forall (P : term -> Prop) (P0 : value -> Prop),
@@ -649,97 +651,6 @@ Local Ltac2 sinv_sim_term () :=
   end.
 
 Ltac sinv_sim_term := ltac2:(Control.enter sinv_sim_term).
-    
-
-Scheme sim_term_sim_value_ind_aux := Induction for sim_term Sort Prop
-  with sim_value_sim_term_ind_aux := Induction for sim_value Sort Prop.
-
-Theorem both_sim_term_value_ind
-	 : forall (P : forall t t0 : term, sim_term t t0 -> Prop)
-         (P0 : forall v v0 : value, sim_value v v0 -> Prop),
-       (forall (x y : var) (e : x = y),
-        P (Var x) (Var y) (sim_term_var x y e)) ->
-       (forall (t1 t2 u1 u2 : term) (s : sim_term t1 u1),
-        P t1 u1 s ->
-        forall s0 : sim_term t2 u2,
-        P t2 u2 s0 ->
-        P (App t1 t2) (App u1 u2) (sim_term_app t1 t2 u1 u2 s s0)) ->
-       (forall (t1 u1 : term) (s : sim_term t1 u1),
-        P t1 u1 s -> P (Lam t1) (Lam u1) (sim_term_lam t1 u1 s)) ->
-       (forall (v1 w1 : value) (s : sim_value v1 w1),
-        P0 v1 w1 s -> P (Value v1) (Value w1) (sim_term_value v1 w1 s)) ->
-       (forall (t1 t2 : term) (s : sim_term t1 t2),
-        P t1 t2 s ->
-        P (ErrorOnEmpty t1) (ErrorOnEmpty t2) (sim_term_erroronempty t1 t2 s)) ->
-       (forall (t1 t2 : term) (s : sim_term t1 t2),
-        P t1 t2 s ->
-        P (DefaultPure t1) (DefaultPure t2) (sim_term_defaultpure t1 t2 s)) ->
-       (forall (ts1 ts2 : list term) (tj1 tj2 tc1 tc2 : term)
-          (f : List.Forall2 sim_term ts1 ts2) (s : sim_term tj1 tj2),
-        P tj1 tj2 s ->
-        forall s0 : sim_term tc1 tc2,
-        P tc1 tc2 s0 ->
-        P (Default ts1 tj1 tc1) (Default ts2 tj2 tc2)
-          (sim_term_default ts1 ts2 tj1 tj2 tc1 tc2 f s s0)) ->
-       P Empty Empty sim_term_empty ->
-       P Conflict Conflict sim_term_conflict ->
-       (forall (x y : string) (e : x = y),
-        P (FreeVar x) (FreeVar y) (sim_term_freevar x y e)) ->
-       (forall (op1 op2 : op) (t1 t2 u1 u2 : term) 
-          (e : op1 = op2) (s : sim_term t1 u1),
-        P t1 u1 s ->
-        forall s0 : sim_term t2 u2,
-        P t2 u2 s0 ->
-        P (Binop op1 t1 t2) (Binop op2 u1 u2)
-          (sim_term_binop op1 op2 t1 t2 u1 u2 e s s0)) ->
-       (forall (u1 u2 t1 t2 t3 t4 : term) (s : sim_term u1 u2),
-        P u1 u2 s ->
-        forall s0 : sim_term t1 t2,
-        P t1 t2 s0 ->
-        forall s1 : sim_term t3 t4,
-        P t3 t4 s1 ->
-        P (Match_ u1 t1 t3) (Match_ u2 t2 t4)
-          (sim_term_match u1 u2 t1 t2 t3 t4 s s0 s1)) ->
-       P ENone ENone sim_term_enone ->
-       (forall (t1 t2 : term) (s : sim_term t1 t2),
-        P t1 t2 s -> P (ESome t1) (ESome t2) (sim_term_esome t1 t2 s)) ->
-       (forall (f1 f2 : term) (ts1 ts2 : list term) 
-          (t1 t2 : term) (s : sim_term f1 f2),
-        P f1 f2 s ->
-        forall (f : List.Forall2 sim_term ts1 ts2) (s0 : sim_term t1 t2),
-        P t1 t2 s0 ->
-        P (Fold f1 ts1 t1) (Fold f2 ts2 t2)
-          (sim_term_fold f1 f2 ts1 ts2 t1 t2 s f s0)) ->
-       (forall (t1 t2 ta1 ta2 tb1 tb2 : term) (s : sim_term t1 t2),
-        P t1 t2 s ->
-        forall s0 : sim_term ta1 ta2,
-        P ta1 ta2 s0 ->
-        forall s1 : sim_term tb1 tb2,
-        P tb1 tb2 s1 ->
-        P (If t1 ta1 tb1) (If t2 ta2 tb2)
-          (sim_term_if t1 t2 ta1 ta2 tb1 tb2 s s0 s1)) ->
-       (forall (b1 b2 : bool) (e : b1 = b2),
-        P0 (Bool b1) (Bool b2) (sim_value_bool b1 b2 e)) ->
-       (forall (i1 i2 : Z) (e : i1 = i2),
-        P0 (Int i1) (Int i2) (sim_value_int i1 i2 e)) ->
-       (forall (t1 t2 : term) (sigma1 sigma2 : list value)
-          (s : sim_term t1.[up (subst_of_env sigma1)]
-                 t2.[up (subst_of_env sigma2)]),
-        P t1.[up (subst_of_env sigma1)] t2.[up (subst_of_env sigma2)] s ->
-        P0 (Closure t1 sigma1) (Closure t2 sigma2)
-          (sim_value_closure t1 t2 sigma1 sigma2 s)) ->
-       P0 VNone VNone sim_value_vnone ->
-       P0 VUnit VUnit sim_value_vunit ->
-       (forall (v1 v2 : value) (s : sim_value v1 v2),
-        P0 v1 v2 s -> P0 (VSome v1) (VSome v2) (sim_value_vsome v1 v2 s)) ->
-       (forall (v1 v2 : value) (s : sim_value v1 v2),
-        P0 v1 v2 s -> P0 (VPure v1) (VPure v2) (sim_value_vpure v1 v2 s)) ->
-       (forall (t t0 : term) (s : sim_term t t0), P t t0 s) /\ (forall (v v0 : value) (s : sim_value v v0), P0 v v0 s).
-Proof.
-  split.
-  eapply sim_term_sim_value_ind_aux; solve [eauto].
-  eapply sim_value_sim_term_ind_aux; solve [eauto].
-Qed.
 
 
 Require Import Coq.Classes.SetoidClass.
@@ -750,11 +661,15 @@ Lemma sim_term_ren:
     forall xi,
       sim_term t1.[ren xi] t2.[ren xi].
 Proof.
-  induction 1; intros; subst; asimpl.
-  all: try econstructor; eauto.
-  { induction H; simpl; econstructor; eauto. admit "need stronger induction priple". }
-  { induction H0; simpl; econstructor; eauto. admit "need stronger induction priple". }
-Admitted.
+  einduction t1; intros; repeat sinv_sim_term; intros; subst; asimpl.
+  all: repeat econstructor; eauto.
+  { generalize dependent ts2. induction H; intros; sinv_sim_term; asimpl; econstructor; eauto. }
+  { generalize dependent ts2. induction H; intros; sinv_sim_term; asimpl; econstructor; eauto. }
+
+  Unshelve.
+  8:{ exact (fun _ => True). }
+  all: simpl; eauto. 
+Qed.
 
 Lemma sim_term_subst:
   forall t1 t2,
@@ -763,21 +678,25 @@ Lemma sim_term_subst:
       (forall x, sim_term (sigma1 x) (sigma2 x)) ->
       sim_term t1.[sigma1] t2.[sigma2].
 Proof.
-  induction 1; intros; subst; asimpl.
-  all: try econstructor; eauto.
-  { eapply IHsim_term.
+  einduction t1; intros; repeat sinv_sim_term; intros; subst; asimpl.
+  all: repeat econstructor; eauto.
+  { eapply IHt; eauto.
     induction x; asimpl.
     { econstructor; eauto. }
     { eapply sim_term_ren; eauto. }
   }
-  { induction H; asimpl; econstructor; eauto. admit "need stronger induction priple". }
-  { eapply IHsim_term3.
+  { generalize dependent ts2; induction H; intros; sinv_sim_term; asimpl; econstructor; eauto. }
+  { eapply IHt3; eauto.
     induction x; asimpl.
     { econstructor; eauto. }
     { eapply sim_term_ren; eauto. }
   }
-  { induction H0; asimpl; econstructor; eauto. admit "need stronger induction priple". }
-Admitted.
+  { generalize dependent ts2; induction H; intros; sinv_sim_term; asimpl; econstructor; eauto. }
+  
+  Unshelve.
+  8:{ exact (fun _ => True). }
+  all: simpl; eauto. 
+Qed.
 
 
 Lemma sim_term_refl: Reflexive sim_term /\ Reflexive sim_value.
