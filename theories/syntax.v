@@ -13,7 +13,6 @@ Inductive op :=
   | Eq
 .
 
-Unset Elimination Schemes. 
 Inductive term :=
   (* Lambda calculus part of the language*)
   | Var (x: var)
@@ -167,10 +166,10 @@ Proof.
   }
 Qed.
 
-Definition term_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 := 
+Definition term_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 := 
   proj1 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22).
 
-Definition value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 := 
+Definition value_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 := 
   proj2 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22).
 
 
@@ -624,7 +623,7 @@ Lemma sim_term_ren:
     forall xi,
       sim_term t1.[ren xi] t2.[ren xi].
 Proof.
-  einduction t1; intros; repeat sinv_sim_term; intros; subst; asimpl.
+  einduction t1 using term_ind'; intros; repeat sinv_sim_term; intros; subst; asimpl.
   all: repeat econstructor; eauto.
   { generalize dependent ts2. induction H; intros; sinv_sim_term; asimpl; econstructor; eauto. }
   { generalize dependent ts2. induction H; intros; sinv_sim_term; asimpl; econstructor; eauto. }
@@ -641,7 +640,7 @@ Lemma sim_term_subst:
       (forall x, sim_term (sigma1 x) (sigma2 x)) ->
       sim_term t1.[sigma1] t2.[sigma2].
 Proof.
-  einduction t1; intros; repeat sinv_sim_term; intros; subst; asimpl.
+  einduction t1 using term_ind'; intros; repeat sinv_sim_term; intros; subst; asimpl.
   all: repeat econstructor; eauto.
   { eapply IHt; eauto.
     induction x; asimpl.
@@ -662,7 +661,7 @@ Proof.
 Qed.
 
 
-Theorem sim_term_value_ind
+Theorem sim_term_value_ind'
 	 : forall (P : term -> term -> Prop)
          (P0 : value -> value -> Prop),
        (forall (x y : var) (e : x = y),
@@ -807,7 +806,7 @@ Proof.
 Qed.
 
 Lemma sim_symmetric: Symmetric sim_term /\ Symmetric sim_value.
-  eapply sim_term_value_ind; intros; repeat sinv_sim_term; econstructor; eauto.
+  eapply sim_term_value_ind'; intros; repeat sinv_sim_term; econstructor; eauto.
   { induction H; econstructor; sinv_sim_term; eauto. }
   { induction H0; econstructor; sinv_sim_term; eauto. }
 Qed.
@@ -815,7 +814,7 @@ Qed.
 Lemma sim_transitive:
   (forall x y : term, sim_term x y -> forall z, sim_term y z -> sim_term x z) /\
   (forall x y : value, sim_value x y -> forall z, sim_value y z -> sim_value x z).
-  eapply sim_term_value_ind.
+  eapply sim_term_value_ind'.
   all: intros; repeat sinv_sim_term; subst; repeat econstructor; eauto.
   { generalize dependent ts3.
     induction H; intros; sinv_sim_term; econstructor; sinv_sim_term; eauto.
