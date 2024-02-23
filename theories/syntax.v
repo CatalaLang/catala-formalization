@@ -752,7 +752,6 @@ Proof.
     well_founded_induction
       (wf_inverse_image _ nat _ size_term_value 
       PeanoNat.Nat.lt_wf_0)).
-  
   lock IHx.
 
   intros.
@@ -766,17 +765,18 @@ Proof.
     all: try match goal with [|- List.Forall2 _ ?ts1 ?ts2] => generalize dependent ts2; induction ts; intros; sinv_sim_term; repeat econstructor; eauto end.
     all: try (first [eapply (IHx (inl _))| eapply (IHx (inr _))]; simpl; eauto; lia).
     all: eapply IHts; eauto; intros; eapply IHx; simpl in *; lia.
-}
-{ destruct v.
-  all: intros; sinv_sim_term.
-  all: match goal with
-  | [h: _ |- _] => eapply h
-  end; eauto.
-  all: unlock IHx.
-  all: try match goal with [|- List.Forall2 _ ?ts1 ?ts2] => generalize dependent ts2; induction ts; intros; sinv_sim_term; repeat econstructor; eauto end.
-  all: try (first [eapply (IHx (inl _))| eapply (IHx (inr _))]; simpl; eauto; lia).
+  }
+  { destruct v.
+    all: intros; sinv_sim_term.
+    all: match goal with
+    | [h: _ |- _] => eapply h
+    end; eauto.
+    all: unlock IHx.
+    all: try match goal with [|- List.Forall2 _ ?ts1 ?ts2] => generalize dependent ts2; induction ts; intros; sinv_sim_term; repeat econstructor; eauto end.
+    all: try (first [eapply (IHx (inl _))| eapply (IHx (inr _))]; simpl; eauto; lia).
 
-  all: admit.
+    all: admit.
+  }
 Admitted.
 
 Lemma sim_term_refl: Reflexive sim_term /\ Reflexive sim_value.
