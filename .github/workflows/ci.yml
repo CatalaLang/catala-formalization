@@ -1,8 +1,10 @@
 name: "Coq latest"
 
 on:
-  pull_request:
   push:
+    branches: [ $default-branch, $protected-branches ]
+  pull_request:
+    branches: [ $default-branch ]
   schedule:
     # Prime the caches every Monday
     - cron: 0 1 * * MON
