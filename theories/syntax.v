@@ -749,17 +749,116 @@ Theorem sim_term_value_ind'
        (forall (v1 v2 : value) (s : sim_value v1 v2),
         P0 v1 v2 -> P0 (VPure v1) (VPure v2) ) ->
        (forall (t t0 : term) (s : sim_term t t0), P t t0 )
-       /\ (forall (v v0 : value) (s : sim_value v v0), P0 v v0).
+with sim_value_term_ind'
+: forall (P : term -> term -> Prop)
+      (P0 : value -> value -> Prop),
+    (forall (x y : var) (e : x = y),
+     P (Var x) (Var y)) ->
+    (forall (t1 t2 u1 u2 : term) (s : sim_term t1 u1),
+     P t1 u1 ->
+     forall s0 : sim_term t2 u2,
+     P t2 u2 ->
+     P (App t1 t2) (App u1 u2)) ->
+    (forall (t1 u1 : term) (s : sim_term t1 u1),
+     P t1 u1 -> P (Lam t1) (Lam u1)) ->
+    (forall (v1 w1 : value) (s : sim_value v1 w1),
+     P0 v1 w1 -> P (Value v1) (Value w1)) ->
+    (forall (t1 t2 : term) (s : sim_term t1 t2),
+     P t1 t2 ->
+     P (ErrorOnEmpty t1) (ErrorOnEmpty t2)) ->
+    (forall (t1 t2 : term) (s : sim_term t1 t2),
+     P t1 t2 ->
+     P (DefaultPure t1) (DefaultPure t2)) ->
+    (forall (ts1 ts2 : list term) (tj1 tj2 tc1 tc2 : term)
+       (f : List.Forall2 sim_term ts1 ts2),
+     List.Forall2 P ts1 ts2 ->
+     forall (s : sim_term tj1 tj2),
+     P tj1 tj2 ->
+     forall s0 : sim_term tc1 tc2,
+     P tc1 tc2 ->
+     P (Default ts1 tj1 tc1) (Default ts2 tj2 tc2)
+       ) ->
+    P Empty Empty ->
+    P Conflict Conflict ->
+    (forall (x y : string) (e : x = y),
+     P (FreeVar x) (FreeVar y)) ->
+    (forall (op1 op2 : op) (t1 t2 u1 u2 : term) 
+       (e : op1 = op2) (s : sim_term t1 u1),
+     P t1 u1 ->
+     forall s0 : sim_term t2 u2,
+     P t2 u2 ->
+     P (Binop op1 t1 t2) (Binop op2 u1 u2)
+       ) ->
+    (forall (u1 u2 t1 t2 t3 t4 : term) (s : sim_term u1 u2),
+     P u1 u2 ->
+     forall s0 : sim_term t1 t2,
+     P t1 t2 ->
+     forall s1 : sim_term t3 t4,
+     P t3 t4 ->
+     P (Match_ u1 t1 t3) (Match_ u2 t2 t4)
+       ) ->
+    P ENone ENone ->
+    (forall (t1 t2 : term) (s : sim_term t1 t2),
+     P t1 t2 -> P (ESome t1) (ESome t2) ) ->
+    (forall (f1 f2 : term) (ts1 ts2 : list term) 
+       (t1 t2 : term) (s : sim_term f1 f2),
+     P f1 f2 ->
+     forall (f : List.Forall2 sim_term ts1 ts2), List.Forall2 P ts1 ts2 ->forall (s0 : sim_term t1 t2),
+     P t1 t2 ->
+     P (Fold f1 ts1 t1) (Fold f2 ts2 t2)
+       ) ->
+    (forall (t1 t2 ta1 ta2 tb1 tb2 : term) (s : sim_term t1 t2),
+     P t1 t2 ->
+     forall s0 : sim_term ta1 ta2,
+     P ta1 ta2 ->
+     forall s1 : sim_term tb1 tb2,
+     P tb1 tb2 ->
+     P (If t1 ta1 tb1) (If t2 ta2 tb2)
+       ) ->
+    (forall (b1 b2 : bool) (e : b1 = b2),
+     P0 (Bool b1) (Bool b2) ) ->
+    (forall (i1 i2 : Z) (e : i1 = i2),
+     P0 (Int i1) (Int i2) ) ->
+    (forall (t1 t2 : term) (sigma1 sigma2 : list value)
+       (s : sim_term t1.[up (subst_of_env sigma1)]
+              t2.[up (subst_of_env sigma2)]),
+     P t1.[up (subst_of_env sigma1)] t2.[up (subst_of_env sigma2)] ->
+     P0 (Closure t1 sigma1) (Closure t2 sigma2)
+       ) ->
+    P0 VNone VNone ->
+    P0 VUnit VUnit ->
+    (forall (v1 v2 : value) (s : sim_value v1 v2),
+     P0 v1 v2 -> P0 (VSome v1) (VSome v2)) ->
+    (forall (v1 v2 : value) (s : sim_value v1 v2),
+     P0 v1 v2 -> P0 (VPure v1) (VPure v2) ) ->
+  (forall (v v0 : value) (s : sim_value v v0), P0 v v0).
 Proof.
-  intros.
-  eapply term_value_ind; intros; repeat sinv_sim_term.
-  all: match goal with
-  | [h: _ |- _] => eapply h
-  end; eauto.
-  all: try match goal with [|- List.Forall2 _ ?ts1 ?ts2] => generalize dependent ts2; induction ts; intros; repeat sinv_sim_term; repeat econstructor; eauto end.
-
-  admit.
-Admitted.
+  { intros.
+    destruct s.
+    all: match goal with
+    | [h: _ |- _] => eapply h
+    end; eauto.
+    all:
+      try solve 
+      [ eapply sim_term_value_ind'; eassumption
+      | eapply sim_value_term_ind'; eassumption].
+    { induction H22; econstructor; eauto.
+      eapply sim_term_value_ind'; eassumption.
+    }
+    { induction H22; econstructor; eauto.
+      eapply sim_term_value_ind'; eassumption.
+    }
+  }
+  { intros. destruct s.
+    all: match goal with
+    | [h: _ |- _] => eapply h
+    end; eauto.
+    all:
+      try solve 
+      [ eapply sim_term_value_ind'; eassumption
+      | eapply sim_value_term_ind'; eassumption].
+  }
+Qed.
 
 Lemma sim_term_refl: Reflexive sim_term /\ Reflexive sim_value.
 Proof.
@@ -787,8 +886,98 @@ Proof.
   }
 Qed.
 
+
+Theorem combined_sim_term_value_term_ind: forall (P : term -> term -> Prop)
+(P0 : value -> value -> Prop),
+(forall (x y : var) (e : x = y),
+P (Var x) (Var y)) ->
+(forall (t1 t2 u1 u2 : term) (s : sim_term t1 u1),
+P t1 u1 ->
+forall s0 : sim_term t2 u2,
+P t2 u2 ->
+P (App t1 t2) (App u1 u2)) ->
+(forall (t1 u1 : term) (s : sim_term t1 u1),
+P t1 u1 -> P (Lam t1) (Lam u1)) ->
+(forall (v1 w1 : value) (s : sim_value v1 w1),
+P0 v1 w1 -> P (Value v1) (Value w1)) ->
+(forall (t1 t2 : term) (s : sim_term t1 t2),
+P t1 t2 ->
+P (ErrorOnEmpty t1) (ErrorOnEmpty t2)) ->
+(forall (t1 t2 : term) (s : sim_term t1 t2),
+P t1 t2 ->
+P (DefaultPure t1) (DefaultPure t2)) ->
+(forall (ts1 ts2 : list term) (tj1 tj2 tc1 tc2 : term)
+ (f : List.Forall2 sim_term ts1 ts2),
+List.Forall2 P ts1 ts2 ->
+forall (s : sim_term tj1 tj2),
+P tj1 tj2 ->
+forall s0 : sim_term tc1 tc2,
+P tc1 tc2 ->
+P (Default ts1 tj1 tc1) (Default ts2 tj2 tc2)
+ ) ->
+P Empty Empty ->
+P Conflict Conflict ->
+(forall (x y : string) (e : x = y),
+P (FreeVar x) (FreeVar y)) ->
+(forall (op1 op2 : op) (t1 t2 u1 u2 : term) 
+ (e : op1 = op2) (s : sim_term t1 u1),
+P t1 u1 ->
+forall s0 : sim_term t2 u2,
+P t2 u2 ->
+P (Binop op1 t1 t2) (Binop op2 u1 u2)
+ ) ->
+(forall (u1 u2 t1 t2 t3 t4 : term) (s : sim_term u1 u2),
+P u1 u2 ->
+forall s0 : sim_term t1 t2,
+P t1 t2 ->
+forall s1 : sim_term t3 t4,
+P t3 t4 ->
+P (Match_ u1 t1 t3) (Match_ u2 t2 t4)
+ ) ->
+P ENone ENone ->
+(forall (t1 t2 : term) (s : sim_term t1 t2),
+P t1 t2 -> P (ESome t1) (ESome t2) ) ->
+(forall (f1 f2 : term) (ts1 ts2 : list term) 
+ (t1 t2 : term) (s : sim_term f1 f2),
+P f1 f2 ->
+forall (f : List.Forall2 sim_term ts1 ts2), List.Forall2 P ts1 ts2 ->forall (s0 : sim_term t1 t2),
+P t1 t2 ->
+P (Fold f1 ts1 t1) (Fold f2 ts2 t2)
+ ) ->
+(forall (t1 t2 ta1 ta2 tb1 tb2 : term) (s : sim_term t1 t2),
+P t1 t2 ->
+forall s0 : sim_term ta1 ta2,
+P ta1 ta2 ->
+forall s1 : sim_term tb1 tb2,
+P tb1 tb2 ->
+P (If t1 ta1 tb1) (If t2 ta2 tb2)
+ ) ->
+(forall (b1 b2 : bool) (e : b1 = b2),
+P0 (Bool b1) (Bool b2) ) ->
+(forall (i1 i2 : Z) (e : i1 = i2),
+P0 (Int i1) (Int i2) ) ->
+(forall (t1 t2 : term) (sigma1 sigma2 : list value)
+ (s : sim_term t1.[up (subst_of_env sigma1)]
+        t2.[up (subst_of_env sigma2)]),
+P t1.[up (subst_of_env sigma1)] t2.[up (subst_of_env sigma2)] ->
+P0 (Closure t1 sigma1) (Closure t2 sigma2)
+ ) ->
+P0 VNone VNone ->
+P0 VUnit VUnit ->
+(forall (v1 v2 : value) (s : sim_value v1 v2),
+P0 v1 v2 -> P0 (VSome v1) (VSome v2)) ->
+(forall (v1 v2 : value) (s : sim_value v1 v2),
+P0 v1 v2 -> P0 (VPure v1) (VPure v2) ) ->
+(forall (t t0 : term) (s : sim_term t t0), P t t0 ) /\
+(forall (v v0 : value) (s : sim_value v v0), P0 v v0).
+Proof.
+  split.
+  { eapply sim_term_value_ind'; eassumption. }
+  { eapply sim_value_term_ind'; eassumption. }
+Qed.
+
 Lemma sim_symmetric: Symmetric sim_term /\ Symmetric sim_value.
-  eapply sim_term_value_ind'; intros; repeat sinv_sim_term; econstructor; eauto.
+  eapply combined_sim_term_value_term_ind; intros; repeat sinv_sim_term; econstructor; eauto.
   { induction H; econstructor; sinv_sim_term; eauto. }
   { induction H0; econstructor; sinv_sim_term; eauto. }
 Qed.
@@ -796,7 +985,7 @@ Qed.
 Lemma sim_transitive:
   (forall x y : term, sim_term x y -> forall z, sim_term y z -> sim_term x z) /\
   (forall x y : value, sim_value x y -> forall z, sim_value y z -> sim_value x z).
-  eapply sim_term_value_ind'.
+  eapply combined_sim_term_value_term_ind.
   all: intros; repeat sinv_sim_term; subst; repeat econstructor; eauto.
   { generalize dependent ts3.
     induction H; intros; sinv_sim_term; econstructor; sinv_sim_term; eauto.
