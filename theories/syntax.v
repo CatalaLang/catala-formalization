@@ -594,6 +594,11 @@ Local Ltac2 sinv_sim_term () :=
   | [ h: sim_term ?c _ |- _ ] => smart_inversion c h
   | [ h: sim_value _ ?c |- _ ] => smart_inversion c h
   | [ h: sim_value ?c _ |- _ ] => smart_inversion c h
+
+  | [ h: List.Forall _ (_ :: _) |- _ ] => 
+    Std.inversion Std.FullInversion (Std.ElimOnIdent h) None None;
+    Std.subst_all ();
+    Std.clear [h]
   | [ h: List.Forall2 _ (_ :: _) _ |- _ ] => 
     Std.inversion Std.FullInversion (Std.ElimOnIdent h) None None;
     Std.subst_all ();
@@ -747,36 +752,13 @@ Theorem sim_term_value_ind'
        /\ (forall (v v0 : value) (s : sim_value v v0), P0 v v0).
 Proof.
   intros.
-  rewrite term_ind_aux.
-  induction x as [x IHx] using (
-    well_founded_induction
-      (wf_inverse_image _ nat _ size_term_value 
-      PeanoNat.Nat.lt_wf_0)).
-  lock IHx.
+  eapply term_value_ind; intros; repeat sinv_sim_term.
+  all: match goal with
+  | [h: _ |- _] => eapply h
+  end; eauto.
+  all: try match goal with [|- List.Forall2 _ ?ts1 ?ts2] => generalize dependent ts2; induction ts; intros; repeat sinv_sim_term; repeat econstructor; eauto end.
 
-  intros.
-  destruct x.
-  { destruct t.
-    all: intros; sinv_sim_term.
-    all: match goal with
-    | [h: _ |- _] => eapply h
-    end; eauto.
-    all: unlock IHx.
-    all: try match goal with [|- List.Forall2 _ ?ts1 ?ts2] => generalize dependent ts2; induction ts; intros; sinv_sim_term; repeat econstructor; eauto end.
-    all: try (first [eapply (IHx (inl _))| eapply (IHx (inr _))]; simpl; eauto; lia).
-    all: eapply IHts; eauto; intros; eapply IHx; simpl in *; lia.
-  }
-  { destruct v.
-    all: intros; sinv_sim_term.
-    all: match goal with
-    | [h: _ |- _] => eapply h
-    end; eauto.
-    all: unlock IHx.
-    all: try match goal with [|- List.Forall2 _ ?ts1 ?ts2] => generalize dependent ts2; induction ts; intros; sinv_sim_term; repeat econstructor; eauto end.
-    all: try (first [eapply (IHx (inl _))| eapply (IHx (inr _))]; simpl; eauto; lia).
-
-    all: admit.
-  }
+  admit.
 Admitted.
 
 Lemma sim_term_refl: Reflexive sim_term /\ Reflexive sim_value.
