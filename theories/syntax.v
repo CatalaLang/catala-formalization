@@ -261,6 +261,8 @@ Proof.
     rewrite lift_inj_EVar. rewrite IHk. lia. }
 Qed.
 
+
+
 Lemma fv_Lam_eq:
   forall k t,
   fv k (Lam t) <-> fv (S k) t.
@@ -833,59 +835,21 @@ with sim_value_term_ind'
      P0 v1 v2 -> P0 (VPure v1) (VPure v2) ) ->
   (forall (v v0 : value) (s : sim_value v v0), P0 v v0).
 Proof.
-  { intros.
-    destruct s.
-    all: match goal with
+  all: intros; destruct s.
+  all: match goal with
     | [h: _ |- _] => eapply h
     end; eauto.
-    all:
-      try solve 
-      [ eapply sim_term_value_ind'; eassumption
-      | eapply sim_value_term_ind'; eassumption].
-    { induction H22; econstructor; eauto.
-      eapply sim_term_value_ind'; eassumption.
-    }
-    { induction H22; econstructor; eauto.
-      eapply sim_term_value_ind'; eassumption.
-    }
+  all:
+    try solve 
+    [ eapply sim_term_value_ind'; eassumption
+    | eapply sim_value_term_ind'; eassumption].
+  { induction H22; econstructor; eauto.
+    eapply sim_term_value_ind'; eassumption.
   }
-  { intros. destruct s.
-    all: match goal with
-    | [h: _ |- _] => eapply h
-    end; eauto.
-    all:
-      try solve 
-      [ eapply sim_term_value_ind'; eassumption
-      | eapply sim_value_term_ind'; eassumption].
+  { induction H22; econstructor; eauto.
+    eapply sim_term_value_ind'; eassumption.
   }
 Qed.
-
-Lemma sim_term_refl: Reflexive sim_term /\ Reflexive sim_value.
-Proof.
-  eapply term_value_ind; intros.
-  all: try (econstructor; eauto).
-  { induction H; econstructor; eauto. }
-  { induction H0; econstructor; eauto. }
-  {
-    eapply sim_term_subst.
-    { eauto. }
-    { intro x; case x; asimpl.
-      { econstructor; eauto. }
-      { intros; eapply sim_term_ren.
-        revert n.
-        induction sigma.
-        { rewrite soe_nil; econstructor; eauto. }
-        { inversion H0; subst; intros. case n; asimpl.
-          { econstructor; eauto. }
-          { intros. rewrite soe_cons.
-            eapply IHsigma; eauto.
-          }
-        }
-      }
-    }
-  }
-Qed.
-
 
 Theorem combined_sim_term_value_term_ind: forall (P : term -> term -> Prop)
 (P0 : value -> value -> Prop),
@@ -974,6 +938,32 @@ Proof.
   split.
   { eapply sim_term_value_ind'; eassumption. }
   { eapply sim_value_term_ind'; eassumption. }
+Qed.
+
+Lemma sim_term_refl: Reflexive sim_term /\ Reflexive sim_value.
+Proof.
+  eapply term_value_ind; intros.
+  all: try (econstructor; eauto).
+  { induction H; econstructor; eauto. }
+  { induction H0; econstructor; eauto. }
+  {
+    eapply sim_term_subst.
+    { eauto. }
+    { intro x; case x; asimpl.
+      { econstructor; eauto. }
+      { intros; eapply sim_term_ren.
+        revert n.
+        induction sigma.
+        { rewrite soe_nil; econstructor; eauto. }
+        { inversion H0; subst; intros. case n; asimpl.
+          { econstructor; eauto. }
+          { intros. rewrite soe_cons.
+            eapply IHsigma; eauto.
+          }
+        }
+      }
+    }
+  }
 Qed.
 
 Lemma sim_symmetric: Symmetric sim_term /\ Symmetric sim_value.
