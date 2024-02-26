@@ -211,7 +211,6 @@ Qed.
 
 Theorem correction_small_steps:
   forall s1 s2,
-  (exists GGamma Gamma T, jt_term GGamma Gamma s1 T) ->
   sred s1 s2 ->
   exists target,
     star sred
@@ -226,11 +225,7 @@ Proof.
   ).
 
   intros s1 s2.
-  intros (GGamma & Gamma & T & Hty).
   intros Hsred.
-  generalize dependent GGamma.
-  generalize dependent Gamma.
-  generalize dependent T.
   induction Hsred; intros.
   all: repeat multimatch goal with
   | _ => sinv_jt
@@ -266,6 +261,7 @@ Proof.
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step. eexists; split; asimpl; eapply star_refl_eq; eauto.
     eapply trans_te_substitution_0. }
+  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
@@ -377,7 +373,6 @@ Qed.
 
 Theorem correction_continuations:
   forall s1 s2,
-  (exists GGamma Gamma T, jt_state GGamma Gamma s1 T) ->
   cred s1 s2 ->
   exists target,
     star cred
@@ -392,11 +387,7 @@ Proof.
   ).
 
   intros s1 s2.
-  intros (GGamma & Gamma & T & Hty).
   intros Hsred.
-  generalize dependent GGamma.
-  generalize dependent Gamma.
-  generalize dependent T.
   induction Hsred; intros.
   all: repeat multimatch goal with
   | _ => sinv_jt
@@ -417,6 +408,7 @@ Proof.
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_one; simpl; econstructor. eauto using List.map_nth_error.
   }
+  { exfalso; eapply H; eauto. }
   { eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
     eapply star_refl.
