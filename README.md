@@ -24,6 +24,27 @@ in terms of code, one can derive an implementation of complex socio-fiscal
 mechanisms that enjoys a high level of assurance regarding the code-law
 faithfulness.
 
+## File detailed description.
+
+The files `Autosubsts_EOS`, `AutosubstExtra` and `Autosubst_FreeVars` are taken from a previous developement by François Pottier [here](https://gitlab.inria.fr/fpottier/mpri-2.4-public/-/blob/master/coq/). The file is adapted from previous work by Xavier Leroy with additions by the authors of this artifact. 
+
+| File Name                   | Spec | Proof | Comments | Description |
+|-----------------------------|------|-------|----------|-------------|
+| Autosubst_EOS.v             | 86   | 118   | 78       | Handles end-of-scope operations for automatic substitution in verification. |
+| AutosubstExtra.v            | 74   | 83    | 35       | Provides additional functionalities for the Autosubst framework. |
+| Autosubst_FreeVars.v        | 94   | 129   | 69       | Manages free variable analysis within the Autosubst framework. |
+| common.v                    | 68   | 117   | 3        | Contains common definitions and utilities used across multiple modules. |
+| sequences.v                 | 238  | 223   | 19       | Defines operations and properties of sequences of reduction. |
+| tactics.v                   | 226  | 3     | 69       | Contains custom tactics for automated proof strategies in Coq. |
+| syntax.v                    | 610  | 303   | 13       | Defines the syntax of the fragment of catala we are dealing with. |
+| small_step.v                | 330  | 145   | 12       | Describes the small-step operational semantics of the language. |
+| continuations.v             | 434  | 170   | 82       | Describes the continuation steps semantics of the language. |
+| typing.v                    | 500  | 107   | 72       | Provides the typing rules and their verification for the language. |
+| simulation_cred_to_sred.v   | 216  | 250   | 16       | Provides a simulation proof from continuation steps to small steps semantic. |
+| simulation_sred_to_cred.v   | 827  | 814   | 54       | Provides a simulation proof from small steps to continuation steps semantic. |
+| trans.v                     | 194  | 162   | 17       | Handles the transformation between different representations or phases. |
+| total                       | 3897 | 2624  | 539      |  |
+
 
 ## Building and installation
 
