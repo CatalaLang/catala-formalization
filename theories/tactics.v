@@ -18,12 +18,6 @@ Set Default Proof Mode "Classic".
 
 (* Source: Myself. *)
 
-Tactic Notation "admit" "arthur" := admit.
-Tactic Notation "admit" "arthur" string(x):= admit.
-
-Tactic Notation "admit" "alain" := admit.
-Tactic Notation "admit" "alain" string(x):= admit.
-
 Tactic Notation "admit" := admit.
 Tactic Notation "admit" string(x):= admit.
 

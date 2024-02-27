@@ -1,7 +1,6 @@
 name: "Coq latest"
 
 on:
-  pull_request:
   push:
   schedule:
     # Prime the caches every Monday
