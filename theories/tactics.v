@@ -54,6 +54,8 @@ Ltac unzip :=
     destruct h
   | [h: _ \/ _ |- _ ] =>
     destruct h
+  | [h: {_}+{_} |- _ ] =>
+    destruct h
   |[h: exists x, _ |- _] =>
     let x := fresh x in
     destruct h as [x h]
