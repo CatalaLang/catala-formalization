@@ -24,10 +24,20 @@ Inductive result :=
   | RConflict
 .
 
+Theorem result_eq_dec: forall (x y : result), {x = y}+{x <> y}.
+  decide equality.
+  eapply value_eq_dec.
+Qed.
+
 Inductive is_hole :=
   | Hole
   | NoHole
 .
+
+Theorem is_hole_eq_dec: forall (x y : is_hole), {x = y}+{x <> y}.
+  decide equality.
+Qed.
+
 
 (* App (Var 0) (up t2) *)
 
@@ -53,14 +63,49 @@ Inductive cont :=
   | CFold (f: term) (ts: list term)
 .
 
+Theorem option_eq_dec
+	 : forall A : Type,
+       (forall x y : A, {x = y} + {x <> y}) ->
+       forall o o' : option A, {o = o'} + {o <> o'}.
+Proof.
+  intros.
+  destruct o, o'; finish.
+  epose proof (X a a0); finish.
+Qed.
+
+
+
+Theorem cont_eq_dec: forall (x y : cont), {x = y}+{x <> y}.
+  decide equality.
+  all: try eapply List.list_eq_dec.
+  all: try eapply option_eq_dec.
+  all: try solve
+    [ eapply term_eq_dec
+    | eapply value_eq_dec
+    | eapply op_eq_dec
+    | eapply is_hole_eq_dec].
+Qed.
+
 Inductive state :=
   | mode_eval (e: term) (kappa: list cont) (env: list value)
   | mode_cont (kappa: list cont) (env: list value) (result: result)
 .
 
+Theorem state_eq_dec: forall (x y : state), {x = y}+{x <> y}.
+  decide equality.
+  all: try eapply List.list_eq_dec.
+  all: try eapply option_eq_dec.
+  all: try solve
+    [ eapply term_eq_dec
+    | eapply value_eq_dec
+    | eapply op_eq_dec
+    | eapply is_hole_eq_dec
+    | eapply result_eq_dec
+    | eapply cont_eq_dec].
+Qed.
+
+
 Inductive cred: state -> state -> Prop :=
-
-
   (** Rules related to the lambda calculus *)
   | cred_var:
     forall x kappa sigma v,
@@ -701,10 +746,6 @@ Proof.
   all: intros; solve [ inj | tryfalse | eauto].
 Qed.
 
-Theorem eq_dec_cont: forall (x y : cont), {x = y}+{x <> y}.
-decide equality.
-Admitted.
-
 Theorem cred_stack_drop:
   forall t k env env'' r'',
     star cred
@@ -719,7 +760,7 @@ Proof.
   intros.
   remember (mode_eval t [k] env) as s1.
   remember (mode_cont [] env'' r'') as s3.
-  destruct (takewhile (fun s s' => RMicromega.sumboolb (List.list_eq_dec eq_dec_cont (lastn 1 (stack s1)) (lastn 1 (stack s')))) H)
+  destruct (takewhile (fun s s' => RMicromega.sumboolb (List.list_eq_dec cont_eq_dec (lastn 1 (stack s1)) (lastn 1 (stack s')))) H)
   as [Htakewhile| (s2 & s2' & Hs1s2 & Hs2's3 & Hs2s2' & Hs2')].
   { exfalso.
     induction Htakewhile using star_ind_n1.
@@ -730,13 +771,13 @@ Proof.
       induction Hs1s2 using star_ind_n1.
       { eauto. }
       { unpack.
-        remember (List.list_eq_dec eq_dec_cont (lastn 1 (stack s1)) (lastn 1 (stack z))) as b; induction b; simpl in *; tryfalse; eauto.
+        remember (List.list_eq_dec cont_eq_dec (lastn 1 (stack s1)) (lastn 1 (stack z))) as b; induction b; simpl in *; tryfalse; eauto.
       }
     }
 
     assert (Hs2'_tmp: lastn 1 (stack s2) <> lastn 1 (stack s2')). {
       clear - Hs2 Hs2'.
-      remember (List.list_eq_dec eq_dec_cont (lastn 1 (stack s1)) (lastn 1 (stack s2'))) as b; induction b; simpl in *; tryfalse; eauto.
+      remember (List.list_eq_dec cont_eq_dec (lastn 1 (stack s1)) (lastn 1 (stack s2'))) as b; induction b; simpl in *; tryfalse; eauto.
       rewrite Hs2; eauto.
     }
     clear Hs2'; rename Hs2'_tmp into Hs2'.
@@ -748,7 +789,7 @@ Proof.
       { eapply star_step_n1.
         2: { eapply IHHs1s2. }
         { unpack.
-          remember (List.list_eq_dec eq_dec_cont (lastn 1 (stack s1)) (lastn 1 (stack z))) as cond; induction cond; simpl in *; inj.
+          remember (List.list_eq_dec cont_eq_dec (lastn 1 (stack s1)) (lastn 1 (stack z))) as cond; induction cond; simpl in *; inj.
           repeat split; eauto.
         }
       }

@@ -13,7 +13,7 @@ Inductive op :=
   | Eq
 .
 
-Theorem op_dec:
+Theorem op_eq_dec:
   forall o1 o2: op, {o1 = o2} + {o1 <> o2}.
 Proof.
   decide equality.
@@ -223,7 +223,7 @@ Theorem term_value_eq_dec:
     }
     { epose proof (IHx (inr v) _ v0); finish. }
     { epose proof (string_dec x x0); finish. }
-    { epose proof (op_dec op0 op1).
+    { epose proof (op_eq_dec op0 op1).
       epose proof (IHx (inl t1) _ y1).
       epose proof (IHx (inl t2) _ y2).
       finish.
