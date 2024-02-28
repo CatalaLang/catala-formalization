@@ -13,6 +13,13 @@ Inductive op :=
   | Eq
 .
 
+Theorem op_dec:
+  forall o1 o2: op, {o1 = o2} + {o1 <> o2}.
+Proof.
+  decide equality.
+Qed.
+
+
 Inductive term :=
   (* Lambda calculus part of the language*)
   | Var (x: var)
@@ -173,6 +180,117 @@ Definition value_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 
   proj2 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22).
 
 
+Theorem term_value_eq_dec:
+  forall x: term + value,
+    match x with
+    | inl x => (forall (y : term), {x = y}+{x <> y})
+    | inr x => (forall (y : value), {x = y}+{x <> y})
+    end.
+  Ltac finish := unzip; subst; try solve [left; eauto| right; repeat intro; tryfalse].
+  intros.
+  induction x as [x IHx] using (
+    well_founded_induction_type
+      (wf_inverse_image _ nat _ size_term_value 
+      PeanoNat.Nat.lt_wf_0)).
+  destruct x.
+  { destruct t, y; finish.
+    { epose proof (Nat.eq_dec x x0).
+      finish.
+    }
+    {
+      epose proof (IHx (inl t1) _ y1).
+      epose proof (IHx (inl t2) _ y2).
+      finish.
+    }
+    { simpl in *.
+      epose proof (IHx (inl t) _ t0); finish.
+    } 
+    { epose proof (IHx (inl t) _ y); finish. }
+    { epose proof (IHx (inl t) _ y); finish. }
+    { epose proof (IHx (inl t1) _ y1).
+      epose proof (IHx (inl t2) _ y2).
+      assert ({ts = ts0} + {ts <> ts0}).
+      { clear -IHx.
+        generalize dependent ts0; induction ts; destruct ts0; finish.
+        epose proof (IHx (inl a) _ t).
+        unshelve epose proof (IHts _ ts0).
+        { intros.
+          eapply IHx.
+          simpl in *; lia. }
+        finish.
+      }
+      finish.
+    }
+    { epose proof (IHx (inr v) _ v0); finish. }
+    { epose proof (string_dec x x0); finish. }
+    { epose proof (op_dec op0 op1).
+      epose proof (IHx (inl t1) _ y1).
+      epose proof (IHx (inl t2) _ y2).
+      finish.
+    }
+    { simpl in *.
+      epose proof (IHx (inl t1) _ y1).
+      epose proof (IHx (inl t2) _ y2).
+      epose proof (IHx (inl t3) _ t0).
+      finish.
+    }
+    { epose proof (IHx (inl t) _ y).
+      finish.
+    }
+    { epose proof (IHx (inl t1) _ y1).
+      epose proof (IHx (inl t2) _ y2).
+      assert ({ts = ts0} + {ts <> ts0}).
+      { clear -IHx.
+        generalize dependent ts0; induction ts; destruct ts0; finish.
+        epose proof (IHx (inl a) _ t).
+        unshelve epose proof (IHts _ ts0).
+        { intros.
+          eapply IHx.
+          simpl in *; lia. }
+        finish.
+      }
+      finish.
+    }
+    { epose proof (IHx (inl t1) _ y1).
+      epose proof (IHx (inl t2) _ y2).
+      epose proof (IHx (inl t3) _ y3).
+      finish.
+    }
+  }
+  { destruct v, y; finish.
+    { pose proof (Bool.bool_dec b b0); finish. }
+    { pose proof (Z.eq_dec i i0); finish. }
+    { epose proof (IHx (inl t) _ t0).
+      assert ({sigma = sigma0} + {sigma <> sigma0}).
+      { clear -IHx.
+        generalize dependent sigma0; induction sigma; destruct sigma0; finish.
+        epose proof (IHx (inr a) _ v).
+        unshelve epose proof (IHsigma _ sigma0).
+        { intros.
+          eapply IHx.
+          simpl in *; lia. }
+        finish.
+      }
+      finish.
+    }
+    { epose proof (IHx (inr v) _ y).
+      finish.
+    }
+    { epose proof (IHx (inr v) _ y).
+      finish.
+    }
+  }
+
+  Unshelve.
+  all: simpl; lia.
+Qed.
+
+Definition term_eq_dec: forall t1 t2: term, {t1 = t2} + {t1 <> t2} :=
+  fun t1 t2 => term_value_eq_dec (inl t1) t2.
+
+Definition value_eq_dec: forall v1 v2: value, {v1 = v2} + {v1 <> v2} :=
+  fun v1 v2 => term_value_eq_dec (inr v1) v2.
+
 Require Import Autosubst_FreeVars.
 #[export] Instance Ids_term : Ids term. derive. Defined.
 #[export] Instance Idslemmas_term : IdsLemmas term.
@@ -223,13 +341,6 @@ Definition get_op op i1 i2 :=
   | Add, Int i1, Int i2 => Some (Int (Z.add i1 i2))
   | Eq, Int i1, Int i2 => Some (Bool (Z.eqb i1 i2))
   | _, _, _ => None
-  end.
-
-Definition value_eqb (v1 v2 : value) : bool :=
-  match v1, v2 with
-  | Bool b1, Bool b2 => Bool.eqb b1 b2
-  | Int i1, Int i2 => Z.eqb i1 i2
-  | _, _ => false
   end.
 
 Require Import Autosubst_FreeVars.
