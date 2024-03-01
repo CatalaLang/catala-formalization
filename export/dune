@@ -1,0 +1,4 @@
+(coq.theory
+ (name CatalaExport)
+ (package coq-catala)
+ (theories Catala dpdgraph))
