@@ -33,7 +33,7 @@ Proof.
   lia.
 Qed.
 
-Lemma fuck_stdlib {A} (x: A) l :
+Lemma list_non_subterms {A} (x: A) l :
   x :: l <> l.
 Proof.
   induction l; intro; inj; contradiction.

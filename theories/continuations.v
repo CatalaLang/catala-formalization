@@ -665,7 +665,7 @@ Proof.
   {
     repeat rewrite lastn_def_firstn in *; simpl in *.
     inj.
-    exfalso; eapply fuck_stdlib; eauto.
+    exfalso; eapply list_non_subterms; eauto.
   }
 Qed.
 
