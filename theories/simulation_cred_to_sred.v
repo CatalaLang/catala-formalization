@@ -238,17 +238,6 @@ Fixpoint last (l: list cont) (env0: list value) : list value :=
     last l env0
   end.
 
-Lemma last_last:
-  forall l env0 env1,
-    last (l ++ [CReturn env0]) env1 = env0.
-Proof.
-  induction l.
-  { intros; reflexivity. }
-  { intros; simpl.
-    case a; intros; rewrite IHl; eauto.
-  }
-Qed.
-
 Lemma snd_apply_conts_last :
   forall kappa env0 t, (snd (apply_conts kappa (t, env0))) = (last kappa env0).
 Proof.

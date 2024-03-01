@@ -479,15 +479,6 @@ Definition append_stack s kappa2 :=
   end
 .
 
-Definition append_env s sigma2 :=
-  match s with
-  | mode_eval t kappa sigma1 =>
-    mode_eval t kappa (sigma1 ++ sigma2)
-  | mode_cont kappa sigma1 v =>
-    mode_cont kappa (sigma1 ++ sigma2) v
-  end
-.
-
 Lemma append_stack_all {s}:
   s = append_stack (with_stack s []) (stack s).
 Proof.
@@ -499,13 +490,6 @@ Lemma append_stack_app {s kappa1 kappa2}:
   s = append_stack (with_stack s kappa1) kappa2.
 Proof.
   induction s; intros; simpl in *; subst; reflexivity.
-Qed.
-
-
-Lemma append_stack_def s kappa:
-  append_stack s kappa = with_stack s (stack s ++ kappa).
-Proof.
-  induction s; simpl; eauto.
 Qed.
 
 
@@ -542,19 +526,6 @@ Proof.
   econstructor; try eapply cred_append_stack; try eapply star_cred_append_stack; eauto.
 Qed.
 
-Theorem append_stack_cont kappa1 kappa2 sigma r:
-  mode_cont (kappa1++kappa2) sigma r
-  = append_stack (mode_cont kappa1 sigma r) kappa2.
-Proof.
-  simpl; eauto.
-Qed.
-
-Theorem append_stack_eval t kappa1 kappa2 sigma:
-  mode_eval t (kappa1++kappa2) sigma
-  = append_stack (mode_eval t kappa1 sigma) kappa2.
-Proof.
-  simpl; eauto.
-Qed.
 
 (* PROPERTIES OF CRED *)
 

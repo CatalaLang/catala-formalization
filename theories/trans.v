@@ -277,13 +277,6 @@ Qed.
 
 Require Import continuations.
 
-Definition option_map {A B} (f: A -> B) (o: option A) :=
-  match o with
-  | None => None
-  | Some v => Some (f v)
-  end.
-
-
 (* Naively, we would think that translating cont would be simply. In ocaml, we would have a function
 
 map_cont: (term -> term) -> (value -> value) -> cont -> cont
@@ -356,20 +349,6 @@ Import List.ListNotations.
 
 
 Require Import sequences.
-
-Lemma append_stack_nil_eval:
-  forall {t kappa sigma},
-    mode_eval t kappa sigma = append_stack (mode_eval t [] sigma) kappa.
-Proof.
-  intros; simpl; eauto.
-Qed.
-
-Lemma append_stack_nil_cont:
-  forall {kappa sigma r},
-    mode_cont kappa sigma r = append_stack (mode_cont [] sigma r) kappa.
-Proof.
-  intros; simpl; eauto.
-Qed.
 
 Theorem correction_continuations:
   forall s1 s2,

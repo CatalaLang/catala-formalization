@@ -248,15 +248,6 @@ Proof.
 Qed.
 
 
-Lemma infseq_equiv_infseq':
-  forall R a, infseq R a <-> infseq' R a.
-Proof.
-  split; intros.
-  * admit. 
-  * admit.
-Abort.
-
-
 (** Properties of [irred]. *)
 
 Lemma irred_irred:
