@@ -5,6 +5,7 @@ depends: [
   "dune" {>= "3.8"}
   "coq-core"
   "coq-autosubst"
+  "coq-dpdgraph"
   "odoc" {with-doc}
 ]
 build: [

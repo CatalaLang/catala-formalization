@@ -9,4 +9,4 @@
 (package
  (name coq-catala)
  (synopsis "Catala in coq")
- (depends coq-core coq-autosubst))
+ (depends coq-core coq-autosubst coq-dpdgraph))
