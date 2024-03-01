@@ -26,13 +26,10 @@ faithfulness.
 
 ## File detailed description.
 
-The files `Autosubsts_EOS`, `AutosubstExtra` and `Autosubst_FreeVars` are taken from a previous developement by François Pottier [here](https://gitlab.inria.fr/fpottier/mpri-2.4-public/-/blob/master/coq/). The file is adapted from previous work by Xavier Leroy with additions by the authors of this artifact. 
+The file `sequences.v` is adapted from previous work by François Pottier itself taken on previous work by Xavier Leroy with additions by the authors of this artifact. 
 
 | File Name                   | Spec | Proof | Comments | Description |
 |-----------------------------|------|-------|----------|-------------|
-| Autosubst_EOS.v             | 86   | 118   | 78       | Handles end-of-scope operations for automatic substitution in verification. |
-| AutosubstExtra.v            | 74   | 83    | 35       | Provides additional functionalities for the Autosubst framework. |
-| Autosubst_FreeVars.v        | 94   | 129   | 69       | Manages free variable analysis within the Autosubst framework. |
 | common.v                    | 68   | 117   | 3        | Contains common definitions and utilities used across multiple modules. |
 | sequences.v                 | 238  | 223   | 19       | Defines operations and properties of sequences of reduction (`star`). |
 | tactics.v                   | 226  | 3     | 69       | Contains custom tactics for automated proof strategies in Coq. |

@@ -1,6 +1,5 @@
 Require Import syntax sequences.
 Import List.ListNotations.
-Require Import Autosubst_FreeVars.
 Open Scope list.
 
 Require Import tactics.

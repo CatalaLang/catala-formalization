@@ -1,5 +1,4 @@
 Require Export Autosubst.Autosubst.
-Require Export AutosubstExtra.
 Require Import String.
 Require Import Coq.ZArith.ZArith.
 Require Export Coq.Classes.RelationClasses.
@@ -291,13 +290,7 @@ Definition term_eq_dec: forall t1 t2: term, {t1 = t2} + {t1 <> t2} :=
 Definition value_eq_dec: forall v1 v2: value, {v1 = v2} + {v1 <> v2} :=
   fun v1 v2 => term_value_eq_dec (inr v1) v2.
 
-Require Import Autosubst_FreeVars.
 #[export] Instance Ids_term : Ids term. derive. Defined.
-#[export] Instance Idslemmas_term : IdsLemmas term.
-  econstructor.
-  unfold ids, Ids_term.
-  intros; inj; eauto.
-Defined.
 #[export] Instance Rename_term : Rename term. derive. Defined.
 #[export] Instance Subst_term : Subst term. derive. Defined.
 #[export] Instance SubstLemmas_term : SubstLemmas term. derive. Qed.
@@ -312,6 +305,7 @@ Lemma subst_cons:
 Proof.
   autosubst.
 Qed.
+
 
 Global Hint Rewrite subst_cons: autosubst.
 

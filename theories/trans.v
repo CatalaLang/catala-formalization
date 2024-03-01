@@ -116,15 +116,6 @@ Proof.
 Qed.
 
 
-Lemma trans_te_renaming_0:
-  forall t u,
-  trans t = u ->
-  trans (lift 1 t) = (lift 1 u).
-Proof.
-  intros.
-  eapply trans_te_renaming; eauto.
-Qed.
-
 
 Theorem trans_te_substitution_aux:
   forall t u,
@@ -137,7 +128,7 @@ Proof.
   { asimpl; intros; subst. asimpl. f_equal.
     eapply IHt; eauto.
     { intros. induction x; asimpl; eauto.
-      eapply trans_te_renaming_0.
+      eapply trans_te_renaming.
       eauto.
     }
   }
@@ -148,7 +139,7 @@ Proof.
   { intros; subst; asimpl; f_equal; eauto.
     eapply IHt3; eauto.
     { intros. induction x; asimpl; eauto.
-      eapply trans_te_renaming_0.
+      eapply trans_te_renaming.
       eauto.
     }
   }
