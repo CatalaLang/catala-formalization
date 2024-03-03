@@ -181,9 +181,6 @@ Proof.
 Qed.
 
 
-
-
-
 Lemma Forall2_map: forall sigma,
   List.Forall2 (fun v1 v2 : value => trans_value v1 = v2) sigma
     (List.map trans_value sigma).
@@ -383,5 +380,4 @@ Proof.
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
     eapply star_refl.
   }
-  Fail Next Obligation.
 Qed.
