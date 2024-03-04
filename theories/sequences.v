@@ -498,8 +498,18 @@ Proof.
 Qed.
 
 
-(* Smart constructors for forward simulation diagrams *)
+(* Smart constructors specialized for the forward simulation diagram in the form: *)
 
+Theorem forward_simulation { Q R1 R2 }:
+  forall x y a,
+    R1 x y ->
+    Q x a ->
+    exists b,
+      Q y b /\ star R2 a b.
+Abort.
+
+
+(** Close the simulation by showing [P a] holds. *)
 Lemma star_refl_prop {P R a}:
   P a ->
   (exists b, P b /\ star R a b).
@@ -508,6 +518,7 @@ Proof.
   eapply star_refl; eauto.
 Qed.
 
+(** Step the simulation. *)
 Lemma star_step_prop {R P a b}:
   R a b ->
   (exists c, P c /\ star R b c) ->
@@ -517,6 +528,7 @@ Proof.
   eapply star_step; eauto.
 Qed.
 
+(** Apply many steps in the simulation. *)
 Lemma star_trans_prop { R P a b}:
   star R a b ->
   (exists c, P c /\ star R b c) ->
@@ -526,6 +538,7 @@ Proof.
   eapply star_trans; eauto.
 Qed.
 
+(** Apply at least one step *)
 Lemma plus_star_trans_prop { R P a b }:
   plus R a b ->
   (exists c, P c /\ star R b c) ->
@@ -535,6 +548,7 @@ Proof.
   eapply plus_star_trans; eauto.
 Qed.
 
+(** Apply many steps *)
 Lemma star_plus_trans_prop { R P a b }:
   star R a b ->
   (exists c, P c /\ plus R b c) ->
@@ -544,6 +558,7 @@ Proof.
   eapply star_plus_trans; eauto.
 Qed.
 
+(* Apply one step*)
 Lemma plus_step_prop {R P a b}:
   R a b ->
   (exists c, P c /\ star R b c) ->

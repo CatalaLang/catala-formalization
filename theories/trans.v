@@ -261,22 +261,16 @@ Qed.
 (** Translation correctness using continuations. *)
 
 
-(* To prove the translation correctness using continuations, we first need to extend the trans statement to states. This require to expand the definition to `cont`, `state`, `return` as welle as `environements`. *)
+(* To prove the translation correctness using continuations, we first need to extend the trans statement to states. This require to expand the definition to `cont`, `state`, `return` as well to `environements`. *)
 
 Require Import continuations.
 
-(* Naively, we would think that translating cont would be simply. In ocaml, we would have a function
-
-map_cont: (term -> term) -> (value -> value) -> cont -> cont
-
-Then, [trans_cont] would be simply be [map_cont trans_term trans_value] and [trans_conts] would be simply [List.map trans_cont].
-
-This is mostly the case, except for the default related continuations.
-*)
-
-(* Hypothesis magic: forall {A: Type}, A. *)
 
 Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
+  (* This is the main function that translate continuations. For most continuation, it does not change anything, it is basically an `map` function.
+
+  This is expected since the translation only modify Default terms. 
+  *)
   match kappa with
   | nil => nil
   | CAppR t2 :: kappa => CAppR (trans t2) :: trans_conts kappa sigma
@@ -290,7 +284,11 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
   | CIf t1 t2 :: kappa => CIf (trans t1) (trans t2) :: trans_conts kappa sigma
   | CErrorOnEmpty :: kappa => CMatch Conflict (Var 0) :: trans_conts kappa sigma
   | CDefaultPure :: kappa => CSome :: trans_conts kappa sigma
+  | CFold f ts :: kappa =>
+    CFold (trans f) (List.map trans ts) :: trans_conts kappa sigma
+
   | CDefault b None ts tj tc :: kappa =>
+    (* This term can be derived from the trans fonction by taking the (mode_eval (trans (Default (t::ts) tj tc)) [] sigma) term and executing it. *)
     (CClosure
       (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
       (sigma))::
@@ -300,8 +298,10 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
       (List.map trans ts))::
     (CMatch
       (If (trans tj) (trans tc) ENone)
-      (ESome (Var 0))) :: trans_conts kappa sigma
+      (ESome (Var 0))) ::
+      trans_conts kappa sigma
   | CDefault b (Some v) ts tj tc :: kappa =>
+    (* This term can be derived from the trans fonction by taking the (mode_eval (trans (Default (Value (VPure v)::t::ts) tj tc)) [] []) term and executing it. *)
     (CClosure
       (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
       (sigma))::
@@ -311,10 +311,25 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
       (List.map trans ts))::
     (CMatch
       (If (trans tj) (trans tc) ENone)
-      (ESome (Var 0))) :: trans_conts kappa sigma
-  | CFold f ts :: kappa =>
-    CFold (trans f) (List.map trans ts) :: trans_conts kappa sigma
+      (ESome (Var 0))) ::
+      trans_conts kappa sigma
   end.
+
+(* Executing (mode_eval (trans (Default (t::ts) tj tc)) [] sigma) *)
+Goal forall t ts tj tc sigma, exists s, star cred
+  (mode_eval (trans (Default (t::ts) tj tc)) nil sigma) s.
+Proof.
+  intros; eexists; simpl.
+  repeat (eapply star_step; [econstructor|]).
+Abort.
+
+(* Executing (mode_eval (trans (Default (Value v :: t::ts) tj tc)) [] sigma) *)
+Goal forall v t ts tj tc sigma, exists s, star cred
+  (mode_eval (trans (Default (Value (VPure v)::t::ts) tj tc)) nil sigma) s.
+Proof.
+  intros; eexists; simpl.
+  repeat (eapply star_step; [econstructor; simpl; eauto|]).
+Abort.
 
 Definition trans_return (r: result): result:=
   match r with
@@ -334,8 +349,6 @@ Definition trans_state (s: state) : state :=
 
 
 Import List.ListNotations.
-
-
 Require Import sequences.
 
 Theorem correction_continuations:
@@ -349,34 +362,36 @@ Theorem correction_continuations:
 Proof.
 
   Local Ltac step' := (
-    try (eapply step_left; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|]);
-    try (eapply step_right; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|])
+    (* This tatic try to advance the computation on the right or on the left of the diagram. *)
+    try (eapply step_left; [solve
+      (* generic case *)
+      [ econstructor; simpl; eauto using List.map_nth_error
+      (* for contextual error cases *)
+      | econstructor; repeat intro; tryfalse
+    ]|])
+    ; try (eapply step_right; [solve
+      [ econstructor; simpl; eauto using List.map_nth_error
+      | econstructor; repeat intro; tryfalse
+    ]|])
   ).
 
-  intros s1 s2.
-  intros Hsred.
-  induction Hsred; intros.
-  all: repeat multimatch goal with
-  | _ => sinv_jt
-  | [h1: forall _ _ _, jt_state _ _ ?u _ -> _, h2: jt_state _ _ ?u _ |- _] =>
-    learn (h1 _ _ _ h2);
-    clear h1
-  | [h: exists var, _ |- _] =>
-    let var := fresh var in
-    destruct h as (var & ?)
-  | [h: _ /\ _ |- _] =>
-    destruct h
-  end.
+  intros s1 s2 Hsred.
+  induction Hsred;
+    try induction phi;
+    try induction o;
+    intros; unpack.
 
-  all: try induction phi; try induction o.
   all:
-    try solve [simpl; repeat step'; tryfalse; try eapply diagram_finish; eauto].
-  {
-    eexists; split; asimpl; [|eapply star_refl].
-    eapply star_one; simpl; econstructor. eauto using List.map_nth_error.
-  }
+    try solve [
+      repeat step';
+      try eapply diagram_finish;
+      eauto
+    ].
+  
+  (* Only two cases are left. *)
   { exfalso; eapply H; eauto. }
-  { eexists; split; asimpl; [|eapply star_refl].
+  { (* requires operator translation correction *)
+    eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
     eapply star_refl.
   }
