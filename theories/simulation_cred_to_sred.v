@@ -40,6 +40,38 @@ Definition apply_CDefault o ts tj tc t sigma : term :=
 
 (* This permits to simplify apply defaults using the EmptyOrNotEmpty lemma in an automatic fashon *)
 
+Lemma apply_CDefault_NT: forall {t ts tj tc sigma},
+  t <> Empty ->
+  apply_CDefault None ts tj tc t sigma =
+    Default (t::(ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+Proof.
+induction t; intros; tryfalse; eauto.
+Qed.
+
+Lemma apply_CDefault_ST: forall {v t ts tj tc sigma},
+  t <> Empty ->
+  apply_CDefault (Some v) ts tj tc t sigma =
+    Default ((Value (VPure v)).[subst_of_env sigma]::t::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma]
+.
+Proof.
+induction t; intros; tryfalse; injections; subst; eauto.
+Qed.
+
+Lemma apply_CDefault_NE: forall {t ts tj tc sigma},
+  t = Empty ->
+  apply_CDefault None ts tj tc t sigma =
+    Default ((ts)..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+Proof.
+induction t; intros; tryfalse; eauto.
+Qed.
+
+Lemma apply_CDefault_SE: forall {v t ts tj tc sigma},
+  t = Empty ->
+  apply_CDefault (Some v) ts tj tc t sigma =
+    Default ((Value (VPure v)).[subst_of_env sigma]::ts..[subst_of_env sigma]) tj.[subst_of_env sigma] tc.[subst_of_env sigma].
+Proof.
+induction t; intros; tryfalse; injections; subst; eauto.
+Qed.
 
 Definition apply_cont
   (param1: term * list value)
@@ -151,6 +183,37 @@ Proof.
   reflexivity.
 Qed.
 
+Ltac dsimpl :=
+  repeat match goal with
+  | [h: ?t = Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_SE h)
+  | [h: ?t = Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_NE h)
+  | [h: ?t <> Empty |- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_ST h)
+  | [h: ?t <> Empty |- context [apply_CDefault None _ _ _ ?t _]] =>
+    rewrite (apply_CDefault_NT h)
+  | [h1: ?t = Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_SE h1) in h2
+  | [h1: ?t = Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_NE h1) in h2
+  | [h1: ?t <> Empty, h2: context [apply_CDefault (Some _) _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_ST h1) in h2
+  | [h1: ?t <> Empty, h2: context [apply_CDefault None _ _ _ ?t _] |- _] =>
+    rewrite (apply_CDefault_NT h1) in h2
+
+  | [h: ?t <> Empty |- context [?t.[subst_of_env ?sigma]]] =>
+    learn (NEmpty_subst_of_env_NEmpty sigma h)
+  | [h: _ /\ _ |- _] =>
+    destruct h
+  | [h: exists _, _ |- _] =>
+    destruct h
+
+  | _ => learn (Empty_eq_Empty) (* so the first two cases trigger*)
+  | _ => progress subst
+  | _ => progress simpl
+  end.
+
 (* -------------------------------------------------------------------------- *)
 
 
@@ -233,7 +296,7 @@ Proof.
     all: repeat rewrite snd_apply_conts_last_env.
 
     all: try solve [eauto with sred].
-    { (* Default case *)
+    { (* Default case*)
       induction o; unfold apply_CDefault.
       all:
       repeat match goal with
