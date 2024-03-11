@@ -640,10 +640,10 @@ Proof.
   inversion H.
 Qed.
 
+
 Lemma cred_stack_sub:
-  forall a b k,
+  forall a b,
     cred a b ->
-    lastn 1 (stack a) = [k] ->
     lastn 1 (stack a) = lastn 1 (stack b) ->
     cred
       (with_stack a (droplastn 1 (stack a)))
