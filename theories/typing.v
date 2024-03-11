@@ -180,6 +180,14 @@ Inductive jt_term:
       jt_term Delta (U :: Gamma) t2 T ->
       inv_root T ->
       jt_term Delta Gamma (Match_ u t1 t2) T
+  | JTEFold:
+    forall Delta Gamma A B f ts init,
+      inv_no_default A ->
+      inv_no_default B ->
+      jt_term Delta Gamma f (TFun A (TFun B B)) ->
+      List.Forall (fun ti => jt_term Delta Gamma ti A) ts ->
+      jt_term Delta Gamma init B ->
+      jt_term Delta Gamma (Fold f ts init) B
   | JTESome:
     forall Delta Gamma t T,
       jt_term Delta Gamma t T ->
@@ -292,6 +300,13 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       jt_term Delta Gamma t1 T ->
       jt_term Delta (U::Gamma) t2 T ->
       jt_cont Delta Gamma Gamma (CMatch t1 t2) (TOption U) T
+  | JTCFold:
+    forall Delta Gamma f ts A B,
+      inv_no_default A ->
+      inv_no_default B ->
+      jt_term Delta Gamma f (TFun A (TFun B B)) ->
+      List.Forall (fun ti => jt_term Delta Gamma ti A) ts ->
+      jt_cont Delta Gamma Gamma (CFold f ts) B B
   | JTCSome:
     forall Delta Gamma T,
       inv_no_default T ->
@@ -475,6 +490,38 @@ Proof.
     { now pose proof H sigma0. }
   }
   { repeat (econstructor; eauto). }
+  { do 2 (econstructor; eauto); econstructor.
+    { eapply H2. }
+    all: repeat econstructor; eauto.
+  }
+  { do 2 (econstructor; eauto); econstructor.
+    { eapply H2. }
+    all: repeat econstructor; eauto.
+  }
+  { econstructor; eauto.
+    { econstructor.
+      econstructor.
+      eauto.
+      all: repeat econstructor; eauto.
+    }
+    { econstructor; eauto.
+      econstructor.
+      { eapply H1. }
+      all: repeat econstructor; eauto.
+    }
+  }
+  { econstructor; eauto.
+    { econstructor.
+      econstructor.
+      eauto.
+      all: repeat econstructor; eauto.
+    }
+    { econstructor; eauto.
+      econstructor.
+      { eapply H1. }
+      all: repeat econstructor; eauto.
+    }
+  }
 Qed.
 
 
