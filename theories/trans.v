@@ -17,24 +17,24 @@ Definition process_exceptions :=
         )
       ))).
 
+
+Fixpoint trans_ty (ty: type): type :=
+  match ty with
+  | TBool => TBool
+  | TInteger => TInteger
+  | TFun T1 T2 => TFun (trans_ty T1) (trans_ty T2)
+  | TOption T => TOption (trans_ty T)
+  | TUnit => TUnit
+  | TDefault T => TOption (trans_ty T)
+  end
+.
+
 Fixpoint trans (t: term) : term :=
   match t with
   | Var x => Var x
   | FreeVar x => FreeVar x
   | App t1 t2 => App (trans t1) (trans t2)
   | Lam t => Lam (trans t)
-
-  | ErrorOnEmpty t => Match_ (trans t) Conflict (Var 0)
-  | DefaultPure t => ESome (trans t)
-  | Default ts tj tc =>
-    Match_
-      (Fold 
-        process_exceptions
-        (List.map trans ts) ENone)
-      (If (trans tj) (trans tc) ENone)
-      (ESome (Var 0))
-  | Empty => ENone
-  | Conflict => Conflict
 
   | Value v => Value (trans_value v)
   | Binop op t1 t2 => Binop op (trans t1) (trans t2)
@@ -48,6 +48,18 @@ Fixpoint trans (t: term) : term :=
     If (trans t) (trans ta) (trans tb)
   | Fold f ts acc =>
     Fold (trans f) (List.map trans ts) (trans acc)
+
+  | ErrorOnEmpty t => Match_ (trans t) Conflict (Var 0)
+  | DefaultPure t => ESome (trans t)
+  | Default ts tj tc =>
+    Match_
+      (Fold 
+        process_exceptions
+        (List.map trans ts) ENone)
+      (If (trans tj) (trans tc) ENone)
+      (ESome (Var 0))
+  | Empty => ENone
+  | Conflict => Conflict
   end
 
 with trans_value v :=
@@ -62,6 +74,68 @@ with trans_value v :=
   end
 .
 
+Lemma trans_ty_inv_no_default:
+  forall T, inv_no_default (trans_ty T).
+induction T; simpl; econstructor; eauto.
+Qed.
+
+Lemma inv_no_default_inv_root {T}:
+  inv_no_default T -> inv_root T.
+Proof.
+  intros.
+  repeat econstructor; eauto.
+Qed.
+
+Lemma trans_ty_correct:
+  forall t Delta Gamma T,
+    jt_term Delta Gamma t T ->
+    jt_term Delta (List.map trans_ty Gamma) (trans t) (trans_ty T)
+with trans_value_ty_correct:
+  forall v Delta T,
+    jt_value Delta v T ->
+    jt_value Delta (trans_value v) (trans_ty T)
+.
+Proof.
+  {
+    induction 1.
+    4:{ (* Default case *)
+      simpl in *; repeat econs_jt; try reflexivity.
+      all: repeat econstructor; repeat eapply trans_ty_inv_no_default.
+      { induction H; simpl; econstructor; eauto.
+        replace (TOption (trans_ty T)) with (trans_ty (TDefault T)) by eauto.
+        eapply trans_ty_correct; eauto.
+      }
+      { eauto. }
+      { eauto. }
+    }
+    9:{ (* Fold case *)
+      (* This is only penible for the same reason as in the typing preservation lemma: fold introduce an extential variable (the type of the list being modified) and coq fails to instanciate correctly this variable. This might be fiex by modifiying the order of the constructor in the inductive *)
+      simpl.
+      repeat econs_jt.
+      eapply trans_ty_inv_no_default.
+      eapply trans_ty_inv_no_default.
+      simpl in *.
+      eapply IHjt_term1.
+      induction H2; simpl; econstructor; eauto.
+      eapply IHjt_term2.
+    }
+    all: simpl; repeat econstructor; try eapply trans_ty_inv_no_default; eauto.
+    { symmetry. erewrite List.map_nth_error; eauto. }
+    { induction op; simpl in *; inj; simpl; eauto. }
+  }
+  { induction 1; try solve [simpl; repeat econstructor; eauto using trans_ty_inv_no_default].
+    { simpl trans_value; simpl trans_ty.
+      assert (List.Forall2 (jt_value Delta) (List.map trans_value sigma_cl) (List.map trans_ty Gamma_cl)).
+      { clear -H trans_value_ty_correct. induction H; simpl; econstructor; eauto. }
+      econstructor.
+      eapply H1.
+      replace (Lam (trans tcl)) with (trans (Lam tcl)) by eauto.
+      replace (TFun (trans_ty T1) (trans_ty T2)) with (trans_ty (TFun T1 T2)) by eauto.
+      eapply trans_ty_correct.
+      eauto.
+    }
+  }
+Qed.
 
 Theorem term_ind' : forall P : term -> Prop,
   (forall x : var, P (Var x)) ->
