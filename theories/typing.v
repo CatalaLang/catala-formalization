@@ -127,7 +127,7 @@ Inductive jt_term:
   | JTVar:
     forall Delta Gamma x T,
       Some T = List.nth_error Gamma x ->
-
+      inv_root T ->
       jt_term Delta Gamma (Var x) T
   (* | JTFreeVar:
     forall Delta Gamma x T,
@@ -137,83 +137,83 @@ Inductive jt_term:
     forall Delta Gamma t1 t2 T1 T2,
       jt_term Delta Gamma t1 (TFun T1 T2) ->
       jt_term Delta Gamma t2 T1 ->
-      
+      inv_root T2 ->
       jt_term Delta Gamma (App t1 t2) T2
   | JTLam:
     forall Delta Gamma t T1 T2,
       jt_term Delta (T1::Gamma) t T2 ->
-      
+      inv_root (TFun T1 T2) ->
       jt_term Delta Gamma (Lam t) (TFun T1 T2)
   | JTDefault:
     forall Delta Gamma ts tj tc T,
       List.Forall (fun ti => jt_term Delta Gamma ti (TDefault T)) ts ->
       jt_term Delta Gamma tj TBool ->
       jt_term Delta Gamma tc (TDefault T) ->
-      
+      inv_root (TDefault T) ->
       jt_term Delta Gamma (Default ts tj tc) (TDefault T)
   | JTDefaultPure:
     forall Delta Gamma t T,
       jt_term Delta Gamma t T ->
-      
+      inv_root (TDefault T) ->
       jt_term Delta Gamma (DefaultPure t) (TDefault T)
   | JTErrorOnEmpty:
     forall Delta Gamma t T,
       jt_term Delta Gamma t (TDefault T) ->
-      
+      inv_root T ->
       jt_term Delta Gamma (ErrorOnEmpty t) T
   | JTBinop:
     forall Delta Gamma t1 t2 op T1 T2 T3,
       (T1, T2, T3) = jt_op op ->
       jt_term Delta Gamma t1 T1 ->
       jt_term Delta Gamma t2 T2 ->
-      
+      inv_root T3 ->
       jt_term Delta Gamma (Binop op t1 t2) T3
   | JTValue:
     forall Delta Gamma v T,
       jt_value Delta v T ->
-      
+      inv_root T ->
       jt_term Delta Gamma (Value v) T
   | JTMatch:
     forall Delta Gamma u U t1 t2 T,
       jt_term Delta Gamma u (TOption U) ->
       jt_term Delta Gamma t1 T ->
       jt_term Delta (U :: Gamma) t2 T ->
-      
+      inv_root T ->
       jt_term Delta Gamma (Match_ u t1 t2) T
   | JTEFold:
     forall Delta Gamma A B f ts init,
       jt_term Delta Gamma f (TFun A (TFun B B)) ->
-      
-      
+      inv_no_default A ->
+      inv_no_default B ->
       List.Forall (fun ti => jt_term Delta Gamma ti A) ts ->
       jt_term Delta Gamma init B ->
       jt_term Delta Gamma (Fold f ts init) B
   | JTESome:
     forall Delta Gamma t T,
       jt_term Delta Gamma t T ->
-      
-      
+      inv_no_default T ->
+      inv_root (TOption T) ->
       jt_term Delta Gamma (ESome t) (TOption T)
   | JTENone:
     forall Delta Gamma T,
-      
-      
+      inv_no_default T ->
+      inv_root (TOption T) ->
       jt_term Delta Gamma ENone (TOption T)
   | JTEEmpty:
     forall Delta Gamma T,
-      
-      
+      inv_no_default T ->
+      inv_root (TDefault T) ->
       jt_term Delta Gamma Empty (TDefault T)
   | JTEConflict:
     forall Delta Gamma T,
-      
+      inv_root T ->
       jt_term Delta Gamma Conflict T
   | JTEIf:
     forall Delta Gamma u ta tb T,
       jt_term Delta Gamma u TBool ->
       jt_term Delta Gamma ta T ->
       jt_term Delta Gamma tb T ->
-      
+      inv_root T ->
       jt_term Delta Gamma (If u ta tb) T
 with jt_value:
   (string -> option type) -> value -> type -> Prop :=
@@ -290,7 +290,7 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       jt_cont Delta Gamma Gamma (CDefaultBase tc) TBool (TDefault T)
   | JTCDefaultPure:
     forall Delta Gamma T,
-      
+      inv_no_default T ->
       jt_cont Delta Gamma Gamma (CDefaultPure) T (TDefault T)
   | JTCErrorOnEmpty:
     forall Delta Gamma T,
@@ -303,13 +303,13 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
   | JTCFold:
     forall Delta Gamma f ts A B,
       jt_term Delta Gamma f (TFun A (TFun B B)) ->
-      
-      
+      inv_no_default A ->
+      inv_no_default B ->
       List.Forall (fun ti => jt_term Delta Gamma ti A) ts ->
       jt_cont Delta Gamma Gamma (CFold f ts) B B
   | JTCSome:
     forall Delta Gamma T,
-      
+      inv_no_default T ->
       jt_cont Delta Gamma Gamma CSome T (TOption T)
   | JTCIf:
     forall Delta Gamma T ta tb,
@@ -326,6 +326,7 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
 Inductive jt_conts: (string -> option type) -> list type -> list type -> list cont -> type -> type -> Prop :=
   | JTNil:
     forall Delta Gamma T,
+      inv_root T ->
       jt_conts Delta Gamma Gamma nil T T
   | JTCons:
     forall Delta Gamma1 Gamma2 Gamma3 cont kappa T1 T2 T3,
@@ -483,7 +484,7 @@ Proof.
     induction v1; induction v2; induction op; simpl in *; inj; tryfalse;
   eauto; repeat econstructor; eauto].
   { repeat econstructor; eauto. eapply common.Forall2_nth_error_Some; eauto. }
-  
+  { repeat (econstructor; eauto). }
   { (* Returning an Conflict *)
     induction phi; try solve [repeat sinv_jt; repeat econstructor; eauto].
     { now pose proof H sigma0. }
@@ -529,8 +530,8 @@ Proof.
     induction t.
     all: repeat sinv_jt.
     all: try solve [eexists; econstructor].
-    { symmetry in H2.
-      destruct (common.Forall2_nth_error_Some_right _ _ _ H5 _ _ H2).
+    { symmetry in H0.
+      destruct (common.Forall2_nth_error_Some_right _ _ _ H5 _ _ H0).
       eexists; econstructor; eauto.
     }
   }
@@ -552,7 +553,6 @@ Proof.
       all: try solve [idtac
         |eexists; econstructor; repeat intro; inj
         |eexists; econstructor; simpl; eauto].
-      (* These correspond to missing rules in the semantic. Adding them directly would modify the original semantic presented in \cite{catala}. *)
     }
   }
 Qed.
