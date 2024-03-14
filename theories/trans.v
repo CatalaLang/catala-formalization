@@ -86,6 +86,16 @@ Proof.
   repeat econstructor; eauto.
 Qed.
 
+Lemma trans_ty_inv_base {T}:
+  inv_base (trans_ty T)
+with trans_ty_inv_no_immediate_default {T}:
+  inv_no_immediate_default (trans_ty T).
+Proof.
+  all: induction T; simpl; econstructor; eauto.
+Qed.
+
+
+
 Lemma trans_ty_correct:
   forall t Delta Gamma T,
     jt_term Delta Gamma t T ->
@@ -100,25 +110,21 @@ Proof.
     induction 1.
     4:{ (* Default case *)
       simpl in *; repeat econs_jt; try reflexivity.
-      all: repeat econstructor; repeat eapply trans_ty_inv_no_default.
+      all: repeat econstructor; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
       { induction H; simpl; econstructor; eauto.
         replace (TOption (trans_ty T)) with (trans_ty (TDefault T)) by eauto.
         eapply trans_ty_correct; eauto.
       }
-      { eauto. }
-      { eauto. }
     }
     9:{ (* Fold case *)
       (* This is only penible for the same reason as in the typing preservation lemma: fold introduce an extential variable (the type of the list being modified) and coq fails to instanciate correctly this variable. This might be fiex by modifiying the order of the constructor in the inductive *)
       simpl.
-      repeat econs_jt.
-      { eapply IHjt_term1. }
-      { eapply trans_ty_inv_no_default. } 
-      { eapply trans_ty_inv_no_default. } 
-      { induction H2; simpl; econstructor; eauto. }
-      { eapply IHjt_term2. }
+      repeat econs_jt; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+      { simpl in *.
+        induction H2; simpl; econstructor; eauto.
+      }
     }
-    all: simpl; repeat econstructor; try eapply trans_ty_inv_no_default; eauto.
+    all: simpl; repeat econstructor; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
     { symmetry. erewrite List.map_nth_error; eauto. }
     { induction op; simpl in *; inj; simpl; eauto. }
   }
@@ -465,7 +471,10 @@ Proof.
   { exfalso; eapply H; eauto. }
   { (* requires operator translation correction *)
     eexists; split; asimpl; [|eapply star_refl].
-    eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
+    eapply star_step.
+    { econstructor.
+      eapply trans_value_op_correct; eauto.
+    }
     eapply star_refl.
   }
 Qed.
