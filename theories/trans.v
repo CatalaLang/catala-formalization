@@ -17,24 +17,24 @@ Definition process_exceptions :=
         )
       ))).
 
+
+Fixpoint trans_ty (ty: type): type :=
+  match ty with
+  | TBool => TBool
+  | TInteger => TInteger
+  | TFun T1 T2 => TFun (trans_ty T1) (trans_ty T2)
+  | TOption T => TOption (trans_ty T)
+  | TUnit => TUnit
+  | TDefault T => TOption (trans_ty T)
+  end
+.
+
 Fixpoint trans (t: term) : term :=
   match t with
   | Var x => Var x
   | FreeVar x => FreeVar x
   | App t1 t2 => App (trans t1) (trans t2)
   | Lam t => Lam (trans t)
-
-  | ErrorOnEmpty t => Match_ (trans t) Conflict (Var 0)
-  | DefaultPure t => ESome (trans t)
-  | Default ts tj tc =>
-    Match_
-      (Fold 
-        process_exceptions
-        (List.map trans ts) ENone)
-      (If (trans tj) (trans tc) ENone)
-      (ESome (Var 0))
-  | Empty => ENone
-  | Conflict => Conflict
 
   | Value v => Value (trans_value v)
   | Binop op t1 t2 => Binop op (trans t1) (trans t2)
@@ -48,6 +48,18 @@ Fixpoint trans (t: term) : term :=
     If (trans t) (trans ta) (trans tb)
   | Fold f ts acc =>
     Fold (trans f) (List.map trans ts) (trans acc)
+
+  | ErrorOnEmpty t => Match_ (trans t) Conflict (Var 0)
+  | DefaultPure t => ESome (trans t)
+  | Default ts tj tc =>
+    Match_
+      (Fold 
+        process_exceptions
+        (List.map trans ts) ENone)
+      (If (trans tj) (trans tc) ENone)
+      (ESome (Var 0))
+  | Empty => ENone
+  | Conflict => Conflict
   end
 
 with trans_value v :=
@@ -62,6 +74,67 @@ with trans_value v :=
   end
 .
 
+Lemma trans_ty_inv_no_default:
+  forall T, inv_no_default (trans_ty T).
+induction T; simpl; econstructor; eauto.
+Qed.
+
+Lemma inv_no_default_inv_root {T}:
+  inv_no_default T -> inv_root T.
+Proof.
+  intros.
+  repeat econstructor; eauto.
+Qed.
+
+Lemma trans_ty_correct:
+  forall t Delta Gamma T,
+    jt_term Delta Gamma t T ->
+    jt_term Delta (List.map trans_ty Gamma) (trans t) (trans_ty T)
+with trans_value_ty_correct:
+  forall v Delta T,
+    jt_value Delta v T ->
+    jt_value Delta (trans_value v) (trans_ty T)
+.
+Proof.
+  {
+    induction 1.
+    4:{ (* Default case *)
+      simpl in *; repeat econs_jt; try reflexivity.
+      all: repeat econstructor; repeat eapply trans_ty_inv_no_default.
+      { induction H; simpl; econstructor; eauto.
+        replace (TOption (trans_ty T)) with (trans_ty (TDefault T)) by eauto.
+        eapply trans_ty_correct; eauto.
+      }
+      { eauto. }
+      { eauto. }
+    }
+    9:{ (* Fold case *)
+      (* This is only penible for the same reason as in the typing preservation lemma: fold introduce an extential variable (the type of the list being modified) and coq fails to instanciate correctly this variable. This might be fiex by modifiying the order of the constructor in the inductive *)
+      simpl.
+      repeat econs_jt.
+      { eapply IHjt_term1. }
+      { eapply trans_ty_inv_no_default. } 
+      { eapply trans_ty_inv_no_default. } 
+      { induction H2; simpl; econstructor; eauto. }
+      { eapply IHjt_term2. }
+    }
+    all: simpl; repeat econstructor; try eapply trans_ty_inv_no_default; eauto.
+    { symmetry. erewrite List.map_nth_error; eauto. }
+    { induction op; simpl in *; inj; simpl; eauto. }
+  }
+  { induction 1; try solve [simpl; repeat econstructor; eauto using trans_ty_inv_no_default].
+    { simpl trans_value; simpl trans_ty.
+      assert (List.Forall2 (jt_value Delta) (List.map trans_value sigma_cl) (List.map trans_ty Gamma_cl)).
+      { clear -H trans_value_ty_correct. induction H; simpl; econstructor; eauto. }
+      econstructor.
+      eapply H1.
+      replace (Lam (trans tcl)) with (trans (Lam tcl)) by eauto.
+      replace (TFun (trans_ty T1) (trans_ty T2)) with (trans_ty (TFun T1 T2)) by eauto.
+      eapply trans_ty_correct.
+      eauto.
+    }
+  }
+Qed.
 
 Theorem term_ind' : forall P : term -> Prop,
   (forall x : var, P (Var x)) ->
@@ -116,15 +189,6 @@ Proof.
 Qed.
 
 
-Lemma trans_te_renaming_0:
-  forall t u,
-  trans t = u ->
-  trans (lift 1 t) = (lift 1 u).
-Proof.
-  intros.
-  eapply trans_te_renaming; eauto.
-Qed.
-
 
 Theorem trans_te_substitution_aux:
   forall t u,
@@ -137,7 +201,7 @@ Proof.
   { asimpl; intros; subst. asimpl. f_equal.
     eapply IHt; eauto.
     { intros. induction x; asimpl; eauto.
-      eapply trans_te_renaming_0.
+      eapply trans_te_renaming.
       eauto.
     }
   }
@@ -148,7 +212,7 @@ Proof.
   { intros; subst; asimpl; f_equal; eauto.
     eapply IHt3; eauto.
     { intros. induction x; asimpl; eauto.
-      eapply trans_te_renaming_0.
+      eapply trans_te_renaming.
       eauto.
     }
   }
@@ -188,9 +252,6 @@ Proof.
     induction x; unfold subst_of_env; simpl; eauto; rewrite nth_error_nil; f_equal; lia.
   }
 Qed.
-
-
-
 
 
 Lemma Forall2_map: forall sigma,
@@ -273,29 +334,16 @@ Qed.
 (** Translation correctness using continuations. *)
 
 
-(* To prove the translation correctness using continuations, we first need to extend the trans statement to states. This require to expand the definition to `cont`, `state`, `return` as welle as `environements`. *)
+(* To prove the translation correctness using continuations, we first need to extend the trans statement to states. This require to expand the definition to `cont`, `state`, `return` as well to `environements`. *)
 
 Require Import continuations.
 
-Definition option_map {A B} (f: A -> B) (o: option A) :=
-  match o with
-  | None => None
-  | Some v => Some (f v)
-  end.
-
-
-(* Naively, we would think that translating cont would be simply. In ocaml, we would have a function
-
-map_cont: (term -> term) -> (value -> value) -> cont -> cont
-
-Then, [trans_cont] would be simply be [map_cont trans_term trans_value] and [trans_conts] would be simply [List.map trans_cont].
-
-This is mostly the case, except for the default related continuations.
-*)
-
-(* Hypothesis magic: forall {A: Type}, A. *)
 
 Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
+  (* This is the main function that translate continuations. For most continuation, it does not change anything, it is basically an `map` function.
+
+  This is expected since the translation only modify Default terms. 
+  *)
   match kappa with
   | nil => nil
   | CAppR t2 :: kappa => CAppR (trans t2) :: trans_conts kappa sigma
@@ -309,7 +357,11 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
   | CIf t1 t2 :: kappa => CIf (trans t1) (trans t2) :: trans_conts kappa sigma
   | CErrorOnEmpty :: kappa => CMatch Conflict (Var 0) :: trans_conts kappa sigma
   | CDefaultPure :: kappa => CSome :: trans_conts kappa sigma
+  | CFold f ts :: kappa =>
+    CFold (trans f) (List.map trans ts) :: trans_conts kappa sigma
+
   | CDefault b None ts tj tc :: kappa =>
+    (* This term can be derived from the trans fonction by taking the (mode_eval (trans (Default (t::ts) tj tc)) [] sigma) term and executing it. *)
     (CClosure
       (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
       (sigma))::
@@ -319,8 +371,10 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
       (List.map trans ts))::
     (CMatch
       (If (trans tj) (trans tc) ENone)
-      (ESome (Var 0))) :: trans_conts kappa sigma
+      (ESome (Var 0))) ::
+      trans_conts kappa sigma
   | CDefault b (Some v) ts tj tc :: kappa =>
+    (* This term can be derived from the trans fonction by taking the (mode_eval (trans (Default (Value (VPure v)::t::ts) tj tc)) [] []) term and executing it. *)
     (CClosure
       (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
       (sigma))::
@@ -330,10 +384,25 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
       (List.map trans ts))::
     (CMatch
       (If (trans tj) (trans tc) ENone)
-      (ESome (Var 0))) :: trans_conts kappa sigma
-  | CFold f ts :: kappa =>
-    CFold (trans f) (List.map trans ts) :: trans_conts kappa sigma
+      (ESome (Var 0))) ::
+      trans_conts kappa sigma
   end.
+
+(* Executing (mode_eval (trans (Default (t::ts) tj tc)) [] sigma) *)
+Goal forall t ts tj tc sigma, exists s, star cred
+  (mode_eval (trans (Default (t::ts) tj tc)) nil sigma) s.
+Proof.
+  intros; eexists; simpl.
+  repeat (eapply star_step; [econstructor|]).
+Abort.
+
+(* Executing (mode_eval (trans (Default (Value v :: t::ts) tj tc)) [] sigma) *)
+Goal forall v t ts tj tc sigma, exists s, star cred
+  (mode_eval (trans (Default (Value (VPure v)::t::ts) tj tc)) nil sigma) s.
+Proof.
+  intros; eexists; simpl.
+  repeat (eapply star_step; [econstructor; simpl; eauto|]).
+Abort.
 
 Definition trans_return (r: result): result:=
   match r with
@@ -353,23 +422,7 @@ Definition trans_state (s: state) : state :=
 
 
 Import List.ListNotations.
-
-
 Require Import sequences.
-
-Lemma append_stack_nil_eval:
-  forall {t kappa sigma},
-    mode_eval t kappa sigma = append_stack (mode_eval t [] sigma) kappa.
-Proof.
-  intros; simpl; eauto.
-Qed.
-
-Lemma append_stack_nil_cont:
-  forall {kappa sigma r},
-    mode_cont kappa sigma r = append_stack (mode_cont [] sigma r) kappa.
-Proof.
-  intros; simpl; eauto.
-Qed.
 
 Theorem correction_continuations:
   forall s1 s2,
@@ -382,36 +435,37 @@ Theorem correction_continuations:
 Proof.
 
   Local Ltac step' := (
-    try (eapply step_left; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|]);
-    try (eapply step_right; [solve [econstructor; simpl; eauto; repeat intro; tryfalse]|])
+    (* This tatic try to advance the computation on the right or on the left of the diagram. *)
+    try (eapply step_left; [solve
+      (* generic case *)
+      [ econstructor; simpl; eauto using List.map_nth_error
+      (* for contextual error cases *)
+      | econstructor; repeat intro; tryfalse
+    ]|])
+    ; try (eapply step_right; [solve
+      [ econstructor; simpl; eauto using List.map_nth_error
+      | econstructor; repeat intro; tryfalse
+    ]|])
   ).
 
-  intros s1 s2.
-  intros Hsred.
-  induction Hsred; intros.
-  all: repeat multimatch goal with
-  | _ => sinv_jt
-  | [h1: forall _ _ _, jt_state _ _ ?u _ -> _, h2: jt_state _ _ ?u _ |- _] =>
-    learn (h1 _ _ _ h2);
-    clear h1
-  | [h: exists var, _ |- _] =>
-    let var := fresh var in
-    destruct h as (var & ?)
-  | [h: _ /\ _ |- _] =>
-    destruct h
-  end.
+  intros s1 s2 Hsred.
+  induction Hsred;
+    try induction phi;
+    try induction o;
+    intros; unpack.
 
-  all: try induction phi; try induction o.
   all:
-    try solve [simpl; repeat step'; tryfalse; try eapply diagram_finish; eauto].
-  {
-    eexists; split; asimpl; [|eapply star_refl].
-    eapply star_one; simpl; econstructor. eauto using List.map_nth_error.
-  }
+    try solve [
+      repeat step';
+      try eapply diagram_finish;
+      eauto
+    ].
+  
+  (* Only two cases are left. *)
   { exfalso; eapply H; eauto. }
-  { eexists; split; asimpl; [|eapply star_refl].
+  { (* requires operator translation correction *)
+    eexists; split; asimpl; [|eapply star_refl].
     eapply star_step; [econstructor|]. { eapply trans_value_op_correct; eauto. }
     eapply star_refl.
   }
-  Fail Next Obligation.
 Qed.

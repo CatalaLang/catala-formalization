@@ -479,15 +479,6 @@ Definition append_stack s kappa2 :=
   end
 .
 
-Definition append_env s sigma2 :=
-  match s with
-  | mode_eval t kappa sigma1 =>
-    mode_eval t kappa (sigma1 ++ sigma2)
-  | mode_cont kappa sigma1 v =>
-    mode_cont kappa (sigma1 ++ sigma2) v
-  end
-.
-
 Lemma append_stack_all {s}:
   s = append_stack (with_stack s []) (stack s).
 Proof.
@@ -499,13 +490,6 @@ Lemma append_stack_app {s kappa1 kappa2}:
   s = append_stack (with_stack s kappa1) kappa2.
 Proof.
   induction s; intros; simpl in *; subst; reflexivity.
-Qed.
-
-
-Lemma append_stack_def s kappa:
-  append_stack s kappa = with_stack s (stack s ++ kappa).
-Proof.
-  induction s; simpl; eauto.
 Qed.
 
 
@@ -542,19 +526,6 @@ Proof.
   econstructor; try eapply cred_append_stack; try eapply star_cred_append_stack; eauto.
 Qed.
 
-Theorem append_stack_cont kappa1 kappa2 sigma r:
-  mode_cont (kappa1++kappa2) sigma r
-  = append_stack (mode_cont kappa1 sigma r) kappa2.
-Proof.
-  simpl; eauto.
-Qed.
-
-Theorem append_stack_eval t kappa1 kappa2 sigma:
-  mode_eval t (kappa1++kappa2) sigma
-  = append_stack (mode_eval t kappa1 sigma) kappa2.
-Proof.
-  simpl; eauto.
-Qed.
 
 (* PROPERTIES OF CRED *)
 
@@ -669,10 +640,10 @@ Proof.
   inversion H.
 Qed.
 
+
 Lemma cred_stack_sub:
-  forall a b k,
+  forall a b,
     cred a b ->
-    lastn 1 (stack a) = [k] ->
     lastn 1 (stack a) = lastn 1 (stack b) ->
     cred
       (with_stack a (droplastn 1 (stack a)))
@@ -694,13 +665,12 @@ Proof.
   {
     repeat rewrite lastn_def_firstn in *; simpl in *.
     inj.
-    exfalso; eapply fuck_stdlib; eauto.
+    exfalso; eapply list_diagonal; eauto.
   }
 Qed.
 
 Theorem creds_stack_sub:
-  forall s1 s2 k,
-    lastn 1 (stack s1) = [k] ->
+  forall s1 s2,
     star (fun s1 s2 => cred s1 s2 /\ lastn 1 (stack s1) = lastn 1 (stack s2))
       s1 s2
     ->
@@ -708,11 +678,10 @@ Theorem creds_stack_sub:
         (with_stack s1 (droplastn 1 (stack s1)))
         (with_stack s2 (droplastn 1 (stack s2))).
 Proof.
-  intros s1 s2 k Hk.
+  intros s1 s2.
   induction 1; unpack; econstructor.
   { eapply cred_stack_sub; eauto. }
   { eapply IHstar.
-    rewrite Hk in *; eauto.
   }
 Qed.
 
@@ -758,16 +727,20 @@ Theorem cred_stack_drop:
       (mode_cont [] env' r').
 Proof.
   intros.
+
+  (* Let s1 be the starting state, and s3 the ending state. The goal is find s2, the first state before there is a change on the last continuation of the stack.  *)
   remember (mode_eval t [k] env) as s1.
   remember (mode_cont [] env'' r'') as s3.
   destruct (takewhile (fun s s' => RMicromega.sumboolb (List.list_eq_dec cont_eq_dec (lastn 1 (stack s1)) (lastn 1 (stack s')))) H)
   as [Htakewhile| (s2 & s2' & Hs1s2 & Hs2's3 & Hs2s2' & Hs2')].
-  { exfalso.
+  { (* This state does exists since s1 and s3 have different stacks. *)
+    exfalso.
     induction Htakewhile using star_ind_n1.
     { subst; inj. }
     { unpack; subst; simpl in *; inj. }
   }
-  { assert (Hs2: lastn 1 (stack s2) = lastn 1 (stack s1)). {
+  { (* There is no modification of the last continuation between s1 and s2. We already have this fact, but in bool format. *)
+    assert (Hs2: lastn 1 (stack s2) = lastn 1 (stack s1)). {
       induction Hs1s2 using star_ind_n1.
       { eauto. }
       { unpack.
@@ -775,6 +748,7 @@ Proof.
       }
     }
 
+    (* There is indead an modification between s2 and s2'. *)
     assert (Hs2'_tmp: lastn 1 (stack s2) <> lastn 1 (stack s2')). {
       clear - Hs2 Hs2'.
       remember (List.list_eq_dec cont_eq_dec (lastn 1 (stack s1)) (lastn 1 (stack s2'))) as b; induction b; simpl in *; tryfalse; eauto.

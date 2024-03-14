@@ -217,7 +217,7 @@ Ltac dsimpl :=
 (* -------------------------------------------------------------------------- *)
 
 
-(* Second side of the implication. *)
+(* From cred to sred. *)
 
 Lemma apply_conts_app:
   forall kappa1 kappa2 p,
@@ -229,28 +229,17 @@ Proof.
   rewrite List.fold_left_app; eauto.
 Qed.
 
-Fixpoint last (l: list cont) (env0: list value) : list value :=
+Fixpoint last_env (l: list cont) (env0: list value) : list value :=
   match l with
   | [] => env0
   | CReturn env1 :: l =>
-    last l env1
+    last_env l env1
   | _ :: l =>
-    last l env0
+    last_env l env0
   end.
 
-Lemma last_last:
-  forall l env0 env1,
-    last (l ++ [CReturn env0]) env1 = env0.
-Proof.
-  induction l.
-  { intros; reflexivity. }
-  { intros; simpl.
-    case a; intros; rewrite IHl; eauto.
-  }
-Qed.
-
-Lemma snd_apply_conts_last :
-  forall kappa env0 t, (snd (apply_conts kappa (t, env0))) = (last kappa env0).
+Lemma snd_apply_conts_last_env :
+  forall kappa env0 t, (snd (apply_conts kappa (t, env0))) = (last_env kappa env0).
 Proof.
   induction kappa.
   { simpl; eauto. }
@@ -287,8 +276,8 @@ Hint Resolve
   star_refl
 : sred.
 
-Theorem star_sred_apply_conts: forall kappa t t' sigma,
-  star sred t t' ->
+Theorem sred_apply_conts: forall kappa t t' sigma,
+  sred t t' ->
   star sred
     (fst (apply_conts kappa (t, sigma)))
     (fst (apply_conts kappa (t', sigma)))
@@ -302,71 +291,44 @@ Proof.
 
     all:
       setoid_rewrite apply_conts_app;
-      simpl; unfold apply_cont;
-        repeat match goal with
-      | [ |- context [let '(_, _) := ?p in _]] =>
-        rewrite (surjective_pairing p)
-      | [h: context [let '(_, _) := ?p in _] |- _] =>
-        rewrite (surjective_pairing p) in h
-      end; simpl.
+      simpl; unfold apply_cont; sp; simpl.
 
-    all: repeat rewrite snd_apply_conts_last.
+    all: repeat rewrite snd_apply_conts_last_env.
 
     all: try solve [eauto with sred].
-    { induction o.
-      all: repeat match goal with
-      | [|- context [apply_CDefault ?o _ _ _ ?t _] ] =>
-        learn (EmptyOrNotEmpty t)
-      | [h: _ \/ _ |- _] =>
-        destruct h
-      | [h: ?t = Empty|- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
-        rewrite (apply_CDefault_SE h)
-      | [h: ?t = Empty|- context [apply_CDefault None _ _ _ ?t _]] =>
-        rewrite (apply_CDefault_NE h)
-      | [h: ?t <> Empty|- context [apply_CDefault (Some _) _ _ _ ?t _]] =>
-        rewrite (apply_CDefault_ST h)
-      | [h: ?t <> Empty|- context [apply_CDefault None _ _ _ ?t _]] =>
-        rewrite (apply_CDefault_NT h)
-      | [h1: ?t = Empty, h2: context [?t] |- _] =>
-        rewrite h1 in h2
-      | [h1: ?t = Empty |- context [?t]] =>
-        rewrite h1
-      | [h: sred Empty _ |- _] =>
-        inversion h
-      | [h: star sred Empty _ |- _] =>
+    { (* Default case*)
+      induction o; unfold apply_CDefault.
+      all:
+      repeat match goal with
+        | [|- context [if_is_empty ?t]] =>
+          learn (EmptyOrNotEmpty t); unzip
+        | [h: ?t = Empty |- context [if_is_empty ?t]] =>
+          rewrite h in *; simpl in *
+        | [h: ?t <> Empty |- context [if_is_empty ?t]] =>
+          rewrite (match_nempty h); simpl in *
+        | [h: star sred Empty _ |- _] =>
         learn (star_sred_empty_empty _ h)
-      | _ =>
-        progress try congruence
-      | _ =>
-        solve [eauto with sred]
       end.
-      { (* t' is empty, o has a value *)
-        eapply star_trans. { eapply star_sred_default_E_one. eauto. }
-        eapply star_one. { econstructor. }
-      }
-      { (* t' is not empty, o has a value *)
-        eapply star_trans. { eapply star_sred_default_E_one. eauto. }
-        eapply star_refl.
-      }
-      { eapply star_trans. { eapply star_sred_default_E_zero. eauto. }
-        eapply star_one. { econstructor. }
-      }
+      all: try eapply star_refl.
+      all: try congruence.
+      all: repeat first
+        [ eapply star_trans; [solve [ eapply star_sred_default_E_one; eauto]|]
+        | eapply star_trans; [solve [ eapply star_sred_default_E_zero; eauto]|]
+        | eapply star_step; [solve[econstructor; eauto]|]
+      ].
+      all: eapply star_refl.
     }
   }
 Qed.
 
-
-(* In particular, this apply too on single transition step *)
-
-Theorem sred_apply_conts: forall kappa t t' sigma,
-  sred t t' ->
+Theorem star_sred_apply_conts: forall kappa t t' sigma,
+  star sred t t' ->
   star sred
     (fst (apply_conts kappa (t, sigma)))
     (fst (apply_conts kappa (t', sigma)))
 .
-  intros.
-  eapply star_sred_apply_conts.
-  eauto with sequences.
+  induction 1; [eapply star_refl|eapply star_trans]; eauto.
+  eapply sred_apply_conts; eauto.
 Qed.
 
 Lemma sim_term_apply_conts {kappa t1 t2 sigma}:
@@ -380,7 +342,7 @@ Proof.
   induction k; intros; repeat rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl.
   all: repeat econstructor.
   all: try eapply IHkappa; eauto.
-  all: repeat rewrite snd_apply_conts_last.
+  all: repeat rewrite snd_apply_conts_last_env.
   all: try reflexivity.
   { learn (IHkappa sigma _ _ H).
     assert (fst (apply_conts kappa (t1, sigma)) = Empty <-> fst (apply_conts kappa (t2, sigma)) = Empty).

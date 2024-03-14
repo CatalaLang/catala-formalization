@@ -1,15 +1,8 @@
 Require Import syntax sequences.
 Import List.ListNotations.
-Require Import Autosubst_FreeVars.
 Open Scope list.
 
 Require Import tactics.
-
-Definition is_value v :=
-    match v with
-    | Value _ => True
-    | _ => False
-    end.
 
 (* -------------------------------------------------------------------------- *)
 
@@ -454,27 +447,6 @@ Theorem sred_deterministc:
       t1 = t2.
 Abort.
 
-Lemma remove_head_empty {ts1 ts1' ti ti' ts2 ts2'}:
-  List.Forall (eq Empty) ts1 ->
-  List.Forall (eq Empty) ts1' ->
-  ti <> Empty ->
-  ti' <> Empty ->
-  ts1 ++ ti :: ts2 = ts1' ++ ti' :: ts2' ->
-  ts1 = ts1' /\ ti = ti' /\ ts2 = ts2'
-.
-Proof.
-  intros Hts1 Hts1'.
-  revert Hts1 ts1' Hts1' ts2 ts2' ti ti'.
-  induction 1; inversion 1; simpl.
-  { intros; injections; eauto.  }
-  { intros; injections; congruence. }
-  { intros; injections; congruence. }
-  { intros; injections.
-    destruct (IHHts1 _ H1 _ _ _ _ H3 H4 H5); unpack; subst.
-    eauto.
-   }
-Qed.
-
 Lemma sred_nonempty_conflict_value {ti ti'}:
   sred ti ti' ->
   ti <> Empty /\ ti <> Conflict /\ forall v, ti <> Value v.
@@ -488,15 +460,10 @@ Proof.
   repeat intro; inj.
 Qed.
 
-Lemma conflict_notempty:
-  Conflict <> Empty.
-Proof.
-  repeat intro; inj.
-Qed.
 
 Import Learn.
 
-Theorem sred_deterministc:
+Theorem sred_deterministic:
   forall t t1,
     sred t t1 ->
     forall t2,
@@ -523,16 +490,6 @@ Proof.
     IHsred: forall t3, sred ?t t3 -> _
     |- _ ] =>
     learn (IHsred _ h1)
-
-  (* Main helper lemma: we can only take a look to the first non-empty term *)
-  | [
-    hts1: List.Forall (eq Empty) ?ts1,
-    hts1': List.Forall (eq Empty) ?ts1',
-    hti: ?ti <> Empty,
-    hti': ?ti' <> Empty,
-    h: ?ts1 ++ ?ti :: _ = ?ts1' ++ ?ti' :: _ |- _
-  ] =>
-    learn (remove_head_empty hts1 hts1' hti hti' h); unpack; subst
 
   (* Simplify, substitute etc to continue the search by saturation*)
   | _ => unpack; injections; subst; tryfalse; eauto

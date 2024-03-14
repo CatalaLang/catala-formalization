@@ -1,5 +1,4 @@
 Require Export Autosubst.Autosubst.
-Require Export AutosubstExtra.
 Require Import String.
 Require Import Coq.ZArith.ZArith.
 Require Export Coq.Classes.RelationClasses.
@@ -291,34 +290,14 @@ Definition term_eq_dec: forall t1 t2: term, {t1 = t2} + {t1 <> t2} :=
 Definition value_eq_dec: forall v1 v2: value, {v1 = v2} + {v1 <> v2} :=
   fun v1 v2 => term_value_eq_dec (inr v1) v2.
 
-Require Import Autosubst_FreeVars.
 #[export] Instance Ids_term : Ids term. derive. Defined.
-#[export] Instance Idslemmas_term : IdsLemmas term.
-  econstructor.
-  unfold ids, Ids_term.
-  intros; inj; eauto.
-Defined.
 #[export] Instance Rename_term : Rename term. derive. Defined.
 #[export] Instance Subst_term : Subst term. derive. Defined.
 #[export] Instance SubstLemmas_term : SubstLemmas term. derive. Qed.
 
-Lemma ids_inj:
-  forall x y, ids x = ids y -> x = y.
-intros; inj; eauto.
-Qed.
-
-
 
 (* -------------------------------------------------------------------------- *)
 (** autosubst and lists*)
-
-Lemma subst_app:
-  forall ts1 ts2 sigma,
-  ((ts1 ++ ts2)..[sigma] = ts1..[sigma] ++ ts2..[sigma])%list.
-Proof.
-  induction ts1; intros; asimpl; eauto.
-  * now rewrite IHts1.
-Qed.
 
 Lemma subst_cons:
   forall ti ts sigma,
@@ -328,11 +307,7 @@ Proof.
 Qed.
 
 
-Global Hint Resolve
-  subst_app
-  subst_cons: autosubst.
-
-Global Hint Rewrite subst_app subst_cons: autosubst.
+Global Hint Rewrite subst_cons: autosubst.
 
 
 
@@ -343,188 +318,7 @@ Definition get_op op i1 i2 :=
   | _, _, _ => None
   end.
 
-Require Import Autosubst_FreeVars.
-
-Lemma lift_inj_EVar:
-  forall t x,
-  lift 1 t = Var (S x) <-> t = Var x.
-Proof.
-  split; intros.
-  { eauto using lift_inj. }
-  { subst. eauto. }
-Qed.
-
-Lemma fv_Var_eq:
-  forall k x,
-  fv k (Var x) <-> x < k.
-Proof.
-  unfold fv. asimpl. induction k; intros.
-  (* Base case. *)
-  { asimpl. split; intros; exfalso.
-    { unfold ids, Ids_term in *. injections.
-      (* In Coq 8.12, this goal is solved by [lia], but not in Coq 8.10. *)
-      eapply Nat.neq_succ_diag_l. eauto. }
-    { lia. }
-  }
-  (* Step. *)
-  { destruct x; asimpl.
-    { split; intros. { lia. } { reflexivity. } }
-    rewrite lift_inj_EVar. rewrite IHk. lia. }
-Qed.
-
-
-
-Lemma fv_Lam_eq:
-  forall k t,
-  fv k (Lam t) <-> fv (S k) t.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-Lemma fv_App_eq:
-  forall k t1 t2,
-  fv k (App t1 t2) <-> fv k t1 /\ fv k t2.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-Lemma fv_Binop_eq:
-  forall k op t1 t2,
-  fv k (Binop op t1 t2) <-> fv k t1 /\ fv k t2.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-Lemma fv_Match_eq:
-  forall k tc t1 t2,
-  fv k (Match_ tc t1 t2) <-> fv k tc /\ fv k t1 /\ fv (S k) t2.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-
-Lemma fv_If_eq:
-  forall k t ta tb,
-  fv k (If t ta tb) <-> fv k t /\ fv k ta /\ fv k tb.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-Lemma fv_VariantNone_eq:
-  forall k,
-  fv k ENone.
-Proof.
-  unfold fv. intros. now asimpl.
-Qed.
-
-Lemma fv_VariantSome_eq:
-  forall k t,
-  fv k (ESome t) <-> fv k t.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { congruence. }
-Qed.
-
-Lemma fv_ErrorOnEmpty_eq:
-  forall k t,
-  fv k (ErrorOnEmpty t) <-> fv k t.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { congruence. }
-Qed.
-
-Lemma fv_DefaultPure_eq:
-  forall k t,
-  fv k (DefaultPure t) <-> fv k t.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { congruence. }
-Qed.
-
-Lemma thing: forall ts sigma,
-  ts..[sigma] = ts <-> List.Forall (fun ti : term => ti.[sigma] = ti) ts.
-Proof.
-  induction ts.
-  * split; intros; eauto.
-  * split; intros; msimpl in *.
-    - injections.
-      econstructor; eauto.
-      { apply IHts. eauto. }
-    - inversion H.
-      f_equal; [eauto | now eapply IHts].
-Qed.
-
-Lemma fv_Default_eq:
-  forall k ts tj tc,
-  fv k (Default ts tj tc) <->
-    (List.Forall (fun ti => fv k ti) ts) /\ fv k tj /\ fv k tc.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. repeat split; eauto.
-    { apply thing; assumption. }
-  }
-  { unpack. rewrite H0; rewrite H1.
-    remember (thing ts (upn k (ren (+1)))).
-    destruct i.
-    remember (e H).
-    rewrite e0.
-    reflexivity. }
-Qed.
-
-Lemma fv_Fold_eq:
-  forall k f ts acc,
-  fv k (Fold f ts acc)  <-> fv k f /\ (List.Forall (fv k) ts) /\ fv k acc.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. repeat split; eauto.
-    { eapply thing; assumption. }
-  }
-  { unpack. rewrite H, H1; repeat f_equal.
-    pose proof (thing ts) as Hrw.
-    rewrite Hrw.
-    eauto.
-  }
-Qed.
-
-
-Lemma fv_Value_eq:
-  forall k v,
-  fv k (Value v) <-> True.
-Proof.
-  unfold fv. intros. asimpl. split; eauto.
-Qed.
-
-#[export]
-Hint Rewrite
-  fv_Var_eq
-  fv_Lam_eq
-  fv_App_eq
-  fv_VariantSome_eq
-  fv_VariantNone_eq
-  fv_Match_eq
-  fv_Binop_eq
-  fv_Default_eq
-  fv_ErrorOnEmpty_eq
-  fv_DefaultPure_eq
-  fv_Value_eq
-  fv_Fold_eq
-  : fv.
-
 Import List.ListNotations.
-Require Import Autosubst_FreeVars.
 Open Scope list.
   
 Definition subst_of_env sigma :=
@@ -554,69 +348,6 @@ Lemma soe_cons v sigma:
 Proof.
   eapply FunctionalExtensionality.functional_extensionality.
   induction x; asimpl; eauto.
-Qed.
-
-Theorem subst_env_regular:
-  forall sigma: list value,
-  regular (subst_of_env sigma).
-Proof.
-  intros.
-  exists (List.length sigma), 0.
-  eapply FunctionalExtensionality.functional_extensionality.
-  unfold subst_of_env; intros; asimpl.
-  destruct (List.nth_error_None sigma (List.length sigma + x)) as [_ H].
-  rewrite H.
-  f_equal.
-  all: lia.
-Qed.
-
-Lemma subst_env_0: forall t v, t.[subst_of_env [v]] = t.[Value v/].
-Proof.
-  intros.
-  repeat progress (
-    try rewrite soe_nil;
-    try rewrite soe_cons;
-    try reflexivity).
-Qed.
-
-Lemma subst_env_fv_sub:
-  forall sigma t k,
-    fv k t ->
-    fv (k-List.length sigma) (t.[subst_of_env sigma]).
-Proof.
-  induction sigma.
-  * rewrite soe_nil.
-    intros; asimpl.
-    replace (k - 0) with k.
-    all: eauto; lia.
-  * rewrite soe_cons.
-    intros.
-    asimpl.
-    replace t.[Value a .: subst_of_env sigma] with (t.[Value a/].[subst_of_env sigma]) by autosubst.
-    replace (k - S (List.length sigma)) with (pred k - (List.length sigma)) by lia.
-    eapply IHsigma.
-    { induction k; asimpl; eauto.
-      { replace 0 with (0 - 1) by lia.
-        eapply fv_closed_kregular_subst; eauto.
-        { induction x; asimpl; unfold closed; fv; lia. }
-      }
-      { replace k with (S k - 1) by lia.
-        eapply fv_closed_kregular_subst; eauto.
-        { induction x; asimpl; unfold closed; fv; lia. }
-      }
-    }
-Qed.
-
-Lemma subst_env_fv_closed:
-  forall sigma t,
-    fv (List.length sigma) t ->
-    closed (t.[subst_of_env sigma]).
-Proof.
-  unfold closed.
-  intros.
-  replace 0 with (List.length sigma - List.length sigma) by lia.
-  eapply subst_env_fv_sub.
-  eauto.
 Qed.
 
 Lemma subst_of_env_decompose { t v sigma }:
