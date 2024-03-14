@@ -23,48 +23,6 @@ Inductive type :=
   | TDefault (T: type)
 .
 
-Inductive inv_no_default: type -> Prop :=
-  | invTBool : inv_no_default TBool
-  | invTInteger : inv_no_default TInteger
-  | invTUnit : inv_no_default TUnit
-  | invTFun : forall T1 T2,
-    inv_no_default T1 ->
-    inv_no_default T2 ->
-    inv_no_default (TFun T1 T2)
-  | invTOption: forall T1,
-    inv_no_default T1 ->
-    inv_no_default (TOption T1)
-.
-
-
-Inductive inv_thunked_or_nodefault: type -> Prop :=
-  | invArrowThunked:
-    forall arg res,
-      inv_no_default arg ->
-      inv_no_default res ->
-      inv_thunked_or_nodefault (TFun arg (TDefault res))
-  | invNoDefault:
-    forall T,
-      inv_no_default T ->
-      inv_thunked_or_nodefault T
-.
-
-Inductive inv_root: type -> Prop :=
-  | invDefault:
-    forall T,
-      inv_no_default T ->
-      inv_root (TDefault T)
-  | invScopeCall:
-    forall T1 T2,
-      inv_thunked_or_nodefault T1 ->
-      inv_no_default T2 ->
-      inv_root (TFun T1 T2)
-  | invThunkedOrNoDefault:
-    forall T,
-      inv_thunked_or_nodefault T ->
-      inv_root T
-.
-
 Inductive inv_base: type -> Prop :=
   | Inv1TBool : inv_base TBool
   | Inv1TInteger : inv_base TInteger
@@ -92,61 +50,15 @@ with inv_no_immediate_default: type -> Prop :=
     inv_no_immediate_default (TOption T1)
 .
 
-Lemma inv_no_default_inv_no_immediate_default:
-  forall T, inv_no_default T -> inv_no_immediate_default T
-with inv_no_default_inv_base:
-  forall T, inv_no_default T -> inv_base T
-.
-Proof.
-  { induction 1; econstructor; eauto. }
-  { induction 1; econstructor; eauto. }
-Qed.
-
-
-Lemma inv_thunked_or_nodefault_inv_base:
-  forall T, inv_thunked_or_nodefault T -> inv_base T.
-Proof.
-  induction 1; repeat econstructor; eauto using 
-    inv_no_default_inv_no_immediate_default,
-    inv_no_default_inv_base
-  .
-Qed.
-
-Lemma inv_thunked_or_nodefault_inv_no_immediate_default:
-  forall T, inv_thunked_or_nodefault T -> inv_no_immediate_default T.
-Proof.
-  induction 1; repeat econstructor; eauto using 
-    inv_no_default_inv_no_immediate_default,
-    inv_no_default_inv_base
-  .
-Qed.
-
-Lemma inv_root_inv_base:
-  forall T, inv_root T -> inv_base T.
-Proof.
-  induction 1; repeat econstructor; eauto using 
-    inv_no_default_inv_no_immediate_default,
-    inv_no_default_inv_base,
-    inv_thunked_or_nodefault_inv_base,
-    inv_thunked_or_nodefault_inv_no_immediate_default
-  .
-Qed.
-
 
 Ltac2 sinv_inv () :=
   match! goal with
-  | [ h : inv_root ?c |- _ ] => smart_inversion c h
-  | [ h : inv_thunked_or_nodefault ?c |- _ ] => smart_inversion c h
-  | [ h : inv_no_default ?c |- _ ] => smart_inversion c h
   | [ h : inv_base ?c |- _ ] => smart_inversion c h
   | [ h : inv_no_immediate_default ?c |- _ ] => smart_inversion c h
   end.
 
 Ltac2 econs_inv () :=
   match! goal with
-  | [ |- inv_root _ ] => econstructor
-  | [ |- inv_thunked_or_nodefault _ ] => econstructor
-  | [ |- inv_no_default _ ] => econstructor
   | [ |- inv_base _ ] => econstructor
   | [ |- inv_no_immediate_default _ ] => econstructor
   end.
@@ -169,19 +81,19 @@ Module Invariant_Examples.
   S_in {x: int -> <bool>} -> S {y: <bool>}
   *)
 
-  Example positive_1: inv_root TBool. repeat econs_inv. Qed.
-  Example positive_2: inv_root TInteger. repeat econs_inv. Qed.
-  Example positive_3: inv_root (TFun TInteger TBool). repeat econs_inv. Qed.
-  Example positive_4: inv_root (TDefault TBool). repeat econs_inv. Qed.
-  Example positive_5: inv_root (TDefault (TFun TInteger TBool)). repeat econs_inv. Qed.
-  Example positive_6: inv_root (TFun TInteger (TDefault TBool)). eapply invThunkedOrNoDefault. repeat econs_inv. Qed.
-  Example positive_7: inv_root (TFun (TFun TInteger (TDefault TBool)) TBool). repeat econs_inv. Qed.
+  Example positive_1: inv_base TBool. repeat econs_inv. Qed.
+  Example positive_2: inv_base TInteger. repeat econs_inv. Qed.
+  Example positive_3: inv_base (TFun TInteger TBool). repeat econs_inv. Qed.
+  Example positive_4: inv_base (TDefault TBool). repeat econs_inv. Qed.
+  Example positive_5: inv_base (TDefault (TFun TInteger TBool)). repeat econs_inv. Qed.
+  Example positive_6: inv_base (TFun TInteger (TDefault TBool)). repeat econs_inv. Qed.
+  Example positive_7: inv_base (TFun (TFun TInteger (TDefault TBool)) TBool). repeat econs_inv. Qed.
+  Example positive_8: inv_base (TDefault (TFun TBool (TDefault TInteger))). repeat econs_inv. Qed.
+  Example positive_9: inv_base (TFun (TFun TInteger (TDefault TBool)) (TDefault TBool)).
+  repeat econs_inv. Qed.
 
-  Example negative_1: not (inv_root (TDefault (TDefault TInteger))). intro. repeat sinv_inv. Qed.
-  Example negative_2: not (inv_root (TDefault (TFun TBool (TDefault TInteger)))). intro. repeat sinv_inv. Qed.
-  Example negative_3: not (inv_root (TFun (TDefault TBool) TInteger)). intro. repeat sinv_inv. Qed.
-  Example negative_4: not (inv_root (TFun (TFun TInteger (TDefault TBool)) (TDefault TBool))).
-  intro. repeat sinv_inv. Qed.
+  Example negative_1: not (inv_base (TDefault (TDefault TInteger))). intro. repeat sinv_inv. Qed.
+  Example negative_2: not (inv_base (TFun (TDefault TBool) TInteger)). intro. repeat sinv_inv. Qed.
 
 End Invariant_Examples.
 
@@ -541,27 +453,22 @@ Proof.
   induction 1; intros; try solve [
     repeat sinv_jt; learn_inv;
     repeat match goal with
-    | [|- inv_root _ ] => idtac
+    | [|- inv_base _ ] => idtac
     | _ => econstructor
     end; eauto].
   all: repeat sinv_jt.
   all: learn_inv.
   all: repeat sinv_inv.
+  all: try solve [repeat (econstructor; eauto)].
   (* Operator handling *)
-  all: try solve [
-    induction v1; induction v2; induction op; simpl in *; inj; tryfalse;
-  eauto; repeat (econstructor; eauto)].
-  { repeat econstructor; eauto. eapply common.Forall2_nth_error_Some; eauto. }
-  { repeat (econstructor; eauto). }
-  { repeat (econstructor; eauto). }
-  { repeat (econstructor; eauto). }
+  { repeat (econstructor; eauto).
+    eapply common.Forall2_nth_error_Some; eauto.
+  }
   { (* Returning an Conflict *)
     induction phi; try solve [repeat sinv_jt; repeat econstructor; eauto].
     { now pose proof H sigma0. }
   }
-  { repeat (econstructor; eauto). }
-  { repeat (econstructor; eauto). }
-  { repeat (econstructor; eauto). }
+  { induction op, v1, v2; simpl in *; inj; repeat (econstructor; eauto). }
 Qed.
 
 Theorem progress s1:

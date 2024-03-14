@@ -74,17 +74,6 @@ with trans_value v :=
   end
 .
 
-Lemma trans_ty_inv_no_default:
-  forall T, inv_no_default (trans_ty T).
-induction T; simpl; econstructor; eauto.
-Qed.
-
-Lemma inv_no_default_inv_root {T}:
-  inv_no_default T -> inv_root T.
-Proof.
-  intros.
-  repeat econstructor; eauto.
-Qed.
 
 Lemma trans_ty_inv_base {T}:
   inv_base (trans_ty T)
@@ -93,8 +82,6 @@ with trans_ty_inv_no_immediate_default {T}:
 Proof.
   all: induction T; simpl; econstructor; eauto.
 Qed.
-
-
 
 Lemma trans_ty_correct:
   forall t Delta Gamma T,
@@ -139,6 +126,8 @@ Proof.
       eapply trans_ty_correct.
       eauto.
     }
+    { simpl in *; econstructor; eauto. }
+    { simpl in *; econstructor; eauto. }
   }
 Qed.
 
