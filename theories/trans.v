@@ -112,12 +112,11 @@ Proof.
       (* This is only penible for the same reason as in the typing preservation lemma: fold introduce an extential variable (the type of the list being modified) and coq fails to instanciate correctly this variable. This might be fiex by modifiying the order of the constructor in the inductive *)
       simpl.
       repeat econs_jt.
-      eapply trans_ty_inv_no_default.
-      eapply trans_ty_inv_no_default.
-      simpl in *.
-      eapply IHjt_term1.
-      induction H2; simpl; econstructor; eauto.
-      eapply IHjt_term2.
+      { eapply IHjt_term1. }
+      { eapply trans_ty_inv_no_default. } 
+      { eapply trans_ty_inv_no_default. } 
+      { induction H2; simpl; econstructor; eauto. }
+      { eapply IHjt_term2. }
     }
     all: simpl; repeat econstructor; try eapply trans_ty_inv_no_default; eauto.
     { symmetry. erewrite List.map_nth_error; eauto. }
