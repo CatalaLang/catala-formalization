@@ -376,14 +376,15 @@ Lemma takewhile:
   /\ U b b' = false.
 Proof.
   induction 1.
-  * intros; left; econstructor; eauto using star_refl.
-  * destruct IHstar; remember (U a b) as ret; induction ret.
-    - left; eapply star_step; eauto.
-    - right; exists a, b; repeat split; eauto; econstructor; eauto.
-    - destruct H1 as [x [x' [H1 [H2 [H3 H4]]]]].
+  { intros; left; econstructor; eauto using star_refl. }
+  { destruct IHstar; remember (U a b) as ret; induction ret.
+    { left; eapply star_step; eauto. }
+    { right; exists a, b; repeat split; eauto; econstructor; eauto. }
+    { destruct H1 as [x [x' [H1 [H2 [H3 H4]]]]].
       right; exists x, x'; repeat split; eauto.
-      eapply star_step; eauto.
-    - right; exists a, b; repeat split; eauto; econstructor; eauto.
+      eapply star_step; eauto. }
+    { right; exists a, b; repeat split; eauto; econstructor; eauto. }
+  }
 Qed.
 
 

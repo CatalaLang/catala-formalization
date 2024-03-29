@@ -343,11 +343,6 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont (CFold f [] :: kappa) sigma (RValue v))
       (mode_cont kappa sigma (RValue v))
-  | cred_fold_conflict:
-    forall f ts kappa sigma,
-    cred
-      (mode_cont (CFold f ts :: kappa) sigma RConflict)
-      (mode_cont kappa sigma RConflict)
 .
 
 Notation "'cred' t1 t2" :=
@@ -502,7 +497,6 @@ Theorem cred_append_stack s s':
   cred (append_stack s k) (append_stack s' k).
 Proof.
   induction 1; intros; asimpl; try econstructor; eauto.
-  repeat intro; inj.
 Qed.
 
 Theorem star_cred_append_stack s s':

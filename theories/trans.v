@@ -282,19 +282,7 @@ Proof.
 
   intros s1 s2.
   intros Hsred.
-  induction Hsred; intros.
-  all: repeat multimatch goal with
-  | _ => sinv_jt
-  | [h1: forall _ _ _, jt_term _ _ ?u _ -> _, h2: jt_term _ _ ?u _ |- _] =>
-    learn (h1 _ _ _ h2);
-    clear h1
-  | [h: exists var, _ |- _] =>
-    let var := fresh var in
-    destruct h as (var & ?)
-  | [h: _ /\ _ |- _] =>
-    destruct h
-  
-  end.
+  induction Hsred; intros; unpack.
   (* When the right hand side is the result of the left hand side. *)
   all: try solve [simpl; repeat step; eapply diagram_finish].
   { asimpl. repeat step. eexists; split; simpl trans; [|eapply star_refl; fail].
