@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://github.com/CatalaLang/catala/raw/master/doc/images/logo.png" alt="Catala logo" width="120"/>
   <h3 align="center">
-	<big>Catala in Coq</big>
+	<big>Catala in Rcoq</big>
   </h3>
   
   ![CIlatest][ci-link1]
@@ -24,6 +24,8 @@ in terms of code, one can derive an implementation of complex socio-fiscal
 mechanisms that enjoys a high level of assurance regarding the code-law
 faithfulness.
 
+**This is not the main catala repository. If you are searching for the catala compiler, please look [here](https://github.com/CatalaLang/catala).**
+
 ## File detailed description.
 
 The file `sequences.v` is adapted from previous work by François Pottier itself taken on previous work by Xavier Leroy with additions by the authors of this artifact. 
@@ -32,7 +34,7 @@ The file `sequences.v` is adapted from previous work by François Pottier itself
 |-----------------------------|------|-------|----------|-------------|
 | common.v                    | 68   | 117   | 3        | Contains common definitions and utilities used across multiple modules. |
 | sequences.v                 | 238  | 223   | 19       | Defines operations and properties of sequences of reduction (`star`). |
-| tactics.v                   | 226  | 3     | 69       | Contains custom tactics for automated proof strategies in Coq. |
+| tactics.v                   | 226  | 3     | 69       | Contains custom tactics for automated proof strategies in Rcoq. |
 | syntax.v                    | 610  | 303   | 13       | Defines the syntax of the fragment of catala we are dealing with. |
 | small_step.v                | 330  | 145   | 12       | Describes the small-step operational semantics of the language. |
 | continuations.v             | 434  | 170   | 82       | Describes the continuation steps semantics of the language. |
@@ -45,21 +47,20 @@ The file `sequences.v` is adapted from previous work by François Pottier itself
 
 ## Building and installation
 
-**This is not the main catala repository. If you are searching for the catala compiler, please look [here](https://github.com/CatalaLang/catala).**
 
 To start developing, you first need to install opam. Then you can run the following commands:
 
-    opam switch create coq-catala 4.14.0
+    opam switch create rcoq-catala 4.14.0
     opam repo add coq-released https://coq.inria.fr/opam/released
-    eval $(opam env --switch=coq-catala --set-switch)
-    opam repository add coq-released --all-switches
+    eval $(opam env --switch=rcoq-catala --set-switch)
+    opam repository add rcoq-released --all-switches
     opam install . --deps-only
 
-Once it is done, you can use dune to build the Coq developement
+Once it is done, you can use dune to build the Rcoq development
 
     dune build
 
-And start your favorite interactive proof interface for coq.
+And start your favorite interactive proof interface for Rcoq.
 
 
 ## Limitations and disclaimer
@@ -67,7 +68,7 @@ And start your favorite interactive proof interface for coq.
 This formalization is based on previous work by François Pottier,
 available here [MRPI-2.4](https://gitlab.inria.fr/fpottier/mpri-2.4-public/-/blob/master/coq/). Namely, some tactics as well as the `Autosubst_EOS.v`, `Autosubst_FreeVars.v` and `AutosubstExtra.v` files.
 
-Some lemma statements were took on previous projects by [Evelyne Contejean](https://www.lri.fr/~contejea/).
+Some lemma statements were taken on previous projects by [Evelyne Contejean](https://www.lri.fr/~contejea/).
 
 Catala is a research project from Inria, the French National
 Research Institute for Computer Science. 
