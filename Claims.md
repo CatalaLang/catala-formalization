@@ -37,7 +37,7 @@ In 4.2.3, we count the number of line of code of :
 * for the small step specification the `sred` inductive in `small_step.v` file.
 * for the continuation-based specification the `cred`, `state`, `cont`, `result` and `is_hole` inductive in `theories/continuations.v` file.
 
-To extract dependencies of lemmas we use the DPD Coq library that dump the dependencies between all lemmas in the Coq development (`export/export.v` file). We then conduct analysis of the result in the `doc/dpd-reader.ipynb` file.
+To extract dependencies of lemmas we use the DPD Coq library that dump the dependencies between all lemmas in the Coq development (`export/export.v` file). We then conduct analysis of the result in the `doc/dpd-reader.ipynb` file. This python program is only available for completeness, is not mentioned in the paper, and not part of the artifact.
 
 ## Section 5.1
 
