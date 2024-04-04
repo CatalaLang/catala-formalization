@@ -4,3 +4,4 @@ _build
 .lia.cache
 _opam
 catala.dpd
+.ipynb_checkpoints

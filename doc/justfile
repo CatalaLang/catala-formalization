@@ -1,2 +1,0 @@
-build:
-  latexmk -synctex=1 -interaction=nonstopmode -file-line-error -recorder -output-directory="_build"  "continuation-semantics.tex" -pdfxe -pv
