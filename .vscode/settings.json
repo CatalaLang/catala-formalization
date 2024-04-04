@@ -75,5 +75,11 @@
             "prefix": "--------------",
             "icon": "none"
         }
+    ],
+    "languageToolLinter.languageTool.ignoredWordsInWorkspace": [
+        "autosubst",
+        "bruijn",
+        "coq",
+        "inductives"
     ]
 }

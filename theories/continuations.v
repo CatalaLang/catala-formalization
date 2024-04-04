@@ -370,6 +370,42 @@ Notation "'plus' 'cred' t1 t2" :=
   format "'plus'  'cred'  '[hv' t1  '/' t2 ']'"
 ).
 
+Example example1:
+  star cred
+    (mode_eval (App (Lam (Var 0)) (Value (Bool true))) [] [])
+    (mode_cont [] [] (RValue (Bool true))).
+Proof.
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor; simpl; eauto|].
+  eapply star_step; [econstructor|].
+  eapply star_refl.
+Qed.
+
+
+Example example2:
+  forall v e_cons e_just sigma, 
+  star cred
+    (mode_eval (Default [Empty; DefaultPure (Value v)] e_cons e_just) [] sigma)
+    (mode_cont [] sigma (RValue (VPure v))).
+Proof.
+  intros.
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_step; [econstructor|].
+  eapply star_refl.
+Qed.
 
 (* Declare Custom Entry latex.
 Declare Scope latex.

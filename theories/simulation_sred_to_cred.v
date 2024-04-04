@@ -1143,6 +1143,7 @@ Proof.
   remember (stack s1) as kappa.
   generalize dependent s1.
   generalize dependent t2.
+  (* INDUCTION ON KAPPA *)
   induction kappa as [|k kappa IHkappa IHkappa_wf] using rev_ind_wf.
   { intros t2 s1 Hred Hs1.
     pose proof Hred as Hred_current.
@@ -1186,7 +1187,7 @@ Proof.
     ].
     { rewrite soe_nil; asimpl; reflexivity. }
   }
-  {
+  { (* INDUCTION STEP *)
     induction s1; induction k; try induction o; try induction b;
     try match goal with [r: result |- _]=> induction r end; simpl; intros Ht1t2 Hkappa; pose proof Ht1t2 as Ht1t2'; revert Ht1t2'; subst; simpl.
     all: lock Ht1t2.
@@ -1199,6 +1200,7 @@ Proof.
     try rewrite fst_apply_conts_CReturn; eauto] end.
     all: eapply ignore_inv_state; [eauto|].
     all: match typeof Ht2t3 with sred ?u1 ?u2 => remember u1 as u end.
+    (* INDUCTION SRED *)
     all: induction Ht2t3; intros.
     all: try rewrite apply_CDefault_apply_CDefault_usable in *; unfold apply_CDefault_usable in *; try match goal with
     [h: context [ apply_CDefault_case_hole _ _ ?t _ ] |- _ ] =>
