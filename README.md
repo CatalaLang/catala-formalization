@@ -11,7 +11,6 @@ The file `CLAIMS.md` link statements done in the paper with this artifact.
 
 The file `sequences.v` is adapted from previous work by François Pottier itself taken on previous work by Xavier Leroy with few additions by the authors of this artifact.
 
-
 | File Name                    | Spec | Proof | Comments | Description |
 |------------------------------|------|-------|----------|-------------|
 | common.v                     | 47   | 65    | 3        | Contains common definitions and utilities used across multiple modules. |
@@ -23,7 +22,7 @@ The file `sequences.v` is adapted from previous work by François Pottier itself
 | typing.v                     | 394  | 91    | 39       | Provides the typing rules and their verification for the language. |
 | simulation_cred_to_sred.v    | 213  | 219   | 14       | Provides a simulation proof from continuation steps to small steps semantic. |
 | simulation_sred_to_cred.v    | 606  | 609   | 41       | Provides a simulation proof from small steps to continuation steps semantic. |
-| trans.v                      | 205  | 182   | 26       | Handles the transformation between the dcalc to lcalc intermediate languages. |
+| trans.v                      | 205  | 182   | 26       | Handles the transformation that removes default terms from $\lambda^\delta$ intermediate languages. |
 | **Total**                    | **3677** | **2503**  | **372**      |  |
 
 ## Hardware Dependencies    
@@ -32,7 +31,6 @@ Minimal dependencies. The whole proof builds in 1 min on recent laptop.
 
 
 ## Building and installation
-
 
 To start developing, you first need to install `opam` using your package manager. According to [https://opam.ocaml.org/doc/Install.html], you can run the following commands
 
