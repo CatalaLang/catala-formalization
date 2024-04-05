@@ -34,7 +34,6 @@ Inductive term :=
 
   (* value computating fragment of the language*)
   | Value (v: value)
-  | FreeVar (x: string) (* external variables *)
   | Binop (op: op) (t1 t2: term)
 
   | Match_ (u t1: term) (t2: {bind term})
@@ -66,7 +65,6 @@ Fixpoint size_term (t : term) : nat :=
   | Default ts tj tc => S (List.list_sum (List.map size_term ts) + size_term tj + size_term tc)
   | Empty => 0
   | Conflict => 0
-  | FreeVar _ => 0
   | Binop _ t1 t2 => S (size_term t1 + size_term t2)
   | Match_ u t1 t2 => S (size_term u + size_term t1 + size_term t2)
   | ENone => 0
@@ -117,7 +115,6 @@ Lemma term_value_ind
        P Empty ->
        P Conflict ->
        (forall v : value, P0 v -> P (Value v)) ->
-       (forall x : string, P (FreeVar x)) ->
        (forall (op : op) (t1 : term),
         P t1 -> forall t2 : term, P t2 -> P (Binop op t1 t2)) ->
        (forall u : term,
@@ -172,11 +169,11 @@ Proof.
   }
 Qed.
 
-Definition term_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 := 
-  proj1 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22).
+Definition term_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 := 
+  proj1 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21).
 
-Definition value_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 := 
-  proj2 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22).
+Definition value_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 := 
+  proj2 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21).
 
 
 Theorem term_value_eq_dec:
@@ -221,7 +218,6 @@ Theorem term_value_eq_dec:
       finish.
     }
     { epose proof (IHx (inr v) _ v0); finish. }
-    { epose proof (string_dec x x0); finish. }
     { epose proof (op_eq_dec op0 op1).
       epose proof (IHx (inl t1) _ y1).
       epose proof (IHx (inl t2) _ y2).
@@ -387,7 +383,6 @@ Inductive sim_term : term -> term -> Prop :=
       sim_term (Default ts1 tj1 tc1) (Default ts2 tj2 tc2)
   | sim_term_empty : sim_term Empty Empty
   | sim_term_conflict : sim_term Conflict Conflict
-  | sim_term_freevar : forall x y, x = y -> sim_term (FreeVar x) (FreeVar y)
   | sim_term_binop : forall op1 op2 t1 t2 u1 u2,
       op1 = op2 ->
       sim_term t1 u1 ->
@@ -541,8 +536,6 @@ Theorem sim_term_value_ind'
           ) ->
        P Empty Empty ->
        P Conflict Conflict ->
-       (forall (x y : string) (e : x = y),
-        P (FreeVar x) (FreeVar y)) ->
        (forall (op1 op2 : op) (t1 t2 u1 u2 : term) 
           (e : op1 = op2) (s : sim_term t1 u1),
         P t1 u1 ->
@@ -624,8 +617,6 @@ with sim_value_term_ind'
        ) ->
     P Empty Empty ->
     P Conflict Conflict ->
-    (forall (x y : string) (e : x = y),
-     P (FreeVar x) (FreeVar y)) ->
     (forall (op1 op2 : op) (t1 t2 u1 u2 : term) 
        (e : op1 = op2) (s : sim_term t1 u1),
      P t1 u1 ->
@@ -685,10 +676,10 @@ Proof.
     try solve 
     [ eapply sim_term_value_ind'; eassumption
     | eapply sim_value_term_ind'; eassumption].
-  { induction H22; econstructor; eauto.
+  { induction H21; econstructor; eauto.
     eapply sim_term_value_ind'; eassumption.
   }
-  { induction H22; econstructor; eauto.
+  { induction H21; econstructor; eauto.
     eapply sim_term_value_ind'; eassumption.
   }
 Qed.
@@ -723,8 +714,6 @@ P (Default ts1 tj1 tc1) (Default ts2 tj2 tc2)
  ) ->
 P Empty Empty ->
 P Conflict Conflict ->
-(forall (x y : string) (e : x = y),
-P (FreeVar x) (FreeVar y)) ->
 (forall (op1 op2 : op) (t1 t2 u1 u2 : term) 
  (e : op1 = op2) (s : sim_term t1 u1),
 P t1 u1 ->

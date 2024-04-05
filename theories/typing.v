@@ -112,10 +112,6 @@ Inductive jt_term:
       Some T = List.nth_error Gamma x ->
       inv_base T ->
       jt_term Delta Gamma (Var x) T
-  (* | JTFreeVar:
-    forall Delta Gamma x T,
-      Some T = Delta x ->
-      jt_term Delta Gamma (FreeVar x) T *)
   | JTApp:
     forall Delta Gamma t1 t2 T1 T2,
       jt_term Delta Gamma t1 (TFun T1 T2) ->
