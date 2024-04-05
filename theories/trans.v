@@ -443,7 +443,7 @@ Proof.
     ].
   
   (* Only two cases are left. *)
-  { exfalso; eapply H; eauto. }
+  { tryfalse. }
   { (* requires operator translation correction *)
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_step.

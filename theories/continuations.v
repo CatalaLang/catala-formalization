@@ -240,7 +240,8 @@ Inductive cred: state -> state -> Prop :=
      is changed by one at most. *)
   | cred_conflict:
     forall phi kappa sigma,
-    (forall sigma', phi <> CReturn sigma') ->
+    (* This is an other implementation of forall sigma, phi <> CReturn sigma. It more usefull in the proofs. *)
+    match phi with | CReturn _ => False | _ => True end ->
     cred
       (mode_cont (phi::kappa) sigma RConflict)
       (mode_cont kappa sigma RConflict)
@@ -327,7 +328,6 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont ((CIf t1 t2) :: kappa) sigma (RValue (Bool false)))
       (mode_eval t2 kappa sigma)
-
   | cred_fold_intro:
     forall f ts acc kappa sigma,
     cred
@@ -407,73 +407,6 @@ Proof.
   eapply star_refl.
 Qed.
 
-(* Declare Custom Entry latex.
-Declare Scope latex.
-
-  (* Base coq *)
-  Notation "'<LATEX>' e '</LATEX>'" := e (e custom latex): latex.
-  Notation "'<COQERROR>' x '</COQERROR>'" := x (in custom latex, x constr): latex.
-
-  Notation "'\ident{' x '}'" := (x) (x ident, in custom latex at level 0): latex.
-
-  Notation "'\synpunct{[]}'" := (@nil _) (in custom latex): latex.
-  Notation " x '\syncons' l " := (@cons _ x l) (in custom latex at level 20): latex.
-  Notation " '[' ']' " := ([]) (in custom latex): latex.
-  Notation " '[' x ']' " := ([x]) (in custom latex): latex.
-  Notation " '[' x ';'  y ']' " := ([x; y]) (in custom latex): latex.
-  Notation " '[' x ';'  y ']' " := ([x; y]) (in custom latex): latex.
-  Notation " '[' x ';'  y ';' z ']' " := ([x; y; z]) (in custom latex): latex.
-  Notation " '[' x ';'  y ';' z ';' w ']' " := ([x; y; z; w]) (in custom latex): latex.
-
-  Notation " \synnone " := None (in custom latex): latex.
-  Notation " '\synsome\left(' v '\right)' " := (Some v) (in custom latex): latex.
-
-  (* Terms *)
-  Notation " '\overline{\synvar{' x '}}' " := (Var x) (in custom latex, x constr ): latex.
-  Notation " '\synvar{' x '}' " := (FreeVar x) (in custom latex): latex.
-  Notation " t1  t2 " := (App t1 t2) (in custom latex at level 15): latex.
-  Notation " '\synlambda.' t " := (Lam t) (in custom latex at level 25): latex.
-  Notation " \synlet t2 \synin t1 " := (App (Lam t1) t2) (in custom latex at level 17): latex.
-
-  Notation " '\synlangle' ts '\synmid' tj '\synjust' tc '\synrangle' " :=  (Default ts tj tc) (in custom latex): latex.
-  Notation " '\ghostvalue{' v '}'" := (Value (v)) (in custom latex): latex.
-  Notation " t1 '\synpunct{' op '}' t2 " := (Binop op t1 t2) (in custom latex at level 19): latex.
-
-  Notation "'if' a 'then' b 'else' c 'end'" := (If a b c) (in custom latex).
-  Notation "'match' a 'with' 'None' => b 'Some' => c 'end'" := (Match_ a b c) (in custom latex).
-
-
-  (* Closures *)
-  Notation " '\square' '\synpunct{' op '}' e2 " := (CBinopR op e2) (in custom latex at level 0): latex.
-  Notation " '\square' e2 " := (CAppR e2) (in custom latex at level 0): latex.
-  Notation " v1 '\synpunct{' op '}' '\square' " := (CBinopL op v1) (in custom latex at level 0): latex.
-  Notation " '\synCClo(' t_cl ','  sigma_cl ')' '\square' " := (CClosure t_cl sigma_cl) (in custom latex at level 0): latex.
-  Notation " '\synDef(' o ',' ts ','  tj ','  tc ')' " := (CDefault o ts tj tc) (in custom latex at level 0): latex.
-  Notation " '\synReturn(' sigma ')' " := (CReturn sigma) (in custom latex at level 0): latex.
-  Notation " '\synlangle' '\square' '\synjust' tc '\synrangle' " := (CDefaultBase tc) (in custom latex at level 0): latex.
-
-
-  (* Runtime Values *)
-  Notation "\syntrue" := (Bool true) (in custom latex at level 0): latex.
-  Notation "\synfalse" := (Bool false) (in custom latex at level 0): latex.
-
-  Notation " \ghostint i " := (Int i) (in custom latex at level 0, i constr): latex.
-  Notation " '\synClo(' t ','  sigma ')' " := (Closure t sigma) (in custom latex): latex.
-  (* Notation " '\ghostvvalue'  v " := (VValue v) (in custom latex): latex. *)
-
-  (* Notation "+" := Add (in custom latex): latex. *)
-
-
-  (* Results *)
-  Notation "'\synempty'" := REmpty (in custom latex): latex.
-  Notation "'\synconflict'" := RConflict (in custom latex): latex.
-  Notation " v " := (RValue v) (in custom latex at level 0): latex.
-
-  (* continuation mode *)
-  Notation "'{\leval'  t ,  kappa ,  sigma  '\reval}'" := (mode_eval t kappa  sigma) (in custom latex at level 150): latex.
-  Notation "'{\lcont'  kappa ,  sigma ,  v  '\rcont}'" := (mode_cont kappa sigma  v) (in custom latex): latex.
-  Notation " s1  '\leadsto^*' s2 " := (star cred s1 s2) (in custom latex at level 20): latex.
-  Notation " s1  '\leadsto' s2 " := (cred s1 s2) (in custom latex at level 200): latex. *)
 
 (** STACK MANIPULATION *)
 
@@ -562,16 +495,7 @@ Qed.
 Theorem cred_deterministic (s s1' s2': state):
   cred s s1' -> cred s s2' -> s1' = s2'.
 Proof.
-  induction 1; inversion 1; subst; try solve [eauto|congruence].
-  (* What is left is cases involving the [cred_empty] and [cred_conflict] rules. Since congrugence don't go inside the forall, it does not handle those cases correctly. *)
-  all: try match goal with
-    [h: context [CReturn _ <> CReturn _] |- _ ] =>
-      epose proof h _ as tmp; exfalso; apply tmp; eauto
-    end.
-  all: try match goal with
-    [h: context [CDefault _ _ _ _ _ <> CDefault _ _ _ _ _] |- _ ] =>
-    epose proof h _ _ _ _ _ as tmp; exfalso; apply tmp; eauto
-    end.
+  induction 1; inversion 1; subst; try solve [eauto|congruence|tryfalse].
 Qed.
 
 

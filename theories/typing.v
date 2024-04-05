@@ -461,8 +461,7 @@ Proof.
     eapply common.Forall2_nth_error_Some; eauto.
   }
   { (* Returning an Conflict *)
-    induction phi; try solve [repeat sinv_jt; repeat econstructor; eauto].
-    { now pose proof H sigma0. }
+    induction phi; try solve [repeat sinv_jt; repeat econstructor; eauto| tryfalse].
   }
   { induction op, v1, v2; simpl in *; inj; repeat (econstructor; eauto). }
 Qed.

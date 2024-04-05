@@ -1323,6 +1323,7 @@ Proof.
       | rewrite soe_cons; asimpl; reflexivity
     ].
 
+    (* Hand-written cases *)
     { inversion Hs2; subst; unpack; inversion H15. }
     { inversion Hs2; subst; unpack; inversion H15. }
     { learn (inv_state_mode_cont_CDefault_Hole_conts_empty _ _ _ _ _ _ _ Hs2); subst.
