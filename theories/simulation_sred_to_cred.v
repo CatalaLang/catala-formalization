@@ -1203,7 +1203,7 @@ Proof.
     (* INDUCTION SRED *)
     all: induction Ht2t3; intros.
 
-    (* HYPOTHESIS SATURATION *)
+    (* HYPOTHESIS SATURATION STEP 1 *)
     all: try rewrite apply_CDefault_apply_CDefault_usable in *; unfold apply_CDefault_usable in *; try match goal with
     [h: context [ apply_CDefault_case_hole _ _ ?t _ ] |- _ ] =>
       let Hrw := fresh "H" in
@@ -1214,6 +1214,7 @@ Proof.
       ]
     end; inj; tryfalse.
 
+    (* HYPOTHESIS SATURATION STEP 2 *)
     all: repeat (match goal with
       | [h: Value _ = fst (apply_conts _ _) |- _] =>
         learn (value_apply_conts h); clear h; unpack; repeat unpack_subst_of_env_cons
@@ -1267,6 +1268,7 @@ Proof.
     (* INTERPRETOR *)
     all: repeat (
       (* reduction with a stack after, plus version *)
+      (* PROOF AUTOMATION *)
       repeat (eapply plus_star_trans_prop; [solve[
           erewrite append_stack_app;[|solve[simpl; eauto]];
           eapply plus_cred_append_stack;

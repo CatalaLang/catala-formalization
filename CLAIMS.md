@@ -43,6 +43,7 @@ To extract dependencies of lemmas we use the DPD Rcoq library that dump the depe
 
 ## Section 5.1
 
+* During the proof of `simulation_sred_cred_base`, we can see the number of proof goals reaches 2760 cases at the `(* HYPOTHESIS SATURATION STEP 1 *)` marker. It then reduces to 344 `(* HYPOTHESIS SATURATION STEP 2 *)` marker, and then to 255 at the `(* INTERPRETOR *)` marker (not included in the paper)
 * The `star_step_prop` is in `theories/sequences.v` file. Similar lemmas include for forward simulation diagrams: `star_refl_prop`, `star_step_prop`, `star_trans_prop`, `plus_star_trans_prop`, `star_plus_trans_prop`, `plus_step_prop`. They are used in both `simulation_cred_sred_base` and `simulation_sred_cred_base`. We indicated a marker `(* PROOF AUTOMATION *)` where we use them.
 * The "smart inversion" is implemented for typing judgment and invariant in the `sinv_jt` and `sinv_inv` tactics in the `theories/typing.v` file. The helper tactic `smart_inversion` is found in the `theories/tactics.v` file.
 * Our terms `term` in `theories/syntax.v` make use of mutually recursive inductive types, lists containers, and require simplification (with autosubst).
@@ -50,5 +51,5 @@ To extract dependencies of lemmas we use the DPD Rcoq library that dump the depe
 ## Section 5.2
 
 * The lines of code to compare the equivalence between `sred` and `cred` were obtained using `coqwc`.
-* The proof of theorem 3.2 is the proof of the `simulation_sred_cred_base` theorem in the `theories/simulation_sred_to_cred.v` file. We omit in the paper the lifting back to `simulation_sred_cred`. The induction on the continuation is at the marker `(* INDUCTION ON KAPPA *)`. The induction step starts at the marker `(* INDUCTION STEP *)`. The induction on the small step reduction is done at the marker `(* INDUCTION SRED *)`. The hypothesis saturation is done at the marker `(* HYPOTHESIS SATURATION *)`. The Ltac interpreter is done at the marker `(* INTERPRETOR *)`. The final simulation proof is done at the marker `(* FINISH *)`.
+* The proof of theorem 3.2 is the proof of the `simulation_sred_cred_base` theorem in the `theories/simulation_sred_to_cred.v` file. We omit in the paper the lifting back to `simulation_sred_cred`. The induction on the continuation is at the marker `(* INDUCTION ON KAPPA *)`. The induction step starts at the marker `(* INDUCTION STEP *)`. The induction on the small step reduction is done at the marker `(* INDUCTION SRED *)`. The hypothesis saturation is done at the marker `(* HYPOTHESIS SATURATION STEP 1 *)` and `(* HYPOTHESIS SATURATION STEP 2 *)`. The Ltac interpreter is done at the marker `(* INTERPRETOR *)`. The final simulation proof is done at the marker `(* FINISH *)`.
 

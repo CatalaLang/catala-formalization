@@ -404,6 +404,7 @@ Proof.
   all: try destruct (EmptyOrNotEmpty th).
   all: dsimpl; try eapply sim_term_star_sred_apply_counts.
   all: try solve [
+    (* PROOF AUTOMATION *)
     eapply star_refl_prop;
     simpl; reflexivity; eauto].
   all: repeat step.
