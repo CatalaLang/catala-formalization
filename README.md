@@ -2,7 +2,7 @@
 
 This is the companion artifact to the paper "Should You Use Continuation Semantics for Your 𝜆-calculus? Application to Catala’s Verified Compilation".
 
-This artifact only contains the Coq code described in the paper. We will include the transformation implementation in the official Catala compiler when submitting to the OOPSLA Artifacts track.
+This artifact only contains the Rocq code described in the paper. We will include the transformation implementation in the official Catala compiler when submitting to the OOPSLA Artifacts track.
 
 
 ## File detailed description.
@@ -28,18 +28,23 @@ The file `sequences.v` is adapted from previous work by François Pottier itself
 
 ## Hardware Dependencies    
 
-Minimal dependencies. The whole proof builds in 1 min on recent laptop. 
+Minimal dependencies. The whole proof builds in 1 min on recent laptop.
 
 
 ## Building and installation
 
 
-To start developing, you first need to install `opam`. Then you can run the following commands:
+To start developing, you first need to install `opam` using your package manager. According to [https://opam.ocaml.org/doc/Install.html], you can run the following commands
 
-    opam switch create rcoq-catala 4.14.0
+    bash -c "sh <(curl -fsSL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)"
+    opam init
+
+Then you can run the following commands to install the artifact dependencies (including Rocq)
+
+    opam switch create rocq-catala 4.14.0
     opam repo add coq-released https://coq.inria.fr/opam/released
-    eval $(opam env --switch=rcoq-catala --set-switch)
-    opam repository add rcoq-released --all-switches
+    eval $(opam env --switch=rocq-catala --set-switch)
+    opam repository add rocq-released --all-switches
     opam install . --deps-only
 
 
@@ -50,4 +55,3 @@ Once you have installed the dependencies, you can use dune to build the `Rcoq` d
     dune build
 
 And start your favorite interactive proof interface for `Rcoq`.
-
