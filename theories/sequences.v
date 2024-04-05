@@ -1,7 +1,7 @@
 (** A library of relation operators defining sequences of transitions
   and useful properties about them. Originally by Xavier Leroy, with
   some improvements and additions by François Pottier, and more
-  additions by Alain Delaët. *)
+  additions by the authors of the artifact. *)
 
 Require Import Classical.
 Require Import Relation_Operators.
