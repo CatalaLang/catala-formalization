@@ -38,8 +38,6 @@ In 4.2.3, we count the number of lines of code of:
 * for the small-step specification, the `sred` inductive in the `small_step.v` file.
 * for the continuation-based specification, the `cred`, `state`, `cont`, `result`, and `is_hole` inductives in the `theories/continuations.v` file.
 
-To extract dependencies of lemmas, we use the DPD Rcoq library that dumps the dependencies between all lemmas in the Rcoq development (`export/export.v` file). We then conduct an analysis of the result in the `doc/dpd-reader.ipynb` file. This Python program is only available for completeness, is not mentioned in the paper, and is not part of the artifact.
-
 ## Section 5.1
 
 * During the proof of `simulation_sred_cred_base`, we can see the number of proof goals reaches 2760 cases at the `(* HYPOTHESIS SATURATION STEP 1 *)` marker. It then reduces to 344 at the `(* HYPOTHESIS SATURATION STEP 2 *)` marker, and then to 255 at the `(* INTERPRETOR *)` marker (not included in the paper).
