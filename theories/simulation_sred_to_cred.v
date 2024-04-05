@@ -1202,6 +1202,8 @@ Proof.
     all: match typeof Ht2t3 with sred ?u1 ?u2 => remember u1 as u end.
     (* INDUCTION SRED *)
     all: induction Ht2t3; intros.
+
+    (* HYPOTHESIS SATURATION *)
     all: try rewrite apply_CDefault_apply_CDefault_usable in *; unfold apply_CDefault_usable in *; try match goal with
     [h: context [ apply_CDefault_case_hole _ _ ?t _ ] |- _ ] =>
       let Hrw := fresh "H" in
@@ -1262,7 +1264,7 @@ Proof.
       | [h: sred Conflict _ |- _] => inversion h
       end; repeat rewrite snd_apply_conts_last in *; injections; subst).
 
-    (* possible reduction steps *)
+    (* INTERPRETOR *)
     all: repeat (
       (* reduction with a stack after, plus version *)
       repeat (eapply plus_star_trans_prop; [solve[
@@ -1302,7 +1304,7 @@ Proof.
       simpl
     ).
 
-    all: (* finish it off *)
+    all: (* FINISH *)
       try (eapply star_refl_prop; eapply sim_state_from_equiv).
     all: (* for recursive cases, we apply the induction hypothesis and lift it using append_stack *)
       try rewrite apply_state_append_stack; simpl in *; subst; unfold apply_cont; sp; simpl.
