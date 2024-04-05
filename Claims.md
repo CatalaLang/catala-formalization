@@ -1,5 +1,7 @@
 In this file, we describe the different claims of the paper.
 
+The whole development is axiom free except for two things: autosubst relies on Functional Extensionality. And in the submodule `correctness` of the `theories/typing.v` file contains a hypothesis `mesure` that decreases when executing terms. We suppose such measure exists as simply typed lambda calculus terminates, but do not prove it. We don't use this fact anywhere but in those lemmas or in our paper.
+
 
 ## Section 3.1
 
@@ -37,15 +39,16 @@ In 4.2.3, we count the number of line of code of :
 * for the small step specification the `sred` inductive in `small_step.v` file.
 * for the continuation-based specification the `cred`, `state`, `cont`, `result` and `is_hole` inductive in `theories/continuations.v` file.
 
-To extract dependencies of lemmas we use the DPD Coq library that dump the dependencies between all lemmas in the Coq development (`export/export.v` file). We then conduct analysis of the result in the `doc/dpd-reader.ipynb` file. This python program is only available for completeness, is not mentioned in the paper, and not part of the artifact.
+To extract dependencies of lemmas we use the DPD Rcoq library that dump the dependencies between all lemmas in the Rcoq development (`export/export.v` file). We then conduct analysis of the result in the `doc/dpd-reader.ipynb` file. This python program is only available for completeness, is not mentioned in the paper, and not part of the artifact.
 
 ## Section 5.1
 
 * The `star_step_prop` is in `theories/sequences.v` file. Similar lemmas include for forward simulation diagrams: `star_refl_prop`, `star_step_prop`, `star_trans_prop`, `plus_star_trans_prop`, `star_plus_trans_prop`, `plus_step_prop`. They are used in both `simulation_cred_sred_base` and `simulation_sred_cred_base`. We indicated a marker `(* PROOF AUTOMATION *)` where we use them.
 * The "smart inversion" is implemented for typing judgment and invariant in the `sinv_jt` and `sinv_inv` tactics in the `theories/typing.v` file. The helper tactic `smart_inversion` is found in the `theories/tactics.v` file.
-* Our terms `term` in `theories/syntax.v` make use of mutually recursive inductives, lists containers, and require simplification (with autosubst).
+* Our terms `term` in `theories/syntax.v` make use of mutually recursive inductive types, lists containers, and require simplification (with autosubst).
 
 ## Section 5.2
 
+* The lines of code to compare the equivalence between `sred` and `cred` were obtained using `coqwc`.
 * The proof of theorem 3.2 is the proof of the `simulation_sred_cred_base` theorem in the `theories/simulation_sred_to_cred.v` file. We omit in the paper the lifting back to `simulation_sred_cred`. The induction on the continuation is at the marker `(* INDUCTION ON KAPPA *)`. The induction step starts at the marker `(* INDUCTION STEP *)`. The induction on the small step reduction is done at the marker `(* INDUCTION SRED *)`. The hypothesis saturation is done at the marker `(* HYPOTHESIS SATURATION *)`. The Ltac interpreter is done at the marker `(* INTERPRETOR *)`. The final simulation proof is done at the marker `(* FINISH *)`.
 
