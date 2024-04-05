@@ -982,6 +982,31 @@ Theorem simulation_sred_cred_base:
     exists s2,
       sim_state s2 t2 /\ star cred s1 s2.
 Proof.
+  intros.
+  remember  (fst (apply_state_aux s1)) as t1.
+  generalize dependent s1.
+  induction H.
+  all: induction s1; induction kappa as [|k kappa] using rev_ind_wf.
+  all: try match goal with [k: cont |- _] => induction k end.
+  all: try match goal with [r: result |- _] => induction r end.
+  all: unfold apply_state_aux.
+  all: try (rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl).
+  all: simpl; intros; repeat subst_of_env; inj.
+  all: try match goal with [|-context [CReturn ]] => admit end.
+  all: try repeat (eapply star_step_prop; [econstructor; eauto|]).
+  all: try solve [
+    eapply star_refl_prop; eapply sim_state_from_equiv; simpl; try reflexivity
+  ].
+  
+  15:{ }
+
+
+Theorem simulation_sred_cred_base:
+  forall s1 t2,
+    sred (apply_state s1) t2 ->
+    exists s2,
+      sim_state s2 t2 /\ star cred s1 s2.
+Proof.
   intros s1.
   remember (stack s1) as kappa.
   revert s1 Heqkappa.
@@ -1050,7 +1075,7 @@ Proof.
     try rewrite fst_apply_conts_CReturn; eauto end.
 
     all: match typeof Ht2t3 with sred ?u1 ?u2 => remember u1 as u end.
-    generalize dependent env; generalize dependent e.
+    generalize dependent env; generalize dependent e; generalize dependent kappa; generalize dependent t2.
     all: induction Ht2t3; intros; inj; tryfalse.
     all: repeat match goal with
       [h: Value _ = fst (apply_conts _ _) |- _] =>
