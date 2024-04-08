@@ -1,5 +1,5 @@
 Require Import syntax.
-Require Import small_step tactics.
+Require Import tactics.
 Require Import sequences.
 Require Import typing.
 
@@ -130,129 +130,8 @@ Proof.
   }
 Qed.
 
-Theorem term_ind' : forall P : term -> Prop,
-  (forall x : var, P (Var x)) ->
-  (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
-  (forall t : {bind term}, P t -> P (Lam t)) ->
-  (forall arg : term, P arg -> P (ErrorOnEmpty arg)) ->
-  (forall arg : term, P arg -> P (DefaultPure arg)) ->
-  forall (IHDef: forall (ts : list term), List.Forall P ts -> forall (tj : term),
-  P tj -> forall tc : term, P tc -> P (Default ts tj tc)),
-  P Empty ->
-  P Conflict ->
-  (forall v : value, P (Value v)) ->
-  (forall (op : op) (t1 : term),
-  P t1 -> forall t2 : term, P t2 -> P (Binop op t1 t2)) ->
-  (forall u : term,
-  P u ->
-  forall t1 : term,
-  P t1 -> forall t2 : {bind term}, P t2 -> P (Match_ u t1 t2)) ->
-  P ENone ->
-  (forall t : term, P t -> P (ESome t)) ->
-  forall (IHFold: forall f : {bind 2 of term},
-  P f -> forall (ts : list term), List.Forall P ts -> forall (t : term), P t -> P (Fold f ts t)),
-  (forall t : term,
-  P t ->
-  forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
-  forall t : term, P t.
-Proof.
-  intros until t; revert t.
-  fix IHt 1; lock IHt.
-  induction t; eauto.
-  { eapply IHDef; eauto.
-    unlock IHt; clear -IHt.  
-    induction ts; econstructor; eauto.
-  }
-  { eapply IHFold; eauto.
-    unlock IHt; clear -IHt.  
-    induction ts; econstructor; eauto.
-  }
-Qed.
-
-
-Lemma trans_te_renaming:
-  forall t u,
-  trans t = u ->
-  forall xi,
-  trans t.[ren xi] = u.[ren xi].
-Proof.
-  induction t using term_ind'; repeat (asimpl; intros; subst; f_equal; eauto).
-  { induction H; simpl; f_equal; eauto. }
-  { induction H; simpl; f_equal; eauto. }
-Qed.
-
-
-
-Theorem trans_te_substitution_aux:
-  forall t u,
-  trans t = u ->
-  forall sigma1 sigma2,
-  (forall x, trans (sigma1 x) = sigma2 x) ->
-  trans t.[sigma1] = u.[sigma2].
-Proof.
-  induction t using term_ind'; try solve [repeat (asimpl; intros; subst; f_equal; eauto)].
-  { asimpl; intros; subst. asimpl. f_equal.
-    eapply IHt; eauto.
-    { intros. induction x; asimpl; eauto.
-      eapply trans_te_renaming.
-      eauto.
-    }
-  }
-  { repeat (asimpl; intros; subst).
-    repeat f_equal; eauto.
-    induction H; asimpl; eauto; repeat f_equal; eauto.
-  }
-  { intros; subst; asimpl; f_equal; eauto.
-    eapply IHt3; eauto.
-    { intros. induction x; asimpl; eauto.
-      eapply trans_te_renaming.
-      eauto.
-    }
-  }
-  { repeat (asimpl; intros; subst).
-    repeat f_equal; eauto.
-    induction H; asimpl; eauto; repeat f_equal; eauto.
-  }
-Qed.
-
-Theorem trans_te_substitution:
-  forall t,
-  forall sigma1 sigma2,
-  List.Forall2 (fun v1 v2 => trans_value v1 = v2) sigma1 sigma2 ->
-  trans t.[subst_of_env sigma1] = (trans t).[subst_of_env sigma2].
-Proof.
-  intros.
-  eapply trans_te_substitution_aux; eauto.
-  intro a; revert a.
-  induction H, a; asimpl; eauto. rewrite H; eauto.
-Qed. 
 
 Require Import common.
-
-Theorem trans_te_substitution_0:
-  forall t v,
-  trans t.[Value v/] = (trans t).[Value (trans_value v)/].
-Proof.
-  intros.
-  replace (scons (Value v) ids) with (subst_of_env (v::nil)).
-  replace (scons (Value (trans_value v)) ids) with (subst_of_env ((trans_value v)::nil)).
-  eapply trans_te_substitution; eauto.
-
-  
-  { eapply FunctionalExtensionality.functional_extensionality; intros.
-    induction x; unfold subst_of_env; simpl; eauto; rewrite nth_error_nil; f_equal; lia. }
-  { eapply FunctionalExtensionality.functional_extensionality; intros.  
-    induction x; unfold subst_of_env; simpl; eauto; rewrite nth_error_nil; f_equal; lia.
-  }
-Qed.
-
-
-Lemma Forall2_map: forall sigma,
-  List.Forall2 (fun v1 v2 : value => trans_value v1 = v2) sigma
-    (List.map trans_value sigma).
-Proof.
-  induction sigma; econstructor; eauto.
-Qed.
 
 Lemma trans_value_op_correct:
   forall v op v1 v2,
@@ -260,55 +139,6 @@ Lemma trans_value_op_correct:
     Some (trans_value v) = get_op op (trans_value v1) (trans_value v2).
 Proof.
   induction op, v1 , v2; intros; simpl in *; inj; simpl; eauto.
-Qed.
-
-
-Theorem correction_small_steps:
-  forall s1 s2,
-  sred s1 s2 ->
-  exists target,
-    star sred
-      (trans s1) target /\
-    star sred
-      (trans s2) target.
-Proof.
-
-  Local Ltac step := (
-    try (eapply step_left; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|]);
-    try (eapply step_right; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|])
-  ).
-
-  intros s1 s2.
-  intros Hsred.
-  induction Hsred; intros; unpack.
-  (* When the right hand side is the result of the left hand side. *)
-  all: try solve [simpl; repeat step; eapply diagram_finish].
-  { asimpl. repeat step. eexists; split; simpl trans; [|eapply star_refl; fail].
-    rewrite <- List.map_cons.
-    eapply star_refl_eq.
-    symmetry.
-    eapply trans_te_substitution; eauto.
-    eapply Forall2_map.
-  }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step.
-    eapply step_left. { econstructor; simpl; eapply trans_value_op_correct; eauto. }
-    eapply diagram_finish.
-  }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step. eexists; split; asimpl; eapply star_refl_eq; eauto.
-    eapply trans_te_substitution_0. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
 Qed.
 
 
@@ -401,7 +231,6 @@ Definition trans_state (s: state) : state :=
   end
 .
 
-
 Import List.ListNotations.
 Require Import sequences.
 
@@ -415,7 +244,7 @@ Theorem correction_continuations:
       (trans_state s2) target.
 Proof.
 
-  Local Ltac step' := ( idtac
+  Local Ltac step := ( idtac
     (* This tatic try to advance the computation on the right or on the left of the diagram. *)
     ; try (eapply step_left; [solve [ econstructor; simpl; eauto using List.map_nth_error, trans_value_op_correct]|])
     ; try (eapply step_right; [solve [ econstructor; simpl; eauto using List.map_nth_error, trans_value_op_correct]|])
@@ -429,7 +258,7 @@ Proof.
 
   all:
     try solve [
-      repeat step';
+      repeat step;
       try eapply diagram_finish;
       eauto
     ].
