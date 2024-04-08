@@ -254,12 +254,12 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       jt_term Delta Gamma t2 T2 ->
       jt_cont Delta Gamma Gamma (CBinopR op t2) T1 T3
   | JTCDefault:
-    forall Delta Gamma h o ts tj tc T,
+    forall Delta Gamma o ts tj tc T,
       List.Forall (fun ti => jt_term Delta Gamma ti (TDefault T)) ts ->
       match o with None => True | Some o => jt_value Delta o T end ->
       jt_term Delta Gamma tj TBool ->
       jt_term Delta Gamma tc (TDefault T) ->
-      jt_cont Delta Gamma Gamma (CDefault h o ts tj tc) (TDefault T) (TDefault T)
+      jt_cont Delta Gamma Gamma (CDefault o ts tj tc) (TDefault T) (TDefault T)
   | JTCDefaultBase:
     forall Delta Gamma tc T,
       jt_term Delta Gamma tc (TDefault T) ->
@@ -488,7 +488,6 @@ Proof.
       all: repeat sinv_jt. (* need to infer information about values that are boolean *)
       all: try match goal with [o: option value |- _ ] => induction o end.
       all: try match goal with [ts: list term |- _ ] => induction ts end.
-      all: try match goal with [h: is_hole |- _ ] => induction h end.
       all: try match goal with [op: op |- _ ] => induction op end.
       all: repeat match goal with [b: bool |- _ ] => induction b end.
       all: repeat (

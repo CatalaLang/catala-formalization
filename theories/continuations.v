@@ -29,32 +29,22 @@ Theorem result_eq_dec: forall (x y : result), {x = y}+{x <> y}.
   eapply value_eq_dec.
 Qed.
 
-Inductive is_hole :=
-  | Hole
-  | NoHole
-.
 
-Theorem is_hole_eq_dec: forall (x y : is_hole), {x = y}+{x <> y}.
-  decide equality.
-Qed.
-
-
-(* App (Var 0) (up t2) *)
 
 Inductive cont :=
   | CAppR (t2: term) (* [\square t2] *)
-  | CClosure (t_cl: {bind term}) (sigma_cl: list value)
+  | CClosure (t_cl: term) (sigma_cl: list value)
   (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices,
      there is no variable x. *)
 
   | CBinopL (op: op) (v1: value) (* [op t1 \square] *)
   | CBinopR (op: op) (t2: term) (* [op \square t2] *)
   | CReturn (sigma: list value) (* call return *)
-  | CDefault (b: is_hole) (o: option value) (ts: list term) (tj: term) (tc: term)
+  | CDefault (o: option value) (ts: list term) (tj: term) (tc: term)
     (* [Def(o, ts, tj, tc)] *)
   | CDefaultBase (tc: term)
     (* [ <| \square :- tc >] *)
-  | CMatch (t1: term) (t2: {bind term})
+  | CMatch (t1: term) (t2: term)
     (* [ match \square with None -> t1 | Some -> t2 end ] *)
   | CIf (ta: term) (tb: term)
   | CSome
@@ -178,49 +168,36 @@ Inductive cred: state -> state -> Prop :=
     forall ts tj tc kappa sigma,
     cred
       (mode_eval (Default ts tj tc) kappa sigma)
-      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault None ts tj tc)::kappa) sigma REmpty)
 
   | cred_default_unpack:
     forall o th ts tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault Hole o (th::ts) tj tc)::kappa) sigma REmpty)
-      (mode_eval th ((CDefault NoHole o ts tj tc)::kappa) sigma)
-
-  | cred_default_value:
-    forall o ts tj tc kappa sigma v,
-    cred
-      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma (RValue (VPure v)))
-      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma (RValue (VPure v)))
+      (mode_cont ((CDefault o (th::ts) tj tc)::kappa) sigma REmpty)
+      (mode_eval th ((CDefault o ts tj tc)::kappa) sigma)
 
   | cred_default_value_none_to_some:
     forall ts tj tc kappa sigma v,
     cred
-      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma (RValue (VPure v)))
-      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault None ts tj tc)::kappa) sigma (RValue (VPure v)))
+      (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma REmpty)
 
   | cred_default_value_conflict:
     forall ts tj tc kappa sigma v v',
     cred
-      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma (RValue (VPure v')))
+      (mode_cont ((CDefault (Some v) ts tj tc)::kappa) sigma (RValue (VPure v')))
       (mode_cont kappa sigma RConflict)
 
   | cred_default_value_return:
     forall v tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault Hole (Some v) [] tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault (Some v) [] tj tc)::kappa) sigma REmpty)
       (mode_cont kappa sigma (RValue (VPure v)))
-
-  (* empty *)
-  | cred_default_empty:
-    forall o ts tj tc kappa sigma,
-    cred
-      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma REmpty)
-      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma REmpty)
 
   | cred_defaultbase:
     forall tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault Hole None [] tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault None [] tj tc)::kappa) sigma REmpty)
       (mode_eval tj ((CDefaultBase tc)::kappa) sigma)
 
   | cred_defaultbasetrue:
@@ -429,7 +406,7 @@ Theorem cred_append_stack s s':
   forall k,
   cred (append_stack s k) (append_stack s' k).
 Proof.
-  induction 1; intros; asimpl; try econstructor; eauto.
+  induction 1; intros; simpl; try econstructor; eauto.
 Qed.
 
 Theorem star_cred_append_stack s s':
@@ -460,92 +437,6 @@ Theorem cred_deterministic (s s1' s2': state):
   cred s s1' -> cred s s2' -> s1' = s2'.
 Proof.
   induction 1; inversion 1; subst; try solve [eauto|congruence|tryfalse].
-Qed.
-
-
-(** Our reduction sequences should have the folowing shape:
-* The head of kappa, if it exists can have any possible shape.
-* Each member of the tail should however not contain "Hole" inside their default terms.
-* This is explained by the invariant `inv_state`.
-
-*)
-
-Inductive inv_conts_no_hole: cont -> Prop :=
-| inv_CAppR (t2: term):
-  inv_conts_no_hole (CAppR (t2: term))
-| inv_CClosure (t_cl: {bind term}) (sigma_cl: list value):
-  inv_conts_no_hole (CClosure (t_cl: {bind term}) (sigma_cl: list value))
-| inv_CBinopL (op: op) (v1: value):
-  inv_conts_no_hole (CBinopL (op) (v1: value))
-| inv_CBinopR (op: op) (t2: term):
-  inv_conts_no_hole (CBinopR (op) (t2: term))
-| inv_CReturn (sigma: list value):
-  inv_conts_no_hole (CReturn (sigma: list value))
-| inv_CDefault (o: option value) (ts: list term) (tj: term) (tc: term):
-  inv_conts_no_hole (CDefault (NoHole) (o: option value) (ts: list term) (tj: term) (tc: term))
-| inv_CDefaultBase (tc: term):
-  inv_conts_no_hole (CDefaultBase (tc: term))
-| inv_CMatch (t1: term) (t2: {bind term}):
-  inv_conts_no_hole (CMatch (t1: term) (t2: {bind term}))
-| inv_CSome:
-  inv_conts_no_hole (CSome)
-| inv_If (ta tb: term):
-  inv_conts_no_hole (CIf ta tb)
-| inv_ErrorOnEmpty:
-  inv_conts_no_hole CErrorOnEmpty
-| inv_CDefaultPure:
-  inv_conts_no_hole CDefaultPure
-| inv_CFold:
-  forall f ts,
-  inv_conts_no_hole (CFold f ts)
-.
-
-Inductive inv_state: state -> Prop :=
-| inv_mode_eval t kappa env:
-  List.Forall inv_conts_no_hole kappa ->
-  inv_state (mode_eval t kappa env)
-| inv_mode_cont_cons k kappa env r:
-  List.Forall inv_conts_no_hole kappa ->
-  inv_state (mode_cont (k::kappa) env r)
-| inv_mode_cont_nil env r:
-  inv_state (mode_cont [] env r)
-.
-
-Lemma inv_state_append_stack {s kappa}:
-  inv_state s ->
-  List.Forall inv_conts_no_hole kappa ->
-  inv_state (append_stack s kappa).
-Proof.
-  inversion 1; simpl; intros.
-  econstructor; eapply List.Forall_app; eauto.
-  econstructor; eapply List.Forall_app; eauto.
-  { induction kappa; unpack.
-    all: econstructor; eauto.
-  }
-Qed.
-  
-
-(* This property is indeed conserved by the cred relation. *)
-
-Theorem cred_inv_state_stable:
-  forall s1 s2,
-    cred s1 s2 ->
-    inv_state s1 ->
-    inv_state s2.
-Proof.
-  induction 1; inversion 1; subst; repeat econstructor; eauto.
-  all: destruct kappa; econstructor; unpack; eauto.
-Qed.
-
-Theorem star_cred_inv_state_stable:
-  forall s1 s2,
-    star cred s1 s2 ->
-    inv_state s1 ->
-    inv_state s2.
-Proof.
-  induction 1.
-  { eauto. }
-  { intros; eapply IHstar; eapply cred_inv_state_stable; eauto. }
 Qed.
 
 
@@ -580,6 +471,11 @@ Proof.
   all: try remember (a::kappa) as kappa'.
   all: repeat rewrite droplastn_cons by (subst; simpl; lia).
   all: try solve [econstructor; eauto].
+  {
+    repeat rewrite lastn_def_firstn in *; simpl in *.
+    inj.
+    exfalso; eapply list_diagonal; eauto.
+  }
   {
     repeat rewrite lastn_def_firstn in *; simpl in *.
     inj.
