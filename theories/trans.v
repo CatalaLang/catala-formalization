@@ -171,7 +171,7 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
   | CFold f ts :: kappa =>
     CFold (trans f) (List.map trans ts) :: trans_conts kappa sigma
 
-  | CDefault b None ts tj tc :: kappa =>
+  | CDefault None ts tj tc :: kappa =>
     (* This term can be derived from the trans fonction by taking the (mode_eval (trans (Default (t::ts) tj tc)) [] sigma) term and executing it. *)
     (CClosure
       (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
@@ -184,7 +184,7 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
       (If (trans tj) (trans tc) ENone)
       (ESome (Var 0))) ::
       trans_conts kappa sigma
-  | CDefault b (Some v) ts tj tc :: kappa =>
+  | CDefault (Some v) ts tj tc :: kappa =>
     (* This term can be derived from the trans fonction by taking the (mode_eval (trans (Default (Value (VPure v)::t::ts) tj tc)) [] []) term and executing it. *)
     (CClosure
       (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))

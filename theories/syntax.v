@@ -1,4 +1,3 @@
-Require Export Autosubst.Autosubst.
 Require Import String.
 Require Import Coq.ZArith.ZArith.
 Require Export Coq.Classes.RelationClasses.
@@ -20,9 +19,9 @@ Qed.
 
 Inductive term :=
   (* Lambda calculus part of the language*)
-  | Var (x: var)
+  | Var (x: nat)
   | App (t1 t2: term)
-  | Lam (t: {bind term})
+  | Lam (t: term)
 
   (* Default fragment of the language. *)
   | ErrorOnEmpty (arg: term)
@@ -35,7 +34,7 @@ Inductive term :=
   | Value (v: value)
   | Binop (op: op) (t1 t2: term)
 
-  | Match_ (u t1: term) (t2: {bind term})
+  | Match_ (u t1: term) (t2: term)
   | ENone
   | ESome (t: term)
   | Fold (f: term) (ts: list term) (t: term)
@@ -45,7 +44,7 @@ Inductive term :=
 with value :=
   | Bool (b: bool)
   | Int (i: Z)
-  | Closure (t: {bind term}) (sigma: list value)
+  | Closure (t: term) (sigma: list value)
   | VNone
   | VUnit
   | VSome (v: value)
@@ -104,9 +103,9 @@ Qed.
 
 Lemma term_value_ind
 	 : forall (P : term -> Prop) (P0 : value -> Prop),
-       (forall x : var, P (Var x)) ->
+       (forall x : nat, P (Var x)) ->
        (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
-       (forall t : {bind term}, P t -> P (Lam t)) ->
+       (forall t : term, P t -> P (Lam t)) ->
        (forall arg : term, P arg -> P (ErrorOnEmpty arg)) ->
        (forall arg : term, P arg -> P (DefaultPure arg)) ->
        (forall (ts : list term), List.Forall P ts -> forall (tj : term),
@@ -119,7 +118,7 @@ Lemma term_value_ind
        (forall u : term,
         P u ->
         forall t1 : term,
-        P t1 -> forall t2 : {bind term}, P t2 -> P (Match_ u t1 t2)) ->
+        P t1 -> forall t2 : term, P t2 -> P (Match_ u t1 t2)) ->
        P ENone ->
        (forall t : term, P t -> P (ESome t)) ->
        (forall f : term,
@@ -129,7 +128,7 @@ Lemma term_value_ind
         forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
        (forall b : bool, P0 (Bool b)) ->
        (forall i : Z, P0 (Int i)) ->
-       (forall t : {bind term},
+       (forall t : term,
         P t -> forall sigma : list value, List.Forall P0 sigma -> P0 (Closure t sigma)) ->
        P0 VNone ->
        P0 VUnit ->
@@ -197,9 +196,7 @@ Theorem term_value_eq_dec:
       epose proof (IHx (inl t2) _ y2).
       finish.
     }
-    { simpl in *.
-      epose proof (IHx (inl t) _ t0); finish.
-    } 
+    { epose proof (IHx (inl t) _ y); finish. }
     { epose proof (IHx (inl t) _ y); finish. }
     { epose proof (IHx (inl t) _ y); finish. }
     { epose proof (IHx (inl t1) _ y1).
@@ -225,7 +222,7 @@ Theorem term_value_eq_dec:
     { simpl in *.
       epose proof (IHx (inl t1) _ y1).
       epose proof (IHx (inl t2) _ y2).
-      epose proof (IHx (inl t3) _ t0).
+      epose proof (IHx (inl t3) _ y3).
       finish.
     }
     { epose proof (IHx (inl t) _ y).

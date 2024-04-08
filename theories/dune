@@ -1,4 +1,4 @@
 (coq.theory
  (name Catala)
  (package coq-catala)
- (theories Autosubst Ltac2))
+ (theories Ltac2))
