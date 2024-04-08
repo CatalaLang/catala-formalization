@@ -32,7 +32,6 @@ Fixpoint trans_ty (ty: type): type :=
 Fixpoint trans (t: term) : term :=
   match t with
   | Var x => Var x
-  | FreeVar x => FreeVar x
   | App t1 t2 => App (trans t1) (trans t2)
   | Lam t => Lam (trans t)
 
@@ -142,7 +141,6 @@ Theorem term_ind' : forall P : term -> Prop,
   P Empty ->
   P Conflict ->
   (forall v : value, P (Value v)) ->
-  (forall x : String.string, P (FreeVar x)) ->
   (forall (op : op) (t1 : term),
   P t1 -> forall t2 : term, P t2 -> P (Binop op t1 t2)) ->
   (forall u : term,
@@ -445,7 +443,7 @@ Proof.
     ].
   
   (* Only two cases are left. *)
-  { exfalso; eapply H; eauto. }
+  { tryfalse. }
   { (* requires operator translation correction *)
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_step.
