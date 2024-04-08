@@ -415,25 +415,17 @@ Theorem correction_continuations:
       (trans_state s2) target.
 Proof.
 
-  Local Ltac step' := (
+  Local Ltac step' := ( idtac
     (* This tatic try to advance the computation on the right or on the left of the diagram. *)
-    try (eapply step_left; [solve
-      (* generic case *)
-      [ econstructor; simpl; eauto using List.map_nth_error
-      (* for contextual error cases *)
-      | econstructor; repeat intro; tryfalse
-    ]|])
-    ; try (eapply step_right; [solve
-      [ econstructor; simpl; eauto using List.map_nth_error
-      | econstructor; repeat intro; tryfalse
-    ]|])
+    ; try (eapply step_left; [solve [ econstructor; simpl; eauto using List.map_nth_error, trans_value_op_correct]|])
+    ; try (eapply step_right; [solve [ econstructor; simpl; eauto using List.map_nth_error, trans_value_op_correct]|])
   ).
 
   intros s1 s2 Hsred.
   induction Hsred;
     try induction phi;
     try induction o;
-    intros; unpack.
+    intros; unpack; tryfalse.
 
   all:
     try solve [
@@ -441,15 +433,4 @@ Proof.
       try eapply diagram_finish;
       eauto
     ].
-  
-  (* Only two cases are left. *)
-  { tryfalse. }
-  { (* requires operator translation correction *)
-    eexists; split; asimpl; [|eapply star_refl].
-    eapply star_step.
-    { econstructor.
-      eapply trans_value_op_correct; eauto.
-    }
-    eapply star_refl.
-  }
 Qed.
