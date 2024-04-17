@@ -159,3 +159,42 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont (CBinopL op v1 :: kappa) sigma (RValue v2))
       (mode_cont kappa sigma (RValue v))
 .
+
+(* [AD: Add typing rules], but check where it is used. It was in boolean  conditions. Soundness and completeness was proved using all inputs that satisfy path constrains, it is a valid execution for the concrete semantics. We need to have some typing constrains here to check the path constraints are well-formed. 
+
+It might be better to directly separate what the well-formeness and pathc onstraints, and the correctness of the typing.
+
+*)
+
+
+
+
+(******************************************************************************)
+(* Continuation-Based Symbolic Semantics                                      *)
+(******************************************************************************)
+
+(** Possible to include here the path constraints (?) *)
+Inductive sstate : Type :=.
+
+Inductive scred: sstate -> sstate -> Prop :=.
+
+Inductive srefine: state -> sstate -> Prop :=.
+
+
+Theorem scred_sound:
+  forall ss1 ss2,
+    scred ss1 ss2 ->
+      forall s1,
+        srefine s1 ss1 ->
+        exists s2, srefine s2 ss2 /\ cred s1 s2.
+Abort.
+
+
+(** This theorem might not be true under resonable conditions. *)
+Theorem scred_complete:
+  forall s1 s2,
+    cred s1 s2 ->
+      forall ss1,
+        srefine s1 ss1 ->
+        exists ss2, srefine s2 ss2 /\ scred ss1 ss2.
+Abort.
