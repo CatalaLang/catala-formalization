@@ -13,6 +13,11 @@ Require Import Wellfounded.
 
 (*** Definitions of terms and continuations for mini-ml ***)
 
+Inductive op :=
+  | Add
+  | Eq
+.
+
 
 Inductive term :=
   (* Lambda calculus part of the language*)
@@ -21,9 +26,24 @@ Inductive term :=
   | Lam (t: term) (* binds *)
   | Value (v: value)
 
+  | Binop (op: op) (t1 t2: term)
+  | If (t ta tb: term)
+
 with value :=
   | Closure (t: term) (* binds *) (sigma: list value)
+  | Bool (b: bool)
+  | Int (i: Z)
+  (* | VPair (a b: value) *)
 .
+
+(* concrete interpretation of operators *)
+
+Definition get_op op i1 i2 :=
+  match op, i1, i2 with
+  | Add, Int i1, Int i2 => Some (Int (Z.add i1 i2))
+  | Eq, Int i1, Int i2 => Some (Bool (Z.eqb i1 i2))
+  | _, _, _ => None
+  end.
 
 
 Inductive cont :=
@@ -32,6 +52,10 @@ Inductive cont :=
   (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices,
      there is no variable x. *)
   | CReturn (sigma: list value) (* call return *)
+  | CBinopL (op: op) (v1: value) (* [op t1 \square] *)
+  | CBinopR (op: op) (t2: term) (* [op \square t2] *)
+
+  | CIf (ta: term) (tb: term)
 .
 
 Inductive result :=
@@ -93,4 +117,45 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont (CReturn sigma::kappa) sigma_cl r)
       (mode_cont kappa sigma r)
+
+  | cred_if:
+    forall u t1 t2 kappa sigma,
+    cred
+      (mode_eval (If u t1 t2) kappa sigma)
+      (mode_eval u ((CIf t1 t2)::kappa) sigma)
+  | cred_if_true:
+    forall t1 t2 kappa sigma,
+    cred
+      (mode_cont ((CIf t1 t2)::kappa) sigma (RValue (Bool true)))
+      (mode_eval t1 kappa sigma)
+  | cred_if_false:
+    forall t1 t2 kappa sigma,
+    cred
+      (mode_cont ((CIf t1 t2) :: kappa) sigma (RValue (Bool false)))
+      (mode_eval t2 kappa sigma)
+
+  | cred_value_intro:
+    forall v kappa sigma,
+    cred
+      (mode_eval (Value v) kappa sigma)
+      (mode_cont kappa sigma (RValue v))
+
+  | cred_op_intro:
+    forall op e1 e2 kappa sigma,
+    cred
+      (mode_eval (Binop op e1 e2) kappa sigma)
+      (mode_eval e1 (CBinopR op e2::kappa) sigma)
+
+  | cred_op_mid:
+    forall op e2 kappa sigma v,
+    cred
+      (mode_cont (CBinopR op e2 :: kappa) sigma (RValue v))
+      (mode_eval e2 (CBinopL op v :: kappa) sigma)
+
+  | cred_op_final:
+    forall op v v1 v2 kappa sigma,
+    Some v = get_op op v1 v2 ->
+    cred
+      (mode_cont (CBinopL op v1 :: kappa) sigma (RValue v2))
+      (mode_cont kappa sigma (RValue v))
 .
