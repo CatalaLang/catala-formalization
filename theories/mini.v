@@ -173,6 +173,87 @@ It might be better to directly separate what the well-formeness and pathc onstra
 (* Continuation-Based Symbolic Semantics                                      *)
 (******************************************************************************)
 
+Inductive svalue :=
+  | SClosure (t: term) (* binds *) (sigma: list svalue)
+  | SBinop (op: op) (v1 v2: svalue)
+  | SBool (b: bool)
+  | SInt (i: Z)
+  | SVar (x: nat)
+.
+
+Fixpoint reduce {A} (l : list (option A)) : option (list A) :=
+  match l with
+  | nil => Some nil
+  | cons None l => None
+  | cons (Some x) l =>
+    match reduce l with
+    | Some l => Some (cons x l)
+    | None => None
+    end
+  end.
+
+Fixpoint seval (ctx: list value) (v : svalue) { struct v } : option value :=
+  match v with
+  | SVar x => List.nth_error ctx x
+  | SBool b => Some (Bool b)
+  | SInt i => Some (Int i)
+  | SBinop op v1 v2 =>
+    match seval ctx v1, seval ctx v2 with
+    | Some x1, Some x2 => get_op op x1 x2
+    | _, _ => None
+    end
+  | SClosure term sigma =>
+    match reduce (List.map (seval ctx) sigma) with
+    | Some l => Some (Closure term l)
+    | None => None
+    end
+  end.
+
+Fixpoint symbolize (v : value) : svalue :=
+  match v with
+  | Closure term sigma => SClosure term (List.map symbolize sigma)
+  | Bool b => SBool b
+  | Int i => SInt i
+  end.
+
+Fixpoint value_ind'
+  (P : value -> Prop)
+  (IHbool : forall b, P (Bool b))
+  (IHint  : forall i, P (Int i))
+  (IHclo  : forall (t : term) (sigma : list value), List.Forall P sigma -> P (Closure t sigma))
+  (v : value) : P v :=
+    match v as v0 return (P v0) with
+    | Bool b => IHbool b
+    | Int i => IHint i
+    | Closure t sigma => 
+      let helper := fix F l :=
+        match l as l' return List.Forall P l' with
+        | nil => List.Forall_nil P
+        | cons x xs =>
+          @List.Forall_cons _ P x xs (value_ind' P IHbool IHint IHclo x) (F xs)
+        end
+      in
+      IHclo t sigma (helper sigma)
+    end.
+
+Lemma reduce_map_Some {A}:
+  forall (l : list A), reduce (List.map Some l) = Some l.
+Proof.
+  induction l as [ | x xs IH ]; simpl; auto.
+  now rewrite IH.
+Qed.
+
+Lemma seval_symbolize:
+  forall ctx v, seval ctx (symbolize v) = Some v.
+Proof.
+  induction v as [ | | t sigma IH ] using value_ind' ; simpl; auto.
+  assert (Haux : List.map (seval ctx) (List.map symbolize sigma) = List.map Some sigma). {
+    induction IH as [ | x sigma Hhead Htail IH ]; simpl; try easy.
+    now rewrite Hhead, IH.
+  }
+  now rewrite Haux, reduce_map_Some.
+Qed.
+
 (** Possible to include here the path constraints (?) *)
 Inductive sstate : Type :=.
 
