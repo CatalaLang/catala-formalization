@@ -53,6 +53,13 @@ with value :=
   | VPure (v: value)
 .
 
+Definition get_op op i1 i2 :=
+  match op, i1, i2 with
+  | Add, Int i1, Int i2 => Some (Int (Z.add i1 i2))
+  | Eq, Int i1, Int i2 => Some (Bool (Z.eqb i1 i2))
+  | _, _, _ => None
+  end.
+
 
 Fixpoint size_term (t : term) : nat :=
   match t with
@@ -307,12 +314,7 @@ Global Hint Rewrite subst_cons: autosubst.
 
 
 
-Definition get_op op i1 i2 :=
-  match op, i1, i2 with
-  | Add, Int i1, Int i2 => Some (Int (Z.add i1 i2))
-  | Eq, Int i1, Int i2 => Some (Bool (Z.eqb i1 i2))
-  | _, _, _ => None
-  end.
+
 
 Import List.ListNotations.
 Open Scope list.
