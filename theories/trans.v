@@ -73,6 +73,83 @@ with trans_value v :=
   end
 .
 
+Inductive no_default: term -> Prop :=
+  | NDVar: forall x, no_default (Var x)
+  | NDApp: forall t1 t2,
+    no_default t1 ->
+    no_default t2 ->
+    no_default (App t1 t2)
+  | NDLam: forall t,
+    no_default t ->
+    no_default (Lam t)
+
+  | NDConflict:
+    no_default Conflict
+
+  | NDValue: forall v,
+    no_default_value v ->
+    no_default (Value v)
+  | NDBinop: forall op t1 t2,
+    no_default t1 ->
+    no_default t2 ->
+    no_default (Binop op t1 t2)
+
+  | NDMatch_: forall u t1 t2,
+    no_default u ->
+    no_default t1 ->
+    no_default t2 ->
+    no_default (Match_ u t1 t2)
+  | NDENone:
+    no_default ENone
+  | NDESome: forall t,
+    no_default t ->
+    no_default (ESome t)
+  | NDFold: forall f ts t,
+    no_default f ->
+    List.Forall no_default ts ->
+    no_default t ->
+    no_default (Fold f ts t)
+  | NDIf: forall t ta tb,
+    no_default t ->
+    no_default ta ->
+    no_default tb ->
+    no_default (If t ta tb)
+
+with no_default_value: value -> Prop :=
+  | NDBool: forall b, no_default_value (Bool b)
+  | NDInt: forall i, no_default_value (Int i)
+  | NDClosure: forall t sigma,
+    no_default t ->
+    List.Forall no_default_value sigma ->
+    no_default_value (Closure t sigma)
+  | NDVNone:
+    no_default_value VNone
+  | NDVUnit:
+    no_default_value VUnit
+  | NDVSome: forall v,
+    no_default_value v ->
+    no_default_value (VSome v)
+  | NDVPure: forall v,
+    no_default_value v ->
+    no_default_value (VPure v)
+.
+
+
+
+Theorem no_more_defaults:
+  forall t, no_default (trans t)
+with no_more_defaults_value:
+  forall v, no_default_value (trans_value v).
+Proof.
+{ induction t; simpl; repeat econstructor; eauto.
+  { induction ts; econstructor; eauto. }
+  { induction ts; econstructor; eauto. }
+}
+{ induction v; simpl; repeat econstructor; eauto.
+  { induction sigma; econstructor; eauto. }
+}
+Qed.
+
 
 Lemma trans_ty_inv_base {T}:
   inv_base (trans_ty T)
