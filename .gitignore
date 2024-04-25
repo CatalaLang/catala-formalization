@@ -5,3 +5,4 @@ _build
 _opam
 catala.dpd
 .ipynb_checkpoints
+.venv

@@ -1,0 +1,7 @@
+(install
+ (files
+  (glob_files_rec alectryon.css)
+  (glob_files_rec alectryon.js)
+  (glob_files_rec pygments.css)
+  (glob_files_rec *.html))
+ (section share))
