@@ -254,13 +254,158 @@ Proof.
   now rewrite Haux, reduce_map_Some.
 Qed.
 
-(** Possible to include here the path constraints (?) *)
-Inductive sstate : Type :=.
+(** Symbolic continuations *)
+Inductive scont :=
+  | SCAppR (t2: term) (* [\square t2] *)
+  | SCClosure (t_cl: term (* binds *)) (sigma_cl: list svalue)
+  (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices,
+     there is no variable x. *)
+  | SCReturn (sigma: list svalue) (* call return *)
+  | SCBinopL (op: op) (v1: svalue) (* [op t1 \square] *)
+  | SCBinopR (op: op) (t2: term) (* [op \square t2] *)
 
-Inductive scred: sstate -> sstate -> Prop :=.
+  | SCIf (ta: term) (tb: term)
+.
+
+Inductive sresult :=
+  | SRValue (v: svalue)
+.
+
+Definition constraint := list value -> Prop.
+
+(** interprets a symbolic value as a constraint *)
+Definition as_constraint (s : svalue) : option constraint :=
+  match s with
+  | SBool true => Some (fun _ => True)
+  | SBool false => Some (fun _ => False)
+  | SBinop Eq v1 v2 => Some (fun env => exists v, seval env v1 = Some v /\ seval env v2 = Some v)
+  | _ => None
+  end.
+
+Definition cand (c1 c2 : constraint) : constraint :=
+  fun env => c1 env /\ c2 env.
+
+Definition cnot (c : constraint) : constraint :=
+  fun env => ~c env.
+
+(* Probably need to change that to account for typing ? *)
+Definition get_sym_op op v1 v2 :=
+  Some (SBinop op v1 v2).
+
+(** Possible to include here the path constraints (?) *)
+Inductive sstate : Type :=
+  | mode_seval (phi : constraint) (e: term) (kappa: list scont) (env: list svalue)
+  | mode_scont (phi : constraint) (kappa: list scont) (env: list svalue) (result: sresult).
+
+Inductive scred: sstate -> sstate -> Prop :=
+
+  (** Rules related to the lambda calculus
+      Remark:
+        scred_var, scred_app, scred_clo, scred_arg, scred_beta, etc
+        are exactly the same as in the concrete semantic!
+        This is because these rules are purely about control!
+        There is certainly interesting comments to make here,
+        and we could probably factor a lot by having a semantic
+        more "modular" base semantics that separates control and data.
+        As expected, the only rules that has to change is the rules that don't
+        talk about control but talk about data (e.g., scred_value).
+        For theses rules, data are made symbolic to represent sets
+        of concrete values isntead of a single one.
+  *)
+  | scred_var:
+    forall x phi kappa sigma v,
+    List.nth_error sigma x = Some v ->
+    scred
+      (mode_seval phi (Var x) kappa sigma)
+      (mode_scont phi kappa sigma (SRValue v))
+
+  | scred_app:
+    forall t1 t2 phi kappa sigma,
+    scred
+      (mode_seval phi (App t1 t2) kappa sigma)
+      (mode_seval phi t1 ((SCAppR t2) :: kappa) sigma)
+
+  | scred_clo:
+    forall t phi kappa sigma,
+    scred
+      (mode_seval phi (Lam t) kappa sigma)
+      (mode_scont phi kappa sigma (SRValue (SClosure t sigma)))
+
+  | scred_arg:
+    forall t2 phi kappa sigma tcl sigmacl,
+    scred
+      (mode_scont phi ((SCAppR t2)::kappa) sigma (SRValue (SClosure tcl sigmacl)))
+      (mode_seval phi t2 ((SCClosure tcl sigmacl)::kappa) sigma)
+
+  (* This rule change! we need to symbolize values (this rule is about data, not control !!!!) *)
+  | scred_value:
+    forall v phi kappa sigma,
+    scred
+      (mode_seval phi (Value v) kappa sigma)
+      (mode_scont phi kappa sigma (SRValue (symbolize v)))
+
+  | scred_beta:
+    forall t_cl sigma_cl phi kappa sigma v,
+    scred
+      (mode_scont phi ((SCClosure t_cl sigma_cl)::kappa) sigma (SRValue v))
+      (mode_seval phi t_cl (SCReturn sigma::kappa) (v :: sigma_cl))
+
+  | scred_return:
+    forall sigma_cl phi kappa sigma r,
+    scred
+      (mode_scont phi (SCReturn sigma::kappa) sigma_cl r)
+      (mode_scont phi kappa sigma r)
+
+  | scred_if:
+    forall u t1 t2 phi kappa sigma,
+    scred
+      (mode_seval phi (If u t1 t2) kappa sigma)
+      (mode_seval phi u ((SCIf t1 t2)::kappa) sigma)
+
+  (** Rules for choices, these are also changing because they are mixing control and data!
+      More precisely, "if" is THE construction that makes the connection between data and control.
+  *)
+
+  | scred_if_true:
+    forall t1 t2 phi kappa sigma v c,
+    as_constraint v = Some c ->
+    scred
+      (mode_scont phi ((SCIf t1 t2)::kappa) sigma (SRValue v))
+      (mode_seval (cand phi c) t1 kappa sigma)
+  
+  | scred_if_false:
+    forall t1 t2 phi kappa sigma v c,
+    as_constraint v = Some c ->
+    scred
+      (mode_scont phi ((SCIf t1 t2) :: kappa) sigma (SRValue v))
+      (mode_seval (cand phi (cnot c)) t2 kappa sigma)
+
+  | scred_value_intro:
+    forall v phi kappa sigma,
+    scred
+      (mode_seval phi (Value v) kappa sigma)
+      (mode_scont phi kappa sigma (SRValue (symbolize v)))
+
+  | scred_op_intro:
+    forall op e1 e2 phi kappa sigma,
+    scred
+      (mode_seval phi (Binop op e1 e2) kappa sigma)
+      (mode_seval phi e1 (SCBinopR op e2::kappa) sigma)
+
+  | scred_op_mid:
+    forall op e2 phi kappa sigma v,
+    scred
+      (mode_scont phi (SCBinopR op e2 :: kappa) sigma (SRValue v))
+      (mode_seval phi e2 (SCBinopL op v :: kappa) sigma)
+
+  | scred_op_final:
+    forall op v v1 v2 phi kappa sigma,
+    Some v = get_sym_op op v1 v2 ->
+    scred
+      (mode_scont phi (SCBinopL op v1 :: kappa) sigma (SRValue v2))
+      (mode_scont phi kappa sigma (SRValue v)).
 
 Inductive srefine: state -> sstate -> Prop :=.
-
 
 Theorem scred_sound:
   forall ss1 ss2,
