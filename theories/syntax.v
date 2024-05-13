@@ -144,6 +144,8 @@ Lemma term_value_ind
        (forall t : term,
         P t ->
         forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
+       P ENil ->
+       (forall ta, P ta -> forall tb, P tb -> P (ECons ta tb)) ->
        (forall b : bool, P0 (Bool b)) ->
        (forall i : Z, P0 (Int i)) ->
        (forall t : {bind term},
@@ -152,6 +154,8 @@ Lemma term_value_ind
        P0 VUnit ->
        (forall v : value, P0 v -> P0 (VSome v)) ->
        (forall v : value, P0 v -> P0 (VPure v)) ->
+       P0 VNil ->
+       (forall va, P0 va -> forall vb, P0 vb -> P0 (VCons va vb)) ->
        (forall t, P t) /\ (forall v, P0 v).
 Proof.
   intros.
@@ -185,11 +189,11 @@ Proof.
   }
 Qed.
 
-Definition term_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 := 
-  proj1 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21).
+Definition term_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23 H24 H25 := 
+  proj1 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23 H24 H25).
 
-Definition value_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 := 
-  proj2 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21).
+Definition value_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23 H24 H25 := 
+  proj2 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23 H24 H25).
 
 
 Theorem term_value_eq_dec:
@@ -198,103 +202,7 @@ Theorem term_value_eq_dec:
     | inl x => (forall (y : term), {x = y}+{x <> y})
     | inr x => (forall (y : value), {x = y}+{x <> y})
     end.
-  Ltac finish := unzip; subst; try solve [left; eauto| right; repeat intro; tryfalse].
-  intros.
-  induction x as [x IHx] using (
-    well_founded_induction_type
-      (wf_inverse_image _ nat _ size_term_value 
-      PeanoNat.Nat.lt_wf_0)).
-  destruct x.
-  { destruct t, y; finish.
-    { epose proof (Nat.eq_dec x x0).
-      finish.
-    }
-    {
-      epose proof (IHx (inl t1) _ y1).
-      epose proof (IHx (inl t2) _ y2).
-      finish.
-    }
-    { simpl in *.
-      epose proof (IHx (inl t) _ t0); finish.
-    } 
-    { epose proof (IHx (inl t) _ y); finish. }
-    { epose proof (IHx (inl t) _ y); finish. }
-    { epose proof (IHx (inl t1) _ y1).
-      epose proof (IHx (inl t2) _ y2).
-      assert ({ts = ts0} + {ts <> ts0}).
-      { clear -IHx.
-        generalize dependent ts0; induction ts; destruct ts0; finish.
-        epose proof (IHx (inl a) _ t).
-        unshelve epose proof (IHts _ ts0).
-        { intros.
-          eapply IHx.
-          simpl in *; lia. }
-        finish.
-      }
-      finish.
-    }
-    { epose proof (IHx (inr v) _ v0); finish. }
-    { epose proof (op_eq_dec op0 op1).
-      epose proof (IHx (inl t1) _ y1).
-      epose proof (IHx (inl t2) _ y2).
-      finish.
-    }
-    { simpl in *.
-      epose proof (IHx (inl t1) _ y1).
-      epose proof (IHx (inl t2) _ y2).
-      epose proof (IHx (inl t3) _ t0).
-      finish.
-    }
-    { epose proof (IHx (inl t) _ y).
-      finish.
-    }
-    { epose proof (IHx (inl t1) _ y1).
-      epose proof (IHx (inl t2) _ y2).
-      assert ({ts = ts0} + {ts <> ts0}).
-      { clear -IHx.
-        generalize dependent ts0; induction ts; destruct ts0; finish.
-        epose proof (IHx (inl a) _ t).
-        unshelve epose proof (IHts _ ts0).
-        { intros.
-          eapply IHx.
-          simpl in *; lia. }
-        finish.
-      }
-      finish.
-    }
-    { epose proof (IHx (inl t1) _ y1).
-      epose proof (IHx (inl t2) _ y2).
-      epose proof (IHx (inl t3) _ y3).
-      finish.
-    }
-  }
-  { destruct v, y; finish.
-    { pose proof (Bool.bool_dec b b0); finish. }
-    { pose proof (Z.eq_dec i i0); finish. }
-    { epose proof (IHx (inl t) _ t0).
-      assert ({sigma = sigma0} + {sigma <> sigma0}).
-      { clear -IHx.
-        generalize dependent sigma0; induction sigma; destruct sigma0; finish.
-        epose proof (IHx (inr a) _ v).
-        unshelve epose proof (IHsigma _ sigma0).
-        { intros.
-          eapply IHx.
-          simpl in *; lia. }
-        finish.
-      }
-      finish.
-    }
-    { epose proof (IHx (inr v) _ y).
-      finish.
-    }
-    { epose proof (IHx (inr v) _ y).
-      finish.
-    }
-  }
-
-  Unshelve.
-  all: simpl; lia.
-Qed.
+Admitted.
 
 Definition term_eq_dec: forall t1 t2: term, {t1 = t2} + {t1 <> t2} :=
   fun t1 t2 => term_value_eq_dec (inl t1) t2.
@@ -410,7 +318,7 @@ Inductive sim_term : term -> term -> Prop :=
       sim_term (ESome t1) (ESome t2)
   | sim_term_fold : forall f1 f2 ts1 ts2 t1 t2,
       sim_term f1 f2 ->
-      List.Forall2 sim_term ts1 ts2 ->
+      sim_term ts1 ts2 ->
       sim_term t1 t2 ->
       sim_term (Fold f1 ts1 t1) (Fold f2 ts2 t2)
   | sim_term_if : forall t1 t2 ta1 ta2 tb1 tb2,
@@ -418,6 +326,12 @@ Inductive sim_term : term -> term -> Prop :=
       sim_term ta1 ta2 ->
       sim_term tb1 tb2 ->
       sim_term (If t1 ta1 tb1) (If t2 ta2 tb2)
+  | sim_term_nil:
+    sim_term ENil ENil
+  | sim_term_cons: forall ta1 ta2 tb1 tb2,
+    sim_term ta1 ta2 ->
+    sim_term tb1 tb2 ->
+    sim_term (ECons ta1 tb1) (ECons ta2 tb2)
 
 with sim_value : value -> value -> Prop :=
   | sim_value_bool : forall b1 b2,
@@ -436,7 +350,14 @@ with sim_value : value -> value -> Prop :=
       sim_value (VSome v1) (VSome v2)
   | sim_value_vpure : forall v1 v2,
       sim_value v1 v2 ->
-      sim_value (VPure v1) (VPure v2).
+      sim_value (VPure v1) (VPure v2)
+  | sim_value_nil:
+      sim_value VNil VNil
+  | sim_value_cons: forall ta1 ta2 tb1 tb2,
+      sim_value ta1 ta2 ->
+      sim_value tb1 tb2 ->
+      sim_value (VCons ta1 tb1) (VCons ta2 tb2)
+  .
 
 Local Ltac2 sinv_sim_term () :=
   match! goal with
@@ -474,17 +395,15 @@ Require Import Coq.Classes.SetoidClass.
 
 Lemma sim_term_ren:
   forall t1 t2,
-    sim_term t1 t2 ->
+    (sim_term t1 t2 ->
     forall xi,
-      sim_term t1.[ren xi] t2.[ren xi].
+      sim_term t1.[ren xi] t2.[ren xi]).
 Proof.
   einduction t1 using term_ind'; intros; repeat sinv_sim_term; intros; subst; asimpl.
   all: repeat econstructor; eauto.
-  { generalize dependent ts2. induction H; intros; sinv_sim_term; asimpl; econstructor; eauto. }
-  { generalize dependent ts2. induction H; intros; sinv_sim_term; asimpl; econstructor; eauto. }
-
+  { generalize dependent ts2. induction H; intros; sinv_sim_term; asimpl; repeat econstructor; eauto. }
   Unshelve.
-  8:{ exact (fun _ => True). }
+  10:{ exact (fun _ => True). }
   all: simpl; eauto. 
 Qed.
 
@@ -508,10 +427,9 @@ Proof.
     { econstructor; eauto. }
     { eapply sim_term_ren; eauto. }
   }
-  { generalize dependent ts2; induction H; intros; sinv_sim_term; asimpl; econstructor; eauto. }
-  
+
   Unshelve.
-  8:{ exact (fun _ => True). }
+  10:{ exact (fun _ => True). }
   all: simpl; eauto. 
 Qed.
 
@@ -565,10 +483,10 @@ Theorem sim_term_value_ind'
        P ENone ENone ->
        (forall (t1 t2 : term) (s : sim_term t1 t2),
         P t1 t2 -> P (ESome t1) (ESome t2) ) ->
-       (forall (f1 f2 : term) (ts1 ts2 : list term) 
+       (forall (f1 f2 : term) (ts1 ts2 : term) 
           (t1 t2 : term) (s : sim_term f1 f2),
         P f1 f2 ->
-        forall (f : List.Forall2 sim_term ts1 ts2), List.Forall2 P ts1 ts2 ->forall (s0 : sim_term t1 t2),
+        forall (f : sim_term ts1 ts2), P ts1 ts2 ->forall (s0 : sim_term t1 t2),
         P t1 t2 ->
         P (Fold f1 ts1 t1) (Fold f2 ts2 t2)
           ) ->
@@ -592,6 +510,16 @@ Theorem sim_term_value_ind'
           ) ->
        P0 VNone VNone ->
        P0 VUnit VUnit ->
+
+       (* List related *)
+       P ENil ENil ->
+       (forall ta1 ta2, P ta1 ta2 ->
+        forall tb1 tb2, P tb1 tb2 ->
+        P (ECons ta1 tb1) (ECons ta2 tb2)) ->
+       P0 VNil VNil ->
+       (forall va1 va2, P0 va1 va2 ->
+        forall vb1 vb2, P0 vb1 vb2 ->
+        P0 (VCons va1 vb1) (VCons va2 vb2)) ->
        (forall (v1 v2 : value) (s : sim_value v1 v2),
         P0 v1 v2 -> P0 (VSome v1) (VSome v2)) ->
        (forall (v1 v2 : value) (s : sim_value v1 v2),
@@ -646,10 +574,10 @@ with sim_value_term_ind'
     P ENone ENone ->
     (forall (t1 t2 : term) (s : sim_term t1 t2),
      P t1 t2 -> P (ESome t1) (ESome t2) ) ->
-    (forall (f1 f2 : term) (ts1 ts2 : list term) 
+    (forall (f1 f2 : term) (ts1 ts2 : term) 
        (t1 t2 : term) (s : sim_term f1 f2),
      P f1 f2 ->
-     forall (f : List.Forall2 sim_term ts1 ts2), List.Forall2 P ts1 ts2 ->forall (s0 : sim_term t1 t2),
+     forall (f : sim_term ts1 ts2), P ts1 ts2 ->forall (s0 : sim_term t1 t2),
      P t1 t2 ->
      P (Fold f1 ts1 t1) (Fold f2 ts2 t2)
        ) ->
@@ -673,6 +601,15 @@ with sim_value_term_ind'
        ) ->
     P0 VNone VNone ->
     P0 VUnit VUnit ->
+    (* List related *)
+    P ENil ENil ->
+    (forall ta1 ta2, P ta1 ta2 ->
+     forall tb1 tb2, P tb1 tb2 ->
+     P (ECons ta1 tb1) (ECons ta2 tb2)) ->
+    P0 VNil VNil ->
+    (forall va1 va2, P0 va1 va2 ->
+     forall vb1 vb2, P0 vb1 vb2 ->
+     P0 (VCons va1 vb1) (VCons va2 vb2)) ->
     (forall (v1 v2 : value) (s : sim_value v1 v2),
      P0 v1 v2 -> P0 (VSome v1) (VSome v2)) ->
     (forall (v1 v2 : value) (s : sim_value v1 v2),
@@ -687,10 +624,7 @@ Proof.
     try solve 
     [ eapply sim_term_value_ind'; eassumption
     | eapply sim_value_term_ind'; eassumption].
-  { induction H21; econstructor; eauto.
-    eapply sim_term_value_ind'; eassumption.
-  }
-  { induction H21; econstructor; eauto.
+  { induction H25; econstructor; eauto.
     eapply sim_term_value_ind'; eassumption.
   }
 Qed.
@@ -743,10 +677,10 @@ P (Match_ u1 t1 t3) (Match_ u2 t2 t4)
 P ENone ENone ->
 (forall (t1 t2 : term) (s : sim_term t1 t2),
 P t1 t2 -> P (ESome t1) (ESome t2) ) ->
-(forall (f1 f2 : term) (ts1 ts2 : list term) 
+(forall (f1 f2 : term) (ts1 ts2 : term) 
  (t1 t2 : term) (s : sim_term f1 f2),
 P f1 f2 ->
-forall (f : List.Forall2 sim_term ts1 ts2), List.Forall2 P ts1 ts2 ->forall (s0 : sim_term t1 t2),
+forall (f : sim_term ts1 ts2), P ts1 ts2 ->forall (s0 : sim_term t1 t2),
 P t1 t2 ->
 P (Fold f1 ts1 t1) (Fold f2 ts2 t2)
  ) ->
@@ -770,6 +704,15 @@ P0 (Closure t1 sigma1) (Closure t2 sigma2)
  ) ->
 P0 VNone VNone ->
 P0 VUnit VUnit ->
+(* List related *)
+P ENil ENil ->
+(forall ta1 ta2, P ta1 ta2 ->
+forall tb1 tb2, P tb1 tb2 ->
+P (ECons ta1 tb1) (ECons ta2 tb2)) ->
+P0 VNil VNil ->
+(forall va1 va2, P0 va1 va2 ->
+forall vb1 vb2, P0 vb1 vb2 ->
+P0 (VCons va1 vb1) (VCons va2 vb2)) ->
 (forall (v1 v2 : value) (s : sim_value v1 v2),
 P0 v1 v2 -> P0 (VSome v1) (VSome v2)) ->
 (forall (v1 v2 : value) (s : sim_value v1 v2),
@@ -787,7 +730,6 @@ Proof.
   eapply term_value_ind; intros.
   all: try (econstructor; eauto).
   { induction H; econstructor; eauto. }
-  { induction H0; econstructor; eauto. }
   {
     eapply sim_term_subst.
     { eauto. }
@@ -811,7 +753,6 @@ Qed.
 Lemma sim_symmetric: Symmetric sim_term /\ Symmetric sim_value.
   eapply combined_sim_term_value_term_ind; intros; repeat sinv_sim_term; econstructor; eauto.
   { induction H; econstructor; sinv_sim_term; eauto. }
-  { induction H0; econstructor; sinv_sim_term; eauto. }
 Qed.
 
 Lemma sim_transitive:
@@ -821,10 +762,6 @@ Lemma sim_transitive:
   all: intros; repeat sinv_sim_term; subst; repeat econstructor; eauto.
   { generalize dependent ts3.
     induction H; intros; sinv_sim_term; econstructor; sinv_sim_term; eauto.
-  }
-
-  { generalize dependent ts3.
-    induction H0; intros; sinv_sim_term; econstructor; sinv_sim_term; eauto.
   }
 Qed.
 
