@@ -39,9 +39,12 @@ Inductive term :=
   | Match_ (u t1: term) (t2: {bind term})
   | ENone
   | ESome (t: term)
-  | Fold (f: term) (ts: list term) (t: term)
+  | Fold (f: term) (ts: term) (t: term)
 
   | If (t ta tb: term)
+
+  | ECons (h t: term)
+  | ENil
 
 with value :=
   | Bool (b: bool)
@@ -51,6 +54,8 @@ with value :=
   | VUnit
   | VSome (v: value)
   | VPure (v: value)
+  | VCons (h t: value)
+  | VNil
 .
 
 Definition get_op op i1 i2 :=
@@ -76,8 +81,10 @@ Fixpoint size_term (t : term) : nat :=
   | Match_ u t1 t2 => S (size_term u + size_term t1 + size_term t2)
   | ENone => 0
   | ESome t => S (size_term t)
-  | Fold f ts t => S (size_term f + List.list_sum (List.map size_term ts) + size_term t)
+  | Fold f ts t => S (size_term f + size_term ts + size_term t)
   | If t ta tb => S (size_term t + size_term ta + size_term tb)
+  | ECons h t => S (size_term h + size_term t)
+  | ENil => 0
   end
 with size_value (v : value) : nat :=
   match v with
@@ -88,6 +95,8 @@ with size_value (v : value) : nat :=
   | VUnit => 0
   | VSome v => S (size_value v)
   | VPure v => S (size_value v)
+  | VCons h t => S (size_value h + size_value t)
+  | VNil => 0
   end.
 
 Definition size_term_value (x : term + value) :=
@@ -131,7 +140,7 @@ Lemma term_value_ind
        P ENone ->
        (forall t : term, P t -> P (ESome t)) ->
        (forall f : term,
-        P f -> forall (ts : list term), List.Forall P ts -> forall (t : term), P t -> P (Fold f ts t)) ->
+        P f -> forall (ts : term), P ts -> forall (t : term), P t -> P (Fold f ts t)) ->
        (forall t : term,
         P t ->
         forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
