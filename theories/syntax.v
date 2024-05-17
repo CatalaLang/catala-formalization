@@ -43,8 +43,7 @@ Inductive term :=
 
   | If (t ta tb: term)
 
-  | ECons (h t: term)
-  | ENil
+  | EArray (ts: list term)
 
 with value :=
   | Bool (b: bool)
@@ -54,8 +53,7 @@ with value :=
   | VUnit
   | VSome (v: value)
   | VPure (v: value)
-  | VCons (h t: value)
-  | VNil
+  | VArray (ts: list value)
 .
 
 Definition get_op op i1 i2 :=
@@ -83,8 +81,7 @@ Fixpoint size_term (t : term) : nat :=
   | ESome t => S (size_term t)
   | Fold f ts t => S (size_term f + size_term ts + size_term t)
   | If t ta tb => S (size_term t + size_term ta + size_term tb)
-  | ECons h t => S (size_term h + size_term t)
-  | ENil => 0
+  | EArray ts => S (List.list_sum (List.map size_term ts))
   end
 with size_value (v : value) : nat :=
   match v with
@@ -95,8 +92,7 @@ with size_value (v : value) : nat :=
   | VUnit => 0
   | VSome v => S (size_value v)
   | VPure v => S (size_value v)
-  | VCons h t => S (size_value h + size_value t)
-  | VNil => 0
+  | VArray ts => S (List.list_sum (List.map size_value ts))
   end.
 
 Definition size_term_value (x : term + value) :=
@@ -144,8 +140,7 @@ Lemma term_value_ind
        (forall t : term,
         P t ->
         forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
-       P ENil ->
-       (forall ta, P ta -> forall tb, P tb -> P (ECons ta tb)) ->
+        (forall (ts : list term), List.Forall P ts -> P (EArray ts)) ->
        (forall b : bool, P0 (Bool b)) ->
        (forall i : Z, P0 (Int i)) ->
        (forall t : {bind term},
@@ -154,8 +149,7 @@ Lemma term_value_ind
        P0 VUnit ->
        (forall v : value, P0 v -> P0 (VSome v)) ->
        (forall v : value, P0 v -> P0 (VPure v)) ->
-       P0 VNil ->
-       (forall va, P0 va -> forall vb, P0 vb -> P0 (VCons va vb)) ->
+       (forall vs, List.Forall P0 vs -> P0 (VArray vs)) ->
        (forall t, P t) /\ (forall v, P0 v).
 Proof.
   intros.
@@ -185,15 +179,16 @@ Proof.
     all: unlock IHx.
     all: try match goal with [|- List.Forall _ ?ts] => induction ts; econstructor; eauto end.
     all: try (first [eapply (IHx (inl _))| eapply (IHx (inr _))]; simpl; lia).
-    all: eapply IHsigma; intros; eapply IHx; simpl in *; lia.
+    { eapply IHsigma; intros; eapply IHx; simpl in *; lia. }
+    { eapply IHts; intros; eapply IHx; simpl in *; lia. }
   }
 Qed.
 
-Definition term_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23 H24 H25 := 
-  proj1 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23 H24 H25).
+Definition term_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23 := 
+  proj1 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23).
 
-Definition value_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23 H24 H25 := 
-  proj2 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23 H24 H25).
+Definition value_ind' P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23 := 
+  proj2 (term_value_ind P Q H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14 H15 H16 H17 H18 H19 H20 H21 H22 H23).
 
 
 Theorem term_value_eq_dec:
@@ -326,12 +321,9 @@ Inductive sim_term : term -> term -> Prop :=
       sim_term ta1 ta2 ->
       sim_term tb1 tb2 ->
       sim_term (If t1 ta1 tb1) (If t2 ta2 tb2)
-  | sim_term_nil:
-    sim_term ENil ENil
-  | sim_term_cons: forall ta1 ta2 tb1 tb2,
-    sim_term ta1 ta2 ->
-    sim_term tb1 tb2 ->
-    sim_term (ECons ta1 tb1) (ECons ta2 tb2)
+  | sim_term_array: forall ts1 ts2,
+    List.Forall2 sim_term ts1 ts2 ->
+    sim_term (EArray ts1) (EArray ts2)
 
 with sim_value : value -> value -> Prop :=
   | sim_value_bool : forall b1 b2,
@@ -351,12 +343,9 @@ with sim_value : value -> value -> Prop :=
   | sim_value_vpure : forall v1 v2,
       sim_value v1 v2 ->
       sim_value (VPure v1) (VPure v2)
-  | sim_value_nil:
-      sim_value VNil VNil
-  | sim_value_cons: forall ta1 ta2 tb1 tb2,
-      sim_value ta1 ta2 ->
-      sim_value tb1 tb2 ->
-      sim_value (VCons ta1 tb1) (VCons ta2 tb2)
+  | sim_value_array: forall ts1 ts2,
+      List.Forall2 sim_value ts1 ts2 ->
+      sim_value (VArray ts1) (VArray ts2)
   .
 
 Local Ltac2 sinv_sim_term () :=
@@ -402,8 +391,9 @@ Proof.
   einduction t1 using term_ind'; intros; repeat sinv_sim_term; intros; subst; asimpl.
   all: repeat econstructor; eauto.
   { generalize dependent ts2. induction H; intros; sinv_sim_term; asimpl; repeat econstructor; eauto. }
+  { generalize dependent ts2. induction H; intros; sinv_sim_term; asimpl; repeat econstructor; eauto. }
   Unshelve.
-  10:{ exact (fun _ => True). }
+  9:{ exact (fun _ => True). }
   all: simpl; eauto. 
 Qed.
 
@@ -427,9 +417,10 @@ Proof.
     { econstructor; eauto. }
     { eapply sim_term_ren; eauto. }
   }
+  { generalize dependent ts2; induction H; intros; sinv_sim_term; asimpl; econstructor; eauto. }
 
   Unshelve.
-  10:{ exact (fun _ => True). }
+  9:{ exact (fun _ => True). }
   all: simpl; eauto. 
 Qed.
 
@@ -512,14 +503,8 @@ Theorem sim_term_value_ind'
        P0 VUnit VUnit ->
 
        (* List related *)
-       P ENil ENil ->
-       (forall ta1 ta2, P ta1 ta2 ->
-        forall tb1 tb2, P tb1 tb2 ->
-        P (ECons ta1 tb1) (ECons ta2 tb2)) ->
-       P0 VNil VNil ->
-       (forall va1 va2, P0 va1 va2 ->
-        forall vb1 vb2, P0 vb1 vb2 ->
-        P0 (VCons va1 vb1) (VCons va2 vb2)) ->
+       (forall ts1 ts2, List.Forall2 P ts1 ts2 -> P (EArray ts1) (EArray ts2)) ->
+       (forall vs1 vs2, List.Forall2 P0 vs1 vs2 -> P0 (VArray vs1) (VArray vs2)) ->
        (forall (v1 v2 : value) (s : sim_value v1 v2),
         P0 v1 v2 -> P0 (VSome v1) (VSome v2)) ->
        (forall (v1 v2 : value) (s : sim_value v1 v2),
@@ -602,14 +587,8 @@ with sim_value_term_ind'
     P0 VNone VNone ->
     P0 VUnit VUnit ->
     (* List related *)
-    P ENil ENil ->
-    (forall ta1 ta2, P ta1 ta2 ->
-     forall tb1 tb2, P tb1 tb2 ->
-     P (ECons ta1 tb1) (ECons ta2 tb2)) ->
-    P0 VNil VNil ->
-    (forall va1 va2, P0 va1 va2 ->
-     forall vb1 vb2, P0 vb1 vb2 ->
-     P0 (VCons va1 vb1) (VCons va2 vb2)) ->
+    (forall ts1 ts2, List.Forall2 P ts1 ts2 -> P (EArray ts1) (EArray ts2)) ->
+    (forall vs1 vs2, List.Forall2 P0 vs1 vs2 -> P0 (VArray vs1) (VArray vs2)) ->
     (forall (v1 v2 : value) (s : sim_value v1 v2),
      P0 v1 v2 -> P0 (VSome v1) (VSome v2)) ->
     (forall (v1 v2 : value) (s : sim_value v1 v2),
@@ -624,8 +603,14 @@ Proof.
     try solve 
     [ eapply sim_term_value_ind'; eassumption
     | eapply sim_value_term_ind'; eassumption].
-  { induction H25; econstructor; eauto.
+  { induction H23; econstructor; eauto.
     eapply sim_term_value_ind'; eassumption.
+  }
+  { induction H23; econstructor; eauto.
+    eapply sim_term_value_ind'; eassumption.
+  }
+  { induction H23; econstructor; eauto.
+    eapply sim_value_term_ind'; eassumption.
   }
 Qed.
 
@@ -705,14 +690,8 @@ P0 (Closure t1 sigma1) (Closure t2 sigma2)
 P0 VNone VNone ->
 P0 VUnit VUnit ->
 (* List related *)
-P ENil ENil ->
-(forall ta1 ta2, P ta1 ta2 ->
-forall tb1 tb2, P tb1 tb2 ->
-P (ECons ta1 tb1) (ECons ta2 tb2)) ->
-P0 VNil VNil ->
-(forall va1 va2, P0 va1 va2 ->
-forall vb1 vb2, P0 vb1 vb2 ->
-P0 (VCons va1 vb1) (VCons va2 vb2)) ->
+(forall ts1 ts2, List.Forall2 P ts1 ts2 -> P (EArray ts1) (EArray ts2)) ->
+(forall vs1 vs2, List.Forall2 P0 vs1 vs2 -> P0 (VArray vs1) (VArray vs2)) ->
 (forall (v1 v2 : value) (s : sim_value v1 v2),
 P0 v1 v2 -> P0 (VSome v1) (VSome v2)) ->
 (forall (v1 v2 : value) (s : sim_value v1 v2),
@@ -729,7 +708,7 @@ Lemma sim_term_refl: Reflexive sim_term /\ Reflexive sim_value.
 Proof.
   eapply term_value_ind; intros.
   all: try (econstructor; eauto).
-  { induction H; econstructor; eauto. }
+  all: try solve [match goal with [h: List.Forall _ _ |- _] => induction H; econstructor; eauto end].
   {
     eapply sim_term_subst.
     { eauto. }
@@ -752,7 +731,9 @@ Qed.
 
 Lemma sim_symmetric: Symmetric sim_term /\ Symmetric sim_value.
   eapply combined_sim_term_value_term_ind; intros; repeat sinv_sim_term; econstructor; eauto.
-  { induction H; econstructor; sinv_sim_term; eauto. }
+  { induction H; econstructor; repeat sinv_sim_term; eauto. }
+  { induction H; econstructor; repeat sinv_sim_term; eauto. }
+  { induction H; econstructor; repeat sinv_sim_term; eauto. }
 Qed.
 
 Lemma sim_transitive:
@@ -761,7 +742,13 @@ Lemma sim_transitive:
   eapply combined_sim_term_value_term_ind.
   all: intros; repeat sinv_sim_term; subst; repeat econstructor; eauto.
   { generalize dependent ts3.
-    induction H; intros; sinv_sim_term; econstructor; sinv_sim_term; eauto.
+    induction H; intros; eauto; repeat sinv_sim_term; econstructor; eauto.
+  }
+  { generalize dependent ts3.
+    induction H; intros; eauto; repeat sinv_sim_term; econstructor; eauto.
+  }
+  { generalize dependent ts2.
+    induction H; intros; eauto; repeat sinv_sim_term; econstructor; eauto.
   }
 Qed.
 
