@@ -213,9 +213,9 @@ Inductive sred: term -> term -> Prop :=
         (Value v)
   
   | sred_Fold_Conflict:
-    forall f ts,
+    forall f vs,
     sred
-      (Fold f ts Conflict)
+      (Fold f (Value (VArray vs)) Conflict)
       (Conflict)
 .
 
@@ -416,11 +416,25 @@ Proof.
 Qed.
 
 Lemma star_sred_fold:
-    forall f ts u1 u2,
+    forall f vs u1 u2,
     star sred u1 u2 ->
       star sred
-        (Fold f ts u1)
-        (Fold f ts u2).
+        (Fold f (Value (VArray vs)) u1)
+        (Fold f (Value (VArray vs)) u2).
+Proof.
+  induction 1.
+  { eapply star_refl. }
+  { eapply star_step; [|eapply IHstar].
+    econstructor; eauto.
+  }
+Qed.
+
+Lemma star_sred_fold_args:
+    forall f ts1 ts2 u,
+    star sred ts1 ts2 ->
+      star sred
+        (Fold f ts1 u)
+        (Fold f ts2 u).
 Proof.
   induction 1.
   { eapply star_refl. }
