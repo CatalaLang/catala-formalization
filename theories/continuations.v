@@ -60,7 +60,8 @@ Inductive cont :=
   | CSome
   | CErrorOnEmpty
   | CDefaultPure
-  | CFold (f: term) (ts: list term)
+  | CFold (f: term) (acc: term) (* compute the list first *)
+  | CFoldAcc (f: term) (vs: value) (* compute arguments afterward *)
 .
 
 Theorem option_eq_dec
@@ -332,17 +333,22 @@ Inductive cred: state -> state -> Prop :=
     forall f ts acc kappa sigma,
     cred
       (mode_eval (Fold f ts acc) kappa sigma)
-      (mode_eval acc (CFold f ts :: kappa) sigma)
-  | cred_fold_rec:
-    forall f h ts v kappa sigma,
+      (mode_eval ts (CFold f acc :: kappa) sigma)
+  | cred_fold_args:
+    forall f acc kappa sigma vs,
     cred
-      (mode_cont (CFold f (h::ts) :: kappa) sigma (RValue v))
-      (mode_eval (App (App f h) (Value v)) (CFold f ts :: kappa) sigma)
-  | cred_fold_init:
-    forall f v kappa sigma,
+      (mode_cont (CFold f acc :: kappa) sigma (RValue vs))
+      (mode_eval acc (CFoldAcc f vs :: kappa) sigma)
+  | cred_foldacc_cons:
+    forall f v vs kappa sigma vacc,
     cred
-      (mode_cont (CFold f [] :: kappa) sigma (RValue v))
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont (CFoldAcc f (VArray (v::vs)) :: kappa) sigma (RValue vacc))
+      (mode_eval (App (App f (Value v)) (Value vacc)) (CFoldAcc f (VArray vs) :: kappa) sigma)
+  | cred_foldacc_nil:
+    forall f kappa sigma vacc,
+    cred
+      (mode_cont (CFoldAcc f (VArray []) :: kappa) sigma (RValue vacc))
+      (mode_cont kappa sigma (RValue vacc))
 .
 
 Notation "'cred' t1 t2" :=
@@ -532,8 +538,11 @@ Inductive inv_conts_no_hole: cont -> Prop :=
 | inv_CDefaultPure:
   inv_conts_no_hole CDefaultPure
 | inv_CFold:
+  forall f acc,
+  inv_conts_no_hole (CFold f acc)
+| inv_CFoldAcc:
   forall f ts,
-  inv_conts_no_hole (CFold f ts)
+  inv_conts_no_hole (CFoldAcc f ts)
 .
 
 Inductive inv_state: state -> Prop :=
