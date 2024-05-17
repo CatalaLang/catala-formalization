@@ -182,24 +182,38 @@ Inductive sred: term -> term -> Prop :=
   | sred_DefaultPure_conflit:
     sred (DefaultPure Conflict) Conflict
 
-  | sred_Fold_rec:
-    forall f h t v,
+  | sred_Fold_args:
+    forall f ts ts' init,
+      sred ts ts' ->
+      sred (Fold f ts init) (Fold f ts' init)
+
+  | sred_Fold_args_Conflict:
+    forall f init,
     sred
-      (Fold f (h::t) (Value v))
-      (Fold f (t) (App (App f h) (Value v)))
-  | sred_Fold_init:
-    forall f v,
-    sred
-      (Fold f ([]) (Value v))
-      (Value v)
+      (Fold f Conflict init)
+      (Conflict)
+  
   | sred_Fold_step:
-    forall f ts t1 t2,
-    sred t1 t2 ->
-    sred
-      (Fold f ts t1)
-      (Fold f ts t2)
+    forall f vs t1 t2 ,
+      sred t1 t2 ->
+      sred
+        (Fold f (Value (VArray vs)) t1)
+        (Fold f (Value (VArray vs)) t2)
+
+  | sred_Fold_rec:
+    forall f v1 v2 vs,
+      sred
+        (Fold f (Value (VArray (v1::vs))) (Value v2))
+        (Fold f (Value (VArray vs)) (App (App f (Value v1)) (Value v2)))
+  
+  | sred_Fold_finish:
+    forall f v,
+      sred
+        (Fold f (Value (VArray [])) (Value v))
+        (Value v)
+  
   | sred_Fold_Conflict:
-    forall f ts ,
+    forall f ts,
     sred
       (Fold f ts Conflict)
       (Conflict)
