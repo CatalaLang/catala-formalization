@@ -369,3 +369,7 @@ Ltac sp :=
     rewrite (surjective_pairing p) in h
   end
 .
+
+
+(* usefull tactic to solve equalities *)
+Ltac finish := unzip; subst; try solve [left; eauto| right; repeat intro; tryfalse].
