@@ -21,6 +21,7 @@ Inductive type :=
   | TOption (T: type)
   | TUnit
   | TDefault (T: type)
+  | TArray (T: type)
 .
 
 Inductive inv_base: type -> Prop :=
@@ -32,11 +33,14 @@ Inductive inv_base: type -> Prop :=
     inv_base T2 ->
     inv_base (TFun T1 T2)
   | Inv1TOption: forall T1,
-    inv_no_immediate_default T1 ->
+    inv_base T1 ->
     inv_base (TOption T1)
   | Inv1TDefault: forall T1,
     inv_no_immediate_default T1 ->
     inv_base (TDefault T1)
+  | Inv1TArray: forall T1,
+    inv_base T1 ->
+    inv_base (TArray T1)
 with inv_no_immediate_default: type -> Prop :=
   | Inv2TBool : inv_no_immediate_default TBool
   | Inv2TInteger : inv_no_immediate_default TInteger
@@ -48,7 +52,18 @@ with inv_no_immediate_default: type -> Prop :=
   | Inv2TOption: forall T1,
     inv_base T1 ->
     inv_no_immediate_default (TOption T1)
+  | Inv2TArray: forall T1,
+    inv_base T1 ->
+    inv_no_immediate_default (TArray T1)
 .
+
+
+Lemma inv_no_immediate_is_inv_base:
+  forall A, inv_no_immediate_default A -> inv_base A.
+Proof.
+  induction 1.
+  all: try solve [econstructor; eauto].
+Qed.
 
 
 Ltac2 sinv_inv () :=
@@ -159,12 +174,17 @@ Inductive jt_term:
       jt_term Delta (U :: Gamma) t2 T ->
       inv_base T ->
       jt_term Delta Gamma (Match_ u t1 t2) T
+  | JTEArray:
+    forall Delta Gamma A ts,
+    List.Forall (fun t => jt_term Delta Gamma t A) ts ->
+    inv_no_immediate_default A ->
+    jt_term Delta Gamma (EArray ts) A
   | JTEFold:
     forall Delta Gamma A B f ts init,
       jt_term Delta Gamma f (TFun A (TFun B B)) ->
       inv_no_immediate_default A ->
       inv_no_immediate_default B ->
-      List.Forall (fun ti => jt_term Delta Gamma ti A) ts ->
+      jt_term Delta Gamma ts (TArray A) ->
       jt_term Delta Gamma init B ->
       jt_term Delta Gamma (Fold f ts init) B
   | JTESome:
@@ -218,6 +238,10 @@ with jt_value:
     forall Delta v T,
       jt_value Delta v T ->
       jt_value Delta (VPure v) (TDefault T)
+  | JTVArray:
+    forall Delta A ts,
+      List.Forall (fun t => jt_value Delta t A) ts ->
+      jt_value Delta (VArray ts) (TArray A)
 .
 
 Inductive jt_result: (string -> option type) -> result -> type -> Prop := 
@@ -276,16 +300,23 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       jt_term Delta Gamma t1 T ->
       jt_term Delta (U::Gamma) t2 T ->
       jt_cont Delta Gamma Gamma (CMatch t1 t2) (TOption U) T
-  | JTCFold:
+  | JTCFoldAcc:
     forall Delta Gamma f ts A B,
       jt_term Delta Gamma f (TFun A (TFun B B)) ->
       inv_no_immediate_default A ->
       inv_no_immediate_default B ->
-      List.Forall (fun ti => jt_term Delta Gamma ti A) ts ->
-      jt_cont Delta Gamma Gamma (CFold f ts) B B
+      jt_value Delta ts (TArray A) ->
+      jt_cont Delta Gamma Gamma (CFoldAcc f ts) B B
+  | JTCFold:
+    forall Delta Gamma f acc A B,
+      jt_term Delta Gamma f (TFun A (TFun B B)) ->
+      inv_no_immediate_default A ->
+      inv_no_immediate_default B ->
+      jt_term Delta Gamma acc B ->
+      jt_cont Delta Gamma Gamma (CFold f acc) (TArray A) B
   | JTCSome:
     forall Delta Gamma T,
-      inv_no_immediate_default T ->
+      inv_base T ->
       jt_cont Delta Gamma Gamma CSome T (TOption T)
   | JTCIf:
     forall Delta Gamma T ta tb,
@@ -429,7 +460,7 @@ Lemma jt_term_inv:
     jt_term Delta Gamma t T ->
     inv_base T.
 Proof.
-  induction 1; eauto.
+  induction 1; eauto using inv_no_immediate_is_inv_base.
 Qed.
 
 Ltac learn_inv :=
@@ -455,7 +486,7 @@ Proof.
   all: repeat sinv_jt.
   all: learn_inv.
   all: repeat sinv_inv.
-  all: try solve [repeat (econstructor; eauto)].
+  all: try solve [repeat (econstructor; eauto using inv_no_immediate_is_inv_base)].
   (* Operator handling *)
   { repeat (econstructor; eauto).
     eapply common.Forall2_nth_error_Some; eauto.
