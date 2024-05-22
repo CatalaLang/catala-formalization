@@ -62,6 +62,7 @@ Inductive cont :=
   | CDefaultPure
   | CFold (f: term) (acc: term) (* compute the list first *)
   | CFoldAcc (f: term) (vs: value) (* compute arguments afterward *)
+  | CArray (ts: list term) (vs: list value)
 .
 
 Theorem option_eq_dec
@@ -349,6 +350,26 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont (CFoldAcc f (VArray []) :: kappa) sigma (RValue vacc))
       (mode_cont kappa sigma (RValue vacc))
+  | cref_array_intro_nil:
+    forall kappa sigma,
+    cred
+      (mode_eval (EArray []) kappa sigma)
+      (mode_cont kappa sigma (RValue (VArray [])))
+  | cref_array_intro_cons:
+    forall h ts kappa sigma,
+    cred
+      (mode_eval (EArray (h::ts)) kappa sigma)
+      (mode_eval h (CArray ts [] :: kappa) sigma)
+  | cref_array_nil:
+    forall v vs kappa sigma,
+    cred
+      (mode_cont ((CArray [] vs)::kappa) sigma (RValue v))
+      (mode_cont kappa sigma (RValue (VArray (List.rev (v::vs)))))
+  | cref_array_cons:
+    forall v h ts vs kappa sigma,
+    cred
+      (mode_cont (CArray (h::ts) vs :: kappa) sigma (RValue v))
+      (mode_eval h (CArray ts (v::vs) :: kappa) sigma)
 .
 
 Notation "'cred' t1 t2" :=
@@ -543,6 +564,9 @@ Inductive inv_conts_no_hole: cont -> Prop :=
 | inv_CFoldAcc:
   forall f ts,
   inv_conts_no_hole (CFoldAcc f ts)
+| inv_CArray:
+  forall ts vs,
+  inv_conts_no_hole (CArray ts vs)
 .
 
 Inductive inv_state: state -> Prop :=
@@ -579,7 +603,7 @@ Theorem cred_inv_state_stable:
     inv_state s2.
 Proof.
   induction 1; inversion 1; subst; repeat econstructor; eauto.
-  all: destruct kappa; econstructor; unpack; eauto.
+  all: try solve [destruct kappa; econstructor; unpack; eauto].
 Qed.
 
 Theorem star_cred_inv_state_stable:
@@ -625,6 +649,11 @@ Proof.
   all: try remember (a::kappa) as kappa'.
   all: repeat rewrite droplastn_cons by (subst; simpl; lia).
   all: try solve [econstructor; eauto].
+  {
+    repeat rewrite lastn_def_firstn in *; simpl in *.
+    inj.
+    exfalso; eapply list_diagonal; eauto.
+  }
   {
     repeat rewrite lastn_def_firstn in *; simpl in *.
     inj.
