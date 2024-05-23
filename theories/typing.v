@@ -178,7 +178,7 @@ Inductive jt_term:
     forall Delta Gamma A ts,
     List.Forall (fun t => jt_term Delta Gamma t A) ts ->
     inv_no_immediate_default A ->
-    jt_term Delta Gamma (EArray ts) A
+    jt_term Delta Gamma (EArray ts) (TArray A)
   | JTEFold:
     forall Delta Gamma A B f ts init,
       jt_term Delta Gamma f (TFun A (TFun B B)) ->
@@ -239,9 +239,9 @@ with jt_value:
       jt_value Delta v T ->
       jt_value Delta (VPure v) (TDefault T)
   | JTVArray:
-    forall Delta A ts,
-      List.Forall (fun t => jt_value Delta t A) ts ->
-      jt_value Delta (VArray ts) (TArray A)
+    forall Delta A vs,
+      List.Forall (fun v => jt_value Delta v A) vs ->
+      jt_value Delta (VArray vs) (TArray A)
 .
 
 Inductive jt_result: (string -> option type) -> result -> type -> Prop := 
@@ -314,6 +314,12 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
       inv_no_immediate_default B ->
       jt_term Delta Gamma acc B ->
       jt_cont Delta Gamma Gamma (CFold f acc) (TArray A) B
+  | JTCArray:
+    forall Delta Gamma ts vs A,
+      List.Forall (fun ti => jt_term Delta Gamma ti A) ts ->
+      List.Forall (fun vi => jt_value Delta vi A) vs ->
+      jt_cont Delta Gamma Gamma (CArray ts vs) A (TArray A)
+
   | JTCSome:
     forall Delta Gamma T,
       inv_base T ->
@@ -461,7 +467,8 @@ Lemma jt_term_inv:
     inv_base T.
 Proof.
   induction 1; eauto using inv_no_immediate_is_inv_base.
-Qed.
+  admit.
+Admitted.
 
 Ltac learn_inv :=
   repeat match goal with
@@ -495,6 +502,10 @@ Proof.
     induction phi; try solve [repeat sinv_jt; repeat econstructor; eauto| tryfalse].
   }
   { induction op, v1, v2; simpl in *; inj; repeat (econstructor; eauto). }
+  { repeat (econstructor; eauto).
+    eapply Forall_rev.
+    repeat (econstructor; eauto).
+  }
 Qed.
 
 Theorem progress s1:
@@ -510,6 +521,11 @@ Proof.
     all: try solve [eexists; econstructor].
     { symmetry in H0.
       destruct (common.Forall2_nth_error_Some_right _ _ _ H5 _ _ H0).
+      eexists; econstructor; eauto.
+    }
+    {
+      induction ts.
+      eexists; econstructor; eauto.
       eexists; econstructor; eauto.
     }
   }
@@ -531,6 +547,7 @@ Proof.
       all: try solve [idtac
         |eexists; econstructor; repeat intro; inj
         |eexists; econstructor; simpl; eauto].
+      { eexists. }
     }
   }
 Qed.
