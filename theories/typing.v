@@ -33,13 +33,13 @@ Inductive inv_base: type -> Prop :=
     inv_base T2 ->
     inv_base (TFun T1 T2)
   | Inv1TOption: forall T1,
-    inv_base T1 ->
+    inv_no_immediate_default T1 ->
     inv_base (TOption T1)
   | Inv1TDefault: forall T1,
     inv_no_immediate_default T1 ->
     inv_base (TDefault T1)
   | Inv1TArray: forall T1,
-    inv_base T1 ->
+    inv_no_immediate_default T1 ->
     inv_base (TArray T1)
 with inv_no_immediate_default: type -> Prop :=
   | Inv2TBool : inv_no_immediate_default TBool
@@ -50,10 +50,10 @@ with inv_no_immediate_default: type -> Prop :=
     inv_base T2 ->
     inv_no_immediate_default (TFun T1 T2)
   | Inv2TOption: forall T1,
-    inv_base T1 ->
+    inv_no_immediate_default T1 ->
     inv_no_immediate_default (TOption T1)
   | Inv2TArray: forall T1,
-    inv_base T1 ->
+    inv_no_immediate_default T1 ->
     inv_no_immediate_default (TArray T1)
 .
 
@@ -318,11 +318,11 @@ Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> 
     forall Delta Gamma ts vs A,
       List.Forall (fun ti => jt_term Delta Gamma ti A) ts ->
       List.Forall (fun vi => jt_value Delta vi A) vs ->
+      inv_no_immediate_default A ->
       jt_cont Delta Gamma Gamma (CArray ts vs) A (TArray A)
-
   | JTCSome:
     forall Delta Gamma T,
-      inv_base T ->
+      inv_no_immediate_default T ->
       jt_cont Delta Gamma Gamma CSome T (TOption T)
   | JTCIf:
     forall Delta Gamma T ta tb,
@@ -467,8 +467,8 @@ Lemma jt_term_inv:
     inv_base T.
 Proof.
   induction 1; eauto using inv_no_immediate_is_inv_base.
-  admit.
-Admitted.
+  { econstructor; eauto. }
+Qed.
 
 Ltac learn_inv :=
   repeat match goal with
@@ -535,6 +535,7 @@ Proof.
       all: repeat sinv_jt. (* need to infer information about values that are boolean *)
       all: try match goal with [o: option value |- _ ] => induction o end.
       all: try match goal with [ts: list term |- _ ] => induction ts end.
+      all: try match goal with [vs: list value |- _ ] => induction vs end.
       all: try match goal with [h: is_hole |- _ ] => induction h end.
       all: try match goal with [op: op |- _ ] => induction op end.
       all: repeat match goal with [b: bool |- _ ] => induction b end.
@@ -547,7 +548,6 @@ Proof.
       all: try solve [idtac
         |eexists; econstructor; repeat intro; inj
         |eexists; econstructor; simpl; eauto].
-      { eexists. }
     }
   }
 Qed.
