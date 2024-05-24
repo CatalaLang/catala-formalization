@@ -662,6 +662,37 @@ Admitted.
 Require Import continuations.
 
 
+
+(* Executing (mode_eval (trans (Default (t::ts) tj tc)) [] sigma) *)
+Goal forall t ts tj tc sigma, exists s, star cred
+  (mode_eval (trans (Default (t::ts) tj tc)) nil sigma) s.
+Proof.
+  intros; eexists; simpl.
+  repeat (eapply star_step; [econstructor|]).
+Abort.
+
+(* Executing (mode_eval (trans (Default (Value v :: t::ts) tj tc)) [] sigma) *)
+Goal forall v t ts tj tc sigma, exists s, star cred
+  (mode_eval (trans (Default (Value (VPure v)::t::ts) tj tc)) nil sigma) s.
+Proof.
+  intros; eexists; simpl.
+  repeat (eapply star_step; [econstructor; simpl; eauto|]).
+Abort.
+
+Goal forall f vs init sigma, exists s, star cred
+  (mode_eval (trans (Fold f (Value (VArray vs)) init)) nil sigma) s.
+Proof.
+  intros; eexists; simpl.
+  repeat (eapply star_step; [econstructor; simpl; eauto|]).
+Abort.
+
+Goal forall h ts sigma, exists s, star cred
+  (mode_eval (trans (EArray (h::ts))) nil sigma) s.
+Proof.
+  intros; eexists; simpl.
+  repeat (eapply star_step; [econstructor; simpl; eauto|]).
+Abort.
+
 Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
   (* This is the main function that translate continuations. For most continuation, it does not change anything, it is basically an `map` function.
 
@@ -681,51 +712,31 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
   | CErrorOnEmpty :: kappa => CMatch Conflict (Var 0) :: trans_conts kappa sigma
   | CDefaultPure :: kappa => CSome :: trans_conts kappa sigma
   | CFold f ts :: kappa =>
-    CFold (trans f) (List.map trans ts) :: trans_conts kappa sigma
+    CFold (trans f) (trans ts) :: trans_conts kappa sigma
+  | CFoldAcc f vs :: kappa =>
+    CFoldAcc (trans f) (trans_value vs) :: trans_conts kappa sigma
+  | CArray ts vs :: kappa =>
+    CArray (List.map trans ts) (List.map trans_value vs) :: trans_conts kappa sigma
 
   | CDefault b None ts tj tc :: kappa =>
-    (* This term can be derived from the trans fonction by taking the (mode_eval (trans (Default (t::ts) tj tc)) [] sigma) term and executing it. *)
-    (CClosure
-      (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
-      (sigma))::
-    (CAppR (Value VNone))::
+    (CArray (List.map trans ts) [])::
     (CFold 
       process_exceptions
-      (List.map trans ts))::
+      ENone)::
     (CMatch
       (If (trans tj) (trans tc) ENone)
       (ESome (Var 0))) ::
       trans_conts kappa sigma
   | CDefault b (Some v) ts tj tc :: kappa =>
-    (* This term can be derived from the trans fonction by taking the (mode_eval (trans (Default (Value (VPure v)::t::ts) tj tc)) [] []) term and executing it. *)
-    (CClosure
-      (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
-      (sigma))::
-    (CAppR (Value (VSome (trans_value v))))::
+    (CArray (List.map trans ts) [VSome (trans_value v)])::
     (CFold 
       process_exceptions
-      (trans ts))::
+      ENone)::
     (CMatch
       (If (trans tj) (trans tc) ENone)
       (ESome (Var 0))) ::
       trans_conts kappa sigma
   end.
-
-(* Executing (mode_eval (trans (Default (t::ts) tj tc)) [] sigma) *)
-Goal forall t ts tj tc sigma, exists s, star cred
-  (mode_eval (trans (Default (t::ts) tj tc)) nil sigma) s.
-Proof.
-  intros; eexists; simpl.
-  repeat (eapply star_step; [econstructor|]).
-Abort.
-
-(* Executing (mode_eval (trans (Default (Value v :: t::ts) tj tc)) [] sigma) *)
-Goal forall v t ts tj tc sigma, exists s, star cred
-  (mode_eval (trans (Default (Value (VPure v)::t::ts) tj tc)) nil sigma) s.
-Proof.
-  intros; eexists; simpl.
-  repeat (eapply star_step; [econstructor; simpl; eauto|]).
-Abort.
 
 Definition trans_return (r: result): result:=
   match r with
@@ -764,10 +775,12 @@ Proof.
       [ econstructor; simpl; eauto using List.map_nth_error
       (* for contextual error cases *)
       | econstructor; repeat intro; tryfalse
+      | econstructor; eapply trans_value_op_correct; eauto
     ]|])
     ; try (eapply step_right; [solve
       [ econstructor; simpl; eauto using List.map_nth_error
       | econstructor; repeat intro; tryfalse
+      | econstructor; eapply trans_value_op_correct; eauto
     ]|])
   ).
 
@@ -783,15 +796,41 @@ Proof.
       try eapply diagram_finish;
       eauto
     ].
-  
+
+  { simpl. repeat step'.
+    case ts.
+    { repeat step'; eapply diagram_finish. }
+    { intros; simpl.
+      eapply step_left. econstructor.
+      eapply step_right. econstructor.
+      (* need an external lemma here to show that both side reduces to the same thing. This is a property of CFold process exception, and is linked to the fact that they do not care about VNone. *)
+      admit. 
+    }
+  }
+  { simpl. repeat step'.
+    (* same *)
+    admit.
+  }
+  { simpl. repeat step'.
+    (* same *)
+    admit.
+  }
+  { simpl; repeat step'.
+    induction ts; simpl.
+    { repeat step'; eapply diagram_finish. }
+    { repeat step'. admit. (* same *) }
+  }
+  { simpl; repeat step'.
+    induction ts; simpl.
+    { repeat step'. eapply diagram_finish. }
+    { repeat step'. (* require an variant of the previous mentionned lemma to inducate we will go into a fatal error. *)
+    }
+  }
   (* Only two cases are left. *)
   { tryfalse. }
-  { (* requires operator translation correction *)
-    eexists; split; asimpl; [|eapply star_refl].
-    eapply star_step.
-    { econstructor.
-      eapply trans_value_op_correct; eauto.
-    }
-    eapply star_refl.
+  { (* require list rewriting. *)
+    simpl; repeat step'; simpl.
+    rewrite List.map_app, List.map_rev; simpl.
+    eapply diagram_finish.
   }
-Qed.
+Admitted.
