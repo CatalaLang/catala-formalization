@@ -217,6 +217,25 @@ Inductive sred: term -> term -> Prop :=
     sred
       (Fold f (Value (VArray vs)) Conflict)
       (Conflict)
+
+  | sred_array_ctx:
+    forall t t' ts vs,
+    sred t t' ->
+    sred
+      (EArray ((List.map (fun vi => Value vi) vs) ++ t :: ts))
+      (EArray ((List.map (fun vi => Value vi) vs) ++ t' :: ts))
+
+  | sred_array_conflict:
+    forall ts vs,
+    sred
+      (EArray ((List.map (fun vi => Value vi) vs) ++ Conflict :: ts))
+      Conflict
+
+  | sred_array_finish:
+    forall vs,
+      sred
+      (EArray (List.map (fun vi => Value vi) vs))
+      (Value (VArray vs))
 .
 
 
@@ -443,6 +462,21 @@ Proof.
   }
 Qed.
 
+Lemma star_sred_array_ctx:
+    forall t t' ts vs,
+    star sred t t' ->
+    star sred
+      (EArray ((List.map (fun vi => Value vi) vs) ++ t :: ts))
+      (EArray ((List.map (fun vi => Value vi) vs) ++ t' :: ts)).
+Proof.
+  induction 1.
+  { eapply star_refl. }
+  { eapply star_step; [|eapply IHstar].
+    eapply sred_array_ctx; eauto.
+  }
+Qed.
+  
+
 Hint Resolve
   star_sred_app_left
   star_sred_app_right
@@ -525,4 +559,10 @@ Proof.
 
   (* After saturation, there is only one case left. *)
   { rewrite <- H in H5; injections; eauto. }
-Qed.
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+Admitted.
