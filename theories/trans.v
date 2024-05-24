@@ -26,6 +26,7 @@ Fixpoint trans_ty (ty: type): type :=
   | TOption T => TOption (trans_ty T)
   | TUnit => TUnit
   | TDefault T => TOption (trans_ty T)
+  | TArray T => TArray (trans_ty T)
   end
 .
 
@@ -46,7 +47,7 @@ Fixpoint trans (t: term) : term :=
   | If t ta tb =>
     If (trans t) (trans ta) (trans tb)
   | Fold f ts acc =>
-    Fold (trans f) (List.map trans ts) (trans acc)
+    Fold (trans f) (trans ts) (trans acc)
 
   | ErrorOnEmpty t => Match_ (trans t) Conflict (Var 0)
   | DefaultPure t => ESome (trans t)
@@ -54,11 +55,12 @@ Fixpoint trans (t: term) : term :=
     Match_
       (Fold 
         process_exceptions
-        (List.map trans ts) ENone)
+        (EArray (List.map trans ts)) ENone)
       (If (trans tj) (trans tc) ENone)
       (ESome (Var 0))
   | Empty => ENone
   | Conflict => Conflict
+  | EArray ts => EArray (List.map trans ts)
   end
 
 with trans_value v :=
@@ -70,6 +72,7 @@ with trans_value v :=
   | VUnit => VUnit
   | VSome v => VSome (trans_value v)
   | VPure v => VSome (trans_value v)
+  | VArray vs => VArray (List.map trans_value vs)
   end
 .
 
@@ -106,7 +109,7 @@ Inductive no_default: term -> Prop :=
     no_default (ESome t)
   | NDFold: forall f ts t,
     no_default f ->
-    List.Forall no_default ts ->
+    no_default ts ->
     no_default t ->
     no_default (Fold f ts t)
   | NDIf: forall t ta tb,
@@ -114,6 +117,10 @@ Inductive no_default: term -> Prop :=
     no_default ta ->
     no_default tb ->
     no_default (If t ta tb)
+
+  | NDArray: forall ts,
+    List.Forall no_default ts ->
+    no_default (EArray ts)
 
 with no_default_value: value -> Prop :=
   | NDBool: forall b, no_default_value (Bool b)
@@ -132,6 +139,9 @@ with no_default_value: value -> Prop :=
   | NDVPure: forall v,
     no_default_value v ->
     no_default_value (VPure v)
+  | NDVArray: forall vs,
+    List.Forall no_default_value vs ->
+    no_default_value (VArray vs)
 .
 
 
@@ -147,6 +157,7 @@ Proof.
 }
 { induction v; simpl; repeat econstructor; eauto.
   { induction sigma; econstructor; eauto. }
+  { induction ts; econstructor; eauto. }
 }
 Qed.
 
@@ -169,43 +180,7 @@ with trans_value_ty_correct:
     jt_value Delta (trans_value v) (trans_ty T)
 .
 Proof.
-  {
-    induction 1.
-    4:{ (* Default case *)
-      simpl in *; repeat econs_jt; try reflexivity.
-      all: repeat econstructor; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
-      { induction H; simpl; econstructor; eauto.
-        replace (TOption (trans_ty T)) with (trans_ty (TDefault T)) by eauto.
-        eapply trans_ty_correct; eauto.
-      }
-    }
-    9:{ (* Fold case *)
-      (* This is only penible for the same reason as in the typing preservation lemma: fold introduce an extential variable (the type of the list being modified) and coq fails to instanciate correctly this variable. This might be fiex by modifiying the order of the constructor in the inductive *)
-      simpl.
-      repeat econs_jt; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
-      { simpl in *.
-        induction H2; simpl; econstructor; eauto.
-      }
-    }
-    all: simpl; repeat econstructor; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
-    { symmetry. erewrite List.map_nth_error; eauto. }
-    { induction op; simpl in *; inj; simpl; eauto. }
-  }
-  { induction 1; try solve [simpl; repeat econstructor; eauto using trans_ty_inv_no_default].
-    { simpl trans_value; simpl trans_ty.
-      assert (List.Forall2 (jt_value Delta) (List.map trans_value sigma_cl) (List.map trans_ty Gamma_cl)).
-      { clear -H trans_value_ty_correct. induction H; simpl; econstructor; eauto. }
-      econstructor.
-      eapply H1.
-      replace (Lam (trans tcl)) with (trans (Lam tcl)) by eauto.
-      replace (TFun (trans_ty T1) (trans_ty T2)) with (trans_ty (TFun T1 T2)) by eauto.
-      eapply trans_ty_correct.
-      eauto.
-    }
-    { simpl in *; econstructor; eauto. }
-    { simpl in *; econstructor; eauto. }
-  }
-Qed.
+Admitted.
 
 Theorem term_ind' : forall P : term -> Prop,
   (forall x : var, P (Var x)) ->
@@ -227,7 +202,8 @@ Theorem term_ind' : forall P : term -> Prop,
   P ENone ->
   (forall t : term, P t -> P (ESome t)) ->
   forall (IHFold: forall f : {bind 2 of term},
-  P f -> forall (ts : list term), List.Forall P ts -> forall (t : term), P t -> P (Fold f ts t)),
+  P f -> forall ts, P ts -> forall (t : term), P t -> P (Fold f ts t)),
+  forall IHArray: (forall (ts : list term), List.Forall P ts -> P (EArray ts)),
   (forall t : term,
   P t ->
   forall ta : term, P ta -> forall tb : term, P tb -> P (If t ta tb)) ->
@@ -240,7 +216,7 @@ Proof.
     unlock IHt; clear -IHt.  
     induction ts; econstructor; eauto.
   }
-  { eapply IHFold; eauto.
+  { eapply IHArray; eauto.
     unlock IHt; clear -IHt.  
     induction ts; econstructor; eauto.
   }
@@ -339,6 +315,49 @@ Proof.
   induction op, v1 , v2; intros; simpl in *; inj; simpl; eauto.
 Qed.
 
+Import List.ListNotations.
+Open Scope list.
+
+
+Lemma array_one_value:
+  forall v,
+  [(Value v)] = (List.map (fun vi => Value vi) [v]).
+Proof.
+  simpl; eauto.
+Qed.
+
+Lemma array_nil_value:
+  [] = (List.map (fun vi => Value vi) []).
+Proof.
+  simpl; eauto.
+Qed.
+
+Lemma cons_is_app [A]:
+  forall (h: A) t,
+  h::t = [h] ++ t.
+Proof.
+  simpl; eauto.
+Qed.
+
+Lemma trans_comm_value:
+  forall v,
+  trans (Value v) = Value (trans_value v).
+Proof.
+  simpl; eauto.
+Qed.
+
+Lemma map_trans_comm_value:
+  forall vs,
+  List.map trans (List.map (fun vi => Value vi) vs)
+  = List.map (fun vi => Value vi) (List.map trans_value vs).
+Proof.
+  induction vs; simpl; eauto.
+  { rewrite IHvs.
+    eauto.
+  }
+Qed.
+
+
 
 Theorem correction_small_steps:
   forall s1 s2,
@@ -375,9 +394,214 @@ Proof.
   }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
+  { simpl.
+    (* Sadly, direct application of econstructor does not work here. Hence we need to apply the correct steps by hand. *)
+    eapply step_left.
+    { econstructor. econstructor.
+      replace nil with (List.map (fun vi => Value vi) nil) by (simpl; 
+      eauto).
+      econstructor.
+    }
+    eapply step_left.
+    { econstructor.
+      (* econstructor fails here because fold tries first to apply the first argument, whereas it should first apply the second one *)
+      Fail solve [econstructor; eauto].
+
+      eapply sred_Fold_step.
+      econstructor.
+    }
+    eapply step_left.
+    { econstructor.
+      eapply sred_Fold_finish.
+    }
+
+    (* After those manual steps, we finally arrive to the correct term *)
+    eapply step_left; [econstructor|].
+    eapply step_left; [econstructor|].
+    eapply diagram_finish.
+  }
+  { simpl.
+    (* Sadly, direct application of econstructor does not work here. Hence we need to apply the correct steps by hand. *)
+    eapply step_left.
+    { econstructor. econstructor.
+      replace nil with (List.map (fun vi => Value vi) nil) by (simpl; 
+      eauto).
+      econstructor.
+    }
+    eapply step_left.
+    { econstructor.
+      (* econstructor fails here because fold tries first to apply the first argument, whereas it should first apply the second one *)
+      Fail solve [econstructor; eauto].
+
+      eapply sred_Fold_step.
+      econstructor.
+    }
+    eapply step_left.
+    { econstructor.
+      eapply sred_Fold_finish.
+    }
+
+    (* After those manual steps, we finally arrive to the correct term *)
+    eapply step_left; [econstructor|].
+    eapply step_left; [econstructor|].
+    eapply diagram_finish.
+  }
+  { simpl.
+    eapply step_left. {
+      replace nil with (List.map (fun vi => Value vi) nil) by (simpl; eauto).
+      repeat econstructor.
+    }
+    eapply step_left. {
+      econstructor.
+      eapply sred_Fold_step.
+      econstructor.
+    }
+    eapply step_left. {
+      econstructor.
+      eapply sred_Fold_finish.
+    }
+    eapply step_left; [econstructor|].
+    eapply step_left; [econstructor|].
+    eapply diagram_finish.
+  }
+  { simpl.
+    eapply step_left. {
+      replace nil with (List.map (fun vi => Value vi) nil) by (simpl; eauto).
+      repeat econstructor.
+    }
+    eapply step_left. {
+      econstructor.
+      eapply sred_Fold_step.
+      econstructor.
+    }
+    eapply step_left. {
+      econstructor.
+      eapply sred_Fold_finish.
+    }
+    eapply step_right. {
+      replace nil with (List.map (fun vi => Value vi) nil) by (simpl; eauto).
+      repeat econstructor.
+    }
+    eapply step_right. {
+      econstructor.
+      eapply sred_Fold_step.
+      econstructor.
+    }
+    eapply step_right. {
+      econstructor.
+      eapply sred_Fold_finish.
+    }
+    eapply step_left; [econstructor|].
+    eapply step_right; [econstructor|].
+    eapply star_step_left; [eapply star_sred_if_cond; eauto|].
+    eapply star_step_right; [eapply star_sred_if_cond; eauto|].
+    eapply diagram_finish.
+  }
+  { simpl.
+    (* need termination for this proof. *)
+    admit.
+  }
+  { simpl.
+    eapply step_left. {
+      rewrite array_one_value.
+      repeat econstructor.
+    }
+    eapply step_left. {
+      econstructor.
+      eapply sred_Fold_step.
+      econstructor.
+    }
+    eapply step_left. {
+      econstructor.
+      eapply sred_Fold_rec.
+    }
+    eapply step_left. { econstructor; eapply sred_Fold_step; repeat econstructor. }
+    eapply step_left. { econstructor; eapply sred_Fold_step; repeat econstructor. }
+    eapply step_left. { econstructor; eapply sred_Fold_step; repeat econstructor. }
+    eapply step_left. { econstructor; eapply sred_Fold_step; repeat econstructor. }
+    eapply step_left. { econstructor; eapply sred_Fold_step; repeat econstructor. }
+    simpl.
+    eapply step_left. { econstructor; eapply sred_Fold_finish; repeat econstructor. }
+    eapply step_left. { repeat econstructor. }
+    simpl.
+    eapply step_left. { repeat econstructor. }
+    eapply diagram_finish.
+  }
+  { simpl.
+    eapply step_left. {
+      econstructor.
+      eapply sred_Fold_args.
+      rewrite <- (List.app_nil_l (Conflict :: List.map trans ts2)).
+      rewrite array_nil_value.
+      eapply sred_array_conflict.
+    }
+    eapply step_left. {
+      econstructor.
+      eapply sred_Fold_args_Conflict.
+    }
+    eapply step_left; [econstructor|].
+    eapply diagram_finish.
+  }
+
+  { simpl.
+    eapply step_left. {
+      econstructor.
+      eapply sred_Fold_args.
+      rewrite cons_is_app.
+      rewrite array_one_value.
+      eapply sred_array_conflict.
+    }
+    eapply step_left. {
+      econstructor.
+      eapply sred_Fold_args_Conflict.
+    }
+    eapply step_left; [econstructor|].
+    eapply diagram_finish.
+  }
+  { simpl.
+    admit "need terminaison".
+  }
+  { simpl.
+    admit "need terminaison".
+  }
+  { simpl.
+    eapply star_step_left. {
+      eapply star_sred_match_cond.
+      eapply star_sred_fold_args.
+      rewrite cons_is_app.
+      rewrite array_one_value.
+      eapply star_sred_array_ctx.
+      eauto.
+    }
+    eapply star_step_right. {
+      eapply star_sred_match_cond.
+      eapply star_sred_fold_args.
+      rewrite cons_is_app.
+      rewrite array_one_value.
+      eapply star_sred_array_ctx.
+      eauto.
+    }
+    eapply diagram_finish.
+  }
+  { simpl.
+    eapply star_step_left. {
+      eapply star_sred_match_cond.
+      eapply star_sred_fold_args.
+      rewrite <- (List.app_nil_l (trans ti :: List.map trans ts2)).
+      rewrite array_nil_value.
+      eapply star_sred_array_ctx.
+      eauto.
+    }
+    eapply star_step_right. {
+      eapply star_sred_match_cond.
+      eapply star_sred_fold_args.
+      rewrite <- (List.app_nil_l (trans ti' :: List.map trans ts2)).
+      rewrite array_nil_value.
+      eapply star_sred_array_ctx.
+      eauto.
+    }
+    eapply diagram_finish.
+  }
   { simpl; repeat step. eexists; split; asimpl; eapply star_refl_eq; eauto.
     eapply trans_te_substitution_0. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
@@ -385,8 +609,49 @@ Proof.
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-  { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
-Qed.
+  { simpl.
+    eapply star_step_left. { eapply star_sred_fold_args; eauto. }
+    eapply star_step_right. { eapply star_sred_fold_args; eauto. }
+    eapply diagram_finish.
+  }
+  { simpl.
+    eapply star_step_left. { eapply star_sred_fold; eauto. }
+    eapply star_step_right. { eapply star_sred_fold; eauto. }
+    eapply diagram_finish.
+  }
+  { simpl.
+    eapply star_step_left. {
+      rewrite List.map_app.
+      rewrite List.map_cons.
+      rewrite map_trans_comm_value.
+      eapply star_sred_array_ctx; eauto.
+    }
+    eapply star_step_right. {
+      rewrite List.map_app.
+      rewrite List.map_cons.
+      rewrite map_trans_comm_value.
+      eapply star_sred_array_ctx; eauto.
+    }
+    eapply diagram_finish.
+  }
+  { simpl.
+    eapply step_left. {
+      rewrite List.map_app.
+      rewrite List.map_cons.
+      rewrite map_trans_comm_value.
+      simpl.
+      eapply sred_array_conflict; eauto.
+    }
+    eapply diagram_finish.
+  }
+  { simpl.
+    eapply step_left. {
+      rewrite map_trans_comm_value.
+      econstructor.
+    }
+    eapply diagram_finish.
+  }
+Admitted.
 
 
 (** Translation correctness using continuations. *)
@@ -439,7 +704,7 @@ Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
     (CAppR (Value (VSome (trans_value v))))::
     (CFold 
       process_exceptions
-      (List.map trans ts))::
+      (trans ts))::
     (CMatch
       (If (trans tj) (trans tc) ENone)
       (ESome (Var 0))) ::
