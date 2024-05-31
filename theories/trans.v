@@ -180,6 +180,16 @@ with trans_value_ty_correct:
     jt_value Delta (trans_value v) (trans_ty T)
 .
 Proof.
+  induction 1; simpl.
+  all: repeat econs_jt; simpl.
+  all: eauto using trans_ty_inv_base.
+  all: eauto using trans_ty_inv_no_immediate_default.
+  all: repeat econs_inv; simpl; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+
+  { symmetry; eapply List.map_nth_error. eauto. }
+
+  { induction H; simpl; econstructor; eauto.
+  }
 Admitted.
 
 Theorem term_ind' : forall P : term -> Prop,
