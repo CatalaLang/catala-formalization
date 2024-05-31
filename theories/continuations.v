@@ -483,6 +483,20 @@ Proof.
   induction s; intros; simpl in *; subst; reflexivity.
 Qed.
 
+Lemma append_stack_1 {s k1 kappa}:
+  stack s = k1::kappa ->
+  s = append_stack (with_stack s (k1::[])) kappa.
+Proof.
+  induction s; intros; simpl in *; subst; reflexivity.
+Qed.
+
+Lemma append_stack_2 {s k1 k2 kappa}:
+  stack s = k1::k2::kappa ->
+  s = append_stack (with_stack s (k1::k2::[])) kappa.
+Proof.
+  induction s; intros; simpl in *; subst; reflexivity.
+Qed.
+
 
 (** Reductions are stable if stack is append. *)
 

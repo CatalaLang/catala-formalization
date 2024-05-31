@@ -764,12 +764,34 @@ Definition trans_state (s: state) : state :=
   end
 .
 
+Lemma vnone_dont_count:
+  forall t ts vs sigma o,
+  exists target,
+    star cred
+      (mode_eval t [CArray ts (vs); CFold process_exceptions o] sigma)
+      target
+    /\
+    star cred
+      (mode_eval t [CArray ts (VNone::vs); CFold process_exceptions o] sigma)
+      target
+.
+Admitted.
+
+
+Lemma double_value_conflict:
+  forall t ts v1 v2 o sigma,
+    star cred
+      (mode_eval t [CArray ts [VSome v1; VSome v2]; CFold process_exceptions o] sigma)
+      (mode_cont [] sigma RConflict)
+.
+Admitted.
 
 Import List.ListNotations.
 Require Import sequences.
 
 Theorem correction_continuations:
-  forall s1 s2,
+  forall s1 s2 Gamma Delta T,
+  jt_state Delta Gamma s1 T ->
   cred s1 s2 ->
   exists target,
     star cred
@@ -794,7 +816,7 @@ Proof.
     ]|])
   ).
 
-  intros s1 s2 Hsred.
+  intros ? ? ? ? ? Hjt Hsred.
   induction Hsred;
     try induction phi;
     try induction o;
@@ -813,27 +835,118 @@ Proof.
     { intros; simpl.
       eapply step_left. econstructor.
       eapply step_right. econstructor.
-      (* need an external lemma here to show that both side reduces to the same thing. This is a property of CFold process exception, and is linked to the fact that they do not care about VNone. *)
-      admit. 
+      (* Need an external lemma here to show that both side reduces to the same thing. This is a property of CFold process exception, and is linked to the fact that they do not care about VNone. *)
+
+      (* This is the lemma vnone_dont_count. *)
+      learn (vnone_dont_count
+        (trans t)
+        (List.map trans l)
+        ([])
+        (List.map trans_value sigma)
+        ENone).
+      unpack.
+
+      eapply star_step_left.
+      { erewrite append_stack_2; [simpl with_stack|simpl; eauto].
+        eapply star_cred_append_stack; eauto.
+      }
+
+      eapply star_step_right.
+      { erewrite append_stack_2; [simpl with_stack|simpl; eauto].
+        eapply star_cred_append_stack; eauto.
+      }
+      eapply diagram_finish.
     }
   }
   { simpl. repeat step'.
     (* same *)
-    admit.
+    learn (vnone_dont_count
+      (trans th)
+      (List.map trans ts)
+      ([VSome (trans_value a)])
+      (List.map trans_value sigma)
+      ENone).
+    unpack.
+
+    eapply star_step_left.
+    { erewrite append_stack_2; [simpl with_stack|simpl; eauto].
+      eapply star_cred_append_stack; eauto.
+    }
+
+    eapply star_step_right.
+    { erewrite append_stack_2; [simpl with_stack|simpl; eauto].
+      eapply star_cred_append_stack; eauto.
+    }
+    eapply diagram_finish.
   }
   { simpl. repeat step'.
     (* same *)
-    admit.
+    
+    learn (vnone_dont_count
+      (trans th)
+      (List.map trans ts)
+      ([])
+      (List.map trans_value sigma)
+      ENone).
+    unpack.
+
+    eapply star_step_left.
+    { erewrite append_stack_2; [simpl with_stack|simpl; eauto].
+      eapply star_cred_append_stack; eauto.
+    }
+
+    eapply star_step_right.
+    { erewrite append_stack_2; [simpl with_stack|simpl; eauto].
+      eapply star_cred_append_stack; eauto.
+    }
+    eapply diagram_finish.
   }
   { simpl; repeat step'.
     induction ts; simpl.
     { repeat step'; eapply diagram_finish. }
-    { repeat step'. admit. (* same *) }
+    { repeat step'.
+      (* same *)
+      learn (vnone_dont_count
+        (trans a)
+        (List.map trans ts)
+        ([VSome (trans_value v)])
+        (List.map trans_value sigma)
+        ENone).
+      unpack.
+
+      eapply star_step_left.
+      { erewrite append_stack_2; [simpl with_stack|simpl; eauto].
+        eapply star_cred_append_stack; eauto.
+      }
+
+      eapply star_step_right.
+      { erewrite append_stack_2; [simpl with_stack|simpl; eauto].
+        eapply star_cred_append_stack; eauto.
+      }
+      eapply diagram_finish.
+    }
   }
   { simpl; repeat step'.
     induction ts; simpl.
     { repeat step'. eapply diagram_finish. }
-    { repeat step'. (* require an variant of the previous mentionned lemma to inducate we will go into a fatal error. *)
+    { repeat step'.
+      (* require an variant of the previous mentionned lemma to inducate we will go into a fatal error. *)
+
+      learn (double_value_conflict
+        (trans a)
+        (List.map trans ts)
+        (trans_value v')
+        (trans_value v)
+        ENone
+        (List.map trans_value sigma)
+      ).
+
+      eapply star_step_left.
+      { erewrite append_stack_2; [simpl with_stack|simpl; eauto].
+        eapply star_cred_append_stack; eauto.
+      }
+      repeat step'.
+      eapply diagram_finish.
     }
   }
   (* Only two cases are left. *)
@@ -843,4 +956,4 @@ Proof.
     rewrite List.map_app, List.map_rev; simpl.
     eapply diagram_finish.
   }
-Admitted.
+Qed.
