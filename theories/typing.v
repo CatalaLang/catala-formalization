@@ -508,6 +508,17 @@ Proof.
   }
 Qed.
 
+
+Theorem star_preservation s1 s2:
+  star cred s1 s2 ->
+  forall Delta Gamma T,
+  jt_state Delta Gamma s1 T ->
+  jt_state Delta Gamma s2 T.
+Proof.
+  induction 1; intros; eauto using preservation.
+Qed.
+
+
 Theorem progress s1:
   forall Delta Gamma T,
     jt_state Delta Gamma s1 T ->
