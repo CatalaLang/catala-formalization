@@ -540,11 +540,39 @@ Qed.
 
 (* PROPERTIES OF CRED *)
 
+
+(** The reduction is deterministic *)
 Theorem cred_deterministic (s s1' s2': state):
   cred s s1' -> cred s s2' -> s1' = s2'.
 Proof.
   induction 1; inversion 1; subst; try solve [eauto|congruence|tryfalse].
 Qed.
+
+
+(** The reflexive transitive closure of the relation is deterministic when stopping at an irreductible term.  *)
+Theorem star_cred_deterministic s s1:
+  star cred s s1 ->
+  irred cred s1 ->
+  forall s2,
+  star cred s s2 ->
+  irred cred s2 ->
+  s1 = s2
+.
+Proof.
+  (** This result is lifting of the lemma indicating that cred is deterministic. *)
+  induction 1 using star_ind_1n.
+  { intros; unfold irred in *.
+    inversion H0; subst; eauto.
+    edestruct H; eauto.
+  }
+  { intros.
+    eapply IHstar; eauto.
+    inversion H2; subst; eauto.
+    { edestruct H3; eauto. }
+    { learn (cred_deterministic _ _ _ H H4); subst; eauto. }
+  }
+Qed.
+
 
 
 (** Our reduction sequences should have the folowing shape:
@@ -856,29 +884,5 @@ Proof.
   { rewrite <- IHstar.
     eapply cred_outtermost_env.
     eauto.
-  }
-Qed.
-
-
-
-Theorem star_cred_deterministic s s1:
-  star cred s s1 ->
-  irred cred s1 ->
-  forall s2,
-  star cred s s2 ->
-  irred cred s2 ->
-  s1 = s2
-.
-Proof.
-  induction 1 using star_ind_1n.
-  { intros; unfold irred in *.
-    inversion H0; subst; eauto.
-    edestruct H; eauto.
-  }
-  { intros.
-    eapply IHstar; eauto.
-    inversion H2; subst; eauto.
-    { edestruct H3; eauto. }
-    { learn (cred_deterministic _ _ _ H H4); subst; eauto. }
   }
 Qed.
