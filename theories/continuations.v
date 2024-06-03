@@ -858,3 +858,27 @@ Proof.
     eauto.
   }
 Qed.
+
+
+
+Theorem star_cred_deterministic s s1:
+  star cred s s1 ->
+  irred cred s1 ->
+  forall s2,
+  star cred s s2 ->
+  irred cred s2 ->
+  s1 = s2
+.
+Proof.
+  induction 1 using star_ind_1n.
+  { intros; unfold irred in *.
+    inversion H0; subst; eauto.
+    edestruct H; eauto.
+  }
+  { intros.
+    eapply IHstar; eauto.
+    inversion H2; subst; eauto.
+    { edestruct H3; eauto. }
+    { learn (cred_deterministic _ _ _ H H4); subst; eauto. }
+  }
+Qed.
