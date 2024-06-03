@@ -569,7 +569,7 @@ Module correctness.
   Parameter measure: state -> nat.
   Parameter measure_decrease: forall s1 s2, cred s1 s2 -> measure s2 < measure s1.
 
-  Theorem correctness_technical_aux s1:
+  Theorem correctness_technical s1:
     forall Delta Gamma T,
       jt_state Delta Gamma s1 T ->
       exists s2,
@@ -603,7 +603,7 @@ Module correctness.
   .
   Proof.
     intros.
-    destruct correctness_technical_aux with
+    destruct correctness_technical with
       (mode_eval t [] [])
       Delta
       ([]: list type)
