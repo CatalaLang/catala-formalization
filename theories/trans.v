@@ -764,6 +764,17 @@ Definition trans_state (s: state) : state :=
   end
 .
 
+Lemma CArray_reduces:
+  forall t ts vs sigma,
+  exists vs' r,
+    star cred
+      (mode_eval t [CArray ts vs] sigma)
+      (mode_cont [CArray [] (vs'++vs)] sigma r)
+.
+Admitted.
+
+
+
 Lemma vnone_dont_count:
   forall t ts vs sigma o,
   exists target,
@@ -780,84 +791,54 @@ Admitted.
 Lemma double_value_conflict:
   forall Delta Gamma T,
   forall t ts v1 v2  sigma,
-    jt_state Delta Gamma (mode_eval t [CArray ts [VSome v1; VSome v2]; CFold process_exceptions ENone] sigma) T ->
+    jt_state Delta Gamma (mode_eval (trans t) [CArray ts [VSome v1; VSome v2]; CFold process_exceptions ENone] sigma) (trans_ty T) ->
     star cred
-      (mode_eval t [CArray ts [VSome v1; VSome v2]; CFold process_exceptions ENone] sigma)
+      (mode_eval (trans t) [CArray ts [VSome v1; VSome v2]; CFold process_exceptions ENone] sigma)
       (mode_cont [] sigma RConflict)
 .
 Proof.
-  intros Delta Gamma T t ts.
-  revert ts Delta Gamma T t.
-  induction ts.
-  {
-    intros.
+  intros.
+  learn (CArray_reduces (trans t) ts [VSome v1; VSome v2] sigma); unpack.
 
-    assert (Hjt: jt_state Delta Gamma (mode_eval t [] sigma) T).
-    { admit. }
-    edestruct (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ Hjt); unpack.
+  eapply star_trans.
+  { erewrite append_stack_1; [simpl with_stack|simpl; eauto].
+    eapply star_cred_append_stack.
+    eauto.
+  }
+  simpl.
+  induction r.
 
-    induction x; simpl in *; tryfalse; subst.
-
-    (* environement des not change. *)
-    learn (star_cred_outtermost_env H0); simpl in *.
-    unfold outtermost_env in H2.
-    simpl in H2; subst.
-
-    eapply star_trans. {
-      rewrite append_stack_all.
-      eapply star_cred_append_stack; simpl with_stack.
-      eauto.
-    }
+  { eapply star_step; [econstructor|].
+    rewrite List.app_comm_cons.
+    rewrite List.rev_app_distr.
     simpl.
-    induction result.
-    { repeat (eapply star_step; [solve[econstructor; simpl; eauto]|]).
-      eapply star_refl.
-    }
-    {
-      admit.
-      (* impossible ! but only becase [t] is [trans _] *)
-    }
-    { repeat (eapply star_step; [solve[econstructor; simpl; eauto]|]).
-      eapply star_refl.
-    }
+    repeat first
+      [ eapply star_refl
+      | eapply star_step; [econstructor; simpl; eauto|]].
   }
   {
-    intros.
+    (* The returned value cannot be REmpty, since its type is Defualt T, and the original type is well typed withtout Default. *)
+    repeat sinv_jt.
 
-    assert (Hjt: jt_state Delta Gamma (mode_eval t [] sigma) T).
-    { admit. }
-    edestruct (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ Hjt); unpack.
+    assert (Hjt_start: 
+      jt_state
+        Delta
+        Gamma
+        (mode_eval (trans t) [CArray ts [VSome v1; VSome v2]] sigma) (TArray (TOption T2))).
+    { repeat econs_jt; eauto.
+      repeat econs_inv; eauto.
+      inv H13; eauto.
+    }
 
-    induction x; simpl in *; tryfalse; subst.
+    learn (star_preservation _ _ H0 _ _ _ Hjt_start).
 
-    (* environement des not change. *)
-    learn (star_cred_outtermost_env H0); simpl in *.
-    unfold outtermost_env in H2.
-    simpl in H2; subst.
-
-    eapply star_trans. {
-      rewrite append_stack_all.
-      eapply star_cred_append_stack; simpl with_stack.
-      eauto.
-    }
-    simpl.
-    induction result.
-    { repeat (
-        eapply star_step;
-        [solve[econstructor; simpl; eauto]|]
-      ).
-      
-      admit.
-    }
-    {
-      admit.
-      (* impossible ! but only becase [t] is [trans _] *)
-    }
-    { repeat (eapply star_step; [solve[econstructor; simpl; eauto]|]).
-      eapply star_refl.
-    }
+    repeat sinv_jt.
   }
-Admitted.
+  { repeat first
+    [ eapply star_refl
+    | eapply star_step; [econstructor; simpl; eauto|]].
+  }
+Qed.
 
 Import List.ListNotations.
 Require Import sequences.
