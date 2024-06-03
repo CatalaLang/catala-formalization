@@ -777,13 +777,86 @@ Lemma vnone_dont_count:
 .
 Admitted.
 
-
 Lemma double_value_conflict:
-  forall t ts v1 v2 o sigma,
+  forall Delta Gamma T,
+  forall t ts v1 v2  sigma,
+    jt_state Delta Gamma (mode_eval t [CArray ts [VSome v1; VSome v2]; CFold process_exceptions ENone] sigma) T ->
     star cred
-      (mode_eval t [CArray ts [VSome v1; VSome v2]; CFold process_exceptions o] sigma)
+      (mode_eval t [CArray ts [VSome v1; VSome v2]; CFold process_exceptions ENone] sigma)
       (mode_cont [] sigma RConflict)
 .
+Proof.
+  intros Delta Gamma T t ts.
+  revert ts Delta Gamma T t.
+  induction ts.
+  {
+    intros.
+
+    assert (Hjt: jt_state Delta Gamma (mode_eval t [] sigma) T).
+    { admit. }
+    edestruct (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ Hjt); unpack.
+
+    induction x; simpl in *; tryfalse; subst.
+
+    (* environement des not change. *)
+    learn (star_cred_outtermost_env H0); simpl in *.
+    unfold outtermost_env in H2.
+    simpl in H2; subst.
+
+    eapply star_trans. {
+      rewrite append_stack_all.
+      eapply star_cred_append_stack; simpl with_stack.
+      eauto.
+    }
+    simpl.
+    induction result.
+    { repeat (eapply star_step; [solve[econstructor; simpl; eauto]|]).
+      eapply star_refl.
+    }
+    {
+      admit.
+      (* impossible ! but only becase [t] is [trans _] *)
+    }
+    { repeat (eapply star_step; [solve[econstructor; simpl; eauto]|]).
+      eapply star_refl.
+    }
+  }
+  {
+    intros.
+
+    assert (Hjt: jt_state Delta Gamma (mode_eval t [] sigma) T).
+    { admit. }
+    edestruct (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ Hjt); unpack.
+
+    induction x; simpl in *; tryfalse; subst.
+
+    (* environement des not change. *)
+    learn (star_cred_outtermost_env H0); simpl in *.
+    unfold outtermost_env in H2.
+    simpl in H2; subst.
+
+    eapply star_trans. {
+      rewrite append_stack_all.
+      eapply star_cred_append_stack; simpl with_stack.
+      eauto.
+    }
+    simpl.
+    induction result.
+    { repeat (
+        eapply star_step;
+        [solve[econstructor; simpl; eauto]|]
+      ).
+      
+      admit.
+    }
+    {
+      admit.
+      (* impossible ! but only becase [t] is [trans _] *)
+    }
+    { repeat (eapply star_step; [solve[econstructor; simpl; eauto]|]).
+      eapply star_refl.
+    }
+  }
 Admitted.
 
 Import List.ListNotations.
@@ -890,6 +963,7 @@ Proof.
       ENone).
     unpack.
 
+    (* could be automated *)
     eapply star_step_left.
     { erewrite append_stack_2; [simpl with_stack|simpl; eauto].
       eapply star_cred_append_stack; eauto.
