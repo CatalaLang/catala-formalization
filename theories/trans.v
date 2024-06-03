@@ -774,6 +774,45 @@ Lemma CArray_reduces:
 Admitted.
 
 
+Local Ltac step' := (
+  (* This tatic try to advance the computation on the right or on the left of the diagram. *)
+  try (eapply step_left; [solve
+    (* generic case *)
+    [ econstructor; simpl; eauto using List.map_nth_error
+    (* for contextual error cases *)
+    | econstructor; repeat intro; tryfalse
+    | econstructor; eapply trans_value_op_correct; eauto
+  ]|])
+  ; try (eapply step_right; [solve
+    [ econstructor; simpl; eauto using List.map_nth_error
+    | econstructor; repeat intro; tryfalse
+    | econstructor; eapply trans_value_op_correct; eauto
+  ]|])
+).
+
+Lemma vnone_dont_cont_filter vs :
+  forall o sigma Delta Gamma T,
+  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs)] sigma o) (TOption T) ->
+  exists target,
+    star cred
+      (mode_cont [CFoldAcc process_exceptions (VArray vs)] sigma o)
+      target /\
+    star cred
+    (mode_cont [CFoldAcc process_exceptions (VArray (List.filter (fun v => match v with VNone => false | _ => true end) vs))] sigma o)
+      target
+  .
+Proof.
+  induction vs; intros.
+  { simpl; intros; repeat econstructor. }
+  { induction o; unfold process_exceptions in *; repeat (sinv_jt; inj; subst; simpl in *; subst).
+    all: fold process_exceptions in *.
+    all: repeat step'.
+    { eapply IHvs; repeat econs_jt; simpl; eauto. }
+    { eapply IHvs; repeat econs_jt; simpl; eauto. }
+    { eapply IHvs; repeat econs_jt; simpl; eauto. }
+    all: try solve [repeat step'; repeat econstructor].
+  }
+Qed.
 
 Lemma vnone_dont_count:
   forall t ts vs sigma o,
