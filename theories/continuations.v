@@ -434,6 +434,13 @@ Proof.
   eapply star_refl.
 Qed.
 
+(** ENVIRONEMENT ACCESS *)
+
+Definition environement s :=
+  match s with
+  | mode_eval _ _ env => env
+  | mode_cont _ env _ => env
+  end.
 
 (** STACK MANIPULATION *)
 
@@ -544,7 +551,6 @@ Qed.
 * The head of kappa, if it exists can have any possible shape.
 * Each member of the tail should however not contain "Hole" inside their default terms.
 * This is explained by the invariant `inv_state`.
-
 *)
 
 Inductive inv_conts_no_hole: cont -> Prop :=
@@ -632,6 +638,8 @@ Proof.
 Qed.
 
 
+
+(** Terms with no stack are irreductible if in mode cont *)
 Theorem cred_stack_empty_irred:
   forall sigma v,
     irred cred (mode_cont [] sigma v)
@@ -642,6 +650,7 @@ Proof.
 Qed.
 
 
+(** Converse of the cred_append_stack's lemma. *)
 Lemma cred_stack_sub:
   forall a b,
     cred a b ->
@@ -721,6 +730,10 @@ Proof.
   all: intros; solve [ inj | tryfalse | eauto].
 Qed.
 
+
+(** Theorem permiting to show the equivalence between big steps and continuation step semantics. For now, big step semantic is not implemented, but it is a future work direction. *)
+
+(** This lemma states that if a term reduces completly, but has one control unit, then there is an intermediate step where the reduction stops after evaluting the term (without the control unit) *)
 Theorem cred_stack_drop:
   forall t k env env'' r'',
     star cred
@@ -809,5 +822,39 @@ Proof.
     assert (lastn 1 (stack s1) = [k]).
     { subst; simpl; rewrite lastn1_one; eauto. }
     eapply creds_stack_sub; eauto.
+  }
+Qed.
+
+
+(** The function outtermost_env return the outtermost environement: if the stack do not contain any CReturn control units, then it returns the current environement. Else, it returns the last CReturn environement. *)
+
+Fixpoint outtermost_env_aux (l: list cont) (env: list value) : list value :=
+  match l with
+  | [] => env
+  | CReturn env1 :: l =>
+    outtermost_env_aux l env1
+  | _ :: l =>
+    outtermost_env_aux l env
+  end.
+
+Definition outtermost_env (s: state): list value :=
+  outtermost_env_aux (stack s) (environement s).
+
+Lemma cred_outtermost_env {s1 s2}:
+  cred s1 s2 ->
+  outtermost_env s1 = outtermost_env s2.
+Proof.
+  induction 1; try induction phi; simpl; eauto.
+  { tryfalse. }
+Qed.
+
+Lemma star_cred_outtermost_env {s1 s2}:
+  star cred s1 s2 ->
+  outtermost_env s1 = outtermost_env s2.
+Proof.
+  induction 1; eauto.
+  { rewrite <- IHstar.
+    eapply cred_outtermost_env.
+    eauto.
   }
 Qed.
