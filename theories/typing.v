@@ -226,10 +226,12 @@ with jt_value:
       jt_value Delta (Closure tcl sigma_cl) (TFun T1 T2)
   | JTValueVNone:
     forall Delta T,
+      inv_no_immediate_default T ->
       jt_value Delta VNone (TOption T)
   | JTValueVSome:
     forall Delta v T,
       jt_value Delta v T ->
+      inv_no_immediate_default T ->
       jt_value Delta (VSome v) (TOption T)
   | JTValueUnit:
     forall Delta,
@@ -237,9 +239,11 @@ with jt_value:
   | JTValueVPure:
     forall Delta v T,
       jt_value Delta v T ->
+      inv_no_immediate_default T ->
       jt_value Delta (VPure v) (TDefault T)
   | JTVArray:
     forall Delta A vs,
+      inv_no_immediate_default A ->
       List.Forall (fun v => jt_value Delta v A) vs ->
       jt_value Delta (VArray vs) (TArray A)
 .
@@ -251,9 +255,11 @@ Inductive jt_result: (string -> option type) -> result -> type -> Prop :=
     jt_result Delta (RValue v) T
   | JTREmpty:
     forall Delta T,
+    inv_no_immediate_default T ->
     jt_result Delta REmpty (TDefault T)
   | JTRConflict:
     forall Delta T,
+    inv_base T ->
     jt_result Delta RConflict T
 .
 
@@ -358,15 +364,11 @@ Inductive jt_state: (string -> option type) -> list type -> state -> type -> Pro
   | JTmode_cont:
     forall Delta Gamma1 Gamma2 r T1 T2 kappa sigma,
       List.Forall2 (jt_value Delta) sigma Gamma1 ->
-      jt_result Delta r T1 ->
       jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
+      jt_result Delta r T1 ->
       jt_state Delta Gamma2 (mode_cont kappa sigma r) T2
 .
 
-(*
-Lemma jt_state_correct:
-  "forall s, jt_state s -> jt_term (apply_state s)."
-*)
 
 Ltac2 sinv_jt () :=
   match! goal with
@@ -461,8 +463,7 @@ Module Typing_Examples.
   Qed. *)
 End Typing_Examples.
 
-Lemma jt_term_inv:
-  forall Delta Gamma t T,
+Lemma jt_term_inv {Delta Gamma t T}:
     jt_term Delta Gamma t T ->
     inv_base T.
 Proof.
@@ -470,9 +471,52 @@ Proof.
   { econstructor; eauto. }
 Qed.
 
+Lemma jt_value_inv {Delta t T}:
+    jt_value Delta t T ->
+    inv_base T.
+Proof.
+  induction 1; eauto using inv_no_immediate_is_inv_base.
+  all: try solve [repeat econstructor; eauto].
+  { eapply jt_term_inv; eauto. }
+Qed.
+
+Lemma jt_result_inv {Delta t T}:
+    jt_result Delta t T ->
+    inv_base T.
+Proof.
+  induction 1; eauto using inv_no_immediate_is_inv_base.
+  { eapply jt_value_inv; eauto. }
+  { econstructor; eauto. }
+Qed.
+
+Theorem jt_cont_inv {k}:
+  forall {Delta Gamma1 Gamma2 T1 T2},
+  inv_base T1 ->
+  jt_cont Delta Gamma1 Gamma2 k T1 T2 -> inv_base T2.
+Proof.
+  induction k; intros; repeat sinv_jt.
+  all: repeat match goal with
+  | [h: jt_term _ _ _ _ |- _] => learn (jt_term_inv h)
+  end.
+  all: try solve [
+      eauto
+    | econstructor; eauto
+    | repeat sinv_inv; eauto
+  ].
+  { induction op; simpl in *; inj; econstructor. }
+  { induction op; simpl in *; inj; econstructor. }
+  { repeat sinv_inv; eapply inv_no_immediate_is_inv_base; eauto. }
+Qed.
+
+
 Ltac learn_inv :=
   repeat match goal with
-  | [h: jt_term _ _ _ _ |- _] => learn (jt_term_inv _ _ _ _ h)
+  | [Hjt: jt_result _ _ _ |- _] =>
+    learn (jt_result_inv Hjt)
+  | [Hjt: jt_term _ _ _ _ |- _] =>
+    learn (jt_term_inv Hjt)
+  | [Hinv: inv_base ?T, Hjt: jt_cont _ _ _ _ ?T _ |- _] =>
+    learn (jt_cont_inv Hinv Hjt)
   end.
 
 Theorem preservation s1 s2:
@@ -499,7 +543,12 @@ Proof.
     eapply common.Forall2_nth_error_Some; eauto.
   }
   { (* Returning an Conflict *)
-    induction phi; try solve [repeat sinv_jt; repeat econstructor; eauto| tryfalse].
+    induction H5.
+    all: repeat sinv_jt.
+    all: repeat sinv_inv.
+    all: try (induction op; simpl in *; inj).
+    all: learn_inv.
+    all: try solve [repeat (econstructor; eauto) | tryfalse].
   }
   { induction op, v1, v2; simpl in *; inj; repeat (econstructor; eauto). }
   { repeat (econstructor; eauto).
