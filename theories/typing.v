@@ -567,6 +567,44 @@ Proof.
   induction 1; intros; eauto using preservation.
 Qed.
 
+Theorem jt_conts_append_stack_app {kappa}:
+  forall {Delta Gamma1 Gamma3 T1 T3 kappa'},
+  inv_base T1 ->
+  jt_conts Delta Gamma1 Gamma3 (kappa ++ kappa') T1 T3 ->
+  exists Gamma2 T2,
+    jt_conts Delta Gamma1 Gamma2 (kappa) T1 T2 /\
+    jt_conts Delta Gamma2 Gamma3 (kappa') T2 T3
+  .
+Proof.
+  induction kappa; simpl.
+  all: intros.
+  all: repeat sinv_inv.
+  { intros; repeat eexists; eauto.
+    { econstructor; eauto. }
+  }
+  { repeat sinv_jt.
+    learn_inv.
+    learn (IHkappa _ _ _ _ _ _ H0 H9); unpack.
+    repeat econstructor; eauto.
+  }
+Qed.
+
+Theorem append_stack_jt_state {Delta Gamma2 s1 kappa T2}:
+  jt_state Delta Gamma2 (append_stack s1 kappa) T2 ->
+  exists Gamma1 Gamma2 T1,
+  jt_conts Delta Gamma1 Gamma2 kappa T1 T2 /\
+  jt_state Delta Gamma1 s1 T1.
+Proof.
+  induction s1; simpl; inversion 1; subst; simpl in *; tryfalse.
+
+
+  all: learn_inv.
+  all: repeat match goal with
+    | [h: jt_term _ _ _ _ |- _] => learn (jt_term_inv_base h)
+    | [h1: jt_conts _ _ _ (_++_) ?T _, h2: inv_base ?T |- _] => learn (jt_conts_append_stack_app h2 h1); unpack
+  end.
+  all: repeat eexists; repeat econs_jt; eauto.
+Qed.
 
 Theorem progress s1:
   forall Delta Gamma T,
