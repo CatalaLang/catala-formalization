@@ -490,6 +490,13 @@ Proof.
   induction s; intros; simpl in *; subst; reflexivity.
 Qed.
 
+Lemma append_stack_0 {s kappa}:
+  stack s = kappa ->
+  s = append_stack (with_stack s ([])) kappa.
+Proof.
+  induction s; intros; simpl in *; subst; reflexivity.
+Qed.
+
 Lemma append_stack_1 {s k1 kappa}:
   stack s = k1::kappa ->
   s = append_stack (with_stack s (k1::[])) kappa.
