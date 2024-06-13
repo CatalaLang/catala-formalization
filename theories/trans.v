@@ -866,7 +866,6 @@ Proof.
         (mode_eval (trans t) [CArray ts [VSome v1; VSome v2]] sigma) (TArray (TOption T2))).
     { repeat econs_jt; eauto.
       repeat econs_inv; eauto.
-      inv H13; eauto.
     }
 
     learn (star_preservation _ _ H0 _ _ _ Hjt_start).
@@ -892,22 +891,6 @@ Theorem correction_continuations:
     star cred
       (trans_state s2) target.
 Proof.
-
-  Local Ltac step' := (
-    (* This tatic try to advance the computation on the right or on the left of the diagram. *)
-    try (eapply step_left; [solve
-      (* generic case *)
-      [ econstructor; simpl; eauto using List.map_nth_error
-      (* for contextual error cases *)
-      | econstructor; repeat intro; tryfalse
-      | econstructor; eapply trans_value_op_correct; eauto
-    ]|])
-    ; try (eapply step_right; [solve
-      [ econstructor; simpl; eauto using List.map_nth_error
-      | econstructor; repeat intro; tryfalse
-      | econstructor; eapply trans_value_op_correct; eauto
-    ]|])
-  ).
 
   intros ? ? ? ? ? Hjt Hsred.
   induction Hsred;
@@ -1027,12 +1010,15 @@ Proof.
       (* require an variant of the previous mentionned lemma to inducate we will go into a fatal error. *)
 
       learn (double_value_conflict
-        (trans a)
+        tactics.magic
+        tactics.magic
+        tactics.magic
+        a
         (List.map trans ts)
         (trans_value v')
         (trans_value v)
-        ENone
         (List.map trans_value sigma)
+        tactics.magic
       ).
 
       eapply star_step_left.

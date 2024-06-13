@@ -373,3 +373,6 @@ Ltac sp :=
 
 (* usefull tactic to solve equalities *)
 Ltac finish := unzip; subst; try solve [left; eauto| right; repeat intro; tryfalse].
+
+#[global]
+Axiom magic : forall {A: Type}, A.
