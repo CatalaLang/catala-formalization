@@ -180,6 +180,7 @@ with trans_value_ty_correct:
     jt_value Delta (trans_value v) (trans_ty T)
 .
 Proof.
+  fix IHt 1; lock IHt.
   induction 1; simpl.
   all: repeat econs_jt; simpl.
   all: eauto using trans_ty_inv_base.
@@ -188,6 +189,12 @@ Proof.
 
   { symmetry; eapply List.map_nth_error. eauto. }
 
+  { induction H; simpl; econstructor; eauto.
+    unlock IHt.
+    replace (TOption (trans_ty T)) with (trans_ty (TDefault T)) by (simpl; eauto).
+    eapply IHt; eauto.
+  }
+  { induction op; simpl in *; inj; eauto. }
   { induction H; simpl; econstructor; eauto.
   }
 Admitted.
