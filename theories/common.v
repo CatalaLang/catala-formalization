@@ -4,6 +4,8 @@ Require Import tactics.
 Import List.ListNotations.
 
 
+Print List.Forall2.
+
 (** Definition of [lastn n l]: gives the last [n] elements of a list [l]. *)
 Definition lastn {A} n (l: list A) := List.skipn ((List.length l) - n) l.
 

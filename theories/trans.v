@@ -844,26 +844,56 @@ Proof.
 Qed.
 
 
+(* let rec check l1 l2 =
+match l1, l2 with
+| nil, nil -> True
+| None::t1, l2 -> check t1 l2
+| l1, None:: t2 -> check l1 t2
+| h1::l1, h2::l2 -> check l1 l2 /\ h1 = h2. *)
+
+Inductive MyForall2 (A B : Type) (R : A -> B -> Prop) : list A -> list B -> Prop :=
+	| Forall2_nil : Forall2 R [] []
+  | Forall2_cons : forall (x : A) (y : B) (l : list A) (l' : list B),
+                   R x y -> Forall2 R l l' -> Forall2 R (x :: l) (y :: l').
+
 Require Import Coq.Classes.RelationClasses.
 
-Lemma vnone_dont_cont_filter' vs vs' :
-  forall o sigma Delta Gamma T,
-  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs)] sigma o) (TOption T) ->
-  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs')] sigma o) (TOption T) ->
+Lemma vnone_dont_cont_filter' vs1 vs2:
   List.Forall2
     (fun a b => a = b)
-    (List.filter (fun v => match v with VNone => false | _ => true end) vs)
-    (List.filter (fun v => match v with VNone => false | _ => true end) vs') ->
+    vs1
+    vs2 ->
+  forall vs1' vs2',
+  (List.filter (fun v => match v with VNone => false | _ => true end) vs1') = vs1 ->
+  (List.filter (fun v => match v with VNone => false | _ => true end) vs2') = vs2 ->
+  forall o sigma Delta Gamma T,
+  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs1')] sigma o) (TOption T) ->
+  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs2')] sigma o) (TOption T) ->
   exists target,
     star cred
-      (mode_cont [CFoldAcc process_exceptions (VArray vs)] sigma o)
+      (mode_cont [CFoldAcc process_exceptions (VArray vs1')] sigma o)
       target /\
     star cred
-      (mode_cont [CFoldAcc process_exceptions (VArray vs')] sigma o)
+      (mode_cont [CFoldAcc process_exceptions (VArray vs2')] sigma o)
       target
   .
 Proof.
+  induction 1.
+  intros.
+
 Admitted.
+
+Lemma même_chose:
+  forall vs vs' v,
+  List.Forall2
+  (fun a b => a = b)
+  (List.filter (fun v => match v with VNone => false | _ => true end) (vs'++v::vs))
+  (List.filter (fun v => match v with VNone => false | _ => true end) (vs'++v::VNone::vs)).
+Proof.
+  intros.
+  repeat rewrite List.filter_app; simpl.
+Admitted.    
+    
 
 Lemma vnone_dont_count:
   forall t ts vs sigma o,
