@@ -773,11 +773,33 @@ Definition trans_state (s: state) : state :=
 
 Lemma CArray_reduces:
   forall t ts vs sigma,
-  exists vs' r,
+  (exists vs',
     star cred
       (mode_eval t [CArray ts vs] sigma)
-      (mode_cont [CArray [] (vs'++vs)] sigma r)
+      (mode_cont [] sigma (RValue (VArray (vs'++vs)))))
+  \/
+    star cred
+      (mode_eval t [CArray ts vs] sigma)
+      (mode_cont [] sigma RConflict)
 .
+Proof.
+  induction ts.
+  { intros.
+    epose proof (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ _); unpack; simpl.
+    induction s2; simpl in *; tryfalse; subst.
+    learn (star_cred_outtermost_env H); unfold outtermost_env in *; simpl in *; subst.
+    
+    induction result.
+    { admit. }
+    { admit. }
+    { right.
+      eapply star_trans; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|].
+
+      eapply star_step; [repeat econstructor|].
+      eapply star_refl.
+    }
+
+  }
 Admitted.
 
 
@@ -805,7 +827,7 @@ Lemma vnone_dont_cont_filter vs :
       (mode_cont [CFoldAcc process_exceptions (VArray vs)] sigma o)
       target /\
     star cred
-    (mode_cont [CFoldAcc process_exceptions (VArray (List.filter (fun v => match v with VNone => false | _ => true end) vs))] sigma o)
+      (mode_cont [CFoldAcc process_exceptions (VArray (List.filter (fun v => match v with VNone => false | _ => true end) vs))] sigma o)
       target
   .
 Proof.
@@ -821,6 +843,28 @@ Proof.
   }
 Qed.
 
+
+Require Import Coq.Classes.RelationClasses.
+
+Lemma vnone_dont_cont_filter' vs vs' :
+  forall o sigma Delta Gamma T,
+  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs)] sigma o) (TOption T) ->
+  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs')] sigma o) (TOption T) ->
+  List.Forall2
+    (fun a b => a = b)
+    (List.filter (fun v => match v with VNone => false | _ => true end) vs)
+    (List.filter (fun v => match v with VNone => false | _ => true end) vs') ->
+  exists target,
+    star cred
+      (mode_cont [CFoldAcc process_exceptions (VArray vs)] sigma o)
+      target /\
+    star cred
+      (mode_cont [CFoldAcc process_exceptions (VArray vs')] sigma o)
+      target
+  .
+Proof.
+Admitted.
+
 Lemma vnone_dont_count:
   forall t ts vs sigma o,
   exists target,
@@ -832,6 +876,20 @@ Lemma vnone_dont_count:
       (mode_eval t [CArray ts (VNone::vs); CFold process_exceptions o] sigma)
       target
 .
+Proof.
+  (* Schema :
+    Left:
+    mode_eval t [CArray ts vs; CFold process_exceptions o] sigma
+    mode_cont [CFold process_exceptions o] (VArray vs'++v::vs) sigma
+    target
+    
+    Right:
+    mode_eval t [CArray ts (VNone::vs); CFold process_exceptions o] sigma
+    mode_cont [CFold process_exceptions o] (VArray vs'++v::VNone::vs) sigma
+    target
+
+    then use vnone_dont_count. But this does not work because it is not the same thing. we need some stronger lemma.
+    *)
 Admitted.
 
 Lemma double_value_conflict:
