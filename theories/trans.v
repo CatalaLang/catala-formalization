@@ -944,6 +944,37 @@ Proof.
   { induction a; repeat econstructor; eauto. }
 Qed.
 
+Lemma FilteredForall2_app:
+  forall vs1 vs2 vs1' vs2',
+    FilteredForall2 vs1 vs2 ->
+    FilteredForall2 vs1' vs2' ->
+    FilteredForall2 (vs1++vs1') (vs2++vs2')
+    .
+Proof.
+  induction 1; simpl; intros; try econstructor; eauto.
+Qed.
+
+Lemma FilteredForall2_rev:
+  forall vs1 vs2,
+    FilteredForall2 vs1 vs2 ->
+    FilteredForall2 (List.rev vs1) (List.rev vs2)
+    .
+Proof.
+  induction 1; simpl; intros; try econstructor; eauto.
+  { replace (List.rev l2) with (List.rev l2 ++ []) by (rewrite List.app_nil_r; eauto).
+    eapply FilteredForall2_app; eauto.
+    repeat econstructor; eauto.
+  }
+  { replace (List.rev l1) with (List.rev l1 ++ []) by (rewrite List.app_nil_r; eauto).
+    eapply FilteredForall2_app; eauto.
+    repeat econstructor; eauto.
+  }
+  { eapply FilteredForall2_app; eauto.
+    repeat econstructor; eauto.
+  }
+Qed.
+
+
 Require Import Coq.Classes.RelationClasses.
 
 Lemma vnone_dont_cont_filter vs1 vs2:
@@ -981,35 +1012,51 @@ Lemma vnone_dont_count:
       target
 .
 Proof.
+
+(* Left:
+  mode_eval t [CArray ts vs; CFold process_exceptions o] sigma
+  mode_cont [CFold process_exceptions o] (VArray vs'++v::vs) sigma
+  target
+
+ * Right:
+  mode_eval t [CArray ts (VNone::vs); CFold process_exceptions o] sigma
+  mode_cont [CFold process_exceptions o] (VArray vs'++v::VNone::vs) sigma
+  target
+
+*)
+
   intros.
+  all: learn (CArray2_reduces t ts vs (VNone::vs) sigma); unzip.
+  all: eapply star_step_left; [erewrite append_stack_1;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
+  all: eapply star_step_right; [erewrite append_stack_1;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
 
-  all: learn (CArray_reduces (trans t) ts [VNone] sigma); unzip.
-  all: learn (CArray_reduces (trans t) ts [] sigma); unzip.
+  all: clear.
 
-  { }
+  { eapply step_left; [econstructor|].
+    eapply step_right; [econstructor|].
 
+    epose proof (correctness.correctness_technical (mode_eval o [] sigma) _ _ _ _); unpack; simpl.
+    induction s2; simpl in *; subst; tryfalse.
+    learn (star_cred_outtermost_env H); unfold outtermost_env in *; simpl in *; subst.
 
-  assert (FilteredForall2 vs (VNone::vs)).
-  { eapply FilteredForall2_right.
-    eapply FilteredForall2_refl.
+    all: eapply star_step_left; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
+    all: eapply star_step_right; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
+
+    eapply vnone_dont_cont_filter.
+
+    { rewrite <- app_comm_last.
+      eapply FilteredForall2_rev.
+      eapply FilteredForall2_app.
+      replace (vs') with (vs' ++ []) by (rewrite List.app_nil_r; eauto).
+      eapply FilteredForall2_app; try rewrite List.app_nil_r.
+      all: try eapply FilteredForall2_refl.
+      repeat econstructor.
+    }
+    { admit. }
+    { admit. }
   }
 
-
-
-
-  (* Schema :
-    Left:
-    mode_eval t [CArray ts vs; CFold process_exceptions o] sigma
-    mode_cont [CFold process_exceptions o] (VArray vs'++v::vs) sigma
-    target
-    
-    Right:
-    mode_eval t [CArray ts (VNone::vs); CFold process_exceptions o] sigma
-    mode_cont [CFold process_exceptions o] (VArray vs'++v::VNone::vs) sigma
-    target
-
-    then use vnone_dont_count. But this does not work because it is not the same thing. we need some stronger lemma.
-    *)
+  { eapply diagram_finish. }
 Admitted.
 
 Lemma double_value_conflict:
