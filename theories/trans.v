@@ -773,6 +773,9 @@ Definition trans_state (s: state) : state :=
 
 Lemma CArray2_reduces:
   forall t ts vs1 vs2 sigma,
+  forall Delta Gamma T,
+  jt_state Delta Gamma (mode_eval t [CArray ts vs1] sigma) (TArray (trans_ty T)) ->
+  jt_state Delta Gamma (mode_eval t [CArray ts vs2] sigma) (TArray (trans_ty T)) ->
   (exists vs',
     star cred
       (mode_eval t [CArray ts vs1] sigma)
@@ -791,10 +794,13 @@ Lemma CArray2_reduces:
 Proof.
   intros t ts; revert t.
   induction ts.
-  { intros.
+  { intros; repeat (sinv_jt; subst; simpl in *; inj).
+
+  assert (Hjt: jt_state Delta Gamma (mode_eval t [] sigma) (trans_ty T)).
+  { repeat econstructor; eauto using trans_ty_inv_base. }
 
     (* [t] reduces *)
-    epose proof (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ _); unpack; simpl.
+    epose proof (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ Hjt); unpack; simpl.
     induction s2; simpl in *; subst; tryfalse.
     learn (star_cred_outtermost_env H); unfold outtermost_env in *; simpl in *; subst.
 
@@ -808,7 +814,7 @@ Proof.
       all: eapply star_trans; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
       all: repeat econstructor.
     }
-    { admit "typing". }
+    { repeat sinv_jt. induction T; simpl; inj. }
     { right.
       split.
       all: eapply star_trans; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
@@ -816,15 +822,24 @@ Proof.
     }
   }
   { intros.
+
+    assert (Hjt: jt_state Delta Gamma (mode_eval t [] sigma) (trans_ty T)).
+    { repeat sinv_jt; repeat econstructor; eauto using trans_ty_inv_base. }
+
     (* [t] reduces *)
-    epose proof (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ _); unpack; simpl.
+    epose proof (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ Hjt); unpack; simpl.
     induction s2; simpl in *; subst; tryfalse.
-    learn (star_cred_outtermost_env H); unfold outtermost_env in *; simpl in *; subst.
+    learn (star_cred_outtermost_env H1); unfold outtermost_env in *; simpl in *; subst.
 
     induction result.
     { (* value *)
 
-      destruct (IHts a (v::vs1) (v::vs2) env); unpack.
+      assert (Hjt1: jt_state Delta Gamma (mode_eval a [CArray ts (v::vs1)] env) (TArray (trans_ty T))).
+      { repeat sinv_jt; repeat econs_jt; eauto. }
+      assert (Hjt2: jt_state Delta Gamma (mode_eval a [CArray ts (v::vs2)] env) (TArray (trans_ty T))).
+      { repeat sinv_jt; repeat econs_jt; eauto. }
+      
+      epose proof (IHts a (v::vs1) (v::vs2) env _ _ _ Hjt1 Hjt2); unzip.
       {
         left.
         eexists.
@@ -843,18 +858,20 @@ Proof.
         all: eauto.
       }
     }
-    { admit "typing". }
+    { repeat sinv_jt; induction T; inj. }
     { right.
       split.
       all: eapply star_trans; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
       all: repeat econstructor.
     }
   }
-Admitted.
-
+Qed.
 
 Lemma CArray_reduces:
   forall t ts vs sigma,
+
+  forall Delta Gamma T,
+  forall (Hjt:jt_state Delta Gamma (mode_eval t [CArray ts vs] sigma) (TArray (trans_ty T))),
   
   (exists vs',
     star cred
@@ -867,7 +884,7 @@ Lemma CArray_reduces:
 .
 Proof.
   intros.
-  destruct (CArray2_reduces t ts vs vs sigma ); unpack.
+  destruct (CArray2_reduces t ts vs vs sigma _ _ _ Hjt Hjt); unpack.
   { left. eexists; eauto. }
   { right. eauto. }
 Qed.
