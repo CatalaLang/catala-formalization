@@ -1056,8 +1056,19 @@ Lemma double_value_conflict:
 .
 Proof.
   intros.
-  admit.
-Admitted.
+  destruct (CArray_reduces (trans t) ts [VSome v1; VSome v2] sigma); unpack.
+
+  { eapply star_trans; [erewrite append_stack_1;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
+    rewrite List.rev_app_distr; simpl.
+    unfold process_exceptions.
+    repeat (eapply star_step; [solve[econstructor; simpl; eauto]|]).
+    eapply star_refl.
+  }
+  { eapply star_trans; [erewrite append_stack_1;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
+    repeat (eapply star_step; [solve[econstructor; simpl; eauto]|]).
+    eapply star_refl.
+  }
+Qed.
 
 Import List.ListNotations.
 Require Import sequences.
