@@ -1006,6 +1006,9 @@ Qed.
 
 Lemma vnone_dont_count:
   forall t ts vs sigma o,
+  forall Delta Gamma T,
+  jt_state Delta Gamma (mode_eval t [CArray ts vs; CFold process_exceptions o] sigma) (TOption (trans_ty T)) ->
+  jt_state Delta Gamma (mode_eval t [CArray ts (VNone::vs); CFold process_exceptions o] sigma) (TOption (trans_ty T)) ->
   exists target,
     star cred
       (mode_eval t [CArray ts (vs); CFold process_exceptions o] sigma)
@@ -1030,18 +1033,27 @@ Proof.
 *)
 
   intros.
-  all: learn (CArray2_reduces t ts vs (VNone::vs) sigma); unzip.
+
+  assert (Hjt1: jt_state Delta Gamma (mode_eval t [CArray ts vs] sigma) (TArray (trans_ty (TDefault T)))).
+  { unfold process_exceptions in *; repeat (simpl in *; sinv_jt; inj; subst); fold process_exceptions in *; repeat econs_jt; eauto.
+    repeat econstructor; eauto.
+  }
+  assert (Hjt2: jt_state Delta Gamma (mode_eval t [CArray ts (VNone::vs)] sigma) (TArray (trans_ty (TDefault T)))).
+  { unfold process_exceptions in *; repeat (simpl in *; sinv_jt; inj; subst); fold process_exceptions in *; repeat econs_jt; eauto.
+  }
+
+  all: learn (CArray2_reduces t ts vs (VNone::vs) sigma _ _ _ Hjt1 Hjt2); unzip.
   all: eapply star_step_left; [erewrite append_stack_1;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
   all: eapply star_step_right; [erewrite append_stack_1;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
-
-  all: clear.
-
   { eapply step_left; [econstructor|].
     eapply step_right; [econstructor|].
 
-    epose proof (correctness.correctness_technical (mode_eval o [] sigma) _ _ _ _); unpack; simpl.
+    assert (Hjt: jt_state Delta Gamma (mode_eval o [] sigma) (TOption (trans_ty T))).
+    { repeat sinv_jt; repeat econs_jt; eauto. }
+
+    epose proof (correctness.correctness_technical (mode_eval o [] sigma) _ _ _ Hjt); unpack; simpl.
     induction s2; simpl in *; subst; tryfalse.
-    learn (star_cred_outtermost_env H); unfold outtermost_env in *; simpl in *; subst.
+    learn (star_cred_outtermost_env H4); unfold outtermost_env in *; simpl in *; subst.
 
     all: eapply star_step_left; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
     all: eapply star_step_right; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
@@ -1056,12 +1068,16 @@ Proof.
       all: try eapply FilteredForall2_refl.
       repeat econstructor.
     }
-    { admit "typing". }
-    { admit "typing". }
+    { repeat match goal with |[h1: star cred _ _, h2: jt_state _ _ _ _ |- _] => learn (star_preservation h1 h2) end.
+      unfold process_exceptions in *; repeat (sinv_jt; simpl in *; inj; subst); repeat econs_jt; simpl; eauto.
+    }
+    { repeat match goal with |[h1: star cred _ _, h2: jt_state _ _ _ _ |- _] => learn (star_preservation h1 h2) end.
+      unfold process_exceptions in *; repeat (sinv_jt; simpl in *; inj; subst); repeat econs_jt; simpl; eauto.
+    }
   }
 
   { eapply diagram_finish. }
-Admitted.
+Qed.
 
 Lemma double_value_conflict:
   forall Delta Gamma T,
@@ -1073,7 +1089,10 @@ Lemma double_value_conflict:
 .
 Proof.
   intros.
-  destruct (CArray_reduces (trans t) ts [VSome v1; VSome v2] sigma); unpack.
+  assert (Hjt: jt_state Delta Gamma (mode_eval (trans t)
+  [CArray ts [VSome v1; VSome v2]] sigma) (TArray (trans_ty (T)))).
+  { unfold process_exceptions in *; repeat (sinv_jt; simpl in *; inj; subst); repeat econs_jt; simpl; eauto. repeat econstructor; eauto. }
+  destruct (CArray_reduces (trans t) ts [VSome v1; VSome v2] sigma _ _ _ Hjt); unpack.
 
   { eapply star_trans; [erewrite append_stack_1;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
     rewrite List.rev_app_distr; simpl.
