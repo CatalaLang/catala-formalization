@@ -773,6 +773,7 @@ Definition trans_state (s: state) : state :=
 
 Lemma CArray_reduces:
   forall t ts vs sigma,
+  
   (exists vs',
     star cred
       (mode_eval t [CArray ts vs] sigma)
@@ -803,6 +804,87 @@ Proof.
 Admitted.
 
 
+Lemma CArray2_reduces:
+  forall t ts vs1 vs2 sigma,
+  (exists vs',
+    star cred
+      (mode_eval t [CArray ts vs1] sigma)
+      (mode_cont [] sigma (RValue (VArray (List.rev (vs'++vs1)))))/\
+    star cred
+      (mode_eval t [CArray ts vs2] sigma)
+      (mode_cont [] sigma (RValue (VArray (List.rev (vs'++vs2))))))
+  \/
+    star cred
+      (mode_eval t [CArray ts vs1] sigma)
+      (mode_cont [] sigma RConflict) /\
+    star cred
+      (mode_eval t [CArray ts vs2] sigma)
+      (mode_cont [] sigma RConflict)
+.
+Proof.
+  intros t ts; revert t.
+  induction ts.
+  { intros.
+
+    (* [t] reduces *)
+    epose proof (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ _); unpack; simpl.
+    induction s2; simpl in *; subst; tryfalse.
+    learn (star_cred_outtermost_env H); unfold outtermost_env in *; simpl in *; subst.
+
+
+    (** Depending on the things [t] reduces to. *)
+    induction result.
+    { (* value *)
+      left.
+      exists [v].
+      split.
+      all: eapply star_trans; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
+      all: repeat econstructor.
+    }
+    { admit "typing". }
+    { right.
+      split.
+      all: eapply star_trans; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
+      all: repeat econstructor.
+    }
+  }
+  { intros.
+    (* [t] reduces *)
+    epose proof (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ _); unpack; simpl.
+    induction s2; simpl in *; subst; tryfalse.
+    learn (star_cred_outtermost_env H); unfold outtermost_env in *; simpl in *; subst.
+
+    induction result.
+    { (* value *)
+
+      destruct (IHts a (v::vs1) (v::vs2) env); unpack.
+      {
+        left.
+        eexists.
+        split.
+        all: eapply star_trans; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
+        all: eapply star_step; [solve[econstructor]|].
+        all: replace (vs' ++ v :: vs1) with ((vs' ++ [v]) ++ vs1) in *.
+        all: replace (vs' ++ v :: vs2) with ((vs' ++ [v]) ++ vs2) in *.
+        all: eauto using app_comm_last.
+      }
+
+      { right.
+        split.
+        all: eapply star_trans; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
+        all: eapply star_step; [solve[econstructor]|].
+        all: eauto.
+      }
+    }
+    { admit "typing". }
+    { right.
+      split.
+      all: eapply star_trans; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|]; simpl.
+      all: repeat econstructor.
+    }
+  }
+Admitted.
+
 Local Ltac step' := (
   (* This tatic try to advance the computation on the right or on the left of the diagram. *)
   try (eapply step_left; [solve
@@ -819,81 +901,73 @@ Local Ltac step' := (
   ]|])
 ).
 
-Lemma vnone_dont_cont_filter vs :
-  forall o sigma Delta Gamma T,
-  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs)] sigma o) (TOption T) ->
-  exists target,
-    star cred
-      (mode_cont [CFoldAcc process_exceptions (VArray vs)] sigma o)
-      target /\
-    star cred
-      (mode_cont [CFoldAcc process_exceptions (VArray (List.filter (fun v => match v with VNone => false | _ => true end) vs))] sigma o)
-      target
-  .
-Proof.
-  induction vs; intros.
-  { simpl; intros; repeat econstructor. }
-  { induction o; unfold process_exceptions in *; repeat (sinv_jt; inj; subst; simpl in *; subst).
-    all: fold process_exceptions in *.
-    all: repeat step'.
-    { eapply IHvs; repeat econs_jt; simpl; eauto. }
-    { eapply IHvs; repeat econs_jt; simpl; eauto. }
-    { eapply IHvs; repeat econs_jt; simpl; eauto. }
-    all: try solve [repeat step'; repeat econstructor].
-  }
-Qed.
+(** FilteredForall2 is a specilized inductive that represents the same thing as 
 
 
-(* let rec check l1 l2 =
+Definition FilteredForall2 l1 l2 :=
+  List.Forall2
+    (fun a b => a = b)
+    (List.filter (fun v => match v with | VNone => false | _ => true) l1)
+    (List.filter (fun v => match v with | VNone => false | _ => true) l2).
+
+But implemented as you would in ocaml with the following function :
+
+let rec check l1 l2 =
 match l1, l2 with
 | nil, nil -> True
 | None::t1, l2 -> check t1 l2
 | l1, None:: t2 -> check l1 t2
-| h1::l1, h2::l2 -> check l1 l2 /\ h1 = h2. *)
+| h1::l1, h2::l2 -> check l1 l2 /\ h1 = h2.
 
-Inductive MyForall2 (A B : Type) (R : A -> B -> Prop) : list A -> list B -> Prop :=
-	| Forall2_nil : Forall2 R [] []
-  | Forall2_cons : forall (x : A) (y : B) (l : list A) (l' : list B),
-                   R x y -> Forall2 R l l' -> Forall2 R (x :: l) (y :: l').
+Here is the final definition:
+*)
+
+Inductive FilteredForall2: list value -> list value -> Prop :=
+| FilteredForall2_nil: FilteredForall2 nil nil
+| FilteredForall2_left l1 l2:
+  FilteredForall2 l1 l2 ->
+  FilteredForall2 (VNone::l1) l2
+| FilteredForall2_right l1 l2:
+  FilteredForall2 l1 l2 ->
+  FilteredForall2 l1 (VNone::l2)
+| FilteredForall2_both o1 o2 l1 l2:
+  o1 = o2 ->
+  FilteredForall2 l1 l2 ->
+  FilteredForall2 (o1::l1) (o2::l2)
+.
+
+Lemma FilteredForall2_refl:
+  forall vs, FilteredForall2 vs vs.
+Proof.
+  induction vs.
+  { econstructor. }
+  { induction a; repeat econstructor; eauto. }
+Qed.
 
 Require Import Coq.Classes.RelationClasses.
 
-Lemma vnone_dont_cont_filter' vs1 vs2:
-  List.Forall2
-    (fun a b => a = b)
-    vs1
-    vs2 ->
-  forall vs1' vs2',
-  (List.filter (fun v => match v with VNone => false | _ => true end) vs1') = vs1 ->
-  (List.filter (fun v => match v with VNone => false | _ => true end) vs2') = vs2 ->
+Lemma vnone_dont_cont_filter vs1 vs2:
+  FilteredForall2 vs1 vs2 ->
   forall o sigma Delta Gamma T,
-  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs1')] sigma o) (TOption T) ->
-  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs2')] sigma o) (TOption T) ->
+  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs1)] sigma o) (TOption T) ->
+  jt_state Delta Gamma (mode_cont [CFoldAcc process_exceptions (VArray vs2)] sigma o) (TOption T) ->
   exists target,
     star cred
-      (mode_cont [CFoldAcc process_exceptions (VArray vs1')] sigma o)
+      (mode_cont [CFoldAcc process_exceptions (VArray vs1)] sigma o)
       target /\
     star cred
-      (mode_cont [CFoldAcc process_exceptions (VArray vs2')] sigma o)
+      (mode_cont [CFoldAcc process_exceptions (VArray vs2)] sigma o)
       target
   .
 Proof.
-  induction 1.
-  intros.
-
-Admitted.
-
-Lemma même_chose:
-  forall vs vs' v,
-  List.Forall2
-  (fun a b => a = b)
-  (List.filter (fun v => match v with VNone => false | _ => true end) (vs'++v::vs))
-  (List.filter (fun v => match v with VNone => false | _ => true end) (vs'++v::VNone::vs)).
-Proof.
-  intros.
-  repeat rewrite List.filter_app; simpl.
-Admitted.    
-    
+  induction 1; intros.
+  all: induction o; unfold process_exceptions in *; repeat (sinv_jt; inj; subst; simpl in *; subst).
+  all: fold process_exceptions in *.
+  all: repeat step'.
+  all: try solve [
+    eapply diagram_finish | eapply IHFilteredForall2; repeat econs_jt; eauto
+  ].
+Qed.
 
 Lemma vnone_dont_count:
   forall t ts vs sigma o,
@@ -907,6 +981,22 @@ Lemma vnone_dont_count:
       target
 .
 Proof.
+  intros.
+
+  all: learn (CArray_reduces (trans t) ts [VNone] sigma); unzip.
+  all: learn (CArray_reduces (trans t) ts [] sigma); unzip.
+
+  { }
+
+
+  assert (FilteredForall2 vs (VNone::vs)).
+  { eapply FilteredForall2_right.
+    eapply FilteredForall2_refl.
+  }
+
+
+
+
   (* Schema :
     Left:
     mode_eval t [CArray ts vs; CFold process_exceptions o] sigma

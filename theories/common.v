@@ -137,3 +137,12 @@ Theorem Forall2_nth_error_Some {A B} F l1 l2:
 Proof.
   induction 1, k; simpl; intros; inj; eauto.
 Qed.
+
+Lemma app_comm_last {A} vs1 vs2 (v: A):
+  (vs1 ++ [v]) ++ vs2 = vs1 ++ v :: vs2.
+Proof.
+  revert vs2 v.
+  induction vs1; simpl; intros; eauto.
+  rewrite IHvs1.
+  repeat f_equal.
+Qed.
