@@ -771,45 +771,12 @@ Definition trans_state (s: state) : state :=
   end
 .
 
-Lemma CArray_reduces:
-  forall t ts vs sigma,
-  
-  (exists vs',
-    star cred
-      (mode_eval t [CArray ts vs] sigma)
-      (mode_cont [] sigma (RValue (VArray (vs'++vs)))))
-  \/
-    star cred
-      (mode_eval t [CArray ts vs] sigma)
-      (mode_cont [] sigma RConflict)
-.
-Proof.
-  induction ts.
-  { intros.
-    epose proof (correctness.correctness_technical (mode_eval t [] sigma) _ _ _ _); unpack; simpl.
-    induction s2; simpl in *; tryfalse; subst.
-    learn (star_cred_outtermost_env H); unfold outtermost_env in *; simpl in *; subst.
-    
-    induction result.
-    { admit. }
-    { admit. }
-    { right.
-      eapply star_trans; [erewrite append_stack_0;[simpl with_stack|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|].
-
-      eapply star_step; [repeat econstructor|].
-      eapply star_refl.
-    }
-
-  }
-Admitted.
-
-
 Lemma CArray2_reduces:
   forall t ts vs1 vs2 sigma,
   (exists vs',
     star cred
       (mode_eval t [CArray ts vs1] sigma)
-      (mode_cont [] sigma (RValue (VArray (List.rev (vs'++vs1)))))/\
+      (mode_cont [] sigma (RValue (VArray (List.rev (vs'++vs1))))) /\
     star cred
       (mode_eval t [CArray ts vs2] sigma)
       (mode_cont [] sigma (RValue (VArray (List.rev (vs'++vs2))))))
@@ -884,6 +851,26 @@ Proof.
     }
   }
 Admitted.
+
+
+Lemma CArray_reduces:
+  forall t ts vs sigma,
+  
+  (exists vs',
+    star cred
+      (mode_eval t [CArray ts vs] sigma)
+      (mode_cont [] sigma (RValue (VArray (List.rev (vs'++vs))))))
+  \/
+    star cred
+      (mode_eval t [CArray ts vs] sigma)
+      (mode_cont [] sigma RConflict)
+.
+Proof.
+  intros.
+  destruct (CArray2_reduces t ts vs vs sigma ); unpack.
+  { left. eexists; eauto. }
+  { right. eauto. }
+Qed.
 
 Local Ltac step' := (
   (* This tatic try to advance the computation on the right or on the left of the diagram. *)
@@ -1052,8 +1039,8 @@ Proof.
       all: try eapply FilteredForall2_refl.
       repeat econstructor.
     }
-    { admit. }
-    { admit. }
+    { admit "typing". }
+    { admit "typing". }
   }
 
   { eapply diagram_finish. }
@@ -1069,46 +1056,8 @@ Lemma double_value_conflict:
 .
 Proof.
   intros.
-  learn (CArray_reduces (trans t) ts [VSome v1; VSome v2] sigma); unpack.
-
-  eapply star_trans.
-  { erewrite append_stack_1; [simpl with_stack|simpl; eauto].
-    eapply star_cred_append_stack.
-    eauto.
-  }
-  simpl.
-  induction r.
-
-  { eapply star_step; [econstructor|].
-    rewrite List.app_comm_cons.
-    rewrite List.rev_app_distr.
-    simpl.
-    repeat first
-      [ eapply star_refl
-      | eapply star_step; [econstructor; simpl; eauto|]].
-  }
-  {
-    (* The returned value cannot be REmpty, since its type is Defualt T, and the original type is well typed withtout Default. *)
-    repeat sinv_jt.
-
-    assert (Hjt_start: 
-      jt_state
-        Delta
-        Gamma
-        (mode_eval (trans t) [CArray ts [VSome v1; VSome v2]] sigma) (TArray (TOption T2))).
-    { repeat econs_jt; eauto.
-      repeat econs_inv; eauto.
-    }
-
-    learn (star_preservation _ _ H0 _ _ _ Hjt_start).
-
-    repeat sinv_jt.
-  }
-  { repeat first
-    [ eapply star_refl
-    | eapply star_step; [econstructor; simpl; eauto|]].
-  }
-Qed.
+  admit.
+Admitted.
 
 Import List.ListNotations.
 Require Import sequences.
