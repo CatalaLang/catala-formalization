@@ -771,6 +771,85 @@ Definition trans_state (s: state) : state :=
   end
 .
 
+Lemma trans_ty_correct_Forall2_trans_value:
+  forall { Delta env Gamma},
+  List.Forall2 (jt_value Delta) env Gamma ->
+  List.Forall2 (jt_value Delta) (List.map trans_value env)
+    (List.map trans_ty Gamma).
+Proof.
+  induction 1; simpl; econstructor; eauto using trans_value_ty_correct.
+Qed.
+
+Lemma trans_ty_correct_conts:
+  forall {Delta Gamma1 Gamma2 kappa T1 T2},
+  jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
+  forall {sigma},
+  jt_conts Delta (List.map trans_ty Gamma1) (List.map trans_ty Gamma2) (trans_conts kappa (List.map trans_value sigma)) (trans_ty T1) (trans_ty T2).
+Proof. 
+  (* WIP proof 
+  Ltac ignore_inv := repeat match goal with
+    | [|- inv_base _] => shelve
+    | [|- inv_no_immediate_default _] => shelve
+  end.
+  induction 1.
+  { econstructor; eapply trans_ty_inv_base. }
+  { induction cont; repeat sinv_jt; simpl trans_conts.
+    learn (trans_ty_correct _ _ _ _ H5).
+    match goal with [h: context [trans_ty] |- _] => fail | _ => idtac end.
+    match H with context x [trans_ty] => idtac x | _ => idtac end.
+    all: repeat match goal with
+    | [h: jt_term _ _ _ _ |- _] =>
+      match h with
+      | context x [trans_ty] => fail
+      | _ => learn (trans_ty_correct _ _ _ _ h)
+      end
+    | [h: jt_value _ _ _ |- _] =>
+      match h with
+      | context x [trans_ty] => fail
+      | _ => learn (trans_value_ty_correct _ _ _ h)
+      end
+    end.
+    all: intros; repeat econs_jt;
+      try rewrite <- List.map_cons;
+      eauto using
+        trans_ty_correct,
+        trans_value_ty_correct,
+        trans_ty_correct_Forall2_trans_value
+      ; ignore_inv.
+    { induction op; simpl in *; inj; subst; simpl; eauto. }
+    { induction op; simpl in *; inj; subst; simpl; eauto. }
+    3:{ simpl; eauto. }
+    4:{ admit "????????". }
+    2:{ learn (trans_ty_correct _ _ _ _ H5); simpl in *; eauto. }  
+    { intros; repeat econs_jt; eauto using trans_ty_correct; ignore_inv. }
+    { intros; repeat econs_jt; eauto using trans_ty_correct, trans_ty_correct_Forall2_trans_value. }
+    { 
+    eauto. fold List.map. }
+  }
+*)
+Admitted.
+
+Lemma trans_ty_state_correct:
+  forall {s Delta Gamma T},
+  jt_state Delta Gamma s T ->
+  jt_state Delta (List.map trans_ty Gamma) (trans_state s) (trans_ty T).
+Proof.
+  intros.
+  induction s; repeat sinv_jt; repeat econs_jt.
+  all: eauto using
+    trans_ty_correct_Forall2_trans_value,
+    trans_ty_correct_conts,
+    trans_ty_correct
+    .
+  { induction result; repeat sinv_jt; repeat econs_jt.
+    all: eauto using
+      trans_value_ty_correct,
+      trans_ty_inv_base,
+      trans_ty_inv_no_immediate_default
+    .
+  }
+Qed.
+
 Lemma CArray2_reduces:
   forall t ts vs1 vs2 sigma,
   forall Delta Gamma T,
