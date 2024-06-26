@@ -1212,7 +1212,9 @@ Proof.
       eauto
     ].
 
-  { simpl. repeat step'.
+  all: learn (trans_ty_state_correct Hjt).
+
+  { repeat step'.
     case ts.
     { repeat step'; eapply diagram_finish. }
     { intros; simpl.
@@ -1221,12 +1223,13 @@ Proof.
       (* Need an external lemma here to show that both side reduces to the same thing. This is a property of CFold process exception, and is linked to the fact that they do not care about VNone. *)
 
       (* This is the lemma vnone_dont_count. *)
-      learn (vnone_dont_count
+      epose proof (vnone_dont_count
         (trans t)
         (List.map trans l)
         ([])
         (List.map trans_value sigma)
-        ENone).
+        ENone Delta Gamma T _ _)
+      .
       unpack.
 
       eapply star_step_left.
@@ -1243,12 +1246,15 @@ Proof.
   }
   { simpl. repeat step'.
     (* same *)
-    learn (vnone_dont_count
+    epose proof (vnone_dont_count
       (trans th)
       (List.map trans ts)
       ([VSome (trans_value a)])
       (List.map trans_value sigma)
-      ENone).
+      ENone)
+      Delta
+      Gamma
+      (T) _ _.
     unpack.
 
     eapply star_step_left.
@@ -1265,12 +1271,14 @@ Proof.
   { simpl. repeat step'.
     (* same *)
     
-    learn (vnone_dont_count
+    epose proof (vnone_dont_count
       (trans th)
       (List.map trans ts)
       ([])
       (List.map trans_value sigma)
-      ENone).
+      ENone Delta
+      Gamma
+      (T) _ _).
     unpack.
 
     (* could be automated *)
@@ -1290,12 +1298,14 @@ Proof.
     { repeat step'; eapply diagram_finish. }
     { repeat step'.
       (* same *)
-      learn (vnone_dont_count
+      epose proof (vnone_dont_count
         (trans a)
         (List.map trans ts)
         ([VSome (trans_value v)])
         (List.map trans_value sigma)
-        ENone).
+        ENone Delta
+        Gamma
+        (T) _ _).
       unpack.
 
       eapply star_step_left.
@@ -1316,16 +1326,16 @@ Proof.
     { repeat step'.
       (* require an variant of the previous mentionned lemma to inducate we will go into a fatal error. *)
 
-      learn (double_value_conflict
-        tactics.magic
-        tactics.magic
-        tactics.magic
+      epose proof (double_value_conflict
+        Delta
+        Gamma
+        T
         a
         (List.map trans ts)
         (trans_value v')
         (trans_value v)
         (List.map trans_value sigma)
-        tactics.magic
+        _
       ).
 
       eapply star_step_left.
@@ -1343,4 +1353,6 @@ Proof.
     rewrite List.map_app, List.map_rev; simpl.
     eapply diagram_finish.
   }
-Qed.
+Unshelve. (* Typing constraints *)
+  all: admit.
+Admitted.
