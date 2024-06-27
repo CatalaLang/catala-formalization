@@ -785,8 +785,8 @@ Lemma trans_ty_correct_conts:
   jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
   forall {sigma},
   jt_conts Delta (List.map trans_ty Gamma1) (List.map trans_ty Gamma2) (trans_conts kappa (List.map trans_value sigma)) (trans_ty T1) (trans_ty T2).
-Proof. 
-  (* (* WIP proof *)
+Proof.
+  (* WIP proof *)
   Ltac ignore_inv := repeat match goal with
     | [|- inv_base _] => shelve
     | [|- inv_no_immediate_default _] => shelve
@@ -794,39 +794,41 @@ Proof.
   induction 1.
   { econstructor; eapply trans_ty_inv_base. }
   { induction cont; repeat sinv_jt; simpl trans_conts.
-    learn (trans_ty_correct _ _ _ _ H5).
-    match goal with [h: context [trans_ty] |- _] => fail | _ => idtac end.
-    match H with context x [trans_ty] => idtac x | _ => idtac end.
-    all: repeat match goal with
-    | [h: jt_term _ _ _ _ |- _] =>
-      match h with
-      | context x [trans_ty] => fail
-      | _ => learn (trans_ty_correct _ _ _ _ h)
-      end
-    | [h: jt_value _ _ _ |- _] =>
-      match h with
-      | context x [trans_ty] => fail
-      | _ => learn (trans_value_ty_correct _ _ _ h)
-      end
-    end.
-    all: intros; repeat econs_jt;
-      try rewrite <- List.map_cons;
-      eauto using
-        trans_ty_correct,
-        trans_value_ty_correct,
-        trans_ty_correct_Forall2_trans_value
-      ; ignore_inv.
-    { induction op; simpl in *; inj; subst; simpl; eauto. }
-    { induction op; simpl in *; inj; subst; simpl; eauto. }
-    3:{ simpl; eauto. }
-    4:{ admit "????????". }
-    2:{ learn (trans_ty_correct _ _ _ _ H5); simpl in *; eauto. }  
-    { intros; repeat econs_jt; eauto using trans_ty_correct; ignore_inv. }
-    { intros; repeat econs_jt; eauto using trans_ty_correct, trans_ty_correct_Forall2_trans_value. }
-    { 
-    eauto. fold List.map. }
-  } *)
-Admitted.
+
+    Ltac saturate := 
+      repeat (match goal with
+      | [h: jt_term _ _ _ _ |- _] =>
+        match type of h with
+        | jt_term _ _ _ (trans_ty _) => fail 1
+        | _ => learn (trans_ty_correct h)
+        end
+      | [h: jt_value _ _ _ |- _] =>
+        match type of h with
+        | jt_value _ _ (trans_ty _) => fail 1
+        | _ => learn (trans_value_ty_correct h)
+        end
+      | [h: List.Forall2 (jt_value _) _ _ |- _] =>
+        match type of h with
+        | List.Forall2 _ (List.map trans_value _) _ => fail 1
+        | _ => learn (trans_ty_correct_Forall2_trans_value h)
+        end
+      end).
+    all: try induction op; try induction o; simpl in *; inj; saturate.
+
+    all: 
+      (* handling normal typing *)
+      intros; simpl in *; inj; repeat econs_jt; simpl; eauto;
+      (* handling typing invariant *)
+      repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default
+      .
+    { induction H11; simpl; econstructor; eauto; saturate; eauto. }
+    { induction H11; simpl; econstructor; eauto; saturate; eauto. }
+    { induction H6; simpl; econstructor; eauto; saturate; eauto. }
+    { induction H3; simpl; econstructor; eauto; saturate; eauto. }
+    { induction H7; simpl; econstructor; eauto; saturate; eauto. }
+  }
+Qed.
+
 
 Lemma trans_ty_state_correct:
   forall {s Delta Gamma T},
@@ -1197,7 +1199,6 @@ Theorem correction_continuations:
     star cred
       (trans_state s2) target.
 Proof.
-
   intros ? ? ? ? ? Hjt Hsred.
   induction Hsred;
     try induction phi;
