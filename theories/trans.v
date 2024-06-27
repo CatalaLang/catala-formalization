@@ -171,11 +171,11 @@ Proof.
 Qed.
 
 Lemma trans_ty_correct:
-  forall t Delta Gamma T,
+  forall {t Delta Gamma T},
     jt_term Delta Gamma t T ->
     jt_term Delta (List.map trans_ty Gamma) (trans t) (trans_ty T)
 with trans_value_ty_correct:
-  forall v Delta T,
+  forall {v Delta T},
     jt_value Delta v T ->
     jt_value Delta (trans_value v) (trans_ty T)
 .
@@ -786,7 +786,7 @@ Lemma trans_ty_correct_conts:
   forall {sigma},
   jt_conts Delta (List.map trans_ty Gamma1) (List.map trans_ty Gamma2) (trans_conts kappa (List.map trans_value sigma)) (trans_ty T1) (trans_ty T2).
 Proof. 
-  (* WIP proof 
+  (* (* WIP proof *)
   Ltac ignore_inv := repeat match goal with
     | [|- inv_base _] => shelve
     | [|- inv_no_immediate_default _] => shelve
@@ -825,8 +825,7 @@ Proof.
     { intros; repeat econs_jt; eauto using trans_ty_correct, trans_ty_correct_Forall2_trans_value. }
     { 
     eauto. fold List.map. }
-  }
-*)
+  } *)
 Admitted.
 
 Lemma trans_ty_state_correct:
@@ -1214,21 +1213,56 @@ Proof.
 
   all: learn (trans_ty_state_correct Hjt).
 
-  { repeat step'.
-    case ts.
+  { simpl. repeat step'.
+    induction ts.
     { repeat step'; eapply diagram_finish. }
-    { intros; simpl.
-      eapply step_left. econstructor.
-      eapply step_right. econstructor.
+    { clear IHts. intros.
+      eapply step_left; [econstructor|].
+      eapply step_right; [econstructor|].
       (* Need an external lemma here to show that both side reduces to the same thing. This is a property of CFold process exception, and is linked to the fact that they do not care about VNone. *)
 
       (* This is the lemma vnone_dont_count. *)
+
+      (** To apply it, we need to show the typing judgement is correct. The proof is not hard, and could be automated, even if in this first version it is not the case. *)
+      repeat sinv_jt.
+      assert (Hjt1:
+      jt_state Delta (List.map trans_ty Gamma1)
+        (mode_eval (trans a)
+          [CArray (List.map trans ts) []; CFold process_exceptions ENone]
+          (List.map trans_value sigma)) (TOption (trans_ty T0))
+      ).
+      { repeat econs_jt; simpl; try reflexivity.
+        all: try solve [repeat econstructor; eauto using trans_ty_inv_no_immediate_default].
+        { eapply trans_ty_correct_Forall2_trans_value; eauto. }
+        { learn (trans_ty_correct H3); simpl in *; eauto. }
+        { clear -H5.
+          induction H5; simpl; econstructor; eauto.
+          { learn (trans_ty_correct H); simpl in *; eauto. }
+        }
+      }
+
+      assert (Hjt2:
+      jt_state Delta (List.map trans_ty Gamma1)
+        (mode_eval (trans a)
+          [CArray (List.map trans ts) [VNone]; CFold process_exceptions ENone]
+          (List.map trans_value sigma)) (TOption (trans_ty T0))
+      ).
+      { repeat econs_jt; simpl; try reflexivity.
+        all: try solve [repeat econstructor; eauto using trans_ty_inv_no_immediate_default].
+        { eapply trans_ty_correct_Forall2_trans_value; eauto. }
+        { learn (trans_ty_correct H3); simpl in *; eauto. }
+        { clear -H5.
+          induction H5; simpl; econstructor; eauto.
+          { learn (trans_ty_correct H); simpl in *; eauto. }
+        }
+      }
+
       epose proof (vnone_dont_count
-        (trans t)
-        (List.map trans l)
+        (trans a)
+        (List.map trans ts)
         ([])
         (List.map trans_value sigma)
-        ENone Delta Gamma T _ _)
+        ENone _ _ _ Hjt1 Hjt2)
       .
       unpack.
 
@@ -1245,6 +1279,42 @@ Proof.
     }
   }
   { simpl. repeat step'.
+
+    repeat sinv_jt.
+    assert (Hjt1:
+    jt_state Delta (List.map trans_ty Gamma2)
+      (mode_eval (trans th)
+        [CArray (List.map trans ts) [VSome (trans_value a)]; CFold process_exceptions ENone]
+        (List.map trans_value sigma)) (TOption (trans_ty T0))
+    ).
+    { repeat econs_jt; simpl; try reflexivity.
+      all: try solve [repeat econstructor; eauto using trans_ty_inv_no_immediate_default].
+      { eapply trans_ty_correct_Forall2_trans_value; eauto. }
+      { learn (trans_ty_correct H4); simpl in *; eauto. }
+      { clear -H5.
+        induction H5; simpl; econstructor; eauto.
+        { learn (trans_ty_correct H); simpl in *; eauto. }
+      }
+      { eapply trans_value_ty_correct; eauto. }
+    }
+
+    assert (Hjt2:
+    jt_state Delta (List.map trans_ty Gamma2)
+      (mode_eval (trans th)
+        [CArray (List.map trans ts) [VNone; VSome (trans_value a)]; CFold process_exceptions ENone]
+        (List.map trans_value sigma)) (TOption (trans_ty T0))
+    ).
+    { repeat econs_jt; simpl; try reflexivity.
+      all: try solve [repeat econstructor; eauto using trans_ty_inv_no_immediate_default].
+      { eapply trans_ty_correct_Forall2_trans_value; eauto. }
+      { learn (trans_ty_correct H4); simpl in *; eauto. }
+      { clear -H5.
+        induction H5; simpl; econstructor; eauto.
+        { learn (trans_ty_correct H); simpl in *; eauto. }
+      }
+      { eapply trans_value_ty_correct; eauto. }
+    }
+
     (* same *)
     epose proof (vnone_dont_count
       (trans th)
@@ -1252,9 +1322,7 @@ Proof.
       ([VSome (trans_value a)])
       (List.map trans_value sigma)
       ENone)
-      Delta
-      Gamma
-      (T) _ _.
+      _ _ _ Hjt1 Hjt2.
     unpack.
 
     eapply star_step_left.
@@ -1270,15 +1338,48 @@ Proof.
   }
   { simpl. repeat step'.
     (* same *)
-    
+
+    repeat sinv_jt.
+    assert (Hjt1:
+    jt_state Delta (List.map trans_ty Gamma2)
+      (mode_eval (trans th)
+        [CArray (List.map trans ts) []; CFold process_exceptions ENone]
+        (List.map trans_value sigma)) (TOption (trans_ty T0))
+    ).
+    { repeat econs_jt; simpl; try reflexivity.
+      { eapply trans_ty_correct_Forall2_trans_value; eauto. }
+      { learn (trans_ty_correct H4); simpl in *; eauto. }
+      { clear -H5.
+        induction H5; simpl; econstructor; eauto.
+        { learn (trans_ty_correct H); simpl in *; eauto. }
+      }
+      all: repeat econstructor; eauto using trans_ty_inv_no_immediate_default.
+    }
+
+    assert (Hjt2:
+    jt_state Delta (List.map trans_ty Gamma2)
+      (mode_eval (trans th)
+        [CArray (List.map trans ts) [VNone]; CFold process_exceptions ENone]
+        (List.map trans_value sigma)) (TOption (trans_ty T0))
+    ).
+    { repeat econs_jt; simpl; try reflexivity.
+      { eapply trans_ty_correct_Forall2_trans_value; eauto. }
+      { learn (trans_ty_correct H4); simpl in *; eauto. }
+      { clear -H5.
+        induction H5; simpl; econstructor; eauto.
+        { learn (trans_ty_correct H); simpl in *; eauto. }
+      }
+      all: repeat econstructor; eauto using trans_ty_inv_no_immediate_default.
+    }
+
     epose proof (vnone_dont_count
       (trans th)
       (List.map trans ts)
       ([])
       (List.map trans_value sigma)
-      ENone Delta
-      Gamma
-      (T) _ _).
+      ENone _
+      _
+      _ Hjt1 Hjt2).
     unpack.
 
     (* could be automated *)
@@ -1298,14 +1399,51 @@ Proof.
     { repeat step'; eapply diagram_finish. }
     { repeat step'.
       (* same *)
+
+      repeat sinv_jt.
+      assert (Hjt1:
+      jt_state Delta (List.map trans_ty Gamma2)
+        (mode_eval (trans a)
+          [CArray (List.map trans ts) [VSome (trans_value v)]; CFold process_exceptions ENone]
+          (List.map trans_value sigma)) (TOption (trans_ty T0))
+      ).
+      { repeat econs_jt; simpl; try reflexivity.
+        all: repeat econstructor; eauto using trans_ty_inv_no_immediate_default.
+        { eapply trans_ty_correct_Forall2_trans_value; eauto. }
+        { learn (trans_ty_correct H3); simpl in *; eauto. }
+        { clear -H4.
+          induction H4; simpl; econstructor; eauto.
+          { learn (trans_ty_correct H); simpl in *; eauto. }
+        }
+        { eapply trans_value_ty_correct; eauto. }
+      }
+
+      assert (Hjt2:
+      jt_state Delta (List.map trans_ty Gamma2)
+        (mode_eval (trans a)
+          [CArray (List.map trans ts) [VNone; VSome (trans_value v)]; CFold process_exceptions ENone]
+          (List.map trans_value sigma)) (TOption (trans_ty T0))
+      ).
+      { repeat econs_jt; simpl; try reflexivity.
+        all: repeat econstructor; eauto using trans_ty_inv_no_immediate_default.
+        { eapply trans_ty_correct_Forall2_trans_value; eauto. }
+        { learn (trans_ty_correct H3); simpl in *; eauto. }
+        { clear -H4.
+          induction H4; simpl; econstructor; eauto.
+          { learn (trans_ty_correct H); simpl in *; eauto. }
+        }
+        { eapply trans_value_ty_correct; eauto. }
+      }
+
       epose proof (vnone_dont_count
         (trans a)
         (List.map trans ts)
         ([VSome (trans_value v)])
         (List.map trans_value sigma)
-        ENone Delta
-        Gamma
-        (T) _ _).
+        ENone
+        _
+        _
+        _ Hjt1 Hjt2).
       unpack.
 
       eapply star_step_left.
@@ -1323,19 +1461,40 @@ Proof.
   { simpl; repeat step'.
     induction ts; simpl.
     { repeat step'. eapply diagram_finish. }
-    { repeat step'.
+    { clear IHts. repeat step'.
       (* require an variant of the previous mentionned lemma to inducate we will go into a fatal error. *)
 
-      epose proof (double_value_conflict
-        Delta
-        Gamma
-        T
+      repeat sinv_jt.
+      assert (Hjt: jt_state Delta (List.map trans_ty Gamma2)
+      (mode_eval (trans a)
+         [CArray (List.map trans ts)
+            [VSome (trans_value v'); VSome (trans_value v)];
+          CFold process_exceptions ENone] (List.map trans_value sigma))
+      (trans_ty (TDefault T0))).
+      { repeat econs_jt; simpl.
+        { eapply trans_ty_correct_Forall2_trans_value; eauto. }
+        { learn (trans_ty_correct H3); simpl in *; eauto. }
+        { clear -H4.
+          induction H4; simpl; econstructor; eauto.
+          { learn (trans_ty_correct H); simpl in *; eauto. }
+        }
+        all: try reflexivity.
+        all: repeat econstructor; eauto using trans_ty_inv_no_immediate_default.
+        { eapply trans_value_ty_correct; eauto. }
+        { eapply trans_value_ty_correct; eauto. }
+      }
+
+
+      learn (double_value_conflict
+        _
+        _
+        _
         a
         (List.map trans ts)
         (trans_value v')
         (trans_value v)
         (List.map trans_value sigma)
-        _
+        Hjt
       ).
 
       eapply star_step_left.
@@ -1353,6 +1512,4 @@ Proof.
     rewrite List.map_app, List.map_rev; simpl.
     eapply diagram_finish.
   }
-Unshelve. (* Typing constraints *)
-  all: admit.
-Admitted.
+Qed.
