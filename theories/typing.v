@@ -332,6 +332,7 @@ fun
   (f8 : forall (Delta : string -> option type) (Gamma : list type) 
           (A : type) (ts : list term)
           (f8 : Forall (fun t : term => jt_term Delta Gamma t A) ts)
+          (f8' : Forall (fun t : term => P Delta Gamma t A) ts)
           (i : inv_no_immediate_default A),
         P Delta Gamma (EArray ts) (TArray A))
   (f9 : forall (Delta : string -> option type) (Gamma : list type)
@@ -396,7 +397,8 @@ fun
          P0 Delta (VPure v) (TDefault T))
   (f22 : forall (Delta : string -> option type) (A : type) 
            (vs : list value) (i : inv_no_immediate_default A)
-           (f22 : Forall (fun v : value => jt_value Delta v A) vs),
+           (f22 : Forall (fun v : value => jt_value Delta v A) vs)
+           (f22' : Forall (fun v : value => P0 Delta v A) vs),
          P0 Delta (VArray vs) (TArray A)) =>
 fix F
   (o : string -> option type) (l : list type) (t : term) 
@@ -426,7 +428,10 @@ P o l t t0 :=
   | JTMatch Delta Gamma u U t1 t2 T j0 j1 j2 i =>
       f7 Delta Gamma u U t1 t2 T j0 (F Delta Gamma u (TOption U) j0) j1
         (F Delta Gamma t1 T j1) j2 (F Delta (U :: Gamma) t2 T j2) i
-  | JTEArray Delta Gamma A ts f23 i => f8 Delta Gamma A ts f23 i
+  | JTEArray Delta Gamma A ts f23 i => f8 Delta Gamma A ts f23 (Forall_ind
+  (Forall (fun ti => P Delta Gamma ti A))
+  (Forall_nil (fun ti => P Delta Gamma ti A))
+  (fun x l H _ IHB => Forall_cons x (F Delta Gamma x A H) IHB) f23) i
   | JTEFold Delta Gamma A B f23 ts init j0 i i0 j1 j2 =>
       f9 Delta Gamma A B f23 ts init j0
         (F Delta Gamma f23 (TFun A (TFun B B)) j0) i i0 j1
@@ -460,6 +465,10 @@ with F0
   | JTValueUnit Delta => f20 Delta
   | JTValueVPure Delta v0 T j0 i => f21 Delta v0 T j0 (F0 Delta v0 T j0) i
   | JTVArray Delta A vs i f23 => f22 Delta A vs i f23
+    (Forall_ind
+      (Forall (fun ti => P0 Delta ti A))
+      (Forall_nil (fun ti => P0 Delta ti A))
+      (fun x l H _ IHB => Forall_cons x (F0 Delta x A H) IHB) f23) 
   end
 for
 F.

@@ -170,34 +170,49 @@ Proof.
   all: induction T; simpl; econstructor; eauto.
 Qed.
 
-Lemma trans_ty_correct:
+Lemma trans_ty_correct_term:
   forall {t Delta Gamma T},
     jt_term Delta Gamma t T ->
     jt_term Delta (List.map trans_ty Gamma) (trans t) (trans_ty T)
-with trans_value_ty_correct:
+(* with trans_value_ty_correct:
   forall {v Delta T},
     jt_value Delta v T ->
-    jt_value Delta (trans_value v) (trans_ty T)
+    jt_value Delta (trans_value v) (trans_ty T) *)
 .
 Proof.
-  fix IHt 1; lock IHt.
-  induction 1; simpl.
-  all: repeat econs_jt; simpl.
-  all: eauto using trans_ty_inv_base.
-  all: eauto using trans_ty_inv_no_immediate_default.
-  all: repeat econs_inv; simpl; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+  {
+    intros.
+    apply (
+      jt_term_value_ind
+        (fun Delta Gamma t T => jt_term Delta (List.map trans_ty Gamma) (trans t) (trans_ty T))
+        (fun Delta t T => jt_value Delta (trans_value t) (trans_ty T))).
 
-  { symmetry; eapply List.map_nth_error. eauto. }
+    (* TODO: remove the timeout to put something else. *)
+    all: try solve [timeout 3 (intros; simpl; repeat econs_jt; simpl in *; eauto; repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default)].
+    { intros; simpl; econstructor.
+      { erewrite List.map_nth_error; eauto. }
+      { eapply trans_ty_inv_base. }
+    }
+    { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+      12:{ clear -f2'. induction f2'; simpl; econstructor; eauto. }
 
-  { induction H; simpl; econstructor; eauto.
-    unlock IHt.
-    replace (TOption (trans_ty T)) with (trans_ty (TDefault T)) by (simpl; eauto).
-    eapply IHt; eauto.
+      all: try solve [repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default].
+    }
+    { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default. 
+      { induction op; simpl in *; inj; eauto. }
+    }
+    { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+      { clear -f8'; induction f8'; simpl; econstructor; eauto. }
+    }
+    { intros; simpl. eapply (JTValueClosure _ _ _ (List.map trans_ty Gamma_cl)); repeat econs_jt; simpl in *; repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+      { clear - f17'; induction f17'; econstructor; simpl; eauto. }
+      {  repeat sinv_jt; eauto. }
+    }
+    { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+      { clear -f22'; induction f22'; simpl; econstructor; eauto. }
+    }
   }
-  { induction op; simpl in *; inj; eauto. }
-  { induction H; simpl; econstructor; eauto.
-  }
-Admitted.
+Qed.
 
 Theorem term_ind' : forall P : term -> Prop,
   (forall x : var, P (Var x)) ->
@@ -800,7 +815,7 @@ Proof.
       | [h: jt_term _ _ _ _ |- _] =>
         match type of h with
         | jt_term _ _ _ (trans_ty _) => fail 1
-        | _ => learn (trans_ty_correct h)
+        | _ => learn (trans_ty_correct_term h)
         end
       | [h: jt_value _ _ _ |- _] =>
         match type of h with
@@ -840,7 +855,7 @@ Proof.
   all: eauto using
     trans_ty_correct_Forall2_trans_value,
     trans_ty_correct_conts,
-    trans_ty_correct
+    trans_ty_correct_term
     .
   { induction result; repeat sinv_jt; repeat econs_jt.
     all: eauto using
@@ -1235,10 +1250,10 @@ Proof.
       { repeat econs_jt; simpl; try reflexivity.
         all: try solve [repeat econstructor; eauto using trans_ty_inv_no_immediate_default].
         { eapply trans_ty_correct_Forall2_trans_value; eauto. }
-        { learn (trans_ty_correct H3); simpl in *; eauto. }
+        { learn (trans_ty_correct_term H3); simpl in *; eauto. }
         { clear -H5.
           induction H5; simpl; econstructor; eauto.
-          { learn (trans_ty_correct H); simpl in *; eauto. }
+          { learn (trans_ty_correct_term H); simpl in *; eauto. }
         }
       }
 
@@ -1251,10 +1266,10 @@ Proof.
       { repeat econs_jt; simpl; try reflexivity.
         all: try solve [repeat econstructor; eauto using trans_ty_inv_no_immediate_default].
         { eapply trans_ty_correct_Forall2_trans_value; eauto. }
-        { learn (trans_ty_correct H3); simpl in *; eauto. }
+        { learn (trans_ty_correct_term H3); simpl in *; eauto. }
         { clear -H5.
           induction H5; simpl; econstructor; eauto.
-          { learn (trans_ty_correct H); simpl in *; eauto. }
+          { learn (trans_ty_correct_term H); simpl in *; eauto. }
         }
       }
 
@@ -1291,10 +1306,10 @@ Proof.
     { repeat econs_jt; simpl; try reflexivity.
       all: try solve [repeat econstructor; eauto using trans_ty_inv_no_immediate_default].
       { eapply trans_ty_correct_Forall2_trans_value; eauto. }
-      { learn (trans_ty_correct H4); simpl in *; eauto. }
+      { learn (trans_ty_correct_term H4); simpl in *; eauto. }
       { clear -H5.
         induction H5; simpl; econstructor; eauto.
-        { learn (trans_ty_correct H); simpl in *; eauto. }
+        { learn (trans_ty_correct_term H); simpl in *; eauto. }
       }
       { eapply trans_value_ty_correct; eauto. }
     }
@@ -1308,10 +1323,10 @@ Proof.
     { repeat econs_jt; simpl; try reflexivity.
       all: try solve [repeat econstructor; eauto using trans_ty_inv_no_immediate_default].
       { eapply trans_ty_correct_Forall2_trans_value; eauto. }
-      { learn (trans_ty_correct H4); simpl in *; eauto. }
+      { learn (trans_ty_correct_term H4); simpl in *; eauto. }
       { clear -H5.
         induction H5; simpl; econstructor; eauto.
-        { learn (trans_ty_correct H); simpl in *; eauto. }
+        { learn (trans_ty_correct_term H); simpl in *; eauto. }
       }
       { eapply trans_value_ty_correct; eauto. }
     }
@@ -1349,10 +1364,10 @@ Proof.
     ).
     { repeat econs_jt; simpl; try reflexivity.
       { eapply trans_ty_correct_Forall2_trans_value; eauto. }
-      { learn (trans_ty_correct H4); simpl in *; eauto. }
+      { learn (trans_ty_correct_term H4); simpl in *; eauto. }
       { clear -H5.
         induction H5; simpl; econstructor; eauto.
-        { learn (trans_ty_correct H); simpl in *; eauto. }
+        { learn (trans_ty_correct_term H); simpl in *; eauto. }
       }
       all: repeat econstructor; eauto using trans_ty_inv_no_immediate_default.
     }
@@ -1365,10 +1380,10 @@ Proof.
     ).
     { repeat econs_jt; simpl; try reflexivity.
       { eapply trans_ty_correct_Forall2_trans_value; eauto. }
-      { learn (trans_ty_correct H4); simpl in *; eauto. }
+      { learn (trans_ty_correct_term H4); simpl in *; eauto. }
       { clear -H5.
         induction H5; simpl; econstructor; eauto.
-        { learn (trans_ty_correct H); simpl in *; eauto. }
+        { learn (trans_ty_correct_term H); simpl in *; eauto. }
       }
       all: repeat econstructor; eauto using trans_ty_inv_no_immediate_default.
     }
@@ -1411,10 +1426,10 @@ Proof.
       { repeat econs_jt; simpl; try reflexivity.
         all: repeat econstructor; eauto using trans_ty_inv_no_immediate_default.
         { eapply trans_ty_correct_Forall2_trans_value; eauto. }
-        { learn (trans_ty_correct H3); simpl in *; eauto. }
+        { learn (trans_ty_correct_term H3); simpl in *; eauto. }
         { clear -H4.
           induction H4; simpl; econstructor; eauto.
-          { learn (trans_ty_correct H); simpl in *; eauto. }
+          { learn (trans_ty_correct_term H); simpl in *; eauto. }
         }
         { eapply trans_value_ty_correct; eauto. }
       }
@@ -1428,10 +1443,10 @@ Proof.
       { repeat econs_jt; simpl; try reflexivity.
         all: repeat econstructor; eauto using trans_ty_inv_no_immediate_default.
         { eapply trans_ty_correct_Forall2_trans_value; eauto. }
-        { learn (trans_ty_correct H3); simpl in *; eauto. }
+        { learn (trans_ty_correct_term H3); simpl in *; eauto. }
         { clear -H4.
           induction H4; simpl; econstructor; eauto.
-          { learn (trans_ty_correct H); simpl in *; eauto. }
+          { learn (trans_ty_correct_term H); simpl in *; eauto. }
         }
         { eapply trans_value_ty_correct; eauto. }
       }
@@ -1474,10 +1489,10 @@ Proof.
       (trans_ty (TDefault T0))).
       { repeat econs_jt; simpl.
         { eapply trans_ty_correct_Forall2_trans_value; eauto. }
-        { learn (trans_ty_correct H3); simpl in *; eauto. }
+        { learn (trans_ty_correct_term H3); simpl in *; eauto. }
         { clear -H4.
           induction H4; simpl; econstructor; eauto.
-          { learn (trans_ty_correct H); simpl in *; eauto. }
+          { learn (trans_ty_correct_term H); simpl in *; eauto. }
         }
         all: try reflexivity.
         all: repeat econstructor; eauto using trans_ty_inv_no_immediate_default.
