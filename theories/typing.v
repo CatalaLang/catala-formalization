@@ -118,7 +118,6 @@ Definition jt_op (o: op) :=
   | Add => (TInteger, TInteger, TInteger)
   end.
 
-
 (** [jt_term Delta Gamma t T] signifies that the term [t], within the local environment [Gamma] and the global environment [Delta], is of type [T]. *)
 Inductive jt_term:
   (string -> option type) -> list type -> term -> type -> Prop :=
@@ -248,22 +247,7 @@ with jt_value:
       jt_value Delta (VArray vs) (TArray A)
 .
 
-Inductive jt_result: (string -> option type) -> result -> type -> Prop := 
-  | JTRValue:
-    forall Delta v T,
-    jt_value Delta v T ->
-    jt_result Delta (RValue v) T
-  | JTREmpty:
-    forall Delta T,
-    inv_no_immediate_default T ->
-    jt_result Delta REmpty (TDefault T)
-  | JTRConflict:
-    forall Delta T,
-    inv_base T ->
-    jt_result Delta RConflict T
-.
-
-Definition jt_term_value_ind :=
+Definition jt_term_ind' :=
 fun
   (P : forall (o : string -> option type) (l : list type) 
 	     (t : term) (t0 : type), Prop)
@@ -473,7 +457,231 @@ with F0
 for
 F.
 
+Definition jt_value_ind' :=
+fun
+  (P : forall (o : string -> option type) (l : list type) 
+	     (t : term) (t0 : type), Prop)
+  (P0 : forall (o : string -> option type) (v : value) (t : type), Prop)
+  (f : forall (Delta : string -> option type) (Gamma : list type) 
+         (x : nat) (T : type) (e : Some T = nth_error Gamma x)
+         (i : inv_base T),
+       P Delta Gamma (Var x) T)
+  (f0 : forall (Delta : string -> option type) (Gamma : list type)
+          (t1 t2 : term) (T1 T2 : type)
+          (j : jt_term Delta Gamma t1 (TFun T1 T2)),
+        P Delta Gamma t1 (TFun T1 T2) ->
+        forall j0 : jt_term Delta Gamma t2 T1,
+        P Delta Gamma t2 T1 ->
+        forall i : inv_base T2,
+        P Delta Gamma (App t1 t2) T2)
+  (f1 : forall (Delta : string -> option type) (Gamma : list type) 
+          (t : term) (T1 T2 : type) (j : jt_term Delta (T1 :: Gamma) t T2),
+        P Delta (T1 :: Gamma) t T2 ->
+        forall i : inv_base (TFun T1 T2),
+        P Delta Gamma (Lam t) (TFun T1 T2))
+  (f2 : forall (Delta : string -> option type) (Gamma : list type)
+          (ts : list term) (tj tc : term) (T : type)
+          (f2 : Forall (fun ti : term => jt_term Delta Gamma ti (TDefault T))
+                  ts)
+          (f2' : Forall (fun ti : term => P Delta Gamma ti (TDefault T))
+          ts) (j : jt_term Delta Gamma tj TBool),
+        P Delta Gamma tj TBool ->
+        forall j0 : jt_term Delta Gamma tc (TDefault T),
+        P Delta Gamma tc (TDefault T) ->
+        forall i : inv_base (TDefault T),
+        P Delta Gamma (Default ts tj tc) (TDefault T))
+  (f3 : forall (Delta : string -> option type) (Gamma : list type) 
+          (t : term) (T : type) (j : jt_term Delta Gamma t T),
+        P Delta Gamma t T ->
+        forall i : inv_base (TDefault T),
+        P Delta Gamma (DefaultPure t) (TDefault T))
+  (f4 : forall (Delta : string -> option type) (Gamma : list type) 
+          (t : term) (T : type) (j : jt_term Delta Gamma t (TDefault T)),
+        P Delta Gamma t (TDefault T) ->
+        forall i : inv_base T,
+        P Delta Gamma (ErrorOnEmpty t) T)
+  (f5 : forall (Delta : string -> option type) (Gamma : list type)
+          (t1 t2 : term) (op : op) (T1 T2 T3 : type)
+          (e : (T1, T2, T3) = jt_op op) (j : jt_term Delta Gamma t1 T1),
+        P Delta Gamma t1 T1 ->
+        forall j0 : jt_term Delta Gamma t2 T2,
+        P Delta Gamma t2 T2 ->
+        forall i : inv_base T3,
+        P Delta Gamma (Binop op t1 t2) T3)
+  (f6 : forall (Delta : string -> option type) (Gamma : list type)
+          (v : value) (T : type) (j : jt_value Delta v T),
+        P0 Delta v T ->
+        forall i : inv_base T,
+        P Delta Gamma (Value v) T)
+  (f7 : forall (Delta : string -> option type) (Gamma : list type) 
+          (u : term) (U : type) (t1 t2 : term) (T : type)
+          (j : jt_term Delta Gamma u (TOption U)),
+        P Delta Gamma u (TOption U) ->
+        forall j0 : jt_term Delta Gamma t1 T,
+        P Delta Gamma t1 T ->
+        forall j1 : jt_term Delta (U :: Gamma) t2 T,
+        P Delta (U :: Gamma) t2 T ->
+        forall i : inv_base T,
+        P Delta Gamma (Match_ u t1 t2) T)
+  (f8 : forall (Delta : string -> option type) (Gamma : list type) 
+          (A : type) (ts : list term)
+          (f8 : Forall (fun t : term => jt_term Delta Gamma t A) ts)
+          (f8' : Forall (fun t : term => P Delta Gamma t A) ts)
+          (i : inv_no_immediate_default A),
+        P Delta Gamma (EArray ts) (TArray A))
+  (f9 : forall (Delta : string -> option type) (Gamma : list type)
+          (A B : type) (f9 ts init : term)
+          (j : jt_term Delta Gamma f9 (TFun A (TFun B B))),
+        P Delta Gamma f9 (TFun A (TFun B B)) ->
+        forall (i : inv_no_immediate_default A)
+          (i0 : inv_no_immediate_default B)
+          (j0 : jt_term Delta Gamma ts (TArray A)),
+        P Delta Gamma ts (TArray A) ->
+        forall j1 : jt_term Delta Gamma init B,
+        P Delta Gamma init B ->
+        P Delta Gamma (Fold f9 ts init) B)
+  (f10 : forall (Delta : string -> option type) (Gamma : list type)
+           (t : term) (T : type) (j : jt_term Delta Gamma t T),
+         P Delta Gamma t T ->
+         forall i : inv_base (TOption T),
+         P Delta Gamma (ESome t) (TOption T))
+  (f11 : forall (Delta : string -> option type) (Gamma : list type)
+           (T : type) (i : inv_base (TOption T)),
+         P Delta Gamma ENone (TOption T))
+  (f12 : forall (Delta : string -> option type) (Gamma : list type)
+           (T : type) (i : inv_base (TDefault T)),
+         P Delta Gamma Empty (TDefault T))
+  (f13 : forall (Delta : string -> option type) (Gamma : list type)
+           (T : type) (i : inv_base T),
+         P Delta Gamma Conflict T)
+  (f14 : forall (Delta : string -> option type) (Gamma : list type)
+           (u ta tb : term) (T : type) (j : jt_term Delta Gamma u TBool),
+         P Delta Gamma u TBool ->
+         forall j0 : jt_term Delta Gamma ta T,
+         P Delta Gamma ta T ->
+         forall j1 : jt_term Delta Gamma tb T,
+         P Delta Gamma tb T ->
+         forall i : inv_base T,
+         P Delta Gamma (If u ta tb) T)
+  (f15 : forall (Delta : string -> option type) (b : bool),
+         P0 Delta (Bool b) TBool)
+  (f16 : forall (Delta : string -> option type) (i : Z),
+         P0 Delta (Int i) TInteger)
+  (f17 : forall (Delta : string -> option type) (tcl : {bind term})
+           (sigma_cl : list value) (Gamma_cl : list type) 
+           (T1 T2 : type) (f17 : Forall2 (jt_value Delta) sigma_cl Gamma_cl)
+           (f17' : Forall2 (P0 Delta) sigma_cl Gamma_cl)
+           (j : jt_term Delta Gamma_cl (Lam tcl) (TFun T1 T2)),
+         P Delta Gamma_cl (Lam tcl) (TFun T1 T2) ->
+         P0 Delta (Closure tcl sigma_cl) (TFun T1 T2))
+  (f18 : forall (Delta : string -> option type) (T : type)
+           (i : inv_no_immediate_default T),
+         P0 Delta VNone (TOption T))
+  (f19 : forall (Delta : string -> option type) (v : value) 
+           (T : type) (j : jt_value Delta v T),
+         P0 Delta v T ->
+         forall i : inv_no_immediate_default T,
+         P0 Delta (VSome v) (TOption T))
+  (f20 : forall Delta : string -> option type,
+         P0 Delta VUnit TUnit)
+  (f21 : forall (Delta : string -> option type) (v : value) 
+           (T : type) (j : jt_value Delta v T),
+         P0 Delta v T ->
+         forall i : inv_no_immediate_default T,
+         P0 Delta (VPure v) (TDefault T))
+  (f22 : forall (Delta : string -> option type) (A : type) 
+           (vs : list value) (i : inv_no_immediate_default A)
+           (f22 : Forall (fun v : value => jt_value Delta v A) vs)
+           (f22' : Forall (fun v : value => P0 Delta v A) vs),
+         P0 Delta (VArray vs) (TArray A)) =>
+fix F
+  (o : string -> option type) (l : list type) (t : term) 
+  (t0 : type) (j : jt_term o l t t0) {struct j} : 
+P o l t t0 :=
+  match j as j0 in (jt_term o0 l0 t1 t2) return (P o0 l0 t1 t2) with
+  | JTVar Delta Gamma x T e i => f Delta Gamma x T e i
+  | JTApp Delta Gamma t1 t2 T1 T2 j0 j1 i =>
+      f0 Delta Gamma t1 t2 T1 T2 j0 (F Delta Gamma t1 (TFun T1 T2) j0) j1
+        (F Delta Gamma t2 T1 j1) i
+  | JTLam Delta Gamma t1 T1 T2 j0 i =>
+      f1 Delta Gamma t1 T1 T2 j0 (F Delta (T1 :: Gamma) t1 T2 j0) i
+  | JTDefault Delta Gamma ts tj tc T f23 j0 j1 i =>
+      f2 Delta Gamma ts tj tc T f23 (Forall_ind
+      (Forall (fun ti => P Delta Gamma ti (TDefault T)))
+      (Forall_nil (fun ti => P Delta Gamma ti (TDefault T)))
+      (fun x l H _ IHB => Forall_cons x (F Delta Gamma x (TDefault T) H) IHB) f23) j0 (F Delta Gamma tj TBool j0) j1
+        (F Delta Gamma tc (TDefault T) j1) i
+  | JTDefaultPure Delta Gamma t1 T j0 i =>
+      f3 Delta Gamma t1 T j0 (F Delta Gamma t1 T j0) i
+  | JTErrorOnEmpty Delta Gamma t1 T j0 i =>
+      f4 Delta Gamma t1 T j0 (F Delta Gamma t1 (TDefault T) j0) i
+  | JTBinop Delta Gamma t1 t2 op T1 T2 T3 e j0 j1 i =>
+      f5 Delta Gamma t1 t2 op T1 T2 T3 e j0 (F Delta Gamma t1 T1 j0) j1
+        (F Delta Gamma t2 T2 j1) i
+  | JTValue Delta Gamma v T j0 i => f6 Delta Gamma v T j0 (F0 Delta v T j0) i
+  | JTMatch Delta Gamma u U t1 t2 T j0 j1 j2 i =>
+      f7 Delta Gamma u U t1 t2 T j0 (F Delta Gamma u (TOption U) j0) j1
+        (F Delta Gamma t1 T j1) j2 (F Delta (U :: Gamma) t2 T j2) i
+  | JTEArray Delta Gamma A ts f23 i => f8 Delta Gamma A ts f23 (Forall_ind
+  (Forall (fun ti => P Delta Gamma ti A))
+  (Forall_nil (fun ti => P Delta Gamma ti A))
+  (fun x l H _ IHB => Forall_cons x (F Delta Gamma x A H) IHB) f23) i
+  | JTEFold Delta Gamma A B f23 ts init j0 i i0 j1 j2 =>
+      f9 Delta Gamma A B f23 ts init j0
+        (F Delta Gamma f23 (TFun A (TFun B B)) j0) i i0 j1
+        (F Delta Gamma ts (TArray A) j1) j2 (F Delta Gamma init B j2)
+  | JTESome Delta Gamma t1 T j0 i =>
+      f10 Delta Gamma t1 T j0 (F Delta Gamma t1 T j0) i
+  | JTENone Delta Gamma T i => f11 Delta Gamma T i
+  | JTEEmpty Delta Gamma T i => f12 Delta Gamma T i
+  | JTEConflict Delta Gamma T i => f13 Delta Gamma T i
+  | JTEIf Delta Gamma u ta tb T j0 j1 j2 i =>
+      f14 Delta Gamma u ta tb T j0 (F Delta Gamma u TBool j0) j1
+        (F Delta Gamma ta T j1) j2 (F Delta Gamma tb T j2) i
+  end
+with F0
+  (o : string -> option type) (v : value) (t : type) 
+  (j : jt_value o v t) {struct j} : P0 o v t :=
+  match j as j0 in (jt_value o0 v0 t0) return (P0 o0 v0 t0) with
+  | JTValueBool Delta b => f15 Delta b
+  | JTValueInt Delta i => f16 Delta i
+  | JTValueClosure Delta tcl sigma_cl Gamma_cl T1 T2 f23 j0 =>
+      f17 Delta tcl sigma_cl Gamma_cl T1 T2 f23 (Forall2_ind
+      (fun sigma_cl0 Gamma_cl0 =>
+       Forall2 (P0 Delta) sigma_cl0 Gamma_cl0) (Forall2_nil (P0 Delta))
+      (fun x y l l'
+         H _
+         IHf23 =>
+       Forall2_cons x y (F0 Delta x y H) IHf23) f23) j0
+        (F Delta Gamma_cl (Lam tcl) (TFun T1 T2) j0)
+  | JTValueVNone Delta T i => f18 Delta T i
+  | JTValueVSome Delta v0 T j0 i => f19 Delta v0 T j0 (F0 Delta v0 T j0) i
+  | JTValueUnit Delta => f20 Delta
+  | JTValueVPure Delta v0 T j0 i => f21 Delta v0 T j0 (F0 Delta v0 T j0) i
+  | JTVArray Delta A vs i f23 => f22 Delta A vs i f23
+    (Forall_ind
+      (Forall (fun ti => P0 Delta ti A))
+      (Forall_nil (fun ti => P0 Delta ti A))
+      (fun x l H _ IHB => Forall_cons x (F0 Delta x A H) IHB) f23) 
+  end
+for
+F0.
 
+
+Inductive jt_result: (string -> option type) -> result -> type -> Prop := 
+  | JTRValue:
+    forall Delta v T,
+    jt_value Delta v T ->
+    jt_result Delta (RValue v) T
+  | JTREmpty:
+    forall Delta T,
+    inv_no_immediate_default T ->
+    jt_result Delta REmpty (TDefault T)
+  | JTRConflict:
+    forall Delta T,
+    inv_base T ->
+    jt_result Delta RConflict T
+.
 
 Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> type -> type -> Prop :=
   | JTCAppR:

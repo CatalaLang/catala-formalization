@@ -174,43 +174,74 @@ Lemma trans_ty_correct_term:
   forall {t Delta Gamma T},
     jt_term Delta Gamma t T ->
     jt_term Delta (List.map trans_ty Gamma) (trans t) (trans_ty T)
-(* with trans_value_ty_correct:
-  forall {v Delta T},
-    jt_value Delta v T ->
-    jt_value Delta (trans_value v) (trans_ty T) *)
 .
 Proof.
-  {
-    intros.
-    apply (
-      jt_term_value_ind
-        (fun Delta Gamma t T => jt_term Delta (List.map trans_ty Gamma) (trans t) (trans_ty T))
-        (fun Delta t T => jt_value Delta (trans_value t) (trans_ty T))).
+  intros.
+  apply (
+    jt_term_ind'
+      (fun Delta Gamma t T => jt_term Delta (List.map trans_ty Gamma) (trans t) (trans_ty T))
+      (fun Delta t T => jt_value Delta (trans_value t) (trans_ty T))).
 
-    (* TODO: remove the timeout to put something else. *)
-    all: try solve [timeout 3 (intros; simpl; repeat econs_jt; simpl in *; eauto; repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default)].
-    { intros; simpl; econstructor.
-      { erewrite List.map_nth_error; eauto. }
-      { eapply trans_ty_inv_base. }
-    }
-    { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
-      12:{ clear -f2'. induction f2'; simpl; econstructor; eauto. }
+  (* TODO: remove the timeout to put something else. *)
+  all: try solve [timeout 3 (intros; simpl; repeat econs_jt; simpl in *; eauto; repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default)].
+  { intros; simpl; econstructor.
+    { erewrite List.map_nth_error; eauto. }
+    { eapply trans_ty_inv_base. }
+  }
+  { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+    12:{ clear -f2'. induction f2'; simpl; econstructor; eauto. }
 
-      all: try solve [repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default].
-    }
-    { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default. 
-      { induction op; simpl in *; inj; eauto. }
-    }
-    { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
-      { clear -f8'; induction f8'; simpl; econstructor; eauto. }
-    }
-    { intros; simpl. eapply (JTValueClosure _ _ _ (List.map trans_ty Gamma_cl)); repeat econs_jt; simpl in *; repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
-      { clear - f17'; induction f17'; econstructor; simpl; eauto. }
-      {  repeat sinv_jt; eauto. }
-    }
-    { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
-      { clear -f22'; induction f22'; simpl; econstructor; eauto. }
-    }
+    all: try solve [repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default].
+  }
+  { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default. 
+    { induction op; simpl in *; inj; eauto. }
+  }
+  { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+    { clear -f8'; induction f8'; simpl; econstructor; eauto. }
+  }
+  { intros; simpl. eapply (JTValueClosure _ _ _ (List.map trans_ty Gamma_cl)); repeat econs_jt; simpl in *; repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+    { clear - f17'; induction f17'; econstructor; simpl; eauto. }
+    {  repeat sinv_jt; eauto. }
+  }
+  { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+    { clear -f22'; induction f22'; simpl; econstructor; eauto. }
+  }
+Qed.
+
+Lemma trans_ty_correct_value:
+  forall {v Delta T},
+    jt_value Delta v T ->
+    jt_value Delta (trans_value v) (trans_ty T).
+Proof.
+  intros.
+  apply (
+    jt_value_ind'
+      (fun Delta Gamma t T => jt_term Delta (List.map trans_ty Gamma) (trans t) (trans_ty T))
+      (fun Delta t T => jt_value Delta (trans_value t) (trans_ty T))).
+
+  (* TODO: remove the timeout to put something else. *)
+  all: try solve [timeout 3 (intros; simpl; repeat econs_jt; simpl in *; eauto; repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default)].
+  { intros; simpl; econstructor.
+    { erewrite List.map_nth_error; eauto. }
+    { eapply trans_ty_inv_base. }
+  }
+  { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+    12:{ clear -f2'. induction f2'; simpl; econstructor; eauto. }
+
+    all: try solve [repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default].
+  }
+  { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default. 
+    { induction op; simpl in *; inj; eauto. }
+  }
+  { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+    { clear -f8'; induction f8'; simpl; econstructor; eauto. }
+  }
+  { intros; simpl. eapply (JTValueClosure _ _ _ (List.map trans_ty Gamma_cl)); repeat econs_jt; simpl in *; repeat econs_inv; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+    { clear - f17'; induction f17'; econstructor; simpl; eauto. }
+    {  repeat sinv_jt; eauto. }
+  }
+  { intros; simpl; repeat econs_jt; simpl in *; eauto using trans_ty_inv_base, trans_ty_inv_no_immediate_default.
+    { clear -f22'; induction f22'; simpl; econstructor; eauto. }
   }
 Qed.
 
