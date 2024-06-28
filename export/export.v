@@ -10,7 +10,9 @@ From Catala Require
   small_step
   syntax
   tactics
-  trans
+  trans_definition
+  trans_correctness_small_steps
+  trans_correctness_continuations
   typing
 .
 
@@ -22,6 +24,8 @@ Print FileDependGraph
   small_step
   syntax
   tactics
-  trans
+  trans_definition
+  trans_correctness_small_steps
+  trans_correctness_continuations
   typing
 .
