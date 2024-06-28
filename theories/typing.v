@@ -375,6 +375,7 @@ fun
   (f17 : forall (Delta : string -> option type) (tcl : {bind term})
            (sigma_cl : list value) (Gamma_cl : list type) 
            (T1 T2 : type) (f17 : Forall2 (jt_value Delta) sigma_cl Gamma_cl)
+           (f17' : Forall2 (P0 Delta) sigma_cl Gamma_cl)
            (j : jt_term Delta Gamma_cl (Lam tcl) (TFun T1 T2)),
          P Delta Gamma_cl (Lam tcl) (TFun T1 T2) ->
          P0 Delta (Closure tcl sigma_cl) (TFun T1 T2))
@@ -409,7 +410,10 @@ P o l t t0 :=
   | JTLam Delta Gamma t1 T1 T2 j0 i =>
       f1 Delta Gamma t1 T1 T2 j0 (F Delta (T1 :: Gamma) t1 T2 j0) i
   | JTDefault Delta Gamma ts tj tc T f23 j0 j1 i =>
-      f2 Delta Gamma ts tj tc T f23 magic j0 (F Delta Gamma tj TBool j0) j1
+      f2 Delta Gamma ts tj tc T f23 (Forall_ind
+      (Forall (fun ti => P Delta Gamma ti (TDefault T)))
+      (Forall_nil (fun ti => P Delta Gamma ti (TDefault T)))
+      (fun x l H _ IHB => Forall_cons x (F Delta Gamma x (TDefault T) H) IHB) f23) j0 (F Delta Gamma tj TBool j0) j1
         (F Delta Gamma tc (TDefault T) j1) i
   | JTDefaultPure Delta Gamma t1 T j0 i =>
       f3 Delta Gamma t1 T j0 (F Delta Gamma t1 T j0) i
@@ -443,7 +447,13 @@ with F0
   | JTValueBool Delta b => f15 Delta b
   | JTValueInt Delta i => f16 Delta i
   | JTValueClosure Delta tcl sigma_cl Gamma_cl T1 T2 f23 j0 =>
-      f17 Delta tcl sigma_cl Gamma_cl T1 T2 f23 j0
+      f17 Delta tcl sigma_cl Gamma_cl T1 T2 f23 (Forall2_ind
+      (fun sigma_cl0 Gamma_cl0 =>
+       Forall2 (P0 Delta) sigma_cl0 Gamma_cl0) (Forall2_nil (P0 Delta))
+      (fun x y l l'
+         H _
+         IHf23 =>
+       Forall2_cons x y (F0 Delta x y H) IHf23) f23) j0
         (F Delta Gamma_cl (Lam tcl) (TFun T1 T2) j0)
   | JTValueVNone Delta T i => f18 Delta T i
   | JTValueVSome Delta v0 T j0 i => f19 Delta v0 T j0 (F0 Delta v0 T j0) i
