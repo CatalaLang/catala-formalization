@@ -823,7 +823,7 @@ Lemma trans_ty_correct_Forall2_trans_value:
   List.Forall2 (jt_value Delta) (List.map trans_value env)
     (List.map trans_ty Gamma).
 Proof.
-  induction 1; simpl; econstructor; eauto using trans_value_ty_correct.
+  induction 1; simpl; econstructor; eauto using trans_ty_correct_value.
 Qed.
 
 Lemma trans_ty_correct_conts:
@@ -851,7 +851,7 @@ Proof.
       | [h: jt_value _ _ _ |- _] =>
         match type of h with
         | jt_value _ _ (trans_ty _) => fail 1
-        | _ => learn (trans_value_ty_correct h)
+        | _ => learn (trans_ty_correct_value h)
         end
       | [h: List.Forall2 (jt_value _) _ _ |- _] =>
         match type of h with
@@ -890,7 +890,7 @@ Proof.
     .
   { induction result; repeat sinv_jt; repeat econs_jt.
     all: eauto using
-      trans_value_ty_correct,
+      trans_ty_correct_value,
       trans_ty_inv_base,
       trans_ty_inv_no_immediate_default
     .
@@ -1342,7 +1342,7 @@ Proof.
         induction H5; simpl; econstructor; eauto.
         { learn (trans_ty_correct_term H); simpl in *; eauto. }
       }
-      { eapply trans_value_ty_correct; eauto. }
+      { eapply trans_ty_correct_value; eauto. }
     }
 
     assert (Hjt2:
@@ -1359,7 +1359,7 @@ Proof.
         induction H5; simpl; econstructor; eauto.
         { learn (trans_ty_correct_term H); simpl in *; eauto. }
       }
-      { eapply trans_value_ty_correct; eauto. }
+      { eapply trans_ty_correct_value; eauto. }
     }
 
     (* same *)
@@ -1462,7 +1462,7 @@ Proof.
           induction H4; simpl; econstructor; eauto.
           { learn (trans_ty_correct_term H); simpl in *; eauto. }
         }
-        { eapply trans_value_ty_correct; eauto. }
+        { eapply trans_ty_correct_value; eauto. }
       }
 
       assert (Hjt2:
@@ -1479,7 +1479,7 @@ Proof.
           induction H4; simpl; econstructor; eauto.
           { learn (trans_ty_correct_term H); simpl in *; eauto. }
         }
-        { eapply trans_value_ty_correct; eauto. }
+        { eapply trans_ty_correct_value; eauto. }
       }
 
       epose proof (vnone_dont_count
@@ -1527,8 +1527,8 @@ Proof.
         }
         all: try reflexivity.
         all: repeat econstructor; eauto using trans_ty_inv_no_immediate_default.
-        { eapply trans_value_ty_correct; eauto. }
-        { eapply trans_value_ty_correct; eauto. }
+        { eapply trans_ty_correct_value; eauto. }
+        { eapply trans_ty_correct_value; eauto. }
       }
 
 
