@@ -1,6 +1,7 @@
 Require Import String.
 Require Import List.
 Require Import syntax continuations tactics sequences.
+Require Import small_step.
 Import List.ListNotations.
 Require Import Coq.ZArith.ZArith.
 
@@ -987,6 +988,30 @@ Proof.
   induction 1; intros; eauto using preservation.
 Qed.
 
+
+Theorem progress_small_steps {t1 t2}:
+  sred t1 t2 ->
+  forall {Delta Gamma T},
+  jt_term Delta Gamma t1 T ->
+  jt_term Delta Gamma t2 T.
+Proof.
+  induction 1; intros.
+  all: try solve [repeat sinv_jt; repeat econs_jt; eauto; try solve [repeat sinv_inv; repeat econs_inv; eauto using inv_no_immediate_is_inv_base]].
+  { repeat sinv_jt; repeat econs_jt; eauto.
+    admit "ok, in this case, we need to enforce the invariant that lam terms are actually".
+  }
+  { admit. }
+  { induction op; simpl in *; inj.
+    all: induction v1, v2; simpl in *; tryfalse; inj.
+    all: repeat sinv_jt; inj; repeat econs_jt; repeat econs_inv.
+  }
+  { repeat sinv_jt. admit. }
+  { repeat sinv_jt; repeat econs_jt;
+    unpack; eauto; eapply Forall_app; split; eauto.
+  }
+  { admit "whatever". }
+Admitted.
+
 Theorem jt_conts_append_stack_app {kappa}:
   forall {Delta Gamma1 Gamma3 T1 T3 kappa'},
   inv_base T1 ->
@@ -1131,5 +1156,14 @@ Module correctness.
     induction s2; simpl in *; subst; inj.
     repeat eexists; eauto.
   Qed.
+
+  Theorem correctness_small_steps:
+    forall Delta Gamma t T,
+      inv_base T ->
+      jt_term Delta Gamma t T ->
+      (exists v, star sred t (Value v))
+      \/ (star sred t Empty)
+      \/ (star sred t Conflict).
+  Admitted.
 
 End correctness.
