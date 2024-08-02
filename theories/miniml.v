@@ -35,7 +35,7 @@ intros; inj; eauto.
 Qed.
 
 
-(* Strong induction principle for terms *)
+(*** Strong induction principle for terms ***)
 
 Fixpoint size_term t := 
   match t with
@@ -115,6 +115,8 @@ Proof.
 Qed.
 
 
+(*** Syntax for continuations ***)
+
 Inductive cont :=
   | CAppR (t2: term) (* [\square t2] *)
   | CClosure (t_cl: {bind term}) (sigma_cl: list value)
@@ -134,11 +136,9 @@ Inductive state :=
 .
 
 
-(*** continuation step semantics ***)
+(*** Continuation step semantics ***)
 
 Inductive cred: state -> state -> Prop :=
-
-
   (** Rules related to the lambda calculus *)
   | cred_var:
     forall x kappa sigma v,
@@ -170,7 +170,6 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_eval (Value v) kappa sigma)
       (mode_cont kappa sigma (RValue v))
-      
 
   | cred_beta:
     forall t_cl sigma_cl kappa sigma v,
@@ -185,6 +184,8 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont kappa sigma r)
 .
 
+(*** small step semantics ***)
+
 Import List.ListNotations.
 Open Scope list.
 
@@ -197,7 +198,7 @@ Definition subst_of_env sigma :=
 .
 
 
-(*** small step semantics ***)
+
 
 Inductive sred: term -> term -> Prop :=
   | sred_lam:
@@ -205,7 +206,6 @@ Inductive sred: term -> term -> Prop :=
       sred
         (Lam t)
         (Value (Closure t []))
-
   | sred_beta:
     forall t v sigma',
       sred
@@ -228,6 +228,8 @@ Inductive sred: term -> term -> Prop :=
 
 (*** Equivalence relation definition ***)
 
+(* This equivalence relation is used in the simulation theorem. The goal of this simulation is to say that closures should be the same up to substitution of their environement. The other rules are only here to indicate this relation should be congrugent.*)
+
 Inductive sim_term: term -> term -> Prop :=
   | sim_term_1: forall x y, x = y -> sim_term (Var x) (Var y)
   | sim_term_2: forall t1 t2 u1 u2,
@@ -246,12 +248,7 @@ with sim_value: value -> value -> Prop :=
     sim_value (Closure t1 sigma1) (Closure t2 sigma2)
 .
 
-(* "ca ne me choque pas, mais je trouve ça dommage" parce que en small steps, je fais de la subst. C'est artificiel d'utiliser des subtitution et pas un lambda calcul small steps. *)
-
-
-(* We prove three main properties on this simulation property : *)
-
-(* It is an equivalence class *)
+(* This equivalence relation is indeed reflexive, symmetric and transitive. Moreother, it is invariant with respect to renaming and substitution. We show those facts bellow, after defining a more general induction principle. *)
 
 Instance Reflexive_sim_term : Reflexive sim_term. Abort.
 Instance Symmetric_sim_term : Symmetric sim_term. Abort.
@@ -396,7 +393,6 @@ End SIM_PROPERTIES.
 Instance Reflexive_sim_term : Reflexive sim_term. eapply sim_term_reflexive. Qed.
 Instance Symmetric_sim_term : Symmetric sim_term. destruct sim_symmetric; eauto. Qed.
 Instance Transtive_sim_term : Transitive sim_term. destruct sim_transitive; eauto. Qed.
-
 
 (*** Translating state into terms by unfolding the continuations stack len ***)
 
