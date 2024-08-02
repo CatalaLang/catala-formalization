@@ -282,11 +282,11 @@ Inductive jt_cont:
   cont ->
   type -> type -> Prop :=
   | JTCAppR:
-    forall Gamma t2 T1 T2,
+    forall {Gamma t2 T1 T2},
       jt_term Gamma t2 T1 ->
       jt_cont Gamma Gamma (CAppR t2) (TFun T1 T2) T2
   | JTCClosure:
-    forall Gamma Gamma_cl sigma_cl T1 T2 tcl,
+    forall {Gamma Gamma_cl sigma_cl T1 T2 tcl},
       jt_term Gamma_cl (Lam tcl) (TFun T1 T2) ->
       List.Forall2 (jt_value) sigma_cl Gamma_cl ->
       jt_cont Gamma Gamma (CClosure tcl sigma_cl) T1 T2
@@ -296,17 +296,17 @@ Inductive jt_cont:
       jt_term Gamma tb T ->
       jt_cont Gamma Gamma (CIf ta tb) (TBool) T *)
   | JTCReturn:
-    forall sigma Gamma1 Gamma2 T,
+    forall {sigma Gamma1 Gamma2 T},
       (List.Forall2 (jt_value) sigma Gamma2) ->
       jt_cont Gamma1 Gamma2 (CReturn sigma) T T
 .
 
 Inductive jt_conts:  list type -> list type -> list cont -> type -> type -> Prop :=
 | JTNil:
-  forall Gamma T,
+  forall {Gamma T},
     jt_conts Gamma Gamma nil T T
 | JTCons:
-  forall Gamma1 Gamma2 Gamma3 cont kappa T1 T2 T3,
+  forall {Gamma1 Gamma2 Gamma3 cont kappa T1 T2 T3},
     jt_cont Gamma1 Gamma2 cont T1 T2 ->
     jt_conts Gamma2 Gamma3 kappa T2 T3 ->
     jt_conts Gamma1 Gamma3 (cont :: kappa) T1 T3
@@ -326,7 +326,7 @@ Inductive jt_state:  list type -> state -> type -> Prop :=
     jt_result r T1 ->
     jt_conts Gamma1 Gamma2 kappa T1 T2 ->
     jt_state Gamma2 (mode_cont kappa sigma r) T2
-.
+. 
 
 
 Require Import Ltac2.Ltac2.
@@ -488,7 +488,7 @@ Proof.
     pose proof (IHjt_term2 H2).
     unzip; subst.
     all: intros; repeat inv_jt.
-    (* automation depends on the order of the constructors. *)
+    (* automation here depends on the order of the constructors. *)
     all: try solve [left; eexists; econstructor; eauto].
   }
 Qed.
