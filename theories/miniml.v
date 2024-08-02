@@ -164,7 +164,7 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl)))
       (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
-  
+
   | cred_value:
     forall v kappa sigma,
     cred
@@ -224,6 +224,208 @@ Inductive sred: term -> term -> Prop :=
         (App t1 u)
         (App t2 u)
 .
+
+
+(*** Typing ***)
+
+Inductive type :=
+  | TBool
+  | TFun (T1 T2: type)
+.
+
+(* Standard typing rules for lambda calculus *)
+
+Inductive jt_term:
+  list type -> term -> type -> Prop :=
+  | JTVar:
+    forall Gamma x T,
+      Some T = List.nth_error Gamma x ->
+      jt_term Gamma (Var x) T
+  | JTApp:
+    forall Gamma t1 t2 T1 T2,
+      jt_term Gamma t1 (TFun T1 T2) ->
+      jt_term Gamma t2 T1 ->
+      jt_term Gamma (App t1 t2) T2
+  | JTLam:
+    forall Gamma t T1 T2,
+      jt_term (T1::Gamma) t T2 ->
+      jt_term Gamma (Lam t) (TFun T1 T2)
+  | JTValue:
+    forall Gamma v T,
+      jt_value v T ->
+      jt_term Gamma (Value v) T
+  (* | JTEIf:
+    forall Gamma u ta tb T,
+      jt_term Gamma u TBool ->
+      jt_term Gamma ta T ->
+      jt_term Gamma tb T ->
+      jt_term Gamma (If u ta tb) T *)
+with jt_value:
+   value -> type -> Prop :=
+  | JTValueClosure:
+    forall  tcl sigma_cl Gamma_cl T1 T2,
+      List.Forall2 jt_value sigma_cl Gamma_cl ->
+      jt_term Gamma_cl (Lam tcl) (TFun T1 T2) ->
+      jt_value (Closure tcl sigma_cl) (TFun T1 T2)
+.
+
+(** Expanding the rules of typing to continuation-bases semantics requires to define the typing jugment for continuations. This typing judgement have two additional informations: the "hole" type, and the "environement" in the hole. Both are required with our presentation since the hole is filed when the jt_state judgement is defined. *)
+
+Inductive jt_result: result -> type -> Prop := 
+  | JTRValue:
+    forall v T,
+    jt_value v T ->
+    jt_result (RValue v) T.
+
+Inductive jt_cont:
+  list type -> list type ->
+  cont ->
+  type -> type -> Prop :=
+  | JTCAppR:
+    forall Gamma t2 T1 T2,
+      jt_term Gamma t2 T1 ->
+      jt_cont Gamma Gamma (CAppR t2) (TFun T1 T2) T2
+  | JTCClosure:
+    forall Gamma Gamma_cl sigma_cl T1 T2 tcl,
+      jt_term Gamma_cl (Lam tcl) (TFun T1 T2) ->
+      List.Forall2 (jt_value) sigma_cl Gamma_cl ->
+      jt_cont Gamma Gamma (CClosure tcl sigma_cl) T1 T2
+  (* | JTCIf:
+    forall Gamma T ta tb,
+      jt_term Gamma ta T ->
+      jt_term Gamma tb T ->
+      jt_cont Gamma Gamma (CIf ta tb) (TBool) T *)
+  | JTCReturn:
+    forall sigma Gamma1 Gamma2 T,
+      (List.Forall2 (jt_value) sigma Gamma2) ->
+      jt_cont Gamma1 Gamma2 (CReturn sigma) T T
+.
+
+Inductive jt_conts:  list type -> list type -> list cont -> type -> type -> Prop :=
+| JTNil:
+  forall Gamma T,
+    jt_conts Gamma Gamma nil T T
+| JTCons:
+  forall Gamma1 Gamma2 Gamma3 cont kappa T1 T2 T3,
+    jt_cont Gamma1 Gamma2 cont T1 T2 ->
+    jt_conts Gamma2 Gamma3 kappa T2 T3 ->
+    jt_conts Gamma1 Gamma3 (cont :: kappa) T1 T3
+.
+
+(** Finall well-typeness of the state. *)
+Inductive jt_state:  list type -> state -> type -> Prop :=
+| JTmode_eval:
+  forall Gamma1 Gamma2 t T1 T2 kappa sigma,
+    List.Forall2 (jt_value) sigma Gamma1 ->
+    jt_term Gamma1 t T1 ->
+    jt_conts Gamma1 Gamma2 kappa T1 T2 ->
+    jt_state Gamma2 (mode_eval t kappa sigma) T2
+| JTmode_cont:
+  forall Gamma1 Gamma2 r T1 T2 kappa sigma,
+    List.Forall2 (jt_value) sigma Gamma1 ->
+    jt_result r T1 ->
+    jt_conts Gamma1 Gamma2 kappa T1 T2 ->
+    jt_state Gamma2 (mode_cont kappa sigma r) T2
+.
+
+
+Require Import Ltac2.Ltac2.
+Set Default Proof Mode "Classic".
+
+
+(** Specialized tactics to invert typing judgement if one argument is a known constructor. *)
+Ltac2 inv_jt () :=
+  match! goal with
+  | [ h: jt_term _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_value ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_value _ ?c |- _ ] => smart_inversion c h
+  | [ h: jt_cont _ _ ?c _ _ |- _ ] => smart_inversion c h
+  | [ h: jt_conts _ _ ?c _ _ |- _ ] => smart_inversion c h
+  | [ h: jt_state _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_result ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 _ _ ?c |- _ ] => smart_inversion c h
+end.
+
+Ltac inv_jt := ltac2:(inv_jt ()).
+
+
+(** Specialiazed tactic to apply econstructor when possible. *)
+Ltac2 econs_jt () :=
+  match! goal with
+  | [ |- jt_term _ _ _] => econstructor
+  | [ |- jt_value _ _] => econstructor
+  | [ |- jt_cont _ _ _ _ _] => econstructor
+  | [ |- jt_conts _ _ _ _ _] => econstructor
+  | [ |- jt_state _ _ _] => econstructor
+  | [ |- jt_result _ _] => econstructor
+  | [ |- List.Forall _ _] => econstructor
+  | [ |- List.Forall2 _ _ _] => econstructor
+  end.
+Ltac econs_jt := ltac2:(econs_jt ()).
+
+
+Theorem Forall2_nth_error_Some {A B F l1 l2}:
+  List.Forall2 F l1 l2 ->
+  forall k (x: A) (y: B),
+    List.nth_error l1 k = Some x ->
+    List.nth_error l2 k = Some y ->
+    F x y.
+Proof.
+  induction 1, k; simpl; intros; inj; eauto.
+Qed.
+
+
+(** Main preservation lemma for continuation-based semantics. *)
+Theorem preservation_cont s1 s2:
+  cred s1 s2 ->
+  forall Gamma T,
+  jt_state Gamma s1 T ->
+  jt_state Gamma s2 T.
+Proof.
+  (* Case analysis over all possible rules *)
+  induction 1.
+  all: intros; repeat inv_jt; repeat econs_jt; eauto.
+  { pose proof (Forall2_nth_error_Some H5); eauto. }
+Qed.
+
+Definition is_mode_cont s :=
+  match s with
+  | mode_cont _ _ _ => true
+  | _ => false
+  end.
+
+Definition stack s :=
+  match s with
+  | mode_eval _ k _ => k
+  | mode_cont k _ _ => k
+  end.
+
+Theorem Forall2_nth_error_Some_right {A B F l1 l2}:
+  List.Forall2 F l1 l2 ->
+  forall {k} {y: A},
+    List.nth_error l2 k = Some y ->
+    exists (x: B), List.nth_error l1 k = Some x.
+Proof.
+  induction 1, k; simpl; intros; inj; eauto.
+Qed.
+
+(** Main progress lemma for continuation-based semantics. *)
+Theorem progress_cont s1:
+  forall Gamma T,
+    jt_state Gamma s1 T ->
+    (exists s2, cred s1 s2) \/ (is_mode_cont s1 = true /\ stack s1 = nil).
+Proof.
+  (* Precise case analysis. *)
+  induction s1 as [t kappa env|kappa env r]; [induction t|(induction kappa as [|k kappa]; [|induction k]); induction r].
+  all: intros; repeat inv_jt.
+  all: try solve [left; eexists; econstructor; eauto].
+  all: try solve [right; simpl; eauto].
+  { pose proof (Forall2_nth_error_Some_right H4 (eq_sym H1)); unpack.
+    left; eexists; econstructor; eauto.
+  }
+Qed.
 
 
 (*** Equivalence relation definition ***)
