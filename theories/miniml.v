@@ -716,11 +716,12 @@ Qed.
 
 (*** From sred to cred ***)
 
-Definition stack s :=
+(* Already defined *)
+(* Definition stack s :=
   match s with
   | mode_cont kappa _ _ => kappa
   | mode_eval _ kappa _ => kappa
-  end.
+  end. *)
 
 Definition with_stack s kappa :=
   match s with
