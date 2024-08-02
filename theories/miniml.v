@@ -386,7 +386,11 @@ Theorem preservation_cont s1 s2:
 Proof.
   (* Case analysis over all possible rules *)
   induction 1.
+  
+  (* Most of the cases are easilly handle by the automation. *)
   all: intros; repeat inv_jt; repeat econs_jt; eauto.
+
+  (** One case is left. It requires an external lemma. *)
   { pose proof (Forall2_nth_error_Some H5); eauto. }
 Qed.
 
@@ -419,9 +423,15 @@ Theorem progress_cont s1:
 Proof.
   (* Precise case analysis. *)
   induction s1 as [t kappa env|kappa env r]; [induction t|(induction kappa as [|k kappa]; [|induction k]); induction r].
+
+  (** Using inversion on each of the cases *)
   all: intros; repeat inv_jt.
+
+  (** Most of the cases are easily handled using the automation *)
   all: try solve [left; eexists; econstructor; eauto].
   all: try solve [right; simpl; eauto].
+
+  (* One case is left that requires an additional lemma on lists. *)
   { pose proof (Forall2_nth_error_Some_right H4 (eq_sym H1)); unpack.
     left; eexists; econstructor; eauto.
   }
