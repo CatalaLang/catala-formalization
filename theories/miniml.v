@@ -212,11 +212,11 @@ Inductive sred: term -> term -> Prop :=
         (App (Value (Closure t sigma')) (Value v))
         (t.[subst_of_env (v :: sigma')])
   | sred_app_right:
-    forall t u1 u2 sigma,
+    forall u1 u2 v,
       sred (u1) (u2) ->
       sred
-        (App (Value (Closure t sigma)) u1)
-        (App (Value (Closure t sigma)) u2)
+        (App (Value v) u1)
+        (App (Value v) u2)
   | sred_app_left:
     forall t1 t2 u,
       sred (t1) (t2) ->
@@ -436,6 +436,63 @@ Proof.
     left; eexists; econstructor; eauto.
   }
 Qed.
+
+
+Definition fv k t :=
+  t.[upn k (ren (+1))] = t.
+
+Lemma fv_Lam_eq:
+  forall k t,
+  fv k (Lam t) <-> fv (S k) t.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. eauto. }
+  { unpack. congruence. }
+Qed.
+
+Lemma fv_App_eq:
+  forall k t1 t2,
+  fv k (App t1 t2) <-> fv k t1 /\ fv k t2.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. eauto. }
+  { unpack. congruence. }
+Qed.
+
+Hint Rewrite fv_Lam_eq fv_App_eq : fv.
+
+
+(** Main progress lemma for continuation-based semantics. *)
+Theorem progress_trad t1:
+  forall Gamma T,
+    jt_term Gamma t1 T ->
+    fv 0 t1 ->
+    (exists t2, sred t1 t2) \/ (exists v, t1 = Value v).
+Proof.
+  induction 1.
+
+  (** Using inversion on each of the cases *)
+  all: intros; repeat inv_jt.
+  all: unzip; subst.
+
+  (** Less cases than in the normal cases. *)
+  all: try solve [left; eexists; econstructor; eauto].
+  all: try solve [right; simpl; eauto].
+
+  { (* Could be shown in a different lemma. *)
+    exfalso. unfold fv in *; unfold upn in *; unfold ren in *. asimpl in *. inj. clear -H1. induction x; congruence. }
+
+  { (** Manual handling of the proof here. *)
+    rewrite fv_App_eq in *; unpack.
+    pose proof (IHjt_term1 H1).
+    pose proof (IHjt_term2 H2).
+    unzip; subst.
+    all: intros; repeat inv_jt.
+    (* automation depends on the order of the constructors. *)
+    all: try solve [left; eexists; econstructor; eauto].
+  }
+Qed.
+
 
 
 (*** Equivalence relation definition ***)
