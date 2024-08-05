@@ -20,8 +20,11 @@ Inductive term :=
   | Lam (t: {bind term})
   | Value (v: value)
 
+  | If (u t1 t2: term)
+
 with value :=
   | Closure (t: {bind term}) (sigma: list value)
+  | Bool (b: bool)
 .
 
 #[export] Instance Ids_term : Ids term. derive. Defined.
@@ -43,10 +46,12 @@ Fixpoint size_term t :=
   | App t1 t2 => S (size_term t1 + size_term t2)
   | Lam t => S (size_term t)
   | Value v => S (size_value v)
+  | If u t1 t2 => S (size_term u + size_term t1 + size_term t2)
   end
 with size_value v :=
   match v with
   | Closure t env => S (size_term t + (List.list_sum (List.map size_value env)))
+  | Bool _ => 0
   end.
 
 Definition size (x : term + value) :=
@@ -62,8 +67,10 @@ Theorem term_value_induction
     {HApp: forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)}
     {HLam: forall t : {bind term}, P t -> P (Lam t)}
     {HValue: forall v : value, P0 v -> P (Value v)}
+    {HIf: forall u, P u -> forall t1, P t1 -> forall t2, P t2 -> P (If u t1 t2)}
     {HClosure: forall t,
-      P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)},
+      P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)}
+    {HBool: forall b, P0 (Bool b)},
     (forall x : term + value, match x with | inl t => P t | inr v => P0 v end).
 Proof.
   induction x as [x IHx] using (
@@ -75,12 +82,16 @@ Proof.
         eapply HVar|
         eapply HApp|
         eapply HLam|
-        eapply HValue
+        eapply HValue|
+        eapply HIf
       ].
       1: eapply (IHx (inl t1)).
       2: eapply (IHx (inl t2)).
       3: eapply (IHx (inl t)).
       4: eapply (IHx (inr v)).
+      5: eapply (IHx (inl t1)).
+      6: eapply (IHx (inl t2)).
+      7: eapply (IHx (inl t3)).
       all: simpl; lia.
     }
     { destruct v; try first [
@@ -94,7 +105,7 @@ Proof.
         eapply IHsigma; intros.
         { eapply IHx. simpl in *; lia. }
       }
-      
+      eapply HBool.
     }
   }
 Qed.
@@ -107,6 +118,8 @@ Theorem term_ind'
       (forall v : value, P0 v -> P (Value v)) ->
       (forall t,
        P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)) ->
+      (forall u, P u -> forall t1, P t1 -> forall t2, P t2 -> P (If u t1 t2)) ->
+      (forall b, P0 (Bool b)) ->
       (forall t : term, P t) /\ (forall v : value, P0 v).
 Proof.
   split; intros.
@@ -123,6 +136,7 @@ Inductive cont :=
   (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices,
      there is no variable x. *)
   | CReturn (sigma: list value) (* call return *)
+  | CIf (t1 t2: term) (* [if \square then t1 else t2]*)
 .
 
 Inductive result :=
@@ -182,6 +196,24 @@ Inductive cred: state -> state -> Prop :=
     cred
       (mode_cont (CReturn sigma::kappa) sigma_cl r)
       (mode_cont kappa sigma r)
+
+  | cred_if:
+    forall u t1 t2 kappa sigma,
+    cred
+      (mode_eval (If u t1 t2) kappa sigma)
+      (mode_eval u ((CIf t1 t2)::kappa) sigma)
+  
+  | cred_if_true:
+    forall t1 t2 kappa sigma,
+    cred
+      (mode_cont ((CIf t1 t2):: kappa) sigma (RValue (Bool true)))
+      (mode_eval t1 kappa sigma)
+  
+  | cred_if_false:
+    forall t1 t2 kappa sigma,
+    cred
+      (mode_cont ((CIf t1 t2):: kappa) sigma (RValue (Bool false)))
+      (mode_eval t2 kappa sigma)
 .
 
 (*** small step semantics ***)
@@ -223,6 +255,18 @@ Inductive sred: term -> term -> Prop :=
       sred
         (App t1 u)
         (App t2 u)
+  | sred_if_true:
+    forall t1 t2,
+      sred (If (Value (Bool true)) t1 t2) t1
+  
+  | sred_if_false:
+    forall t1 t2,
+      sred (If (Value (Bool false)) t1 t2) t2
+  
+  | sred_if_cond:
+    forall u1 u2 t1 t2,
+      sred u1 u2 ->
+      sred (If u1 t1 t2) (If u2 t1 t2)
 .
 
 
@@ -254,12 +298,12 @@ Inductive jt_term:
     forall Gamma v T,
       jt_value v T ->
       jt_term Gamma (Value v) T
-  (* | JTEIf:
+  | JTEIf:
     forall Gamma u ta tb T,
       jt_term Gamma u TBool ->
       jt_term Gamma ta T ->
       jt_term Gamma tb T ->
-      jt_term Gamma (If u ta tb) T *)
+      jt_term Gamma (If u ta tb) T
 with jt_value:
    value -> type -> Prop :=
   | JTValueClosure:
@@ -267,6 +311,9 @@ with jt_value:
       List.Forall2 jt_value sigma_cl Gamma_cl ->
       jt_term Gamma_cl (Lam tcl) (TFun T1 T2) ->
       jt_value (Closure tcl sigma_cl) (TFun T1 T2)
+  | JTValueBool:
+    forall b,
+      jt_value (Bool b) TBool
 .
 
 (** Expanding the rules of typing to continuation-bases semantics requires to define the typing jugment for continuations. This typing judgement have two additional informations: the "hole" type, and the "environement" in the hole. Both are required with our presentation since the hole is filed when the jt_state judgement is defined. *)
@@ -290,11 +337,11 @@ Inductive jt_cont:
       jt_term Gamma_cl (Lam tcl) (TFun T1 T2) ->
       List.Forall2 (jt_value) sigma_cl Gamma_cl ->
       jt_cont Gamma Gamma (CClosure tcl sigma_cl) T1 T2
-  (* | JTCIf:
+  | JTCIf:
     forall Gamma T ta tb,
       jt_term Gamma ta T ->
       jt_term Gamma tb T ->
-      jt_cont Gamma Gamma (CIf ta tb) (TBool) T *)
+      jt_cont Gamma Gamma (CIf ta tb) (TBool) T
   | JTCReturn:
     forall {sigma Gamma1 Gamma2 T},
       (List.Forall2 (jt_value) sigma Gamma2) ->
@@ -424,8 +471,14 @@ Proof.
   (* Precise case analysis. *)
   induction s1 as [t kappa env|kappa env r]; [induction t|(induction kappa as [|k kappa]; [|induction k]); induction r].
 
+  
+
   (** Using inversion on each of the cases *)
   all: intros; repeat inv_jt.
+
+
+  (** To add the boolean case, we need to further do a case analysis on b in the mode_cont case. *)
+  all: try induction b.
 
   (** Most of the cases are easily handled using the automation *)
   all: try solve [left; eexists; econstructor; eauto].
@@ -459,7 +512,16 @@ Proof.
   { unpack. congruence. }
 Qed.
 
-Hint Rewrite fv_Lam_eq fv_App_eq : fv.
+Lemma fv_If_eq:
+  forall k u t1 t2,
+  fv k (If u t1 t2) <-> fv k u /\ fv k t1 /\ fv k t2.
+Proof.
+  unfold fv. intros. asimpl. split; intros.
+  { injections. eauto. }
+  { unpack. congruence. }
+Qed.
+
+Hint Rewrite fv_Lam_eq fv_App_eq fv_If_eq : fv.
 
 
 (** Main progress lemma for continuation-based semantics. *)
@@ -474,7 +536,7 @@ Proof.
   (** Using inversion on each of the cases *)
   all: intros; repeat inv_jt.
   all: unzip; subst.
-
+  
   (** Less cases than in the normal cases. *)
   all: try solve [left; eexists; econstructor; eauto].
   all: try solve [right; simpl; eauto].
@@ -491,11 +553,19 @@ Proof.
     (* automation here depends on the order of the constructors. *)
     all: try solve [left; eexists; econstructor; eauto].
   }
-Qed.
+  { (* applying left; eexists, econstructor leads to an unsolvable goal as we are not sure whenever u redices to t2 or is a value. *)
+    (* left; eexists; econstructor. *)
+    rewrite fv_If_eq in *; unpack.
+    pose proof (IHjt_term1 H2).
+    unzip; subst.
+    all: intros; repeat inv_jt.
 
+    (* same case analysis as the continutation-based case before *)
+    all: try induction b.
 
-
-
+    (* the normal proof script can the resume. *)
+    all: try solve [left; eexists; econstructor; eauto].
+    all: try solve [right; simpl; eauto].
 
   }
 
