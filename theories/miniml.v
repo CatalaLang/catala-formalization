@@ -212,11 +212,11 @@ Inductive sred: term -> term -> Prop :=
         (App (Value (Closure t sigma')) (Value v))
         (t.[subst_of_env (v :: sigma')])
   | sred_app_right:
-    forall u1 u2 v,
+    forall t sigma u1 u2,
       sred (u1) (u2) ->
       sred
-        (App (Value v) u1)
-        (App (Value v) u2)
+        (App (Value (Closure t sigma)) u1)
+        (App (Value (Closure t sigma)) u2)
   | sred_app_left:
     forall t1 t2 u,
       sred (t1) (t2) ->
