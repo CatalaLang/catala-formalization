@@ -459,7 +459,42 @@ Proof.
   { unpack. congruence. }
 Qed.
 
-Hint Rewrite fv_Lam_eq fv_App_eq : fv.
+Notation lift i t := (t.[ren(+i)]).
+
+
+Lemma lift_inj_Var:
+  forall t x,
+  lift 1 t = Var (S x) <-> t = Var x.
+Proof.
+  split; intros.
+  { eauto using lift_inj. }
+  { subst. eauto. }
+Qed.
+
+Lemma fv_Var_eq:
+  forall k x,
+  fv k (Var x) <-> x < k.
+Proof.
+  unfold fv. asimpl. induction k; intros.
+  (* Base case. *)
+  { asimpl. split; intros; tryfalse.
+    { unfold ids, Ids_term in *. injections. lia. }
+    { lia. }
+  }
+  (* Step. *)
+  { destruct x; asimpl.
+    { split; intros. { lia. } { reflexivity. } }
+    rewrite lift_inj_Var. rewrite IHk. lia. }
+Qed.
+
+Lemma fv_Value_eq:
+  forall k v,
+  fv k (Value v).
+Proof.
+  unfold fv. intros. asimpl; eauto.
+Qed.
+
+Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq : fv.
 
 
 (** Main progress lemma for continuation-based semantics. *)
@@ -492,6 +527,38 @@ Proof.
     all: try solve [left; eexists; econstructor; eauto].
   }
 Qed.
+
+Lemma jt_term_fv:
+  forall Gamma t T,
+    jt_term Gamma t T ->
+    fv (List.length Gamma) t.
+Proof.
+  induction 1.
+  { eapply fv_Var_eq. eapply List.nth_error_Some; repeat intro; tryfalse. }
+  { rewrite fv_App_eq; eauto. }
+  { rewrite fv_Lam_eq; eauto. }
+  { eapply fv_Value_eq. }
+Qed.
+
+Theorem preservation_trad t1:
+  fv 0 t1 ->
+  forall t2,
+    sred t1 t2 ->
+    forall Gamma T,
+      jt_term Gamma t1 T ->
+      jt_term Gamma t2 T.
+Proof.
+  intros Hfv.
+  induction 1; intros; repeat inv_jt; repeat econs_jt; eauto.
+  { (* ugly thing is here. Untold invarant : the terms are free of variables inside lambda. *)
+    admit. }
+  { (* should be provable with substitution lemma *)
+    admit.
+  }
+  { rewrite fv_App_eq in *; unpack. eapply IHsred; eauto. }
+  { rewrite fv_App_eq in *; unpack; eapply IHsred; eauto. }
+Abort.
+
 
 
 (*** Determinism of the relation *)
