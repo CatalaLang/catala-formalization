@@ -494,6 +494,28 @@ Proof.
 Qed.
 
 
+(*** Determinism of the relation *)
+
+Theorem cred_deterministic:
+  forall s1 s2, cred s1 s2 -> forall s2', cred s1 s2' -> s2 = s2'.
+Proof.
+  induction 1; inversion 1; subst; simpl in *; eauto.
+  { rewrite H in H5; inj; eauto. }
+Qed.
+
+Theorem sred_deterministic:
+  forall t1 t2, sred t1 t2 -> forall t2', sred t1 t2' -> t2 = t2'.
+Proof.
+  induction 1; inversion 1; subst; simpl in *; eauto.
+  { inversion H4. }
+  { inversion H3. }
+  { inversion H. }
+  { repeat f_equal. eapply IHsred. eauto. }
+  { inversion H4. }
+  { inversion H. }
+  { inversion H. }
+  { repeat f_equal. eapply IHsred. eauto. }
+Qed.
 
 (*** Equivalence relation definition ***)
 
