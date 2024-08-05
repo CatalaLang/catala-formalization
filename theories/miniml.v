@@ -570,6 +570,109 @@ Proof.
   { intros. repeat econs_jt. eauto. }
 Qed.
 
+(* Compute (Var 0).[upn 0 (subst_of_env [Closure (Var 0) []])]. *)
+
+
+Lemma upn_k_sigma_x:
+  forall k sigma x,
+  x < k ->
+  upn k sigma x = ids x.
+Proof.
+  induction k; intros; asimpl.
+  { lia. }
+  { destruct x; asimpl.
+    { eauto. }
+    { rewrite IHk by lia. autosubst. }
+  }
+Qed.
+
+Search (ids 0 .: _).
+
+Print up.
+
+
+Lemma upn_k_sigma_x':
+  forall k sigma x,
+  x >= k ->
+  x < List.length sigma + k ->
+  upn k (subst_of_env sigma) x = (subst_of_env sigma) (x - k).
+Proof.
+  induction k; intros; asimpl.
+  { repeat f_equal; lia. }
+  { destruct x; asimpl.
+    { lia. }
+    { rewrite IHk by lia.
+      assert (Hx: x - k < List.length sigma) by lia.
+      unfold subst_of_env.
+      remember (List.nth_error sigma (x - k)) as o; induction o.
+      { autosubst. }
+      { exfalso.
+        eapply List.nth_error_Some; eauto.
+      }
+    }
+  }
+Qed.
+
+
+Theorem jt_term_subst_aux: forall {Gamma t T},
+  jt_term Gamma t T ->
+  forall Gamma1 Gamma2,
+  Gamma1++Gamma2 = Gamma ->
+  forall sigma,
+  List.Forall2 jt_value sigma Gamma2 ->
+  jt_term Gamma1 t.[upn (List.length Gamma1) (subst_of_env sigma)] T
+  .
+Proof.
+  induction 1.
+  repeat intros.
+  { rewrite <- H0 in H.
+    pose proof (nth_error_Some' (eq_sym H)).
+    rewrite List.app_length in *.
+    destruct (lt_dec x (List.length Gamma1)).
+    { simpl.
+      rewrite upn_k_sigma_x by eauto.
+      unfold ids; unfold Ids_term.
+      econs_jt.
+      erewrite <- List.nth_error_app1; eauto.
+    }
+    { assert (x >= List.length Gamma1). { clear -n; lia. }
+      simpl.
+      rewrite List.nth_error_app2 in * by lia.
+      assert (exists v, List.nth_error sigma (x - List.length Gamma1) = Some v).
+      { eapply Forall2_nth_error_Some_right; eauto. }
+      unpack.
+      pose proof (Forall2_nth_error_Some H1 _ _ _ H4 (eq_sym H)). 
+      rewrite upn_k_sigma_x'.
+      {
+        unfold subst_of_env. rewrite H4.
+        econstructor.
+        eauto.
+      }
+      { lia. }
+      { pose proof (List.Forall2_length H1).
+        lia.
+      }
+    }
+  }
+  { intros ? ? HGamma ? H'.
+    pose proof (IHjt_term1 _ _ HGamma _ H').
+    pose proof (IHjt_term2 _ _ HGamma _ H').
+    asimpl.
+    econstructor; eauto.
+  }
+  { intros ? ? HGamma ? H'.
+    simpl. econstructor. asimpl.
+    assert (HGamma': (T1 :: Gamma1) ++ Gamma2 = T1 :: Gamma).
+    { simpl. congruence. }
+
+    pose proof (IHjt_term _ _ HGamma' _ H').
+    simpl in *.
+    eauto.
+  }
+  { intros; simpl; repeat econs_jt; eauto.
+  }
+Qed.
+
 Theorem jt_term_subst: forall {Gamma t T},
   jt_term Gamma t T ->
   forall sigma,
@@ -577,50 +680,10 @@ Theorem jt_term_subst: forall {Gamma t T},
   jt_term [] t.[subst_of_env sigma] T
   .
 Proof.
-  induction 1.
-  repeat intros.
-  { pose proof (Forall2_nth_error_Some_right H0 (eq_sym H)); unpack.
-    pose proof (Forall2_nth_error_Some H0 _ _ _ H1 (eq_sym H)).
-    unfold subst_of_env; simpl. rewrite H1. econs_jt. eauto.
-  }
-  { intros ? H'.
-    pose proof (IHjt_term1 _ H').
-    pose proof (IHjt_term2 _ H').
-    asimpl.
-    econstructor; eauto.
-  }
-  { intros. simpl. econstructor. admit.
-  }
-  { intros; simpl; repeat econs_jt; eauto.
-  }
-Admitted.
-
-Lemma fv_subst:
-  forall t k,
-    fv k t ->
-    forall sigma,
-    fv (k - List.length sigma) (t.[subst_of_env sigma]).
-Proof.
-  induction t; intros; simpl.
-  { unfold subst_of_env; remember (List.nth_error sigma x) as o; induction o.
-    { eapply fv_Value_eq. }
-    { unfold ids; unfold Ids_term.
-      rewrite fv_Var_eq in *.
-      epose proof ((proj1 (List.nth_error_None _ _)) (eq_sym Heqo)).
-      lia.
-    }
-  }
-  { rewrite fv_App_eq in *; unpack.
-    pose proof (IHt1 _ H).
-    pose proof (IHt2 _ H0).
-    eauto.
-  }
-  { rewrite fv_Lam_eq in *.
-    pose proof (IHt _ H).
-    admit "idk".
-  }
-  { eapply fv_Value_eq. }
-Admitted.
+  intros.
+  replace (subst_of_env sigma) with (upn (List.length ([]: list type)) (subst_of_env sigma)) by (unfold upn; simpl; eauto).
+  eapply jt_term_subst_aux; simpl; eauto.
+Qed.
 
 Lemma jt_term_more_env:
   forall Gamma1 t T,
