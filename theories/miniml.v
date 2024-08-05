@@ -529,7 +529,7 @@ Proof.
 Qed.
 
 Lemma jt_term_fv:
-  forall Gamma t T,
+  forall {Gamma t T},
     jt_term Gamma t T ->
     fv (List.length Gamma) t.
 Proof.
@@ -539,6 +539,101 @@ Proof.
   { rewrite fv_Lam_eq; eauto. }
   { eapply fv_Value_eq. }
 Qed.
+
+Lemma jt_term_firstn_fv:
+  forall Gamma t T,
+    jt_term Gamma t T ->
+    forall k,
+    fv k t ->
+    jt_term (List.firstn k Gamma) t T.
+Proof.
+  induction 1.
+  { intros. rewrite fv_Var_eq in *.
+    rewrite <- (List.firstn_skipn k Gamma) in H.
+    rewrite List.nth_error_app1 in H.
+    2:{ rewrite List.firstn_length. rewrite List.firstn_skipn in *.
+        pose proof (nth_error_Some' (eq_sym H)).
+        lia.
+    }
+
+    econstructor; eauto.
+  }
+  { intros; rewrite fv_App_eq in *; unpack; eauto.
+    pose proof (IHjt_term1 _ H1).
+    pose proof (IHjt_term2 _ H2).
+    repeat econs_jt; eauto.
+  }
+  { intros. rewrite fv_Lam_eq in *; unpack; eauto.
+    pose proof (IHjt_term _ H0).
+    repeat econs_jt; eauto.
+  }
+  { intros. repeat econs_jt. eauto. }
+Qed.
+
+Theorem jt_term_subst: forall {Gamma t T},
+  jt_term Gamma t T ->
+  forall sigma,
+  List.Forall2 jt_value sigma Gamma ->
+  jt_term [] t.[subst_of_env sigma] T
+  .
+Proof.
+  induction 1.
+  repeat intros.
+  { pose proof (Forall2_nth_error_Some_right H0 (eq_sym H)); unpack.
+    pose proof (Forall2_nth_error_Some H0 _ _ _ H1 (eq_sym H)).
+    unfold subst_of_env; simpl. rewrite H1. econs_jt. eauto.
+  }
+  { intros ? H'.
+    pose proof (IHjt_term1 _ H').
+    pose proof (IHjt_term2 _ H').
+    asimpl.
+    econstructor; eauto.
+  }
+  { intros. simpl. econstructor. admit.
+  }
+  { intros; simpl; repeat econs_jt; eauto.
+  }
+Admitted.
+
+Lemma fv_subst:
+  forall t k,
+    fv k t ->
+    forall sigma,
+    fv (k - List.length sigma) (t.[subst_of_env sigma]).
+Proof.
+  induction t; intros; simpl.
+  { unfold subst_of_env; remember (List.nth_error sigma x) as o; induction o.
+    { eapply fv_Value_eq. }
+    { unfold ids; unfold Ids_term.
+      rewrite fv_Var_eq in *.
+      epose proof ((proj1 (List.nth_error_None _ _)) (eq_sym Heqo)).
+      lia.
+    }
+  }
+  { rewrite fv_App_eq in *; unpack.
+    pose proof (IHt1 _ H).
+    pose proof (IHt2 _ H0).
+    eauto.
+  }
+  { rewrite fv_Lam_eq in *.
+    pose proof (IHt _ H).
+    admit "idk".
+  }
+  { eapply fv_Value_eq. }
+Admitted.
+
+Lemma jt_term_more_env:
+  forall Gamma1 t T,
+  jt_term Gamma1 t T ->
+  forall Gamma2,
+    jt_term (Gamma1 ++ Gamma2) t T.
+Proof.
+  induction 1; intros; repeat econs_jt; eauto.
+  { rewrite List.nth_error_app1; eauto.
+    eapply nth_error_Some'; eauto.    
+  }
+Qed.
+
 
 Theorem preservation_trad t1:
   fv 0 t1 ->
@@ -551,13 +646,20 @@ Proof.
   intros Hfv.
   induction 1; intros; repeat inv_jt; repeat econs_jt; eauto.
   { (* ugly thing is here. Untold invarant : the terms are free of variables inside lambda. *)
-    admit. }
+    rewrite fv_Lam_eq in *.
+    replace [T1] with (List.firstn 1 (T1::Gamma)) by (simpl; eauto).
+    eapply jt_term_firstn_fv; eauto.
+  }
   { (* should be provable with substitution lemma *)
-    admit.
+    assert (H: List.Forall2 jt_value (v :: sigma') (T1 :: Gamma_cl)) by (econstructor; eauto).
+    pose proof (jt_term_subst H3 _ H).
+    replace Gamma with ([] ++ Gamma) by (simpl; eauto).
+    apply jt_term_more_env.
+    eauto.
   }
   { rewrite fv_App_eq in *; unpack. eapply IHsred; eauto. }
   { rewrite fv_App_eq in *; unpack; eapply IHsred; eauto. }
-Abort.
+Qed.
 
 
 

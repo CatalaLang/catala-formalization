@@ -77,6 +77,14 @@ Proof.
 Qed.
 
 
+Lemma nth_error_Some' {A: Type} {l: list A} {n v} : nth_error l n = Some v -> n < List.length l.
+Proof.
+  intros.
+  rewrite <- nth_error_Some in *.
+  repeat intro; tryfalse.
+Qed.
+
+
 (* Such that [l = lastn n l ++ firstn n l] *)
 Definition droplastn {A} n (l: list A) := List.firstn ((List.length l) - n) l.
 
