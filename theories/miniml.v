@@ -749,6 +749,110 @@ Proof.
   { repeat f_equal. eapply IHsred. eauto. }
 Qed.
 
+(*** Terminaison *)
+
+Definition halts t : Prop :=
+  exists t',
+    star sred t t' /\ irred sred t'.
+
+Fixpoint rel  T t : Prop :=
+  jt_term [] t T /\ halts t /\
+  (match T with
+  | TBool => True
+  | TFun T1 T2 => (forall s, rel T1 s -> rel T2 (App t s))
+  end).
+
+Lemma rel_halt {T t}: rel T t -> halts t.
+Proof.
+  induction T; simpl; intros; unpack; eauto.
+Qed.
+
+Lemma rel_typable_empty { T t}: rel T t -> jt_term [] t T.
+Proof.
+  induction T; simpl; intros; unpack; eauto.
+Qed.
+
+Lemma sred_preserves_halting:
+  forall t t', sred t t' -> (halts t <-> halts t').
+Proof.
+  intros ? ? Hsred; unfold halts; split.
+  { intros [t'' [H1 H2]].
+    exists t''; split; eauto.
+    destruct H1.
+    { pose proof (H2 _ Hsred); tryfalse. }
+    { pose proof (sred_deterministic _ _ Hsred _ H); subst.
+      eauto.
+    }
+  }
+  { intros [t'' [H1 H2]].
+    exists t''; split; eauto using star_step.
+  }
+Qed.
+
+Lemma sred_preserves_rel :
+  forall {T t t'}, sred t t' -> (rel T t -> rel T t').
+Proof.
+  induction T; simpl; intros ? ? Hsred; repeat split; unpack.
+  { eapply preservation_trad; eauto.
+    pose proof (jt_term_fv H); simpl in *; eauto.
+  }
+  { destruct (sred_preserves_halting _ _ Hsred); eauto. }
+  { eapply preservation_trad; eauto.
+    pose proof (jt_term_fv H); simpl in *; eauto.
+  }
+  { destruct (sred_preserves_halting _ _ Hsred); eauto. }
+  { intros.
+    pose proof (H1 _ H2).
+    eapply IHT2; eauto.
+    econstructor; eauto.
+  }
+Qed.
+
+Lemma sred_preserves_rel' :
+  forall {T t t'}, jt_term [] t T -> sred t t' -> (rel T t' -> rel T t).
+Proof.
+  induction T; simpl; intros ? ? Hjt Hsred; repeat split; unpack; eauto.
+  { destruct (sred_preserves_halting _ _ Hsred); eauto. }
+  { destruct (sred_preserves_halting _ _ Hsred); eauto. }
+  { intros.
+    pose proof (H1 _ H2).
+    eapply IHT2.
+    { econstructor; eauto using rel_typable_empty. }
+    { econstructor; eauto. }
+    { eauto. }
+  }
+Qed.
+
+Definition instantiation := List.Forall2 (fun T v => rel T (Value v)).
+
+Lemma msubst_rel: forall {Gamma t T},
+  jt_term Gamma t T ->
+  forall Gamma1 Gamma2,
+  Gamma1++Gamma2 = Gamma ->
+  forall sigma,
+  List.Forall2 jt_value sigma Gamma2 ->
+  rel T t.[upn (List.length Gamma1) (subst_of_env sigma)]
+  .
+Proof.
+(* I really don't want to show this *)
+Admitted.
+
+Theorem normalization { t T }: jt_term [] t T -> halts t.
+Proof.
+  intros.
+  apply (@rel_halt T).
+  replace t with (t.[upn (List.length ([]: list type)) (subst_of_env [])]).
+  2:{ unfold upn; unfold subst_of_env; simpl.
+      replace t with t.[ids] at 2; f_equal.
+      apply FunctionalExtensionality.functional_extensionality.
+      clear; intros; rewrite nth_error_nil; f_equal; lia.
+      asimpl; eauto.
+  }
+
+  eapply (msubst_rel H _ []); simpl; eauto.
+Qed.
+
+
 (*** Equivalence relation definition ***)
 
 (* This equivalence relation is used in the simulation theorem. The goal of this simulation is to say that closures should be the same up to substitution of their environement. The other rules are only here to indicate this relation should be congrugent.*)
