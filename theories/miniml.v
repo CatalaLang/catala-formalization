@@ -953,7 +953,12 @@ Lemma rel_subst {Gamma t T}:
   rel T t.[subst_of_env sigma].
 Proof.
   induction 1; intros.
-  { admit "application of List.Forall2 companion lemmas". }
+  { pose proof (Forall2_nth_error_Some_left _ _ _ H0 _ _ (eq_sym H)); unpack.
+    asimpl; unfold subst_of_env.
+    rewrite H1.
+    pose proof (Forall2_nth_error_Some H0 _ _ _ (eq_sym H) H1); simpl in *.
+    eauto.
+  }
   { pose proof (IHjt_term1 _ H1) as H2; simpl in H2; unpack.
     pose proof (IHjt_term2 _ H1) as H5; simpl in H5; unpack.
     pose proof (H4 _ H5).
