@@ -17,11 +17,11 @@ The file `sequences.v` is adapted from previous work by François Pottier, which
 | sequences.v                  | 242  | 220   | 25       | Defines operations and properties of sequences of reduction (`star`). |
 | tactics.v                    | 224  | 3     | 70       | Contains custom tactics for automated proof strategies in Rcoq. |
 | syntax.v                     | 531  | 251   | 10       | Defines the syntax of the fragment of $\lambda^\delta$ we are dealing with. |
-| small_step.v                 | 315  | 122   | 11       | Describes the small-step operational semantics of the language. |
-| continuations.v              | 452  | 189   | 86       | Describes the continuation steps semantics of the language. |
+| small_step.v                 | 315  | 122   | 11       | Describes the traditional small-step semantics of the language. |
+| continuations.v              | 452  | 189   | 86       | Describes the continuation-based small-step semantics of the language. |
 | typing.v                     | 394  | 91    | 39       | Provides the typing rules and their verification for the language. |
-| simulation_cred_to_sred.v    | 213  | 219   | 14       | Provides a simulation proof from continuation steps to small steps semantic. |
-| simulation_sred_to_cred.v    | 606  | 609   | 41       | Provides a simulation proof from small steps to continuation steps semantic. |
+| simulation_cred_to_sred.v    | 213  | 219   | 14       | Provides a simulation proof from continuation-based to traditional small-step semantic. |
+| simulation_sred_to_cred.v    | 606  | 609   | 41       | Provides a simulation proof from traditional to continuation-based small-step semantic. |
 | trans.v                      | 205  | 182   | 26       | Handles the transformation that removes default terms from $\lambda^\delta$ intermediate languages. |
 | **Total**                    | **3677** | **2503**  | **372**      |  |
 

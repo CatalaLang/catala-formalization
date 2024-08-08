@@ -10,7 +10,7 @@ The whole development is axiom-free except for two things: autosubst relies on F
 
 ## Section 3.2
 
-* Small-step semantics is defined in the `theories/small-steps.v` file. The reduction rule is defined in the `sred` inductive. The new rules are `sred_lam`, `sred_beta`, `sred_default_E_one_empty`, and `sred_default_E_zero_empty`.
+* Small-step semantics is defined in the `theories/small-step.v` file. The reduction rule is defined in the `sred` inductive. The new rules are `sred_lam`, `sred_beta`, `sred_default_E_one_empty`, and `sred_default_E_zero_empty`.
 * Continuation-based semantics is defined in the `theories/continuation.v` file. The syntax is defined in the `is_hole`, `cont`, `result`, and `state` definitions. The reduction in figure 4 itself is defined as an inductive `cred`. Recall that we use De Bruijn indices in the development.
 * Term rebuilding is done separately in both `theories/simulation_cred_to_sred.v` and `theories/simulation_sred_to_cred.v` files as the functions called `apply_state`, `apply_conts`, `apply_cont`, and for the default term, `apply_CDefault`.
 * The reduction sequence 1-8 is the example `example1` of the `theories/continuations.v` file. The reduction sequence 9-19 is the example `example2` of the `theories/continuation.v` file.
