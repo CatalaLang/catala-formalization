@@ -226,6 +226,18 @@ Inductive sred: term -> term -> Prop :=
 .
 
 
+Lemma star_sred_app_right {u1 u2}:
+  star sred (u1) (u2) ->
+  forall {t sigma},
+  star sred
+    (App (Value (Closure t sigma)) u1)
+    (App (Value (Closure t sigma)) u2)
+.
+Proof.
+  induction 1; intros; econstructor; eauto using sred_app_right.
+Qed.
+
+
 (*** Typing ***)
 
 Inductive type :=
@@ -378,7 +390,7 @@ Qed.
 
 
 (** Main preservation lemma for continuation-based semantics. *)
-Theorem preservation_cont s1 s2:
+Theorem cred_preserves_jt_state s1 s2:
   cred s1 s2 ->
   forall Gamma T,
   jt_state Gamma s1 T ->
@@ -416,7 +428,7 @@ Proof.
 Qed.
 
 (** Main progress lemma for continuation-based semantics. *)
-Theorem progress_cont s1:
+Theorem cred_progress s1:
   forall Gamma T,
     jt_state Gamma s1 T ->
     (exists s2, cred s1 s2) \/ (is_mode_cont s1 = true /\ stack s1 = nil).
@@ -497,8 +509,8 @@ Qed.
 Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq : fv.
 
 
-(** Main progress lemma for continuation-based semantics. *)
-Theorem progress_trad t1:
+(** Main progress lemma for traditional small-step semantics. *)
+Theorem sred_progress t1:
   forall Gamma T,
     jt_term Gamma t1 T ->
     fv 0 t1 ->
@@ -539,6 +551,24 @@ Proof.
   { rewrite fv_Lam_eq; eauto. }
   { eapply fv_Value_eq. }
 Qed.
+
+Theorem sred_progress_irred {t T}:
+  jt_term [] t T ->
+  irred sred t ->
+  exists v, t = Value v.
+Proof.
+  intros.
+
+  edestruct (sred_progress _ _ _ H (jt_term_fv H)).
+  { unpack; unfold irred in *.
+    edestruct H0; eauto.
+  }
+  { eauto. }
+Qed.
+
+
+
+
 
 Lemma jt_term_firstn_fv:
   forall Gamma t T,
@@ -585,11 +615,6 @@ Proof.
     { rewrite IHk by lia. autosubst. }
   }
 Qed.
-
-Search (ids 0 .: _).
-
-Print up.
-
 
 Lemma upn_k_sigma_x':
   forall k sigma x,
@@ -698,7 +723,7 @@ Proof.
 Qed.
 
 
-Theorem preservation_trad t1:
+Theorem sred_preserves_jt_term t1:
   fv 0 t1 ->
   forall t2,
     sred t1 t2 ->
@@ -723,6 +748,41 @@ Proof.
   { rewrite fv_App_eq in *; unpack. eapply IHsred; eauto. }
   { rewrite fv_App_eq in *; unpack; eapply IHsred; eauto. }
 Qed.
+
+Theorem  sred_preserves_fv {k t1}:
+  fv k t1 ->
+  forall {t2},
+    sred t1 t2 ->
+    fv k t2.
+Proof.
+  intros H t2 Hsred.
+  revert H.
+  induction Hsred; intros; simpl in *.
+  { eapply fv_Value_eq. }
+  { admit "might be false". }
+  { rewrite fv_App_eq in *; unpack; split; eauto. }
+  { rewrite fv_App_eq in *; unpack; split; eauto. }
+Admitted.
+
+Theorem star_sred_preserves_jt_term t1:
+  fv 0 t1 ->
+  forall t2,
+    star sred t1 t2 ->
+    forall Gamma T,
+      jt_term Gamma t1 T ->
+      jt_term Gamma t2 T.
+Proof.
+  intros H t2 Hsred.
+  revert H.
+  induction Hsred; intros; eauto.
+  { 
+    apply IHHsred; eauto using
+      sred_preserves_jt_term,
+      sred_preserves_fv.
+  }
+Qed.
+
+
 
 
 
@@ -753,7 +813,7 @@ Qed.
 
 Definition halts t : Prop :=
   exists t',
-    star sred t t' /\ irred sred t'.
+  irred sred t' /\ star sred t t' .
 
 Fixpoint rel  T t : Prop :=
   jt_term [] t T /\ halts t /\
@@ -762,12 +822,23 @@ Fixpoint rel  T t : Prop :=
   | TFun T1 T2 => (forall s, rel T1 s -> rel T2 (App t s))
   end).
 
+Lemma unfold_rel {T t} :
+  rel T t <->
+  jt_term [] t T /\ halts t /\
+  (match T with
+  | TBool => True
+  | TFun T1 T2 => (forall s, rel T1 s -> rel T2 (App t s))
+  end).
+Proof.
+  split; case T; simpl; unpack; eauto.
+Qed.
+
 Lemma rel_halt {T t}: rel T t -> halts t.
 Proof.
   induction T; simpl; intros; unpack; eauto.
 Qed.
 
-Lemma rel_typable_empty { T t}: rel T t -> jt_term [] t T.
+Lemma rel_jt_term_nil { T t}: rel T t -> jt_term [] t T.
 Proof.
   induction T; simpl; intros; unpack; eauto.
 Qed.
@@ -778,8 +849,8 @@ Proof.
   intros ? ? Hsred; unfold halts; split.
   { intros [t'' [H1 H2]].
     exists t''; split; eauto.
-    destruct H1.
-    { pose proof (H2 _ Hsred); tryfalse. }
+    destruct H2.
+    { pose proof (H1 _ Hsred); tryfalse. }
     { pose proof (sred_deterministic _ _ Hsred _ H); subst.
       eauto.
     }
@@ -793,11 +864,11 @@ Lemma sred_preserves_rel :
   forall {T t t'}, sred t t' -> (rel T t -> rel T t').
 Proof.
   induction T; simpl; intros ? ? Hsred; repeat split; unpack.
-  { eapply preservation_trad; eauto.
+  { eapply sred_preserves_jt_term; eauto.
     pose proof (jt_term_fv H); simpl in *; eauto.
   }
   { destruct (sred_preserves_halting _ _ Hsred); eauto. }
-  { eapply preservation_trad; eauto.
+  { eapply sred_preserves_jt_term; eauto.
     pose proof (jt_term_fv H); simpl in *; eauto.
   }
   { destruct (sred_preserves_halting _ _ Hsred); eauto. }
@@ -808,7 +879,13 @@ Proof.
   }
 Qed.
 
-Lemma sred_preserves_rel' :
+Lemma star_sred_preserves_rel :
+  forall {T t t'}, star sred t t' -> (rel T t -> rel T t').
+Proof.
+  induction 1; intros; eauto using sred_preserves_rel.
+Qed.
+
+Lemma sred_copreserves_rel :
   forall {T t t'}, jt_term [] t T -> sred t t' -> (rel T t' -> rel T t).
 Proof.
   induction T; simpl; intros ? ? Hjt Hsred; repeat split; unpack; eauto.
@@ -817,39 +894,129 @@ Proof.
   { intros.
     pose proof (H1 _ H2).
     eapply IHT2.
-    { econstructor; eauto using rel_typable_empty. }
+    { econstructor; eauto using rel_jt_term_nil. }
     { econstructor; eauto. }
     { eauto. }
   }
 Qed.
 
+Lemma star_sred_copreserves_rel :
+  forall {T t t'}, jt_term [] t T -> star sred t t' -> (rel T t' -> rel T t).
+Proof.
+  intros.
+  induction H0 using star_ind_1n.
+  { eauto. }
+  { pose proof (jt_term_fv H); simpl in *.
+    eapply sred_copreserves_rel; eauto.
+    eapply IHstar; eauto.
+    eapply sred_preserves_jt_term; eauto.
+  }
+Qed.
+
 Definition instantiation := List.Forall2 (fun T v => rel T (Value v)).
 
-Lemma msubst_rel: forall {Gamma t T},
-  jt_term Gamma t T ->
-  forall Gamma1 Gamma2,
-  Gamma1++Gamma2 = Gamma ->
-  forall sigma,
-  List.Forall2 jt_value sigma Gamma2 ->
-  rel T t.[upn (List.length Gamma1) (subst_of_env sigma)]
-  .
+
+Lemma soe_cons v sigma:
+  subst_of_env (v :: sigma) = (Value v) .: subst_of_env sigma.
 Proof.
-(* I really don't want to show this *)
+  eapply FunctionalExtensionality.functional_extensionality.
+  induction x; asimpl; eauto.
+Qed.
+
+Lemma subst_of_env_decompose { t v sigma }:
+  t.[subst_of_env (v :: sigma)] = t.[up (subst_of_env sigma)].[Value v/].
+Proof.
+  asimpl; rewrite soe_cons.
+  eauto.
+Qed.
+
+Theorem soe_nil:
+  subst_of_env [] = ids.
+Proof.
+  eapply FunctionalExtensionality.functional_extensionality.
+  induction x; eauto.
+Qed.
+
+Lemma subst_of_env_cons_nil { t v }:
+  t.[subst_of_env [v]] = t.[Value v/].
+Proof.
+  repeat f_equal.
+  asimpl; rewrite soe_cons; rewrite soe_nil.
+  eauto.
+Qed.
+
+
+Lemma rel_subst {Gamma t T}:
+  jt_term Gamma t T ->
+  forall {sigma},
+  List.Forall2 (fun T v => rel T (Value v)) Gamma sigma ->
+  rel T t.[subst_of_env sigma].
+Proof.
+  induction 1; intros.
+  { admit "application of List.Forall2 companion lemmas". }
+  { pose proof (IHjt_term1 _ H1) as H2; simpl in H2; unpack.
+    pose proof (IHjt_term2 _ H1) as H5; simpl in H5; unpack.
+    pose proof (H4 _ H5).
+
+    simpl; eauto.
+  }
+  { assert (jt_term [T1] t.[up (subst_of_env sigma)] T2).
+    { replace up with (upn (List.length [T1])).
+      2:{ unfold upn; apply FunctionalExtensionality.functional_extensionality; clear; intros; simpl; eauto. }
+      eapply jt_term_subst_aux; simpl; eauto.
+      clear -H0; induction H0; econstructor; eauto.
+      pose proof (rel_jt_term_nil H); repeat inv_jt; eauto.
+    }
+
+    eapply sred_copreserves_rel.
+    { econstructor; eauto. }
+    { econstructor. }
+
+    rewrite unfold_rel; repeat split.
+    { repeat econs_jt; eauto. }
+    { eapply star_refl_prop; repeat intro.
+      inversion H2.
+    }
+
+    (* forall s, rel T1 s -> rel T2 (App t s) *)
+    intros.
+    pose proof (rel_halt H2).
+    pose proof (rel_jt_term_nil H2).
+
+    unfold halts in H3; unpack.
+    assert (fv (List.length ([]: list type)) s).
+    { eapply jt_term_fv; eauto. }
+
+    simpl in *.
+    pose proof (star_sred_preserves_jt_term _ H6 _ H5 _ _ H4).
+    pose proof (sred_progress_irred H7 H3); unpack; subst.
+
+    eapply star_sred_copreserves_rel.
+    { repeat econs_jt; eauto. }
+    { eapply star_trans; [eapply star_sred_app_right; eauto|].
+      eapply star_step; [econstructor|].
+      eapply star_refl.
+    }
+
+
+    rewrite soe_cons, soe_nil.
+    rewrite <- subst_of_env_decompose.
+    apply IHjt_term; econstructor; eauto.
+    eapply star_sred_preserves_rel; eauto.
+  }
+  {
+    admit "need rework".
+  }
 Admitted.
+
 
 Theorem normalization { t T }: jt_term [] t T -> halts t.
 Proof.
   intros.
   apply (@rel_halt T).
-  replace t with (t.[upn (List.length ([]: list type)) (subst_of_env [])]).
-  2:{ unfold upn; unfold subst_of_env; simpl.
-      replace t with t.[ids] at 2; f_equal.
-      apply FunctionalExtensionality.functional_extensionality.
-      clear; intros; rewrite nth_error_nil; f_equal; lia.
-      asimpl; eauto.
-  }
-
-  eapply (msubst_rel H _ []); simpl; eauto.
+  replace t with (t.[ids]) by (asimpl; eauto).
+  rewrite <- soe_nil.
+  eapply rel_subst; eauto.
 Qed.
 
 
