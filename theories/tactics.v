@@ -11,7 +11,8 @@ Require Import Decidable PeanoNat.
 Require Eqdep_dec.
 
 From Ltac2 Require Import Ltac2.
-From Ltac2 Require Import Constr Std Message Control List.
+From Ltac2 Require Import Constr Std Message Control List FSet Ltac1.
+Import Printf.
 Set Default Proof Mode "Classic".
 
 (* -------------------------------------------------------------------------- *)
@@ -96,6 +97,72 @@ Section unpack_tests.
     unpack; eauto.
   Qed.
 End unpack_tests.
+
+
+Ltac2 revert_many (h: Init.ident list) :=
+  Std.revert h
+.
+
+Ltac2 ignore x := ().
+
+Ltac2 pp_print_list sep(message) formatter := ().
+
+(** Tactic revert everything in the current goal, but the hypothesis given as input. *)
+Ltac2 revert_except2 (hyps: Init.ident list) : unit :=
+  let hyps := List.fold_right FSet.add (FSet.empty FSet.Tags.ident_tag) hyps in
+
+  let current_hyps () :=
+    List.fold_right FSet.add (FSet.empty FSet.Tags.ident_tag)
+    (List.map (fun (a, b, c) => a) (Control.hyps ()))
+  in
+
+  Control.assert_valid_argument
+    (Message.to_string (fprintf
+      "hypothesis %s is not in current goal"
+      (
+        let res := List.hd_opt (FSet.elements (FSet.diff hyps (current_hyps ()))) in
+        match res with
+        | None => "???"
+        | Some h => Message.to_string (Message.of_ident h)
+        end)))
+    (FSet.subset hyps (current_hyps ()));
+
+
+  let _ := List.iter (fun h => ignore (Control.hyp h)) in
+  Notations.repeat0 (fun () => multi_match! goal with
+  | [h: _ |- _] =>
+    if FSet.mem h hyps then
+      ()
+    else
+       Std.revert [h];
+       (* checks whenever reverting h reverted too one of the hypothesis to keep *)
+       Control.assert_true ((FSet.subset hyps (current_hyps ())))
+  end) .
+
+Ltac2 Notation "revert" "-" hyps(list0(ident)) := revert_except2 hyps.
+
+Ltac2 option_get (o: 'a option): 'a := match o with | None => throw No_value | Some v => v end.
+
+Ltac revert_except1 := ltac2:(hypo |-
+  (* conversion to ltac2 *)
+  let hypo := option_get (Ltac1.to_list hypo) in
+  let hypo := List.map Ltac1.to_ident hypo in
+  let hypo := List.map option_get hypo in
+  revert_except2 hypo).
+
+Tactic Notation "revert" "-" hyp_list(hypo) := revert_except1 hypo.
+
+Theorem revert_minus_example_1 :
+  forall (a b c d : nat),
+    a + b = c ->
+    b + a = c + d ->
+    a = c - b.
+Proof.
+  intros a b c d H1 H2.
+  revert -H1.
+  (* H2 and d are reverted. *)
+Abort.
+
 
 (* -------------------------------------------------------------------------- *)
 

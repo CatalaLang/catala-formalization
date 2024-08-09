@@ -281,6 +281,97 @@ with jt_value:
       jt_value (Closure tcl sigma_cl) (TFun T1 T2)
 .
 
+Lemma jt_term_jt_value_ind
+: forall
+  (P : forall (l : list type) (t : term) (t0 : type),
+       jt_term l t t0 -> Prop)
+  (P0 : forall (v : value) (t : type), jt_value v t -> Prop),
+
+  (* Hypothesis 1: Base case for variables *)
+  (forall (Gamma : list type) (x : nat) (T : type)
+     (e : Some T = List.nth_error Gamma x),
+   P Gamma (Var x) T (JTVar Gamma x T e)) ->
+
+  (* Hypothesis 2: Inductive case for application *)
+  (forall (Gamma : list type) (t1 t2 : term)
+     (T1 T2 : type) (j : jt_term Gamma t1 (TFun T1 T2)),
+   P Gamma t1 (TFun T1 T2) j ->
+   forall j0 : jt_term Gamma t2 T1,
+   P Gamma t2 T1 j0 ->
+   P Gamma (App t1 t2) T2 (JTApp Gamma t1 t2 T1 T2 j j0)) ->
+
+  (* Hypothesis 3: Inductive case for abstraction *)
+  (forall (Gamma : list type) (t : term) (T1 T2 : type)
+     (j : jt_term (T1 :: Gamma) t T2),
+   P (T1 :: Gamma) t T2 j ->
+   P Gamma (Lam t) (TFun T1 T2) (JTLam Gamma t T1 T2 j)) ->
+
+  (* Hypothesis 4: Base case for values *)
+  (forall (Gamma : list type) (v : value) (T : type) (j : jt_value v T),
+   P0 v T j ->
+   P Gamma (Value v) T (JTValue Gamma v T j)) ->
+
+  (* Hypothesis 5: Inductive case for closures *)
+  (forall (tcl : {bind term}) (sigma_cl : list value)
+     (Gamma_cl : list type) (T1 T2 : type)
+     (f : List.Forall2 jt_value sigma_cl Gamma_cl)
+     (j : jt_term Gamma_cl (Lam tcl) (TFun T1 T2)),
+   P Gamma_cl (Lam tcl) (TFun T1 T2) j ->
+   P0 (Closure tcl sigma_cl) (TFun T1 T2)
+     (JTValueClosure tcl sigma_cl Gamma_cl T1 T2 f j)) ->
+
+  (* Conclusion *)
+  forall (l : list type) (t : term) (t0 : type) (j : jt_term l t t0),
+  P l t t0 j
+with jt_value_jt_term_ind: forall
+  (P : forall (l : list type) (t : term) (t0 : type),
+      jt_term l t t0 -> Prop)
+  (P0 : forall (v : value) (t : type), jt_value v t -> Prop),
+
+  (* Hypothesis 1: Base case for variables *)
+  (forall (Gamma : list type) (x : nat) (T : type)
+    (e : Some T = List.nth_error Gamma x),
+  P Gamma (Var x) T (JTVar Gamma x T e)) ->
+
+  (* Hypothesis 2: Inductive case for application *)
+  (forall (Gamma : list type) (t1 t2 : term)
+    (T1 T2 : type) (j : jt_term Gamma t1 (TFun T1 T2)),
+  P Gamma t1 (TFun T1 T2) j ->
+  forall j0 : jt_term Gamma t2 T1,
+  P Gamma t2 T1 j0 ->
+  P Gamma (App t1 t2) T2 (JTApp Gamma t1 t2 T1 T2 j j0)) ->
+
+  (* Hypothesis 3: Inductive case for abstraction *)
+  (forall (Gamma : list type) (t : term) (T1 T2 : type)
+    (j : jt_term (T1 :: Gamma) t T2),
+  P (T1 :: Gamma) t T2 j ->
+  P Gamma (Lam t) (TFun T1 T2) (JTLam Gamma t T1 T2 j)) ->
+
+  (* Hypothesis 4: Base case for values *)
+  (forall (Gamma : list type) (v : value) (T : type) (j : jt_value v T),
+  P0 v T j ->
+  P Gamma (Value v) T (JTValue Gamma v T j)) ->
+
+  (* Hypothesis 5: Inductive case for closures *)
+  (forall (tcl : {bind term}) (sigma_cl : list value)
+    (Gamma_cl : list type) (T1 T2 : type)
+    (f : List.Forall2 jt_value sigma_cl Gamma_cl)
+    (j : jt_term Gamma_cl (Lam tcl) (TFun T1 T2)),
+  P Gamma_cl (Lam tcl) (TFun T1 T2) j ->
+  P0 (Closure tcl sigma_cl) (TFun T1 T2)
+    (JTValueClosure tcl sigma_cl Gamma_cl T1 T2 f j)) ->
+
+  (* Conclusion *)
+  forall (l : list type) (v : value) (T : type) (j : jt_value v T),
+  P0 v T j.
+Proof.
+  all: lock jt_term_jt_value_ind.
+  all: lock jt_value_jt_term_ind.
+  all: intros; case j; intros; try match goal with [h: _ |- _] => eapply h end.
+  all: try solve [unlock jt_term_jt_value_ind; eapply (jt_term_jt_value_ind); clear jt_term_jt_value_ind; eauto].
+  all: try solve [unlock jt_value_jt_term_ind; eapply (jt_value_jt_term_ind); clear jt_value_jt_term_ind; eauto].
+Qed.
+
 (** Expanding the rules of typing to continuation-bases semantics requires to define the typing jugment for continuations. This typing judgement have two additional informations: the "hole" type, and the "environement" in the hole. Both are required with our presentation since the hole is filed when the jt_state judgement is defined. *)
 
 Inductive jt_result: result -> type -> Prop := 
@@ -756,7 +847,7 @@ Theorem  sred_preserves_fv {k t1}:
     fv k t2.
 Proof.
   intros H t2 Hsred.
-  revert H.
+  revert -Hsred.
   induction Hsred; intros; simpl in *.
   { eapply fv_Value_eq. }
   { admit "might be false". }
@@ -773,7 +864,7 @@ Theorem star_sred_preserves_jt_term t1:
       jt_term Gamma t2 T.
 Proof.
   intros H t2 Hsred.
-  revert H.
+  revert -Hsred.
   induction Hsred; intros; eauto.
   { 
     apply IHHsred; eauto using
@@ -1343,7 +1434,7 @@ Lemma sim_state_apply_conts {kappa t1 t2 sigma}:
     (fst (apply_conts kappa (t1, sigma)))
     (fst (apply_conts kappa (t2, sigma))).
 Proof.
-  revert sigma t1 t2.
+  revert -kappa.
   induction kappa as [|k kappa] using List.rev_ind; simpl; eauto.
   induction k; intros; repeat rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl.
   { econstructor. eapply IHkappa; eauto.
@@ -1642,7 +1733,7 @@ Lemma value_apply_conts {v kappa t env0}:
   (Value v = t))
   .
 Proof.
-  split; revert v kappa t env0 H.
+  split; revert -.
   { induction kappa as [|k kappa] using List.rev_ind.
     { econstructor. }
     { induction k.
@@ -1783,8 +1874,7 @@ Proof.
   { induction s1; simpl; intro Hkappa; subst; simpl.
     { remember e.[subst_of_env env] as t1.
       intros t2 Ht1t2.
-      generalize dependent env.
-      generalize dependent e.
+      revert -Ht1t2.
       
       induction Ht1t2; intros; repeat subst_of_env.
       all: try repeat (eapply star_step_prop; [econstructor; eauto|]).
@@ -1844,7 +1934,7 @@ Proof.
     try rewrite fst_apply_conts_CReturn; eauto end.
 
     all: match typeof Ht2t3 with sred ?u1 ?u2 => remember u1 as u end.
-    generalize dependent env; generalize dependent e; generalize dependent kappa; generalize dependent t2.
+    revert -Ht2t3.
     all: induction Ht2t3; intros; inj; tryfalse.
     all: repeat match goal with
       [h: Value _ = fst (apply_conts _ _) |- _] =>
