@@ -281,96 +281,85 @@ with jt_value:
       jt_value (Closure tcl sigma_cl) (TFun T1 T2)
 .
 
-Lemma jt_term_jt_value_ind
-: forall
-  (P : forall (l : list type) (t : term) (t0 : type),
-       jt_term l t t0 -> Prop)
-  (P0 : forall (v : value) (t : type), jt_value v t -> Prop),
+Require Import Ltac2.Ltac2.
+Set Default Proof Mode "Classic".
 
-  (* Hypothesis 1: Base case for variables *)
-  (forall (Gamma : list type) (x : nat) (T : type)
-     (e : Some T = List.nth_error Gamma x),
-   P Gamma (Var x) T (JTVar Gamma x T e)) ->
+Ltac2 current_inv_jt () :=
+  match! goal with
+  | [ h: jt_term _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_value ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_value _ ?c |- _ ] => smart_inversion c h
+  | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 _ _ ?c |- _ ] => smart_inversion c h
+end.
 
-  (* Hypothesis 2: Inductive case for application *)
-  (forall (Gamma : list type) (t1 t2 : term)
-     (T1 T2 : type) (j : jt_term Gamma t1 (TFun T1 T2)),
-   P Gamma t1 (TFun T1 T2) j ->
-   forall j0 : jt_term Gamma t2 T1,
-   P Gamma t2 T1 j0 ->
-   P Gamma (App t1 t2) T2 (JTApp Gamma t1 t2 T1 T2 j j0)) ->
+Ltac current_inv_jt := ltac2:(current_inv_jt ()).
 
-  (* Hypothesis 3: Inductive case for abstraction *)
-  (forall (Gamma : list type) (t : term) (T1 T2 : type)
-     (j : jt_term (T1 :: Gamma) t T2),
-   P (T1 :: Gamma) t T2 j ->
-   P Gamma (Lam t) (TFun T1 T2) (JTLam Gamma t T1 T2 j)) ->
+Section jt_induction.
 
-  (* Hypothesis 4: Base case for values *)
-  (forall (Gamma : list type) (v : value) (T : type) (j : jt_value v T),
-   P0 v T j ->
-   P Gamma (Value v) T (JTValue Gamma v T j)) ->
+  Hypothesis P : forall (Gamma : list type) (t : term) (T : type), Prop.
+  Hypothesis Q : forall (v : value) (t : type), Prop.
 
-  (* Hypothesis 5: Inductive case for closures *)
-  (forall (tcl : {bind term}) (sigma_cl : list value)
-     (Gamma_cl : list type) (T1 T2 : type)
-     (f : List.Forall2 jt_value sigma_cl Gamma_cl)
-     (j : jt_term Gamma_cl (Lam tcl) (TFun T1 T2)),
-   P Gamma_cl (Lam tcl) (TFun T1 T2) j ->
-   P0 (Closure tcl sigma_cl) (TFun T1 T2)
-     (JTValueClosure tcl sigma_cl Gamma_cl T1 T2 f j)) ->
+  Hypothesis IHvar: forall (Gamma : list type) (x : nat) (T : type),
+    Some T = List.nth_error Gamma x ->
+    P Gamma (Var x) T.
 
-  (* Conclusion *)
-  forall (l : list type) (t : term) (t0 : type) (j : jt_term l t t0),
-  P l t t0 j
-with jt_value_jt_term_ind: forall
-  (P : forall (l : list type) (t : term) (t0 : type),
-      jt_term l t t0 -> Prop)
-  (P0 : forall (v : value) (t : type), jt_value v t -> Prop),
+  Hypothesis IHapp: forall (Gamma : list type) (t1 t2 : term)
+    (T1 T2 : type),
+    jt_term Gamma t1 (TFun T1 T2) ->
+    forall IHjt_term1: P Gamma t1 (TFun T1 T2),
+    jt_term Gamma t2 T1 ->
+    forall IHjt_term2: P Gamma t2 T1,
+    P Gamma (App t1 t2) T2.
 
-  (* Hypothesis 1: Base case for variables *)
-  (forall (Gamma : list type) (x : nat) (T : type)
-    (e : Some T = List.nth_error Gamma x),
-  P Gamma (Var x) T (JTVar Gamma x T e)) ->
+  Hypothesis IHLam: forall (Gamma : list type) (t : term) (T1 T2 : type),
+  jt_term (T1 :: Gamma) t T2 ->
+  forall IHjt_term: P (T1 :: Gamma) t T2,
+  P Gamma (Lam t) (TFun T1 T2).
 
-  (* Hypothesis 2: Inductive case for application *)
-  (forall (Gamma : list type) (t1 t2 : term)
-    (T1 T2 : type) (j : jt_term Gamma t1 (TFun T1 T2)),
-  P Gamma t1 (TFun T1 T2) j ->
-  forall j0 : jt_term Gamma t2 T1,
-  P Gamma t2 T1 j0 ->
-  P Gamma (App t1 t2) T2 (JTApp Gamma t1 t2 T1 T2 j j0)) ->
+  Hypothesis IHValue: forall (Gamma : list type) (v : value) (T : type),
+  jt_value v T ->
+  forall IHjt_value: Q v T,
+  P Gamma (Value v) T.
 
-  (* Hypothesis 3: Inductive case for abstraction *)
-  (forall (Gamma : list type) (t : term) (T1 T2 : type)
-    (j : jt_term (T1 :: Gamma) t T2),
-  P (T1 :: Gamma) t T2 j ->
-  P Gamma (Lam t) (TFun T1 T2) (JTLam Gamma t T1 T2 j)) ->
+  Hypothesis IHClosure: forall (tcl : {bind term}) (sigma_cl : list value)
+    (Gamma_cl : list type) (T1 T2 : type),
+  List.Forall2 jt_value sigma_cl Gamma_cl ->
+  forall (IHForall2jt_value: List.Forall2 Q sigma_cl Gamma_cl),
+  jt_term Gamma_cl (Lam tcl) (TFun T1 T2) ->
+  forall (IHjt_term: P Gamma_cl (Lam tcl) (TFun T1 T2)),
+  Q (Closure tcl sigma_cl) (TFun T1 T2).
 
-  (* Hypothesis 4: Base case for values *)
-  (forall (Gamma : list type) (v : value) (T : type) (j : jt_value v T),
-  P0 v T j ->
-  P Gamma (Value v) T (JTValue Gamma v T j)) ->
+  Lemma jt_term_jt_value_ind:
+    forall (Gamma : list type) (t : term) (T : type),
+    jt_term Gamma t T ->
+    P Gamma t T
+  with jt_value_jt_term_ind:
+    forall (v : value) (T : type),
+    jt_value v T ->
+    Q v T.
+  Proof.
+    all: lock jt_term_jt_value_ind.
+    all: lock jt_value_jt_term_ind.
+    all: induction 1; try match reverse goal with [h: _ |- _] => eapply h end; repeat current_inv_jt.
+    all: try solve [unlock jt_term_jt_value_ind; eapply (jt_term_jt_value_ind); clear jt_term_jt_value_ind; eauto].
+    all: try solve [unlock jt_value_jt_term_ind; eapply (jt_value_jt_term_ind); clear jt_value_jt_term_ind; eauto].
 
-  (* Hypothesis 5: Inductive case for closures *)
-  (forall (tcl : {bind term}) (sigma_cl : list value)
-    (Gamma_cl : list type) (T1 T2 : type)
-    (f : List.Forall2 jt_value sigma_cl Gamma_cl)
-    (j : jt_term Gamma_cl (Lam tcl) (TFun T1 T2)),
-  P Gamma_cl (Lam tcl) (TFun T1 T2) j ->
-  P0 (Closure tcl sigma_cl) (TFun T1 T2)
-    (JTValueClosure tcl sigma_cl Gamma_cl T1 T2 f j)) ->
+    all: eauto.
 
-  (* Conclusion *)
-  forall (l : list type) (v : value) (T : type) (j : jt_value v T),
-  P0 v T j.
-Proof.
-  all: lock jt_term_jt_value_ind.
-  all: lock jt_value_jt_term_ind.
-  all: intros; case j; intros; try match goal with [h: _ |- _] => eapply h end.
-  all: try solve [unlock jt_term_jt_value_ind; eapply (jt_term_jt_value_ind); clear jt_term_jt_value_ind; eauto].
-  all: try solve [unlock jt_value_jt_term_ind; eapply (jt_value_jt_term_ind); clear jt_value_jt_term_ind; eauto].
-Qed.
+    { clear H4.
+      induction H; econstructor; eauto.
+      apply jt_value_jt_term_ind; eauto.
+    }
+    { econstructor; eauto. }
+    { eapply IHLam; eauto.
+      eapply jt_term_jt_value_ind.
+      eauto.
+    }
+  Qed.
+
+End jt_induction.
 
 (** Expanding the rules of typing to continuation-bases semantics requires to define the typing jugment for continuations. This typing judgement have two additional informations: the "hole" type, and the "environement" in the hole. Both are required with our presentation since the hole is filed when the jt_state judgement is defined. *)
 
@@ -432,8 +421,6 @@ Inductive jt_state:  list type -> state -> type -> Prop :=
 . 
 
 
-Require Import Ltac2.Ltac2.
-Set Default Proof Mode "Classic".
 
 
 (** Specialized tactics to invert typing judgement if one argument is a known constructor. *)
@@ -1043,7 +1030,15 @@ Lemma rel_subst {Gamma t T}:
   List.Forall2 (fun T v => rel T (Value v)) Gamma sigma ->
   rel T t.[subst_of_env sigma].
 Proof.
-  induction 1; intros.
+  revert -.
+  eapply (jt_term_jt_value_ind
+    (fun Gamma t T => forall sigma : list value,
+    List.Forall2 (fun (T0 : type) (v : value) => rel T0 (Value v)) Gamma sigma ->
+    rel T t.[subst_of_env sigma])
+    (fun v T =>
+    rel T (Value v))
+  ); intros.
+
   { pose proof (Forall2_nth_error_Some_left _ _ _ H0 _ _ (eq_sym H)); unpack.
     asimpl; unfold subst_of_env.
     rewrite H1.
@@ -1101,8 +1096,29 @@ Proof.
     eapply star_sred_preserves_rel; eauto.
   }
   {
-    admit "need rework".
+    simpl.
+    eapply IHjt_value.
   }
+  { rewrite unfold_rel; repeat split.
+    { repeat inv_jt; repeat econs_jt; eauto. }
+    { eapply star_refl_prop; repeat intro.
+      inversion H1.
+    }
+
+    (* forall s, rel T1 s -> rel T2 (App t s) *)
+    intros.
+
+
+    pose proof (IHjt_term _ (List.Forall2_flip IHForall2jt_value)).
+    rewrite unfold_rel in H2; unpack.
+    pose proof (H4 _ H1).
+    simpl in *.
+
+    ltac2:(Control.unshelve (epose proof (sred_preserves_rel _ H5)).
+
+    admit.
+
+   }
 Admitted.
 
 
