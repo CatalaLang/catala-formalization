@@ -600,3 +600,68 @@ Proof.
   { inversion H. }
   { repeat f_equal. eapply IHsred. eauto. }
 Qed.
+
+(** Simple translation of [if t then ta else tb] into [if (if t then false else true) then tb else ta] *)
+
+Fixpoint trans_term t :=
+  match t with
+  | Var x => Var x
+  | App t1 t2 => App (trans_term t1) (trans_term t2)
+  | Lam t => Lam (trans_term t)
+  | Value v => Value (trans_value v)
+  | If u t1 t2 =>
+    If (If (trans_term u) (Value (Bool false)) (Value (Bool true)))
+       (trans_term t2) (trans_term t1)
+  end
+with trans_value v :=
+  match v with
+  | Closure t sigma =>
+    Closure (trans_term t) (List.map trans_value sigma)
+  | Bool b => Bool b
+  end
+.
+
+Fixpoint trans_conts (kappa: list cont): list cont :=
+  match kappa with
+  | nil => nil
+  | CAppR t2 :: kappa => CAppR (trans_term t2) :: trans_conts kappa
+  | CClosure t sigma :: kappa =>
+    CClosure (trans_term t) (List.map trans_value sigma) :: trans_conts kappa
+  | CReturn sigma :: kappa =>
+    CReturn (List.map trans_value sigma) :: trans_conts kappa
+  | CIf t1 t2 :: kappa =>
+    CIf (Value (Bool false)) (Value (Bool true))::
+    CIf (trans_term t2) (trans_term t1) ::
+    trans_conts kappa
+  end
+.
+
+Definition trans_return (r: result): result:=
+  match r with
+  | RValue v => RValue (trans_value v)
+  end.
+
+Definition trans_state (s: state) : state :=
+  match s with
+  | mode_eval e kappa env =>
+    mode_eval (trans_term e) (trans_conts kappa) (List.map trans_value env)
+  | mode_cont kappa env r =>
+    mode_cont (trans_conts kappa) (List.map trans_value env) (trans_return r)
+  end
+.
+
+Theorem correction_continuations:
+  forall s1 s2,
+  cred s1 s2 ->
+
+  star cred
+    (trans_state s1) (trans_state s2).
+Proof.
+Local Ltac step := (
+  try (eapply star_step; [solve
+    [ econstructor; simpl; eauto using List.map_nth_error
+  ]|]))
+.
+  induction 1; simpl; repeat step; try eapply star_refl.
+Qed.
+
