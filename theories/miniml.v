@@ -717,7 +717,7 @@ Definition apply_state_aux (s: state): term * list value :=
   | mode_cont stack env r =>
     (apply_conts stack ((apply_return r),env))
   end.
-  
+
 (* We use an notation to be apple to simplify this definition. *)
 Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
 
@@ -1260,6 +1260,84 @@ Proof.
   Unshelve.
   induction s1; simpl; eauto.
 Qed.
+
+Check List.rev_ind.
+
+Lemma state_rev_ind
+	 : forall (P : state -> Prop),
+       (forall s, stack s = [] -> P s) ->
+       (forall (k: cont) (s: state),
+        P s -> P (append_stack s [k])) ->
+       forall s, P s.
+Proof.
+  intros until s.
+  remember (stack s) as l; generalize dependent s.
+  induction l using List.rev_ind.
+  { intros; apply H; eauto. }
+  { intros; induction s; simpl in *; subst.
+    all: erewrite append_stack_app; [|simpl; eauto].
+    all: simpl with_stack.
+    all: eauto.
+  }
+Qed.
+
+Lemma state_rev_case:
+  forall s, (stack s = []) \/ (exists s' k, s = append_stack s' [k]).
+Proof.
+  induction s using state_rev_ind; eauto.
+Qed.
+
+
+
+Theorem simulation_sred_cred_base:
+  forall t1 t2,
+    sred t1 t2 ->
+    forall s1, 
+    apply_state s1 = t1 ->
+    exists s2,
+      sim_state s2 t2 /\ star cred s1 s2.
+Proof.
+  induction 1.
+  4:{
+    intros.
+    destruct (state_rev_case s1).
+    { admit. }
+    { unpack; subst; induction k.
+      rewrite apply_state_append_stack in *; simpl in *; unfold apply_cont in *; sp; simpl in *.
+      injections; subst.
+      epose proof (IHsred _ eq_refl); unpack.
+      epose proof (star_cred_append_stack H1).
+      eapply star_trans_prop; [solve[eauto]|].
+      eapply star_refl_prop.
+      destruct H0.
+      eapply sim_state_from_equiv.
+      rewrite apply_state_append_stack in *; simpl in *; unfold apply_cont in *; sp; simpl in *.
+      econstructor.
+      { admit. }
+      { admit "ok". }
+      
+    }
+    case s1.
+    case kappa using List.rev_ind.
+    2:{ }
+    intros. }
+  all: intros.
+  all: case s1 using state_rev_ind.
+  2:{ clear. }
+  2:{ }
+  all: revert H.
+  all: try rewrite apply_state_append_stack.
+  all: try induction k; simpl.
+  all: unfold apply_cont; sp; simpl; intros; tryfalse.
+  2: { }
+  4: { }
+  2: { pose proof (IHs1 H); unpack. }
+    case s1 as [t' kappa env|kappa env r];
+    (case kappa as [|k kappa] using ;[first[case t'|case r]|case k]); simpl; try congruence.
+  32:{
+    intros.
+    rewrite apply_state_append_stack.
+  }
 
 
 Theorem simulation_sred_cred_base:
