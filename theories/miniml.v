@@ -10,7 +10,7 @@ Require Import Coq.Classes.SetoidClass.
 Require Import Wellfounded.
 
 
-(*** Definitions of terms and continuations for mini-ml ***)
+(*** Definitions of terms and continuations for mini-ML ***)
 
 
 Inductive term :=
@@ -528,7 +528,7 @@ Hint Rewrite fv_Lam_eq fv_App_eq fv_If_eq : fv.
 Theorem progress_trad t1:
   forall Gamma T,
     jt_term Gamma t1 T ->
-    fv 0 t1 ->
+    Gamma = [] ->
     (exists t2, sred t1 t2) \/ (exists v, t1 = Value v).
 Proof.
   induction 1.
@@ -542,12 +542,13 @@ Proof.
   all: try solve [right; simpl; eauto].
 
   { (* Could be shown in a different lemma. *)
-    exfalso. unfold fv in *; unfold upn in *; unfold ren in *. asimpl in *. inj. clear -H1. induction x; congruence. }
+    exfalso.
+    induction x; simpl in *; congruence. 
+  } 
 
   { (** Manual handling of the proof here. *)
-    rewrite fv_App_eq in *; unpack.
-    pose proof (IHjt_term1 H1).
-    pose proof (IHjt_term2 H2).
+    pose proof (IHjt_term1 eq_refl).
+    pose proof (IHjt_term2 eq_refl).
     unzip; subst.
     all: intros; repeat inv_jt.
     (* automation here depends on the order of the constructors. *)
@@ -555,8 +556,7 @@ Proof.
   }
   { (* applying left; eexists, econstructor leads to an unsolvable goal as we are not sure whenever u redices to t2 or is a value. *)
     (* left; eexists; econstructor. *)
-    rewrite fv_If_eq in *; unpack.
-    pose proof (IHjt_term1 H2).
+    pose proof (IHjt_term1 eq_refl).
     unzip; subst.
     all: intros; repeat inv_jt.
 
@@ -566,9 +566,7 @@ Proof.
     (* the normal proof script can the resume. *)
     all: try solve [left; eexists; econstructor; eauto].
     all: try solve [right; simpl; eauto].
-
   }
-
 Qed.
 
 
@@ -593,7 +591,6 @@ Proof.
   { inversion H. }
   { inversion H. }
   { repeat f_equal. eapply IHsred. eauto. }
-
   { inversion H4. }
   { inversion H4. }
   { inversion H. }
