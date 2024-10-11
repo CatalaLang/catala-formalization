@@ -135,3 +135,10 @@ Theorem Forall2_nth_error_Some {A B} F l1 l2:
 Proof.
   induction 1, k; simpl; intros; inj; eauto.
 Qed.
+
+Lemma nth_error_Some' {A: Type} {l: list A} {n v} : nth_error l n = Some v -> n < List.length l.
+Proof.
+  intros.
+  rewrite <- nth_error_Some in *.
+  repeat intro; tryfalse.
+Qed.
