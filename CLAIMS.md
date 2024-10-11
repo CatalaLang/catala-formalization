@@ -1,51 +1,48 @@
 In this file, we describe the different claims of the paper.
 
-The whole development is axiom-free except for two things: autosubst relies on Functional Extensionality, and the submodule `correctness` of the `theories/typing.v` file contains a hypothesis `measure` that decreases when executing terms. We suppose such a measure exists as simply typed lambda calculus terminates but do not prove it. We don't use this fact anywhere but in those lemmas or in our paper.
+The whole development is axiom-free except for two things: autosubst relies on Functional Extensionality, and the submodule `correctness` of the `theories/catala/typing.v` file contains a hypothesis `measure` that decreases when executing terms. We suppose such a measure exists as simply typed lambda calculus terminates but do not prove it. We don't use this fact anywhere but in those lemmas or in our paper.
+
+
+## Section 2
+
+The syntax, semantics, and proof of the $\lambda$-calculus augemented with `if-then-else` is in the `miniml/miniml_ifthenelse.v` file.
+
+* The syntax is defined using `term` and `value` inductives. We use de Bruijn indices.
+
+## Section 2.1
+* The inductives rules for the traditionnal small-step semantics is defined in the `sred` inductive.
+* The reduction rules for the contextual reductions are not defined in our developement.
+
+## Section 2.2
+* The syntax for the continuation-based small-step semantics is defined in the `cont`, `result` and `state` inductives. Environement are represented using list of values.
+* The reduction rules are defined in the `cred` inductive.
+* The sampled reduction at the end of section two is presented in `example_of_reduction`.
 
 ## Section 3.1
 
-* The syntax of the $\lambda^\delta$ language is defined in the `term` and `value` inductives of the `theories/syntax` file.
-* The typing of the $\lambda^\delta$ language is defined in `theories/typing.v`. The inductive `type` describes the syntax of types in figure 1, while `jt_term` describes the typing rules in figure 2. The preservation and progress mentioned are only proved using the continuation-based semantics in the `preservation` and the `progress` theorems. More inductives `jt_cont`, `jt_conts`, `jt_result`, and `jt_state` are needed to lift the typing judgment to states. The lifting operation is similar to what is described in section 4.1 for the translation and is not detailed in the paper.
-* Well-formedness is defined as mutual inductive statements `inv_base` for $\text{well-formed}_true$ and `no_immediate_default` for $\text{well-formed}_false$.
+* Theorem 1 is present in multiple files. In the small-scale developement in the file `miniml/miniml.v` as the `simulation_sred_cred` theorem (without `if-then-else`). And in the Catala developement in the file `catala/simulation_sred_to_cred.v` as the lemma `simulation_sred_cred`.
+* The contextual reduction lemma (lemma 1) is named `cred_append_stack` and is present in both `miniml/miniml.v` and `catala/continuations.v`.
 
 ## Section 3.2
 
-* Small-step semantics is defined in the `theories/small-steps.v` file. The reduction rule is defined in the `sred` inductive. The new rules are `sred_lam`, `sred_beta`, `sred_default_E_one_empty`, and `sred_default_E_zero_empty`.
-* Continuation-based semantics is defined in the `theories/continuation.v` file. The syntax is defined in the `is_hole`, `cont`, `result`, and `state` definitions. The reduction in figure 4 itself is defined as an inductive `cred`. Recall that we use De Bruijn indices in the development.
-* Term rebuilding is done separately in both `theories/simulation_cred_to_sred.v` and `theories/simulation_sred_to_cred.v` files as the functions called `apply_state`, `apply_conts`, `apply_cont`, and for the default term, `apply_CDefault`.
-* The reduction sequence 1-8 is the example `example1` of the `theories/continuations.v` file. The reduction sequence 9-19 is the example `example2` of the `theories/continuation.v` file.
-* The `Hole`/`NoHole` markers are defined in `is_hole`. The invariant indicating no `hole` can appear inside the continuation except at the top when in continuation mode is defined in the `inv_conts_no_hole` and `inv_state` invariants.
+* The proof of determinism is present in `miniml/miniml.v` and `miniml/miniml_ifthenelse.v` to compare both versions. The name of the lemma is `cred_determinism` for the continuation-based small-step reduction determinism and `sred_determinism` for the traditional small-step reduction. Similar theorems are present for `catala` in the `catala/continuations.v` and `catala/smallstep.v` files. Note that the proof in the continuation case is the same as for miniml!
+* Typing rules for miniml are defined in the `miniml/miniml.v` and  `miniml/miniml_ifthenelse.v`. the inductive names are `type` for the type syntax, `jt_term`, `jt_value`, `jt_result`, `jt_cont`, `jt_conts`, and `jt_state`.
+* For the recursive inversion we use the `inv_jt` tactic that itself relies on the `smart_inversion` ltac2 tactic defined in the `tactics.v` file.
+* The progress theorem is `progress_cont` and `progress_trad` for continuation-based and traditional semantics. In both theorem, you can check that the proof correspond to the prose in the paper.
 
-## Section 3.3
+## Section 4
 
-* Lemma 3.1 is the theorem `star_cred_append_stack` of `theories/continuations.v`. Its converse is in lemma `cred_stack_sub` of the same file.
-* Inductives with `List.Forall` include the `jt_term` of `theories/typing.v`, `inv_state` of `theories/continuation.v`, and `sim_term` of `theories/syntax.v`. We do not prove the induction principle for the first two but show one for the last: theorems `sim_term_value_ind'` and `sim_value_term_ind'` of `theories/syntax.v`.
-* Equivalence theorems are in `theories/simulation_cred_to_sred.v` and `theories/simulation_sred_to_cred.v`: theorem 3.3 is `simulation_cred_sred` and theorem 3.2 is `simulation_sred_cred`. We do not include the counterexamples in the development.
+* The syntax of types is in the `catala/typing.v` file as the `type` inductive.
+* The syntax of value, terms and defaults in in the `syntax` file as the `term` and `value` inductives.
 
 ## Section 4.1
-
-* The translation $[[t]]$ of figure 5 is defined in the `theories/trans.v`. The translation of terms is defined as `trans`. The translation of types is defined as `trans_ty`. The lifting of `trans` to states in figure 7 is done in the same file as `trans_conts`, `trans_return`, and `trans_state`.
-* Theorem 4.1 is the `correction_small_steps` theorem of `theories/trans.v`.
-* Theorem 4.2 is the `correction_continuation_steps` theorem of `theories/trans.v`.
+* The selected rules of figure 2 are present in the `sred` inductive defined in the `catala/small_step.v` file.
+* The translation in figure 3 are is defined in the `catala/trans.v` file.
+* The proof of theorem 1 for catala is the proof of the `simulation_sred_cred_base` theorem in the `theories/simulation_sred_to_cred.v` file. We omit in the paper the lifting back to `simulation_sred_cred`. The induction on the continuation is at the marker `(* INDUCTION ON KAPPA *)`. The induction step starts at the marker `(* INDUCTION STEP *)`. The induction on the small-step reduction is done at the marker `(* INDUCTION SRED *)`. The hypothesis saturation is done at the markers `(* HYPOTHESIS SATURATION STEP 1 *)` and `(* HYPOTHESIS SATURATION STEP 2 *)`. The Ltac interpreter is done at the marker `(* INTERPRETOR *)`. The final simulation proof is done at the marker `(* FINISH *)`.
+* The `(* INTERPRETOR *)` marker provide more advanced examples of interpreter (compatible with `plus`, `star`, and normal reduction). But more basic example is available for example in the `miniml/miniml_ifthenelse.v` file as the `example_of_reduction` example.
+* The "smart-inversion" tactic is defined for specific inductives such as in the `catala/typing.v` file as the `sinv_inv` and `sinv_jt` tactics. These tactics uses the `smart_inversion` ltac2 tactic defined in the `tactics.v` file.
 
 ## Section 4.2
 
-* Lemmas 4.3 and 4.4 are `trans_te_renaming` and `trans_te_substitution` in the `theories/trans.v` file.
-
-Counting the lines of code was done by removing comments and empty lines inside code.
-
-In 4.2.3, we count the number of lines of code of:
-* for the small-step specification, the `sred` inductive in the `small_step.v` file.
-* for the continuation-based specification, the `cred`, `state`, `cont`, `result`, and `is_hole` inductives in the `theories/continuations.v` file.
-
-## Section 5.1
-
-* During the proof of `simulation_sred_cred_base`, we can see the number of proof goals reaches 2760 cases at the `(* HYPOTHESIS SATURATION STEP 1 *)` marker. It then reduces to 344 at the `(* HYPOTHESIS SATURATION STEP 2 *)` marker, and then to 255 at the `(* INTERPRETOR *)` marker (not included in the paper).
-* The `star_step_prop` is in the `theories/sequences.v` file. Similar lemmas include for forward simulation diagrams: `star_refl_prop`, `star_step_prop`, `star_trans_prop`, `plus_star_trans_prop`, `star_plus_trans_prop`, `plus_step_prop`. They are used in both `simulation_cred_sred_base` and `simulation_sred_cred_base`. We indicate a marker `(* PROOF AUTOMATION *)` where we use them.
-* The "smart inversion" is implemented for typing judgments and invariants in the `sinv_jt` and `sinv_inv` tactics in the `theories/typing.v` file. The helper tactic `smart_inversion` is found in the `theories/tactics.v` file.
-* Our terms `term` in `theories/syntax.v` make use of mutually recursive inductive types, list containers, and require simplification (with autosubst).
-
-## Section 5.2
-
-* The lines of code to compare the equivalence between `sred` and `cred` were obtained using `coqwc`.
-* The proof of theorem 3.2 is the proof of the `simulation_sred_cred_base` theorem in the `theories/simulation_sred_to_cred.v` file. We omit in the paper the lifting back to `simulation_sred_cred`. The induction on the continuation is at the marker `(* INDUCTION ON KAPPA *)`. The induction step starts at the marker `(* INDUCTION STEP *)`. The induction on the small-step reduction is done at the marker `(* INDUCTION SRED *)`. The hypothesis saturation is done at the markers `(* HYPOTHESIS SATURATION STEP 1 *)` and `(* HYPOTHESIS SATURATION STEP 2 *)`. The Ltac interpreter is done at the marker `(* INTERPRETOR *)`. The final simulation proof is done at the marker `(* FINISH *)`.
+* The traditional to continuation-based small step semantic simulation is in the file `catala/simulation_sred_to_cred.v`
+* The continuation-based to traditional small step semantic simulation is in the file `catala/simulation_cred_to_sred.v`

@@ -69,13 +69,11 @@ Proof.
   eauto.
 Qed.
 
-
 Lemma nth_error_nil {A} x:
   List.nth_error (nil: list A) x = None.
 Proof.
   induction x; simpl; eauto.
 Qed.
-
 
 (* Such that [l = lastn n l ++ firstn n l] *)
 Definition droplastn {A} n (l: list A) := List.firstn ((List.length l) - n) l.

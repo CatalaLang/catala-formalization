@@ -216,6 +216,17 @@ Inductive cred: state -> state -> Prop :=
       (mode_eval t2 kappa sigma)
 .
 
+Example example_of_reduction t1 t2:
+  star cred
+    (mode_eval (If (Value (Bool true)) t1 t2) [] [])
+    (mode_eval t1 [] []).
+Proof.
+  eapply star_step;[econstructor|].
+  eapply star_step;[econstructor|].
+  eapply star_step;[econstructor|].
+  eapply star_refl.
+Qed.
+
 (*** small step semantics ***)
 
 Import List.ListNotations.
