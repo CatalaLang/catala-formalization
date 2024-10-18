@@ -5,6 +5,7 @@ depends: [
   "coq-core"
   "coq-autosubst"
   "coq-dpdgraph"
+  "coq-metacoq"
   "odoc" {with-doc}
 ]
 build: [

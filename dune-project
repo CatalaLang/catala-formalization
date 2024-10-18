@@ -8,4 +8,4 @@
 
 (package
  (name coq-catala)
- (depends coq-core coq-autosubst coq-dpdgraph))
+ (depends coq-core coq-autosubst coq-dpdgraph coq-metacoq))

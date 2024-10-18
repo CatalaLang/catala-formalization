@@ -673,3 +673,175 @@ Local Ltac step := (
   induction 1; simpl; repeat step; try eapply star_refl.
 Qed.
 
+
+(* METACOQ TENTATIVE *)
+
+From MetaCoq.Utils Require Import utils.
+From MetaCoq.Template Require Import All.
+Import MCMonadNotation.
+
+Definition id_nat : nat -> nat := fun x => x.
+
+MetaCoq Quote Definition d2 := Eval compute in id_nat.
+MetaCoq Quote Definition d3 := Eval cbn in id_nat.
+MetaCoq Quote Definition d4 := Eval unfold id_nat in id_nat.
+
+MetaCoq Quote Definition cred_quoted := Eval compute in cred.
+
+
+Class TslIdent := { tsl_ident : ident -> ident }.
+
+Local Instance prime_tsl_ident : TslIdent
+  := {| tsl_ident := fun id => id ^ "'" |}.
+
+Fixpoint try_remove_n_lambdas (n : nat) (t : term) {struct n} : term :=
+  match n, t with
+  | 0, _ => t
+  | S n, tLambda _ _ t => try_remove_n_lambdas n t
+  | S _, _ => t
+  end.
+
+
+(** * Plugin *)
+
+(* [add_ctor] add a constructor to a [mutual_inductive_body]
+ (that is a reified declaration of an inductive). *)
+
+Definition tsl_constructor_body (c : constructor_body) : constructor_body :=
+  {| cstr_name := tsl_ident c.(cstr_name);
+     cstr_args := cstr_args c;
+     cstr_indices := cstr_indices c;
+     cstr_type := cstr_type c;
+     cstr_arity := cstr_arity c |}.
+
+Definition remove_last_n {A} (l : list A) (n : nat) : list A :=
+  firstn (#|l| - n) l.
+
+Definition new_cstr mdecl (idc : ident) (ctor : term) : constructor_body :=
+  let '(args, concl) := decompose_prod_assum [] ctor in
+  let (hd, indices) := decompose_app concl in
+  {| cstr_name := idc;
+    cstr_args := remove_last_n args #|mdecl.(ind_params)|;
+    cstr_indices := skipn mdecl.(ind_npars) indices;
+    cstr_type := ctor;
+    cstr_arity := context_assumptions args |}.
+
+
+Polymorphic Definition add_ctor (mind : mutual_inductive_body) (ind0 : inductive) (idc : ident) (ctor : term)
+  : mutual_inductive_body
+  := let i0 := inductive_ind ind0 in
+     {| ind_finite := mind.(ind_finite);
+        ind_npars := mind.(ind_npars) ;
+        ind_universes := mind.(ind_universes) ;
+        ind_variance := mind.(ind_variance);
+        ind_params := mind.(ind_params);
+        ind_bodies := mapi (fun (i : nat) (ind : one_inductive_body) =>
+          {| ind_name := tsl_ident ind.(ind_name) ;
+            ind_indices := ind.(ind_indices);
+            ind_sort := ind.(ind_sort);
+            ind_type  := ind.(ind_type) ;
+            ind_kelim := ind.(ind_kelim) ;
+            ind_ctors := let ctors := map tsl_constructor_body ind.(ind_ctors) in
+                          if Nat.eqb i i0 then
+                            let n := #|ind_bodies mind| in
+                            let typ := try_remove_n_lambdas n ctor in
+                            ctors ++ [new_cstr mind idc typ]
+                          else ctors;
+            ind_projs := ind.(ind_projs);
+            ind_relevance := ind.(ind_relevance) |})
+            mind.(ind_bodies) |}.
+
+Polymorphic Definition add_constructor (tm : Ast.term)
+            (idc : ident) (type : Ast.term)
+  : TemplateMonad unit
+  := match tm with
+     | tInd ind0 _ =>
+       decl <- tmQuoteInductive (inductive_mind ind0) ;;
+       let ind' := add_ctor decl ind0 idc type in
+       tmMkInductive' ind'
+     | _ => tmPrint tm ;; tmFail " is not an inductive"
+     end.
+
+
+(** * Examples *)
+Local Open Scope bs_scope.
+(** Here we add a silly constructor to bool. *)
+
+(* get the inductive definition of cred_mc. *)
+MetaCoq Run (
+  t <- tmQuoteInductive (MPfile ["miniml_ifthenelse"], "cred");;
+  tmDefinition "cred_mc" t).
+
+  From Coq Require Import ssreflect.
+  From MetaCoq.Utils Require Import utils.
+  From MetaCoq.Common Require Import config.
+
+
+  From MetaCoq.PCUIC Require Import PCUICTyping.
+  From MetaCoq.PCUIC Require Import PCUICEquality.
+  From MetaCoq.PCUIC Require Import PCUICAst.
+  From MetaCoq.PCUIC Require Import PCUICAstUtils.
+  From MetaCoq.PCUIC Require Import PCUICWeakeningConv.
+  From MetaCoq.PCUIC Require Import PCUICWeakeningTyp.
+  From MetaCoq.PCUIC Require Import PCUICSubstitution.
+  From MetaCoq.PCUIC Require Import PCUICGeneration.
+  From MetaCoq.PCUIC Require Import PCUICArities.
+
+  From MetaCoq.PCUIC Require Import PCUICWcbvEval.
+  From MetaCoq.PCUIC Require Import PCUICSR.
+  From MetaCoq.PCUIC Require Import PCUICInversion.
+
+  From MetaCoq.PCUIC Require Import PCUICUnivSubstitutionConv.
+  From MetaCoq.PCUIC Require Import PCUICUnivSubstitutionTyp.
+
+  From MetaCoq.PCUIC Require Import PCUICElimination.
+  (* From MetaCoq.PCUIC Require Import PCUICSigmaCalculus. *)
+  From MetaCoq.PCUIC Require Import PCUICContextConversion.
+
+  From MetaCoq.PCUIC Require Import PCUICUnivSubst.
+  From MetaCoq.PCUIC Require Import PCUICWeakeningEnvConv.
+  From MetaCoq.PCUIC Require Import PCUICWeakeningEnvTyp.
+
+  From MetaCoq.PCUIC Require Import PCUICCumulativity.
+  From MetaCoq.PCUIC Require Import PCUICConfluence.
+
+  From MetaCoq.PCUIC Require Import PCUICInduction.
+  From MetaCoq.PCUIC Require Import PCUICLiftSubst.
+  From MetaCoq.PCUIC Require Import PCUICContexts.
+  From MetaCoq.PCUIC Require Import PCUICSpine.
+
+  From MetaCoq.PCUIC Require Import PCUICConversion.
+  From MetaCoq.PCUIC Require Import PCUICValidity.
+  From MetaCoq.PCUIC Require Import PCUICInductives.
+  From MetaCoq.PCUIC Require Import PCUICConversion.
+
+  From MetaCoq.PCUIC Require Import PCUICInductiveInversion.
+  From MetaCoq.PCUIC Require Import PCUICNormal.
+  From MetaCoq.PCUIC Require Import PCUICSafeLemmata.
+
+  From MetaCoq.PCUIC Require Import PCUICParallelReductionConfluence.
+
+  From MetaCoq.PCUIC Require Import PCUICWcbvEval.
+  From MetaCoq.PCUIC Require Import PCUICClosed.
+  From MetaCoq.PCUIC Require Import PCUICClosedTyp.
+
+  From MetaCoq.PCUIC Require Import PCUICReduction.
+  From MetaCoq.PCUIC Require Import PCUICCSubst.
+  From MetaCoq.PCUIC Require Import PCUICOnFreeVars.
+  From MetaCoq.PCUIC Require Import PCUICWellScopedCumulativity.
+
+  From MetaCoq.PCUIC Require Import PCUICWcbvEval.
+  From MetaCoq.PCUIC Require Import PCUICClassification.
+  From MetaCoq.PCUIC Require Import PCUICSN.
+  From MetaCoq.PCUIC Require Import PCUICNormalization.
+  From MetaCoq.PCUIC Require Import PCUICViews.
+  From MetaCoq.TemplatePCUIC Require Import TemplateToPCUIC.
+
+
+
+Definition cred_pcuic := (trans <%cred%>).
+Lemma strong_determinism:
+  forall Sigma red s1 s2,
+    Sigma ;;; [] |- red : (mkApps  [s1; s2])
+    (* -> exists! u, Sigma ;;; [] |- red =s u *)
+    .
