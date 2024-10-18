@@ -9,6 +9,8 @@ Require Import sequences.
 Require Import Coq.Classes.SetoidClass.
 Require Import Wellfounded.
 
+From Equations Require Import Equations.
+
 
 (*** Definitions of terms and continuations for mini-ML ***)
 
@@ -672,4 +674,468 @@ Local Ltac step := (
 .
   induction 1; simpl; repeat step; try eapply star_refl.
 Qed.
+
+
+
+Module trans2.
+Fixpoint trans_term t :=
+  match t with
+  | Var x => Var x
+  | App t1 t2 => App (trans_term t1) (trans_term t2)
+  | Lam t => Lam (trans_term t)
+  | Value v => Value (trans_value v)
+  | If (If u (Value (Bool false)) (Value (Bool true))) t1 t2 =>
+    If (trans_term u) (trans_term t2) (trans_term t1)
+  | If u t1 t2 =>
+    If (trans_term u) (trans_term t1) (trans_term t2)
+  end
+with trans_value v :=
+  match v with
+  | Closure t sigma =>
+    Closure (trans_term t) (List.map trans_value sigma)
+  | Bool b => Bool b
+  end
+.
+
+(* Generalized transformation for continuations *)
+Fixpoint trans_conts (kappa: list cont): list cont :=
+  match kappa with
+  | nil => nil
+  | CAppR t2 :: kappa => CAppR (trans_term t2) :: trans_conts kappa
+  | CClosure t sigma :: kappa =>
+    CClosure (trans_term t) (List.map trans_value sigma) :: trans_conts kappa
+  | CReturn sigma :: kappa =>
+    CReturn (List.map trans_value sigma) :: trans_conts kappa
+  | CIf (Value (Bool false)) (Value (Bool true)) :: CIf t1 t2 :: kappa =>
+    CIf (trans_term t1) (trans_term t2) :: trans_conts kappa
+  | CIf  t1 t2 :: kappa =>
+    CIf (trans_term t1) (trans_term t2) :: trans_conts kappa
+  end.
+
+(* Generalized transformation for results *)
+Definition trans_return (r: result): result :=
+  match r with
+  | RValue v => RValue (trans_value v)
+  end.
+
+(* Generalized transformation for states with the special If case *)
+Definition trans_state (s: state) : state :=
+  match s with
+  | mode_eval (If b (Value (Bool false)) (Value (Bool true))) (CIf t2 t1::kappa) env =>
+    mode_eval (trans_term b) (CIf (trans_term t1) (trans_term t2)::trans_conts kappa) (List.map trans_value env)
+  | mode_eval e kappa env =>
+    mode_eval (trans_term e) (trans_conts kappa) (List.map trans_value env)
+  | mode_cont kappa env r =>
+    mode_cont (trans_conts kappa) (List.map trans_value env) (trans_return r)
+    end.
+
+End trans2.
+
+(*
+
+Equations f (l : list nat) : list nat :=
+f []  := [];
+f (cons a (cons b l)) := cons (a+b) (f l);
+f (cons a l) := cons a (f l).
+
+*)
+
+Module trans3.
+
+Definition with_stack s kappa :=
+  match s with
+  | mode_cont _ sigma v => mode_cont kappa sigma v
+  | mode_eval t _ sigma => mode_eval t kappa sigma
+  end.
+
+Definition append_stack s kappa :=
+  with_stack s (stack s ++ kappa).
+Definition cons_stack s kappa :=
+  with_stack s (kappa ++ stack s ).
+Definition rev_state (s: state): state :=
+  with_stack s (List.rev (stack s))
+. 
+
+Set Equations Transparent.
+
+(* we define trans_state to be rev_state \circ trans_state_aux \circ rev_state
+to permit more adapted pattern matching. *)
+Require Import Coq.Program.Equality.
+Definition total_relation {A : Type} : A -> A -> Prop := fun x y => True.
+Axiom wf_total_init : forall {A}, WellFounded (@total_relation A).
+#[local]
+Remove Hints wf_total_init : typeclass_instances.
+
+#[local]
+Instance wf_total_init_compute : forall {A}, WellFounded (@total_relation A).
+  exact (fun A => Acc_intro_generator 10 wf_total_init).
+Defined.
+
+Equations trans_cont_base (k: cont) : cont :=
+  trans_cont_base (CAppR t2) := CAppR (trans_term t2);
+  trans_cont_base (CClosure t sigma) := CClosure (trans_term t) (List.map trans_value sigma);
+  trans_cont_base (CReturn sigma) := CReturn (List.map trans_value sigma);
+  trans_cont_base (CIf t1 t2) := CIf (trans_term t1) (trans_term t2).
+
+Equations? trans_state_aux (s: state) : state by wf s (@total_relation state) :=
+trans_state_aux (mode_eval t (CIf t1 t2 :: CIf (Value (Bool false)) (Value (Bool true)) :: kappa) sigma) :=
+  cons_stack (trans_state_aux (mode_eval t kappa sigma)) [trans_cont_base (CIf t2 t1)];
+trans_state_aux (mode_eval (If b (Value (Bool false)) (Value (Bool true))) [CIf t1 t2] sigma) :=
+  cons_stack (trans_state_aux (mode_eval b [] (List.map trans_value sigma))) [trans_cont_base (CIf t2 t1)];
+trans_state_aux (mode_eval t (k::kappa) sigma) :=
+  cons_stack (trans_state_aux (mode_eval t kappa sigma)) [trans_cont_base k];
+trans_state_aux (mode_eval t [] sigma) :=
+  (mode_eval (trans_term t) [] (List.map trans_value sigma));
+
+trans_state_aux (mode_cont (CIf t1 t2 :: CIf (Value (Bool false)) (Value (Bool true)) :: kappa) sigma v) :=
+  cons_stack (trans_state_aux (mode_cont kappa sigma v)) [trans_cont_base (CIf t2 t1)];
+trans_state_aux (mode_cont (k::kappa) sigma v) :=
+  cons_stack (trans_state_aux (mode_cont kappa sigma v)) [trans_cont_base k];
+trans_state_aux (mode_cont [] sigma v) :=
+  (mode_cont [] (List.map trans_value sigma) (trans_return v) )
+.
+Proof.
+  all: constructor.
+Defined.
+
+Print trans_state_aux_graph.
+
+
+
+Definition trans_state s := rev_state (trans_state_aux (rev_state s)).
+
+Inductive trans_state' : state -> state -> Prop :=
+  (* Case 1: Handle two nested CIf statements with kappa ++ [CIf t2 t1] *)
+  | trans_if_nested :
+      forall t t1 t2 kappa sigma s',
+      trans_state' (mode_eval t kappa sigma) s' ->
+      trans_state' (mode_eval t (kappa ++ [CIf t1 t2; CIf (Value (Bool false)) (Value (Bool true))]) sigma)
+                   (append_stack s' [CIf (trans_term t2) (trans_term t1)])
+
+  (* Case 2: Handle If False True term with kappa ++ [CIf t2 t1] *)
+  | trans_if_false_true :
+      forall b t1 t2 sigma s',
+      trans_state' (mode_eval b [] (List.map trans_value sigma)) s' ->
+      trans_state' (mode_eval (If b (Value (Bool false)) (Value (Bool true))) [CIf t1 t2] sigma)
+                   (mode_eval (trans_term b) [] (List.map trans_value sigma))
+
+  (* Case 3: Handle mode_eval with non-empty continuation stack kappa ++ [k] *)
+  | trans_mode_eval_non_empty :
+      forall t k kappa sigma s',
+      (match t with | If _ (Value (Bool false)) (Value (Bool true)) => False | _ => True end) \/
+      (match kappa with | [] => False | _ => True end) \/
+      (match k with | CIf _ _ => False | _ => True end) ->
+      (match List.rev kappa with | CIf _ _::_ => False | _ => True end) \/
+      (match k with | CIf (Value (Bool false)) (Value (Bool true)) => False | _ => True end) ->
+      trans_state' (mode_eval t kappa sigma) s' ->
+      trans_state' (mode_eval t (kappa ++ [k]) sigma)
+                   (append_stack s' [trans_cont_base k])
+
+  (* Case 4: Handle mode_eval with empty continuation stack kappa ++ [] *)
+  | trans_mode_eval_empty :
+      forall t sigma,
+      trans_state' (mode_eval t [] sigma)
+                   (mode_eval (trans_term t) [] (List.map trans_value sigma))
+
+  (* Case 5: Handle two nested CIf statements in mode_cont with kappa ++ [CIf t2 t1] *)
+  | trans_mode_cont_if_nested :
+      forall t1 t2 kappa sigma v s',
+      trans_state' (mode_cont kappa sigma v) s' ->
+      trans_state' (mode_cont (kappa ++ [CIf t1 t2; CIf (Value (Bool false)) (Value (Bool true))]) sigma v)
+                   (append_stack s' [CIf (trans_term t2) (trans_term t1)])
+
+  (* Case 6: Handle mode_cont with non-empty continuation stack kappa ++ [k] *)
+  | trans_mode_cont_non_empty :
+      forall k kappa sigma v s',
+      (match List.rev kappa with | CIf _ _::_ => False | _ => True end) \/
+      (match k with | CIf (Value (Bool false)) (Value (Bool true)) => False | _ => True end) ->
+      trans_state' (mode_cont kappa sigma v) s' ->
+      trans_state' (mode_cont (kappa ++ [k]) sigma v)
+                   (append_stack s' [trans_cont_base k])
+
+  (* Case 7: Handle mode_cont with empty continuation stack kappa ++ [] *)
+  | trans_mode_cont_empty :
+      forall sigma v,
+      trans_state' (mode_cont [] sigma v)
+                   (mode_cont [] (List.map trans_value sigma) (trans_return v)).
+
+Lemma trans_state_deterministic:
+  forall s s1,
+    trans_state' s s1 ->
+    forall s2,
+    trans_state' s s2 ->
+    s1 = s2.
+Proof.
+  induction 1; inversion 1; subst.
+  all: try multimatch goal with
+    | [h: _ = _ |- _] =>
+      apply (f_equal (@List.rev _)) in h;
+      repeat rewrite List.rev_app_distr in h;
+      simpl in *;
+      repeat injections; subst;
+      repeat match goal with
+      | [h: List.rev _ =  _ |- _] =>
+        apply (f_equal (@List.rev _)) in h;
+        repeat rewrite List.rev_involutive in h
+      | [h: List.rev _ =  _ |- _] =>
+        apply (f_equal (@List.rev _)) in h;
+        repeat rewrite List.rev_involutive in h
+      end;
+      repeat injections; subst
+    end.
+  all: repeat rewrite List.rev_involutive in *.
+  all: try solve [eapply f_equal2; eauto | unzip; tryfalse | congruence].
+  { exfalso; induction kappa using List.rev_ind; intros; simpl in *.
+    { congruence. }
+    { rewrite List.rev_app_distr in *; simpl in *.
+      injections; subst.
+      unzip; tryfalse.
+    }
+  }
+  { apply (f_equal (@List.rev _)) in H3;
+    repeat rewrite List.rev_involutive in H3;
+    simpl in H3. subst. 
+    unzip; tryfalse.
+  }
+  { exfalso; induction kappa using List.rev_ind; intros; simpl in *.
+    { congruence. }
+    { rewrite List.rev_app_distr in *; simpl in *.
+      injections; subst.
+      unzip; tryfalse.
+    }
+  }
+Qed.
+
+Lemma trans_correct:
+  forall s,
+    trans_state' s (trans_state s).
+Proof.
+  (* trop chiant *)
+Admitted.
+
+Theorem cred_append_stack s s':
+  (* If you can do a transition, then you can do the same transition with additional informations on the stack. *)
+  cred s s' ->
+  forall k,
+  cred (append_stack s k) (append_stack s' k).
+Proof.
+  induction 1; intros; asimpl; try econstructor; eauto.
+Qed.
+
+Theorem star_cred_append_stack s s':
+  star cred s s'
+  ->
+  forall k,
+  star cred (append_stack s k) (append_stack s' k).
+Proof.
+  induction 1; intros.
+  * eauto with sequences.
+  * eapply star_step; eauto using cred_append_stack.
+Qed.
+
+Theorem correction_continuations:
+  forall s1 s2,
+  cred s1 s2 ->
+  forall s1',
+  trans_state' s1 s1' ->
+  forall s2',
+  trans_state' s2 s2' ->
+  star cred s1' s2'.
+Proof.
+  (* induction s1 using (
+    well_founded_induction
+      (wf_inverse_image
+        _
+        nat
+        _
+        (fun s => List.length (stack s))
+        PeanoNat.Nat.lt_wf_0)
+  ). *)
+  intros s1 s2 Hcred ? Htrans1.
+  generalize dependent s2.
+  induction Htrans1; inversion 1; subst; inversion 1; subst.
+  all: repeat (try multimatch goal with
+  | [h: _ = _ |- _] =>
+    learn (f_equal (@List.rev _) h);
+    repeat multimatch goal with
+    | [h: _ |- _] =>
+      let P := typeof h in
+      match P with
+      | @Learnt _ =>
+        idtac "wtf ?" h
+      | _ =>
+        repeat rewrite List.rev_involutive in h;
+        repeat rewrite List.rev_app_distr in h;
+        simpl in h
+      end
+    end;
+    injections;
+    subst;
+    try congruence
+  end).
+  all: try solve [repeat rewrite List.app_comm_cons in *; repeat rewrite List.rev_app_distr in *; simpl in *; unzip; tryfalse].
+  all: try solve [
+    eapply star_cred_append_stack;
+    eapply IHHtrans1; [|solve [eauto]]; econstructor; eauto
+  ].
+  { rewrite List.app_comm_cons in H5. rewrite List.rev_app_distr in H5. }
+  { rewrite List.rev_app_distr in H5; simpl in H5.
+    unzip; tryfalse.
+  }
+  }
+  { eapply star_cred_append_stack.
+    eapply IHHtrans1; [|solve [eauto]].
+
+
+  }
+  learn (f_equal (@List.rev _) H0).
+  all: try multimatch goal with
+  | [h: _ = _ |- _] =>
+    apply (f_equal (@List.rev _)) in h;
+    repeat rewrite List.rev_app_distr in h;
+    simpl in *;
+    repeat injections; subst;
+    repeat match goal with
+    | [h: List.rev _ =  _ |- _] =>
+      apply (f_equal (@List.rev _)) in h;
+      repeat rewrite List.rev_involutive in h
+    | [h: List.rev _ =  _ |- _] =>
+      apply (f_equal (@List.rev _)) in h;
+      repeat rewrite List.rev_involutive in h
+    end;
+    repeat injections; subst
+  end.
+  all: simpl.
+  all: try solve [
+    repeat rewrite List.rev_involutive in *; unzip; tryfalse
+    | repeat rewrite List.rev_app_distr in *; simpl in *; unzip; tryfalse].
+  all: try solve [congruence].
+  { eapply star_cred_append_stack.
+    eapply IHHtrans1; [|solve [eauto]]; econstructor; eauto.
+  }
+  { repeat rewrite List.rev_app_distr in *; simpl in *; unzip.
+    repeat injections; subst.
+    eapply star_cred_append_stack.
+    apply (f_equal (@List.rev _)) in H0.
+    repeat rewrite List.rev_app_distr in *.
+    repeat rewrite List.rev_involutive in *; simpl in *.
+    subst.
+    eapply IHHtrans1; [|solve [eauto]]; econstructor; eauto.
+  }
+  {
+    rewrite List.rev_app_distr in *; simpl in *.
+    repeat injections; subst.
+  }
+  { rewrite List.rev_involutive in *; unzip; tryfalse. }
+  { congruence. }
+  {  }
+  { eapply star_cred_append_stack.
+    eapply IHHtrans1; [|solve [eauto]].
+    econstructor; eauto. }
+  { inversion 1; inversion 1; repeat injections; subst; simpl.
+    all: try multimatch goal with
+    | [h: _ = _ |- _] =>
+      apply (f_equal (@List.rev _)) in h;
+      repeat rewrite List.rev_app_distr in h;
+      simpl in *;
+      repeat injections; subst;
+      repeat match goal with
+      | [h: List.rev _ =  _ |- _] =>
+        apply (f_equal (@List.rev _)) in h;
+        repeat rewrite List.rev_involutive in h
+      | [h: List.rev _ =  _ |- _] =>
+        apply (f_equal (@List.rev _)) in h;
+        repeat rewrite List.rev_involutive in h
+      end;
+      repeat injections; subst
+    end.
+    2:{  }
+    all: try eapply star_cred_append_stack.
+    all: try eapply H; eauto; simpl.
+    all: try (erewrite List.app_length; simpl; lia).
+    all: try (econstructor; eauto).
+    
+    all: simpl trans_cont_base in *.
+    all: repeat step.
+    all: try solve [eapply star_refl_eq; repeat f_equal; eauto].
+    51:{ }
+  { }
+  51:{ (* qu'est ce que c'est chiant celui ci aussi. *) }
+
+
+
+Lemma rev_state_cons_stack_is_append_stack_rev_state:
+  forall s kappa,
+  rev_state (cons_stack s kappa) = append_stack (rev_state s) (List.rev kappa).
+Proof.
+  induction s; simpl; intros; repeat f_equal.
+  all: eapply List.rev_app_distr.
+Qed.
+
+Theorem cred_append_stack s s':
+  (* If you can do a transition, then you can do the same transition with additional informations on the stack. *)
+  cred s s' ->
+  forall k,
+  cred (append_stack s k) (append_stack s' k).
+Proof.
+  induction 1; intros; asimpl; try econstructor; eauto.
+Qed.
+
+Theorem star_cred_append_stack s s':
+  star cred s s'
+  ->
+  forall k,
+  star cred (append_stack s k) (append_stack s' k).
+Proof.
+  induction 1; intros.
+  * eauto with sequences.
+  * eapply star_step; eauto using cred_append_stack.
+Qed.
+
+Theorem correction_continuations:
+  forall s1 s2,
+  cred s1 s2 ->
+  star cred
+    (trans_state s1) (trans_state s2).
+Proof.
+  Local Ltac step := 
+    eapply star_step; [solve [econstructor; simpl; eauto using List.map_nth_error]|]
+  .
+  unfold trans_state.
+  all: intro s1; funelim (trans_state_aux (rev_state s1)).
+  all: inversion 1; subst; simpl in *.
+  all: repeat injections; try congruence; subst.
+  all: try match goal with [h: _ = List.rev _ |- _] => rewrite <- h in * end.
+  all: subst; simpl.
+  all: repeat step; try eapply star_refl.
+  all: simpl.
+  all: repeat (try rewrite trans_state_aux_equation_1; try rewrite trans_state_aux_equation_38; try rewrite trans_state_aux_equation_2; try rewrite trans_state_aux_equation_4; try rewrite trans_state_aux_equation_41; try rewrite trans_state_aux_equation_39; try rewrite trans_state_aux_equation_42; try rewrite trans_state_aux_equation_8; try rewrite trans_state_aux_equation_5; try rewrite trans_state_aux_equation_6; try rewrite trans_state_aux_equation_22; try rewrite trans_state_aux_equation_3; try rewrite trans_state_aux_equation_24; try rewrite trans_state_aux_equation_43; try rewrite trans_state_aux_equation_40; try rewrite trans_state_aux_equation_7; try rewrite trans_state_aux_equation_45; try rewrite trans_state_aux_equation_9; try rewrite trans_state_aux_equation_10; try rewrite trans_state_aux_equation_21; try rewrite trans_state_aux_equation_34; try rewrite trans_state_aux_equation_25; try rewrite trans_state_aux_equation_26; try rewrite trans_state_aux_equation_13; try rewrite trans_state_aux_equation_55; try rewrite trans_state_aux_equation_46; try rewrite trans_state_aux_equation_47; try rewrite trans_state_aux_equation_29; try rewrite trans_state_aux_equation_37; try rewrite trans_state_aux_equation_19; try rewrite trans_state_aux_equation_58; try rewrite trans_state_aux_equation_50; try rewrite trans_state_aux_equation_11; try rewrite trans_state_aux_equation_18; try rewrite trans_state_aux_equation_23; try rewrite trans_state_aux_equation_35; try rewrite trans_state_aux_equation_14; try rewrite trans_state_aux_equation_27; try rewrite trans_state_aux_equation_44; try rewrite trans_state_aux_equation_15; try rewrite trans_state_aux_equation_56; try rewrite trans_state_aux_equation_20; try rewrite trans_state_aux_equation_30; try rewrite trans_state_aux_equation_48; try rewrite trans_state_aux_equation_31; try rewrite trans_state_aux_equation_51; try rewrite trans_state_aux_equation_52; try rewrite trans_state_aux_equation_36; try rewrite trans_state_aux_equation_12; try rewrite trans_state_aux_equation_57; try rewrite trans_state_aux_equation_16; try rewrite trans_state_aux_equation_28; try rewrite trans_state_aux_equation_32; try rewrite trans_state_aux_equation_49; try rewrite trans_state_aux_equation_53; try rewrite trans_state_aux_equation_17; try rewrite trans_state_aux_equation_54).
+
+  2: { 
+    repeat rewrite rev_state_cons_stack_is_append_stack_rev_state; simpl.
+    eapply star_cred_append_stack.
+    eapply 
+    epose proof (H _ _ _ H0).
+    Unshelve.
+    2: simpl; eauto.
+    eapply H.
+  }
+
+
+Theorem correction_traditional:
+  forall s1 s2,
+  sred s1 s2 ->
+
+  star sred
+    (trans_term s1) (trans_term s2).
+Proof.
+  Local Ltac step := (
+    try (eapply star_step; [solve
+      [ econstructor; simpl; eauto using List.map_nth_error
+    ]|]))
+  .
+  induction 1; simpl; repeat step; try eapply star_refl.
+  4: { admit "abort". }
+  all: admit.
+Admitted.
 
