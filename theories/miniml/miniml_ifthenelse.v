@@ -29,6 +29,24 @@ with value :=
   | Bool (b: bool)
 .
 
+(* Declare and delimit the single LaTeX-compatible scope *)
+Declare Scope latex_scope.
+
+(* Notations for terms and values, LaTeX-friendly with minimal parentheses *)
+Notation "'\#' x" := (Var x) (at level 55) : latex_scope.
+Notation "t1 '\@' t2" := (App t1 t2) (at level 60, right associativity) : latex_scope.
+Notation "'\synlambda' t '\syndot'" := (Lam t) (at level 65) : latex_scope.
+Notation "'\synval' v" := (Value v) (at level 70) : latex_scope.
+
+(* Notation for If expressions *)
+Notation "'\synif' u '\synthen' t1 '\synelse' t2" := (If u t1 t2) (at level 80, right associativity) : latex_scope.
+
+(* Notations for values *)
+Notation "'\closure' t , sigma" := (Closure t sigma) (at level 75) : latex_scope.
+Notation "'\bool' b" := (Bool b) (at level 75) : latex_scope.
+
+
+
 #[export] Instance Ids_term : Ids term. derive. Defined.
 #[export] Instance Rename_term : Rename term. derive. Defined.
 #[export] Instance Subst_term : Subst term. derive. Defined.
@@ -822,11 +840,11 @@ Inductive trans_state' : state -> state -> Prop :=
   (* Case 3: Handle mode_eval with non-empty continuation stack kappa ++ [k] *)
   | trans_mode_eval_non_empty :
       forall t k kappa sigma s',
-      (match t with | If _ (Value (Bool false)) (Value (Bool true)) => False | _ => True end) \/
+      forall Hcond1: (match t with | If _ (Value (Bool false)) (Value (Bool true)) => False | _ => True end) \/
       (match kappa with | [] => False | _ => True end) \/
-      (match k with | CIf _ _ => False | _ => True end) ->
-      (match List.rev kappa with | CIf _ _::_ => False | _ => True end) \/
-      (match k with | CIf (Value (Bool false)) (Value (Bool true)) => False | _ => True end) ->
+      (match k with | CIf _ _ => False | _ => True end),
+      forall Hcond2: (match List.rev kappa with | CIf _ _::_ => False | _ => True end) \/
+      (match k with | CIf (Value (Bool false)) (Value (Bool true)) => False | _ => True end),
       trans_state' (mode_eval t kappa sigma) s' ->
       trans_state' (mode_eval t (kappa ++ [k]) sigma)
                    (append_stack s' [trans_cont_base k])
@@ -847,8 +865,8 @@ Inductive trans_state' : state -> state -> Prop :=
   (* Case 6: Handle mode_cont with non-empty continuation stack kappa ++ [k] *)
   | trans_mode_cont_non_empty :
       forall k kappa sigma v s',
-      (match List.rev kappa with | CIf _ _::_ => False | _ => True end) \/
-      (match k with | CIf (Value (Bool false)) (Value (Bool true)) => False | _ => True end) ->
+      forall Hcond1: match List.rev kappa with | CIf _ _::_ => False | _ => True end \/
+       match k with | CIf (Value (Bool false)) (Value (Bool true)) => False | _ => True end,
       trans_state' (mode_cont kappa sigma v) s' ->
       trans_state' (mode_cont (kappa ++ [k]) sigma v)
                    (append_stack s' [trans_cont_base k])
@@ -892,9 +910,9 @@ Proof.
       unzip; tryfalse.
     }
   }
-  { apply (f_equal (@List.rev _)) in H3;
-    repeat rewrite List.rev_involutive in H3;
-    simpl in H3. subst. 
+  { apply (f_equal (@List.rev _)) in H1;
+    repeat rewrite List.rev_involutive in H1;
+    simpl in H1. subst. 
     unzip; tryfalse.
   }
   { exfalso; induction kappa using List.rev_ind; intros; simpl in *.
@@ -933,6 +951,81 @@ Proof.
   * eapply star_step; eauto using cred_append_stack.
 Qed.
 
+
+Lemma append_left_and_right {s1 s2 kappa}:
+  (exists tgt, star cred s1 tgt /\ star cred s2 tgt) ->
+  exists tgt, star cred (append_stack s1 kappa) tgt /\ star cred (append_stack s2 kappa) tgt.
+Proof.
+  intros; unpack.
+  eexists; split; eapply star_cred_append_stack; eauto.
+Qed.
+
+
+Ltac list_simpl_base h := 
+  learn (f_equal (@List.rev _) h);
+    repeat multimatch goal with
+    | [h: _ |- _] =>
+      let P := typeof h in
+      match P with
+      | @Learnt _ =>
+        idtac
+      | _ =>
+        repeat rewrite List.rev_involutive in h;
+        repeat rewrite List.rev_app_distr in h;
+        simpl in h
+      end
+    end;
+    injections;
+    subst;
+    try congruence
+.
+Ltac list_simpl0 := 
+  (try multimatch goal with
+  | [h: _ = _ |- _] =>
+    list_simpl_base h
+  end)
+  .
+
+Lemma list_append_decompose: forall {A} {kappa1 kappa2} {k1 k2: A} ,
+  k1 :: kappa1 = kappa2 ++ [k2] ->
+  (k1 = k2 /\ kappa1 = nil /\ kappa2 = nil)
+  \/ (exists kappa, kappa1 = kappa ++ [k2] /\ kappa2 = k1 :: kappa).
+Proof.
+  induction kappa1 as [|a1 kappa1]; intros.
+  { repeat list_simpl0.
+    left; unzip; eauto.
+  }
+  {
+    induction kappa2 as [|a2 kappa2]; repeat list_simpl0.
+    destruct IHkappa1 with kappa2 a1 k2; eauto.
+  }
+Qed.
+
+
+
+Ltac list_simpl := 
+  (try multimatch goal with
+  | [h: _ = _ |- _] =>
+    list_simpl_base h
+  | [h: _ :: _ = _ ++ [_] |- _] =>
+    learn (list_append_decompose h); unzip
+  end)
+  .
+
+Ltac print_learnt :=
+  repeat multimatch goal with
+  | [h: @Learnt ?t |- _] => idtac t
+  end.
+
+Ltac cleanup := match goal with
+  |[h: ?T |- _] =>
+    let h' := fresh h in
+    assert (h': T); [solve[clear; eauto]|];
+    clear h h'
+  end
+  .
+
+
 Theorem correction_continuations:
   forall s1 s2,
   cred s1 s2 ->
@@ -940,7 +1033,8 @@ Theorem correction_continuations:
   trans_state' s1 s1' ->
   forall s2',
   trans_state' s2 s2' ->
-  star cred s1' s2'.
+  exists s3,
+    star cred s1' s3 /\ star cred s2' s3.
 Proof.
   (* induction s1 using (
     well_founded_induction
@@ -954,114 +1048,44 @@ Proof.
   intros s1 s2 Hcred ? Htrans1.
   generalize dependent s2.
   induction Htrans1; inversion 1; subst; inversion 1; subst.
-  all: repeat (try multimatch goal with
-  | [h: _ = _ |- _] =>
-    learn (f_equal (@List.rev _) h);
-    repeat multimatch goal with
-    | [h: _ |- _] =>
-      let P := typeof h in
-      match P with
-      | @Learnt _ =>
-        idtac "wtf ?" h
-      | _ =>
-        repeat rewrite List.rev_involutive in h;
-        repeat rewrite List.rev_app_distr in h;
-        simpl in h
-      end
-    end;
-    injections;
-    subst;
-    try congruence
-  end).
+  all: repeat list_simpl0.
   all: try solve [repeat rewrite List.app_comm_cons in *; repeat rewrite List.rev_app_distr in *; simpl in *; unzip; tryfalse].
   all: try solve [
-    eapply star_cred_append_stack;
+    eapply append_left_and_right;
     eapply IHHtrans1; [|solve [eauto]]; econstructor; eauto
   ].
-  { rewrite List.app_comm_cons in H5. rewrite List.rev_app_distr in H5. }
-  { rewrite List.rev_app_distr in H5; simpl in H5.
+  all: repeat cleanup.
+  all: simpl; repeat (eapply confluent_star_step_left; [solve [econstructor]|]).
+  all: try solve [eapply confluence_star_refl].
+  { admit "need that b reduces". }
+  { admit "need that b reduces". }
+  { destruct (list_append_decompose (eq_sym H3)) as [?|[kappa' ?]]; unpack; list_simpl0.
+    repeat cleanup.
+    rewrite List.rev_app_distr in Hcond2.
+    simpl in Hcond2.
     unzip; tryfalse.
   }
-  }
-  { eapply star_cred_append_stack.
-    eapply IHHtrans1; [|solve [eauto]].
+  { destruct (list_append_decompose (eq_sym H3)) as [?|[kappa' ?]];
+    unpack; list_simpl0; repeat cleanup.
+    2: { rewrite List.rev_app_distr in Hcond2. simpl in Hcond2. unzip; tryfalse. }
 
-
   }
-  learn (f_equal (@List.rev _) H0).
-  all: try multimatch goal with
-  | [h: _ = _ |- _] =>
-    apply (f_equal (@List.rev _)) in h;
-    repeat rewrite List.rev_app_distr in h;
-    simpl in *;
-    repeat injections; subst;
-    repeat match goal with
-    | [h: List.rev _ =  _ |- _] =>
-      apply (f_equal (@List.rev _)) in h;
-      repeat rewrite List.rev_involutive in h
-    | [h: List.rev _ =  _ |- _] =>
-      apply (f_equal (@List.rev _)) in h;
-      repeat rewrite List.rev_involutive in h
-    end;
-    repeat injections; subst
-  end.
-  all: simpl.
-  all: try solve [
-    repeat rewrite List.rev_involutive in *; unzip; tryfalse
-    | repeat rewrite List.rev_app_distr in *; simpl in *; unzip; tryfalse].
-  all: try solve [congruence].
-  { eapply star_cred_append_stack.
-    eapply IHHtrans1; [|solve [eauto]]; econstructor; eauto.
+  { eapply confluent_star_step_left. {
+      econstructor.
+      rewrite List.nth_error_map.
+      rewrite H3. reflexivity.
+    }
+    eapply confluence_star_refl.
   }
-  { repeat rewrite List.rev_app_distr in *; simpl in *; unzip.
-    repeat injections; subst.
-    eapply star_cred_append_stack.
-    apply (f_equal (@List.rev _)) in H0.
-    repeat rewrite List.rev_app_distr in *.
-    repeat rewrite List.rev_involutive in *; simpl in *.
-    subst.
-    eapply IHHtrans1; [|solve [eauto]]; econstructor; eauto.
+  { eapply confluence_star_refl_eq.
+    inversion H6.
+    all: repeat list_simpl; simpl.
+    reflexivity.
   }
-  {
-    rewrite List.rev_app_distr in *; simpl in *.
-    repeat injections; subst.
-  }
-  { rewrite List.rev_involutive in *; unzip; tryfalse. }
-  { congruence. }
-  {  }
-  { eapply star_cred_append_stack.
-    eapply IHHtrans1; [|solve [eauto]].
-    econstructor; eauto. }
-  { inversion 1; inversion 1; repeat injections; subst; simpl.
-    all: try multimatch goal with
-    | [h: _ = _ |- _] =>
-      apply (f_equal (@List.rev _)) in h;
-      repeat rewrite List.rev_app_distr in h;
-      simpl in *;
-      repeat injections; subst;
-      repeat match goal with
-      | [h: List.rev _ =  _ |- _] =>
-        apply (f_equal (@List.rev _)) in h;
-        repeat rewrite List.rev_involutive in h
-      | [h: List.rev _ =  _ |- _] =>
-        apply (f_equal (@List.rev _)) in h;
-        repeat rewrite List.rev_involutive in h
-      end;
-      repeat injections; subst
-    end.
-    2:{  }
-    all: try eapply star_cred_append_stack.
-    all: try eapply H; eauto; simpl.
-    all: try (erewrite List.app_length; simpl; lia).
-    all: try (econstructor; eauto).
-    
-    all: simpl trans_cont_base in *.
-    all: repeat step.
-    all: try solve [eapply star_refl_eq; repeat f_equal; eauto].
-    51:{ }
-  { }
-  51:{ (* qu'est ce que c'est chiant celui ci aussi. *) }
-
+  { admit "need that b reduces". }
+  { admit "need that b reduces". }
+  { admit "???". }
+Abort.
 
 
 Lemma rev_state_cons_stack_is_append_stack_rev_state:
