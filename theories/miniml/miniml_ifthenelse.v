@@ -633,6 +633,7 @@ Qed.
 
 (** Simple translation of [if t then ta else tb] into [if (if t then false else true) then tb else ta] *)
 
+Module trans1.
 Fixpoint trans_term t :=
   match t with
   | Var x => Var x
@@ -695,7 +696,7 @@ Local Ltac step := (
   induction 1; simpl; repeat step; try eapply star_refl.
 Qed.
 
-
+End trans1.
 
 Module trans2.
 Fixpoint trans_term t :=
@@ -790,6 +791,30 @@ Remove Hints wf_total_init : typeclass_instances.
 Instance wf_total_init_compute : forall {A}, WellFounded (@total_relation A).
   exact (fun A => Acc_intro_generator 10 wf_total_init).
 Defined.
+
+Fixpoint trans_term t :=
+  match t with
+  | Var x => Var x
+  | App t1 t2 => App (trans_term t1) (trans_term t2)
+  | Lam t => Lam (trans_term t)
+  | Value v => Value (trans_value v)
+  | If (If u (Value (Bool false)) (Value (Bool true))) t1 t2 =>
+    If (trans_term u) (trans_term t2) (trans_term t1)
+  | If u t1 t2 =>
+    If (trans_term u) (trans_term t1) (trans_term t2)
+  end
+with trans_value v :=
+  match v with
+  | Closure t sigma =>
+    Closure (trans_term t) (List.map trans_value sigma)
+  | Bool b => Bool b
+  end
+.
+
+Definition trans_return (r: result): result :=
+  match r with
+  | RValue v => RValue (trans_value v)
+  end.
 
 Equations trans_cont_base (k: cont) : cont :=
   trans_cont_base (CAppR t2) := CAppR (trans_term t2);
