@@ -1281,6 +1281,7 @@ Proof.
   { admit "subst lemma". }
   { eapply star_sred_app_right. eauto. }
   { eapply star_sred_app_left. eauto. }
-  { admit. } 
+  { admit "Here we don't have the induction hypothesis on a subterm of u1. Hence we cannot continue".
+  }
 Admitted.
 
