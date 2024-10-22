@@ -234,6 +234,15 @@ Export Learn.
 
 (* -------------------------------------------------------------------------- *)
 
+(* Complementary to the learn tactic: prints everything that has been learn in the current context. Source: myself*)
+
+Ltac print_learnt :=
+  repeat multimatch goal with
+  | [h: @Learnt ?t |- _] => idtac t
+  end.
+
+(* -------------------------------------------------------------------------- *)
+
 (* Locking mechanism. This permit for instance to run subst and not rewrite an equality. It is particulary usefull in the small step equivalence to keep trace of some usefull states or subterms. *)
 
 Inductive locked (P: Prop) :=
@@ -369,3 +378,13 @@ Ltac sp :=
     rewrite (surjective_pairing p) in h
   end
 .
+
+(* Tactic that discard from the current context every hypothesis that can be derived using simpl; eauto *)
+
+Ltac cleanup := match goal with
+  |[h: ?T |- _] =>
+    let h' := fresh h in
+    assert (h': T); [solve[clear; simpl; eauto]|];
+    clear h h'
+  end
+  .

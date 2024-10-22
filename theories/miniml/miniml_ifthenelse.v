@@ -11,6 +11,8 @@ Require Import Wellfounded.
 
 From Equations Require Import Equations.
 
+Set Default Goal Selector "!".
+
 
 (*** Definitions of terms and continuations for mini-ML ***)
 
@@ -816,18 +818,14 @@ Proof.
   all: constructor.
 Defined.
 
-Print trans_state_aux_graph.
-
-
-
 Definition trans_state s := rev_state (trans_state_aux (rev_state s)).
 
 Inductive trans_state' : state -> state -> Prop :=
-  (* Case 1: Handle two nested CIf statements with kappa ++ [CIf t2 t1] *)
+  (* Case 1: Handle two nested CIf control units *)
   | trans_if_nested :
       forall t t1 t2 kappa sigma s',
       trans_state' (mode_eval t kappa sigma) s' ->
-      trans_state' (mode_eval t (kappa ++ [CIf t1 t2; CIf (Value (Bool false)) (Value (Bool true))]) sigma)
+      trans_state' (mode_eval t (kappa ++ [CIf (Value (Bool false)) (Value (Bool true)); CIf t1 t2]) sigma)
                    (append_stack s' [CIf (trans_term t2) (trans_term t1)])
 
   (* Case 2: Handle If False True term with kappa ++ [CIf t2 t1] *)
@@ -835,16 +833,28 @@ Inductive trans_state' : state -> state -> Prop :=
       forall b t1 t2 sigma s',
       trans_state' (mode_eval b [] (List.map trans_value sigma)) s' ->
       trans_state' (mode_eval (If b (Value (Bool false)) (Value (Bool true))) [CIf t1 t2] sigma)
-                   (mode_eval (trans_term b) [] (List.map trans_value sigma))
+                   (mode_eval (trans_term b) [CIf t2 t1] (List.map trans_value sigma))
 
   (* Case 3: Handle mode_eval with non-empty continuation stack kappa ++ [k] *)
   | trans_mode_eval_non_empty :
       forall t k kappa sigma s',
-      forall Hcond1: (match t with | If _ (Value (Bool false)) (Value (Bool true)) => False | _ => True end) \/
-      (match kappa with | [] => False | _ => True end) \/
-      (match k with | CIf _ _ => False | _ => True end),
-      forall Hcond2: (match List.rev kappa with | CIf _ _::_ => False | _ => True end) \/
-      (match k with | CIf (Value (Bool false)) (Value (Bool true)) => False | _ => True end),
+      forall Hcond1:
+        (* mode_eval
+            (If b (Value (Bool false)) (Value (Bool true)))
+            [CIf t1 t2]
+            sigma
+        *)
+           match t with | If _ (Value (Bool false)) (Value (Bool true)) => False | _ => True end
+        \/ (match kappa with | [] => False | _ => True end)
+        \/ match k with | CIf _ _ => False | _ => True end,
+      forall Hcond2:
+          (* mode_eval
+              t 
+              (kappa ++ [CIf (Value (Bool false)) (Value (Bool true)); CIf t1 t2])
+              sigma
+          *)
+           match List.rev kappa with | CIf (Value (Bool false)) (Value (Bool true)) ::_ => False | _ => True end
+        \/ match k with | CIf _ _ => False | _ => True end,
       trans_state' (mode_eval t kappa sigma) s' ->
       trans_state' (mode_eval t (kappa ++ [k]) sigma)
                    (append_stack s' [trans_cont_base k])
@@ -859,14 +869,14 @@ Inductive trans_state' : state -> state -> Prop :=
   | trans_mode_cont_if_nested :
       forall t1 t2 kappa sigma v s',
       trans_state' (mode_cont kappa sigma v) s' ->
-      trans_state' (mode_cont (kappa ++ [CIf t1 t2; CIf (Value (Bool false)) (Value (Bool true))]) sigma v)
+      trans_state' (mode_cont (kappa ++ [CIf (Value (Bool false)) (Value (Bool true)); CIf t1 t2]) sigma v)
                    (append_stack s' [CIf (trans_term t2) (trans_term t1)])
 
   (* Case 6: Handle mode_cont with non-empty continuation stack kappa ++ [k] *)
   | trans_mode_cont_non_empty :
       forall k kappa sigma v s',
-      forall Hcond1: match List.rev kappa with | CIf _ _::_ => False | _ => True end \/
-       match k with | CIf (Value (Bool false)) (Value (Bool true)) => False | _ => True end,
+      forall Hcond1: match List.rev kappa with |  CIf (Value (Bool false)) (Value (Bool true)) ::_ => False | _ => True end \/
+       match k with CIf _ _ => False | _ => True end,
       trans_state' (mode_cont kappa sigma v) s' ->
       trans_state' (mode_cont (kappa ++ [k]) sigma v)
                    (append_stack s' [trans_cont_base k])
@@ -928,7 +938,7 @@ Lemma trans_correct:
   forall s,
     trans_state' s (trans_state s).
 Proof.
-  (* trop chiant *)
+  (* trop pénible *)
 Admitted.
 
 Theorem cred_append_stack s s':
@@ -1012,18 +1022,13 @@ Ltac list_simpl :=
   end)
   .
 
-Ltac print_learnt :=
-  repeat multimatch goal with
-  | [h: @Learnt ?t |- _] => idtac t
-  end.
+Ltac decompose h :=
 
-Ltac cleanup := match goal with
-  |[h: ?T |- _] =>
-    let h' := fresh h in
-    assert (h': T); [solve[clear; eauto]|];
-    clear h h'
-  end
-  .
+  let kappa := fresh "kappa" in
+  first
+    [ destruct (list_append_decompose h) as [?|[kappa ?]]; unpack; repeat list_simpl0; repeat cleanup
+    | destruct (list_append_decompose (eq_sym h)) as [?|[kappa ?]]; unpack; repeat list_simpl0; repeat cleanup
+  ].
 
 
 Theorem correction_continuations:
@@ -1059,16 +1064,8 @@ Proof.
   all: try solve [eapply confluence_star_refl].
   { admit "need that b reduces". }
   { admit "need that b reduces". }
-  { destruct (list_append_decompose (eq_sym H3)) as [?|[kappa' ?]]; unpack; list_simpl0.
-    repeat cleanup.
-    rewrite List.rev_app_distr in Hcond2.
-    simpl in Hcond2.
-    unzip; tryfalse.
-  }
-  { destruct (list_append_decompose (eq_sym H3)) as [?|[kappa' ?]];
-    unpack; list_simpl0; repeat cleanup.
-    2: { rewrite List.rev_app_distr in Hcond2. simpl in Hcond2. unzip; tryfalse. }
-
+  { destruct (list_append_decompose (eq_sym H3)) as [?|[kappa' ?]]; unpack; repeat list_simpl0.
+    all: repeat cleanup; unzip; tryfalse.
   }
   { eapply confluent_star_step_left. {
       econstructor.
@@ -1078,13 +1075,95 @@ Proof.
     eapply confluence_star_refl.
   }
   { eapply confluence_star_refl_eq.
-    inversion H6.
-    all: repeat list_simpl; simpl.
+    inversion H4.
+    all: repeat list_simpl; simpl; list_simpl0; repeat cleanup.
     reflexivity.
   }
   { admit "need that b reduces". }
-  { admit "need that b reduces". }
-  { admit "???". }
+  { admit "need that u reduces". }
+  { decompose H7.
+    decompose H1.
+    eapply append_left_and_right.
+    eapply IHHtrans1; [econstructor|].
+    eauto.
+  }
+  { decompose H4.
+    decompose H24.
+    unzip; tryfalse.
+  }
+  { decompose H1.
+    decompose H1.
+    eapply append_left_and_right.
+    eapply IHHtrans1; [econstructor|].
+    eauto.
+  }
+  { decompose H3.
+    decompose H24.
+    unzip; tryfalse.
+  }
+  { decompose H3.
+    unzip; tryfalse.
+  }
+  { decompose H3.
+    { inversion H5; repeat list_simpl0; repeat cleanup.
+      inversion Htrans1; repeat list_simpl0; repeat cleanup.
+      simpl.
+      repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
+      repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+      eapply confluence_star_refl.
+    }
+    { unzip; tryfalse. }
+  }
+  { decompose H3.
+    { inversion H5; repeat list_simpl0; repeat cleanup.
+      inversion Htrans1; repeat list_simpl0; repeat cleanup.
+      simpl.
+      repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
+      repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+      eapply confluence_star_refl.
+    }
+    { unzip; tryfalse. }
+  }
+  {
+    decompose H11.
+    decompose H0.
+    unzip; tryfalse.
+  }
+  { decompose H0.
+    {
+      inversion H5; repeat list_simpl0; repeat cleanup.
+      inversion Htrans1; repeat list_simpl0; repeat cleanup.
+      simpl.
+      repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
+      repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+      eapply confluence_star_refl.
+    }
+    { eapply append_left_and_right.
+      eapply IHHtrans1; [econstructor|].
+      eauto.
+    }
+  }
+  { decompose H7.
+    decompose H18.
+    unzip; tryfalse.
+  }
+  { decompose H9.
+    { inversion H5; repeat list_simpl0; repeat cleanup.
+      inversion Htrans1; repeat list_simpl0; repeat cleanup.
+      simpl.
+      repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
+      repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+      eapply confluence_star_refl.
+    }
+    { eapply append_left_and_right.
+      eapply IHHtrans1; [econstructor|].
+      eauto.
+    }
+  }
+  {
+    
+  }
+
 Abort.
 
 
