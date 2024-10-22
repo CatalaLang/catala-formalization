@@ -302,6 +302,49 @@ Inductive sred: term -> term -> Prop :=
       sred (If u1 t1 t2) (If u2 t1 t2)
 .
 
+Lemma star_sred_app_right:
+forall t sigma u1 u2,
+  star sred (u1) (u2) ->
+  star sred
+    (App (Value (Closure t sigma)) u1)
+    (App (Value (Closure t sigma)) u2).
+Proof.
+  induction 1.
+  { eapply star_refl. }
+  { eapply star_step.
+    { econstructor; eauto. }
+    { eauto. }
+  }
+Qed.
+Lemma star_sred_app_left:
+forall t1 t2 u,
+  star sred (t1) (t2) ->
+  star sred
+    (App t1 u)
+    (App t2 u).
+Proof.
+  induction 1.
+  { eapply star_refl. }
+  { eapply star_step.
+    { econstructor; eauto. }
+    { eauto. }
+  }
+Qed.
+
+Lemma star_sred_if_cond:
+forall u1 u2 t1 t2,
+  star sred u1 u2 ->
+  star sred (If u1 t1 t2) (If u2 t1 t2).
+Proof.
+  induction 1.
+  { eapply star_refl. }
+  { eapply star_step.
+    { econstructor; eauto. }
+    { eauto. }
+  }
+Qed.
+
+
 
 (*** Typing ***)
 
@@ -1089,8 +1132,9 @@ Proof.
   all: try solve [eapply confluence_star_refl].
   { admit "need that b reduces". }
   { admit "need that b reduces". }
-  { destruct (list_append_decompose (eq_sym H3)) as [?|[kappa' ?]]; unpack; repeat list_simpl0.
-    all: repeat cleanup; unzip; tryfalse.
+  { decompose H3. 
+    { unzip; tryfalse. }
+    { unzip; tryfalse. }
   }
   { eapply confluent_star_step_left. {
       econstructor.
@@ -1230,11 +1274,13 @@ Theorem correction_traditional:
 Proof.
   Local Ltac step := (
     try (eapply star_step; [solve
-      [ econstructor; simpl; eauto using List.map_nth_error
+      [ repeat econstructor; simpl; eauto using List.map_nth_error
     ]|]))
   .
   induction 1; simpl; repeat step; try eapply star_refl.
-  4: { admit "abort". }
-  all: admit.
+  { admit "subst lemma". }
+  { eapply star_sred_app_right. eauto. }
+  { eapply star_sred_app_left. eauto. }
+  { admit. } 
 Admitted.
 
