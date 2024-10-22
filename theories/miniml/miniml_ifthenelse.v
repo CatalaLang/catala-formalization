@@ -1161,69 +1161,40 @@ Proof.
     }
   }
   {
-    
+    inversion Htrans1; repeat list_simpl0; repeat cleanup.
+    simpl.
+    repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
+    repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+    eapply confluence_star_refl.
   }
-
-Abort.
-
-
-Lemma rev_state_cons_stack_is_append_stack_rev_state:
-  forall s kappa,
-  rev_state (cons_stack s kappa) = append_stack (rev_state s) (List.rev kappa).
-Proof.
-  induction s; simpl; intros; repeat f_equal.
-  all: eapply List.rev_app_distr.
-Qed.
-
-Theorem cred_append_stack s s':
-  (* If you can do a transition, then you can do the same transition with additional informations on the stack. *)
-  cred s s' ->
-  forall k,
-  cred (append_stack s k) (append_stack s' k).
-Proof.
-  induction 1; intros; asimpl; try econstructor; eauto.
-Qed.
-
-Theorem star_cred_append_stack s s':
-  star cred s s'
-  ->
-  forall k,
-  star cred (append_stack s k) (append_stack s' k).
-Proof.
-  induction 1; intros.
-  * eauto with sequences.
-  * eapply star_step; eauto using cred_append_stack.
-Qed.
-
-Theorem correction_continuations:
-  forall s1 s2,
-  cred s1 s2 ->
-  star cred
-    (trans_state s1) (trans_state s2).
-Proof.
-  Local Ltac step := 
-    eapply star_step; [solve [econstructor; simpl; eauto using List.map_nth_error]|]
-  .
-  unfold trans_state.
-  all: intro s1; funelim (trans_state_aux (rev_state s1)).
-  all: inversion 1; subst; simpl in *.
-  all: repeat injections; try congruence; subst.
-  all: try match goal with [h: _ = List.rev _ |- _] => rewrite <- h in * end.
-  all: subst; simpl.
-  all: repeat step; try eapply star_refl.
-  all: simpl.
-  all: repeat (try rewrite trans_state_aux_equation_1; try rewrite trans_state_aux_equation_38; try rewrite trans_state_aux_equation_2; try rewrite trans_state_aux_equation_4; try rewrite trans_state_aux_equation_41; try rewrite trans_state_aux_equation_39; try rewrite trans_state_aux_equation_42; try rewrite trans_state_aux_equation_8; try rewrite trans_state_aux_equation_5; try rewrite trans_state_aux_equation_6; try rewrite trans_state_aux_equation_22; try rewrite trans_state_aux_equation_3; try rewrite trans_state_aux_equation_24; try rewrite trans_state_aux_equation_43; try rewrite trans_state_aux_equation_40; try rewrite trans_state_aux_equation_7; try rewrite trans_state_aux_equation_45; try rewrite trans_state_aux_equation_9; try rewrite trans_state_aux_equation_10; try rewrite trans_state_aux_equation_21; try rewrite trans_state_aux_equation_34; try rewrite trans_state_aux_equation_25; try rewrite trans_state_aux_equation_26; try rewrite trans_state_aux_equation_13; try rewrite trans_state_aux_equation_55; try rewrite trans_state_aux_equation_46; try rewrite trans_state_aux_equation_47; try rewrite trans_state_aux_equation_29; try rewrite trans_state_aux_equation_37; try rewrite trans_state_aux_equation_19; try rewrite trans_state_aux_equation_58; try rewrite trans_state_aux_equation_50; try rewrite trans_state_aux_equation_11; try rewrite trans_state_aux_equation_18; try rewrite trans_state_aux_equation_23; try rewrite trans_state_aux_equation_35; try rewrite trans_state_aux_equation_14; try rewrite trans_state_aux_equation_27; try rewrite trans_state_aux_equation_44; try rewrite trans_state_aux_equation_15; try rewrite trans_state_aux_equation_56; try rewrite trans_state_aux_equation_20; try rewrite trans_state_aux_equation_30; try rewrite trans_state_aux_equation_48; try rewrite trans_state_aux_equation_31; try rewrite trans_state_aux_equation_51; try rewrite trans_state_aux_equation_52; try rewrite trans_state_aux_equation_36; try rewrite trans_state_aux_equation_12; try rewrite trans_state_aux_equation_57; try rewrite trans_state_aux_equation_16; try rewrite trans_state_aux_equation_28; try rewrite trans_state_aux_equation_32; try rewrite trans_state_aux_equation_49; try rewrite trans_state_aux_equation_53; try rewrite trans_state_aux_equation_17; try rewrite trans_state_aux_equation_54).
-
-  2: { 
-    repeat rewrite rev_state_cons_stack_is_append_stack_rev_state; simpl.
-    eapply star_cred_append_stack.
-    eapply 
-    epose proof (H _ _ _ H0).
-    Unshelve.
-    2: simpl; eauto.
-    eapply H.
+  { inversion H5; repeat list_simpl0; repeat cleanup.
+    inversion Htrans1; repeat list_simpl0; repeat cleanup.
+    inversion H9; repeat list_simpl0; repeat cleanup.
+    simpl.
+    repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
+    repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+    admit "need to reduce b".
   }
-
+  { inversion Htrans1; repeat list_simpl0; repeat cleanup.
+    simpl.
+    repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
+    repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+    eapply confluence_star_refl.
+  }
+  { inversion Htrans1; repeat list_simpl0; repeat cleanup.
+    inversion H5; repeat list_simpl0; repeat cleanup.
+    inversion H7; repeat list_simpl0; repeat cleanup.
+    simpl.
+    repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
+    repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+    admit "require to reduce b".
+  }
+  { inversion Htrans1; repeat list_simpl0; repeat cleanup.
+    simpl.
+    repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
+    apply confluence_star_refl.
+  }
+Admitted.
 
 Theorem correction_traditional:
   forall s1 s2,
