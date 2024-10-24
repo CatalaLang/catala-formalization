@@ -9,6 +9,8 @@ Require Import sequences.
 Require Import Coq.Classes.SetoidClass.
 Require Import Wellfounded.
 
+Require Import Coq.Program.Equality.
+
 From Equations Require Import Equations.
 
 Set Default Goal Selector "!".
@@ -145,8 +147,8 @@ Theorem term_ind'
       (forall t : term, P t) /\ (forall v : value, P0 v).
 Proof.
   split; intros.
-  unshelve eapply (term_value_induction (inl t)); eauto.
-  unshelve eapply (term_value_induction (inr v)); eauto.
+  { unshelve eapply (term_value_induction (inl t)); eauto. }
+  { unshelve eapply (term_value_induction (inr v)); eauto. }
 Qed.
 
 
@@ -824,7 +826,7 @@ Set Equations Transparent.
 
 (* we define trans_state to be rev_state \circ trans_state_aux \circ rev_state
 to permit more adapted pattern matching. *)
-Require Import Coq.Program.Equality.
+
 Definition total_relation {A : Type} : A -> A -> Prop := fun x y => True.
 Axiom wf_total_init : forall {A}, WellFounded (@total_relation A).
 #[local]
@@ -953,13 +955,12 @@ Inductive trans_state' : state -> state -> Prop :=
   | trans_mode_cont_empty :
       forall sigma v,
       trans_state' (mode_cont [] sigma v)
-                   (mode_cont [] (List.map trans_value sigma) (trans_return v)).
+                   (mode_cont [] (List.map trans_value sigma) (trans_return v))
+  .
 
 
 
-
-
-  Ltac list_simpl_base h := 
+Ltac list_simpl_base h := 
   learn (f_equal (@List.rev _) h);
     repeat multimatch goal with
     | [h: _ |- _] =>
@@ -1054,7 +1055,10 @@ Qed.
 
 Lemma append_left_and_right {s1 s2 kappa}:
   (exists tgt, star cred s1 tgt /\ star cred s2 tgt) ->
-  exists tgt, star cred (append_stack s1 kappa) tgt /\ star cred (append_stack s2 kappa) tgt.
+  (exists tgt,
+    star cred (append_stack s1 kappa) tgt
+    /\ star cred (append_stack s2 kappa) tgt
+  ).
 Proof.
   intros; unpack.
   eexists; split; eapply star_cred_append_stack; eauto.
@@ -1082,13 +1086,19 @@ Proof.
   intros s1 s2 Hcred ? Htrans1.
   generalize dependent s2.
   induction Htrans1; inversion 1; subst; inversion 1; subst.
-  all: repeat list_simpl.
-  all: try solve [repeat rewrite List.app_comm_cons in *; repeat rewrite List.rev_app_distr in *; simpl in *; unzip; tryfalse].
+  all: repeat list_simpl; repeat cleanup.
+  all: try solve [
+    repeat rewrite List.app_comm_cons in *;
+    repeat rewrite List.rev_app_distr in *;
+    simpl in *;
+    unzip;
+    tryfalse
+  ].
   all: try solve [
     eapply append_left_and_right;
-    eapply IHHtrans1; [|solve [eauto]]; econstructor; eauto
+    eapply IHHtrans1; [|solve [eauto]];
+    econstructor; eauto
   ].
-  all: repeat cleanup.
   all: simpl; repeat (eapply confluent_star_step_left; [solve [econstructor]|]).
   all: try solve [eapply confluence_star_refl].
   { admit "need that b reduces". }
@@ -1246,3 +1256,4 @@ Proof.
   }
 Admitted.
 
+End trans3.
