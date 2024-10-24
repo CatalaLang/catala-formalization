@@ -955,6 +955,62 @@ Inductive trans_state' : state -> state -> Prop :=
       trans_state' (mode_cont [] sigma v)
                    (mode_cont [] (List.map trans_value sigma) (trans_return v)).
 
+
+
+
+
+  Ltac list_simpl_base h := 
+  learn (f_equal (@List.rev _) h);
+    repeat multimatch goal with
+    | [h: _ |- _] =>
+      let P := typeof h in
+      match P with
+      | @Learnt _ =>
+        idtac
+      | _ =>
+        repeat rewrite List.rev_involutive in h;
+        repeat rewrite List.rev_app_distr in h;
+        simpl in h
+      end
+    end;
+    injections;
+    subst;
+    try congruence
+.
+
+Ltac list_simpl := 
+  (try multimatch goal with
+  | [h: _ = _ |- _] =>
+    list_simpl_base h
+  end)
+  .
+
+Lemma list_append_decompose: forall {A} {kappa1 kappa2} {k1 k2: A} ,
+  k1 :: kappa1 = kappa2 ++ [k2] ->
+  (k1 = k2 /\ kappa1 = nil /\ kappa2 = nil)
+  \/ (exists kappa, kappa1 = kappa ++ [k2] /\ kappa2 = k1 :: kappa).
+Proof.
+  induction kappa1 as [|a1 kappa1]; intros.
+  { repeat list_simpl.
+    left; unzip; eauto.
+  }
+  {
+    induction kappa2 as [|a2 kappa2]; repeat list_simpl.
+    destruct IHkappa1 with kappa2 a1 k2; eauto.
+  }
+Qed.
+
+
+
+Ltac decompose h :=
+
+  let kappa := fresh "kappa" in
+  first
+    [ destruct (list_append_decompose h) as [?|[kappa ?]]; unpack; repeat list_simpl; repeat cleanup
+    | destruct (list_append_decompose (eq_sym h)) as [?|[kappa ?]]; unpack; repeat list_simpl; repeat cleanup
+  ].
+
+
 Lemma trans_state_deterministic:
   forall s s1,
     trans_state' s s1 ->
@@ -963,43 +1019,9 @@ Lemma trans_state_deterministic:
     s1 = s2.
 Proof.
   induction 1; inversion 1; subst.
-  all: try multimatch goal with
-    | [h: _ = _ |- _] =>
-      apply (f_equal (@List.rev _)) in h;
-      repeat rewrite List.rev_app_distr in h;
-      simpl in *;
-      repeat injections; subst;
-      repeat match goal with
-      | [h: List.rev _ =  _ |- _] =>
-        apply (f_equal (@List.rev _)) in h;
-        repeat rewrite List.rev_involutive in h
-      | [h: List.rev _ =  _ |- _] =>
-        apply (f_equal (@List.rev _)) in h;
-        repeat rewrite List.rev_involutive in h
-      end;
-      repeat injections; subst
-    end.
-  all: repeat rewrite List.rev_involutive in *.
+  all: repeat list_simpl; repeat cleanup.
   all: try solve [eapply f_equal2; eauto | unzip; tryfalse | congruence].
-  { exfalso; induction kappa using List.rev_ind; intros; simpl in *.
-    { congruence. }
-    { rewrite List.rev_app_distr in *; simpl in *.
-      injections; subst.
-      unzip; tryfalse.
-    }
-  }
-  { apply (f_equal (@List.rev _)) in H1;
-    repeat rewrite List.rev_involutive in H1;
-    simpl in H1. subst. 
-    unzip; tryfalse.
-  }
-  { exfalso; induction kappa using List.rev_ind; intros; simpl in *.
-    { congruence. }
-    { rewrite List.rev_app_distr in *; simpl in *.
-      injections; subst.
-      unzip; tryfalse.
-    }
-  }
+  all: try solve [rewrite List.rev_app_distr in *; simpl in *; unzip; tryfalse].
 Qed.
 
 Lemma trans_correct:
@@ -1038,67 +1060,6 @@ Proof.
   eexists; split; eapply star_cred_append_stack; eauto.
 Qed.
 
-
-Ltac list_simpl_base h := 
-  learn (f_equal (@List.rev _) h);
-    repeat multimatch goal with
-    | [h: _ |- _] =>
-      let P := typeof h in
-      match P with
-      | @Learnt _ =>
-        idtac
-      | _ =>
-        repeat rewrite List.rev_involutive in h;
-        repeat rewrite List.rev_app_distr in h;
-        simpl in h
-      end
-    end;
-    injections;
-    subst;
-    try congruence
-.
-Ltac list_simpl0 := 
-  (try multimatch goal with
-  | [h: _ = _ |- _] =>
-    list_simpl_base h
-  end)
-  .
-
-Lemma list_append_decompose: forall {A} {kappa1 kappa2} {k1 k2: A} ,
-  k1 :: kappa1 = kappa2 ++ [k2] ->
-  (k1 = k2 /\ kappa1 = nil /\ kappa2 = nil)
-  \/ (exists kappa, kappa1 = kappa ++ [k2] /\ kappa2 = k1 :: kappa).
-Proof.
-  induction kappa1 as [|a1 kappa1]; intros.
-  { repeat list_simpl0.
-    left; unzip; eauto.
-  }
-  {
-    induction kappa2 as [|a2 kappa2]; repeat list_simpl0.
-    destruct IHkappa1 with kappa2 a1 k2; eauto.
-  }
-Qed.
-
-
-
-Ltac list_simpl := 
-  (try multimatch goal with
-  | [h: _ = _ |- _] =>
-    list_simpl_base h
-  | [h: _ :: _ = _ ++ [_] |- _] =>
-    learn (list_append_decompose h); unzip
-  end)
-  .
-
-Ltac decompose h :=
-
-  let kappa := fresh "kappa" in
-  first
-    [ destruct (list_append_decompose h) as [?|[kappa ?]]; unpack; repeat list_simpl0; repeat cleanup
-    | destruct (list_append_decompose (eq_sym h)) as [?|[kappa ?]]; unpack; repeat list_simpl0; repeat cleanup
-  ].
-
-
 Theorem correction_continuations:
   forall s1 s2,
   cred s1 s2 ->
@@ -1121,7 +1082,7 @@ Proof.
   intros s1 s2 Hcred ? Htrans1.
   generalize dependent s2.
   induction Htrans1; inversion 1; subst; inversion 1; subst.
-  all: repeat list_simpl0.
+  all: repeat list_simpl.
   all: try solve [repeat rewrite List.app_comm_cons in *; repeat rewrite List.rev_app_distr in *; simpl in *; unzip; tryfalse].
   all: try solve [
     eapply append_left_and_right;
@@ -1145,7 +1106,7 @@ Proof.
   }
   { eapply confluence_star_refl_eq.
     inversion H4.
-    all: repeat list_simpl; simpl; list_simpl0; repeat cleanup.
+    all: repeat list_simpl; simpl; list_simpl; repeat cleanup.
     reflexivity.
   }
   { admit "need that b reduces". }
@@ -1174,8 +1135,8 @@ Proof.
     unzip; tryfalse.
   }
   { decompose H3.
-    { inversion H5; repeat list_simpl0; repeat cleanup.
-      inversion Htrans1; repeat list_simpl0; repeat cleanup.
+    { inversion H5; repeat list_simpl; repeat cleanup.
+      inversion Htrans1; repeat list_simpl; repeat cleanup.
       simpl.
       repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
       repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
@@ -1184,8 +1145,8 @@ Proof.
     { unzip; tryfalse. }
   }
   { decompose H3.
-    { inversion H5; repeat list_simpl0; repeat cleanup.
-      inversion Htrans1; repeat list_simpl0; repeat cleanup.
+    { inversion H5; repeat list_simpl; repeat cleanup.
+      inversion Htrans1; repeat list_simpl; repeat cleanup.
       simpl.
       repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
       repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
@@ -1200,8 +1161,8 @@ Proof.
   }
   { decompose H0.
     {
-      inversion H5; repeat list_simpl0; repeat cleanup.
-      inversion Htrans1; repeat list_simpl0; repeat cleanup.
+      inversion H5; repeat list_simpl; repeat cleanup.
+      inversion Htrans1; repeat list_simpl; repeat cleanup.
       simpl.
       repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
       repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
@@ -1217,8 +1178,8 @@ Proof.
     unzip; tryfalse.
   }
   { decompose H9.
-    { inversion H5; repeat list_simpl0; repeat cleanup.
-      inversion Htrans1; repeat list_simpl0; repeat cleanup.
+    { inversion H5; repeat list_simpl; repeat cleanup.
+      inversion Htrans1; repeat list_simpl; repeat cleanup.
       simpl.
       repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
       repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
@@ -1230,35 +1191,35 @@ Proof.
     }
   }
   {
-    inversion Htrans1; repeat list_simpl0; repeat cleanup.
+    inversion Htrans1; repeat list_simpl; repeat cleanup.
     simpl.
     repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
     repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
     eapply confluence_star_refl.
   }
-  { inversion H5; repeat list_simpl0; repeat cleanup.
-    inversion Htrans1; repeat list_simpl0; repeat cleanup.
-    inversion H9; repeat list_simpl0; repeat cleanup.
+  { inversion H5; repeat list_simpl; repeat cleanup.
+    inversion Htrans1; repeat list_simpl; repeat cleanup.
+    inversion H9; repeat list_simpl; repeat cleanup.
     simpl.
     repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
     repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
     admit "need to reduce b".
   }
-  { inversion Htrans1; repeat list_simpl0; repeat cleanup.
+  { inversion Htrans1; repeat list_simpl; repeat cleanup.
     simpl.
     repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
     repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
     eapply confluence_star_refl.
   }
-  { inversion Htrans1; repeat list_simpl0; repeat cleanup.
-    inversion H5; repeat list_simpl0; repeat cleanup.
-    inversion H7; repeat list_simpl0; repeat cleanup.
+  { inversion Htrans1; repeat list_simpl; repeat cleanup.
+    inversion H5; repeat list_simpl; repeat cleanup.
+    inversion H7; repeat list_simpl; repeat cleanup.
     simpl.
     repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
     repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
     admit "require to reduce b".
   }
-  { inversion Htrans1; repeat list_simpl0; repeat cleanup.
+  { inversion Htrans1; repeat list_simpl; repeat cleanup.
     simpl.
     repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
     apply confluence_star_refl.
