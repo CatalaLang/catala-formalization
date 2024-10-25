@@ -1003,15 +1003,6 @@ Qed.
 
 
 
-Ltac decompose h :=
-
-  let kappa := fresh "kappa" in
-  first
-    [ destruct (list_append_decompose h) as [?|[kappa ?]]; unpack; repeat list_simpl; repeat cleanup
-    | destruct (list_append_decompose (eq_sym h)) as [?|[kappa ?]]; unpack; repeat list_simpl; repeat cleanup
-  ].
-
-
 Lemma trans_state_deterministic:
   forall s s1,
     trans_state' s s1 ->
@@ -1021,8 +1012,8 @@ Lemma trans_state_deterministic:
 Proof.
   induction 1; inversion 1; subst.
   all: repeat list_simpl; repeat cleanup.
-  all: try solve [eapply f_equal2; eauto | unzip; tryfalse | congruence].
-  all: try solve [rewrite List.rev_app_distr in *; simpl in *; unzip; tryfalse].
+  all: try solve [eapply f_equal2; eauto | tryfalse ].
+  all: try solve [rewrite List.rev_app_distr in *; simpl in *; tryfalse].
 Qed.
 
 Lemma trans_correct:
@@ -1064,6 +1055,17 @@ Proof.
   eexists; split; eapply star_cred_append_stack; eauto.
 Qed.
 
+Ltac decompose h :=
+  let kappa := fresh "kappa" in
+  first
+    [ destruct (list_append_decompose h) as [?|[kappa ?]]
+    | destruct (list_append_decompose (eq_sym h)) as [?|[kappa ?]]
+    ];
+    unpack;
+    repeat list_simpl;
+    repeat cleanup
+.
+
 Theorem correction_continuations:
   forall s1 s2,
   cred s1 s2 ->
@@ -1103,12 +1105,11 @@ Proof.
   all: try solve [eapply confluence_star_refl].
   { admit "need that b reduces". }
   { admit "need that b reduces". }
-  { decompose H3. 
-    { unzip; tryfalse. }
-    { unzip; tryfalse. }
-  }
+  { decompose H3; tryfalse. }
   { eapply confluent_star_step_left. {
       econstructor.
+      rewrite List.nth_error_map.
+      eauto.
       rewrite List.nth_error_map.
       rewrite H3. reflexivity.
     }
@@ -1116,12 +1117,12 @@ Proof.
   }
   { eapply confluence_star_refl_eq.
     inversion H4.
-    all: repeat list_simpl; simpl; list_simpl; repeat cleanup.
-    reflexivity.
+    all: repeat (list_simpl; simpl).
   }
   { admit "need that b reduces". }
   { admit "need that u reduces". }
-  { decompose H7.
+  { repeat cleanup.
+    decompose H7.
     decompose H1.
     eapply append_left_and_right.
     eapply IHHtrans1; [econstructor|].
@@ -1129,7 +1130,7 @@ Proof.
   }
   { decompose H4.
     decompose H24.
-    unzip; tryfalse.
+    tryfalse.
   }
   { decompose H1.
     decompose H1.
@@ -1139,20 +1140,10 @@ Proof.
   }
   { decompose H3.
     decompose H24.
-    unzip; tryfalse.
+    tryfalse.
   }
   { decompose H3.
-    unzip; tryfalse.
-  }
-  { decompose H3.
-    { inversion H5; repeat list_simpl; repeat cleanup.
-      inversion Htrans1; repeat list_simpl; repeat cleanup.
-      simpl.
-      repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
-      repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
-      eapply confluence_star_refl.
-    }
-    { unzip; tryfalse. }
+    tryfalse.
   }
   { decompose H3.
     { inversion H5; repeat list_simpl; repeat cleanup.
@@ -1162,12 +1153,22 @@ Proof.
       repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
       eapply confluence_star_refl.
     }
-    { unzip; tryfalse. }
+    { tryfalse. }
+  }
+  { decompose H3.
+    { inversion H5; repeat list_simpl; repeat cleanup.
+      inversion Htrans1; repeat list_simpl; repeat cleanup.
+      simpl.
+      repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
+      repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+      eapply confluence_star_refl.
+    }
+    { tryfalse. }
   }
   {
     decompose H11.
     decompose H0.
-    unzip; tryfalse.
+    tryfalse.
   }
   { decompose H0.
     {
@@ -1185,7 +1186,7 @@ Proof.
   }
   { decompose H7.
     decompose H18.
-    unzip; tryfalse.
+    tryfalse.
   }
   { decompose H9.
     { inversion H5; repeat list_simpl; repeat cleanup.

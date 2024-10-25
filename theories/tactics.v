@@ -193,11 +193,13 @@ Ltac dblib_by_cases :=
 
 (* -------------------------------------------------------------------------- *)
 
-(* source : LibTactics.v from Arthur Chargeraux *)
-Tactic Notation "tryfalse" := try solve [exfalso; solve [assumption | discriminate | congruence]].
+(* source : LibTactics.v from Arthur Chargeraux adapted for our use *)
+Tactic Notation "tryfalse" := try solve [
+  unzip; exfalso;
+  solve [assumption | discriminate | congruence]].
 
 Tactic Notation "tryfalse" tactic(cont) := try solve [
-    exfalso; solve [
+    unzip; exfalso; solve [
       assumption |
       discriminate |
       congruence |
@@ -369,7 +371,7 @@ Goal forall n, exists n', n' = n+1.
   eauto.
 Qed.
 
-
+(* Typical optimization that can be found inside normal compiler. But applied on galina code for ease of use. *)
 Ltac sp :=
   repeat match goal with
   | [ |- context [let '(_, _) := ?p in _]] =>
