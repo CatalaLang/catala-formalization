@@ -1109,8 +1109,6 @@ Proof.
   { eapply confluent_star_step_left. {
       econstructor.
       rewrite List.nth_error_map.
-      eauto.
-      rewrite List.nth_error_map.
       rewrite H3. reflexivity.
     }
     eapply confluence_star_refl.
