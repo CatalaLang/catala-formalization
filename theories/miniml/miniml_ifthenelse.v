@@ -883,9 +883,9 @@ Inductive trans_state' : state -> state -> Prop :=
   (* Case 2: Handle If False True term with kappa ++ [CIf t2 t1] *)
   | trans_if_false_true :
       forall b t1 t2 sigma s',
-      trans_state' (mode_eval b [] (List.map trans_value sigma)) s' ->
+      trans_state' (mode_eval b [] sigma) s' ->
       trans_state' (mode_eval (If b (Value (Bool false)) (Value (Bool true))) [CIf t1 t2] sigma)
-                   (mode_eval (trans_term b) [CIf t2 t1] (List.map trans_value sigma))
+                   (mode_eval (trans_term b) [CIf (trans_term t2) (trans_term t1)] (List.map trans_value sigma))
 
   (* Case 3: Handle mode_eval with non-empty continuation stack kappa ++ [k] *)
   | trans_mode_eval_non_empty :
@@ -1085,7 +1085,8 @@ Proof.
   ].
   all: simpl; repeat (eapply confluent_star_step_left; [solve [econstructor]|]).
   all: try solve [eapply confluence_star_refl].
-  { admit "need that b reduces". }
+  { inversion H4; repeat list_simpl; simpl.
+    eapply confluence_star_refl. }
   { admit "need that b reduces". }
   { decompose H3; tryfalse. }
   { eapply confluent_star_step_left. {
