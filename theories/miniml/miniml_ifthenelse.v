@@ -160,62 +160,62 @@ Inductive state :=
 
 Inductive cred: state -> state -> Prop :=
   (** Rules related to the lambda calculus *)
-  | cred_var:
+  | cred_var: info "cred_var" ->
     forall x kappa sigma v,
     List.nth_error sigma x = Some v ->
     cred
       (mode_eval (Var x) kappa sigma)
       (mode_cont kappa sigma (RValue v))
 
-  | cred_app:
+  | cred_app: info "cred_app" ->
     forall t1 t2 kappa sigma,
     cred
       (mode_eval (App t1 t2) kappa sigma)
       (mode_eval t1 ((CAppR t2) :: kappa) sigma)
 
-  | cred_clo:
+  | cred_clo: info "cred_clo" ->
     forall t kappa sigma,
     cred
       (mode_eval (Lam t) kappa sigma)
       (mode_cont kappa sigma (RValue (Closure t sigma)))
 
-  | cred_arg:
+  | cred_arg: info "cred_arg" ->
     forall t2 kappa sigma tcl sigmacl,
     cred
       (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl)))
       (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
 
-  | cred_value:
+  | cred_value: info "cred_value" ->
     forall v kappa sigma,
     cred
       (mode_eval (Value v) kappa sigma)
       (mode_cont kappa sigma (RValue v))
 
-  | cred_beta:
+  | cred_beta: info "cred_beta" ->
     forall t_cl sigma_cl kappa sigma v,
     cred
       (mode_cont ((CClosure t_cl sigma_cl)::kappa) sigma (RValue v))
       (mode_eval t_cl (CReturn sigma::kappa)  (v :: sigma_cl))
 
-  | cred_return:
+  | cred_return: info "cred_return" ->
     forall sigma_cl kappa sigma r,
     cred
       (mode_cont (CReturn sigma::kappa) sigma_cl r)
       (mode_cont kappa sigma r)
 
-  | cred_if:
+  | cred_if: info "cred_if" ->
     forall u t1 t2 kappa sigma,
     cred
       (mode_eval (If u t1 t2) kappa sigma)
       (mode_eval u ((CIf t1 t2)::kappa) sigma)
   
-  | cred_if_true:
+  | cred_if_true: info "cred_if_true" ->
     forall t1 t2 kappa sigma,
     cred
       (mode_cont ((CIf t1 t2):: kappa) sigma (RValue (Bool true)))
       (mode_eval t1 kappa sigma)
   
-  | cred_if_false:
+  | cred_if_false: info "cred_if_false" ->
     forall t1 t2 kappa sigma,
     cred
       (mode_cont ((CIf t1 t2):: kappa) sigma (RValue (Bool false)))
@@ -227,9 +227,9 @@ Example example_of_reduction t1 t2:
     (mode_eval (If (Value (Bool true)) t1 t2) [] [])
     (mode_eval t1 [] []).
 Proof.
-  eapply star_step;[econstructor|].
-  eapply star_step;[econstructor|].
-  eapply star_step;[econstructor|].
+  eapply star_step;[econstructor; econstructor|].
+  eapply star_step;[econstructor; econstructor|].
+  eapply star_step;[econstructor; econstructor|].
   eapply star_refl.
 Qed.
 
@@ -498,7 +498,7 @@ Proof.
   all: intros; repeat inv_jt; repeat econs_jt; eauto.
 
   (** One case is left. It requires an external lemma. *)
-  { pose proof (Forall2_nth_error_Some H5); eauto. }
+  { pose proof (Forall2_nth_error_Some H6); eauto. }
 Qed.
 
 Definition is_mode_cont s :=
@@ -636,7 +636,7 @@ Theorem cred_deterministic:
   forall s1 s2, cred s1 s2 -> forall s2', cred s1 s2' -> s2 = s2'.
 Proof.
   induction 1; inversion 1; subst; simpl in *; eauto.
-  { rewrite H in H5; inj; eauto. }
+  { rewrite H0 in H7; inj; eauto. }
 Qed.
 
 Theorem sred_deterministic:
@@ -875,6 +875,7 @@ Definition trans_state s := rev_state (trans_state_aux (rev_state s)).
 Inductive trans_state' : state -> state -> Prop :=
   (* Case 1: Handle two nested CIf control units *)
   | trans_if_nested :
+      info "trans_if_nested" ->
       forall t t1 t2 kappa sigma s',
       trans_state' (mode_eval t kappa sigma) s' ->
       trans_state' (mode_eval t (kappa ++ [CIf (Value (Bool false)) (Value (Bool true)); CIf t1 t2]) sigma)
@@ -882,13 +883,15 @@ Inductive trans_state' : state -> state -> Prop :=
 
   (* Case 2: Handle If False True term with kappa ++ [CIf t2 t1] *)
   | trans_if_false_true :
+      info "trans_if_false_true" ->
       forall b t1 t2 sigma s',
-      trans_state' (mode_eval b [] sigma) s' ->
+      trans_state' (mode_eval b [] (List.map trans_value sigma)) s' ->
       trans_state' (mode_eval (If b (Value (Bool false)) (Value (Bool true))) [CIf t1 t2] sigma)
-                   (mode_eval (trans_term b) [CIf (trans_term t2) (trans_term t1)] (List.map trans_value sigma))
+                   (mode_eval (trans_term b) [CIf t2 t1] (List.map trans_value sigma))
 
   (* Case 3: Handle mode_eval with non-empty continuation stack kappa ++ [k] *)
   | trans_mode_eval_non_empty :
+      info "trans_mode_eval_non_empty" ->
       forall t k kappa sigma s',
       forall Hcond1:
         (* mode_eval
@@ -913,12 +916,14 @@ Inductive trans_state' : state -> state -> Prop :=
 
   (* Case 4: Handle mode_eval with empty continuation stack kappa ++ [] *)
   | trans_mode_eval_empty :
+      info "trans_mode_eval_empty" ->
       forall t sigma,
       trans_state' (mode_eval t [] sigma)
                    (mode_eval (trans_term t) [] (List.map trans_value sigma))
 
   (* Case 5: Handle two nested CIf statements in mode_cont with kappa ++ [CIf t2 t1] *)
   | trans_mode_cont_if_nested :
+      info "trans_mode_cont_if_nested" ->
       forall t1 t2 kappa sigma v s',
       trans_state' (mode_cont kappa sigma v) s' ->
       trans_state' (mode_cont (kappa ++ [CIf (Value (Bool false)) (Value (Bool true)); CIf t1 t2]) sigma v)
@@ -926,6 +931,7 @@ Inductive trans_state' : state -> state -> Prop :=
 
   (* Case 6: Handle mode_cont with non-empty continuation stack kappa ++ [k] *)
   | trans_mode_cont_non_empty :
+      info "trans_mode_cont_non_empty" ->
       forall k kappa sigma v s',
       forall Hcond1: match List.rev kappa with |  CIf (Value (Bool false)) (Value (Bool true)) ::_ => False | _ => True end \/
        match k with CIf _ _ => False | _ => True end,
@@ -935,6 +941,7 @@ Inductive trans_state' : state -> state -> Prop :=
 
   (* Case 7: Handle mode_cont with empty continuation stack kappa ++ [] *)
   | trans_mode_cont_empty :
+      info "trans_mode_cont_empty" ->
       forall sigma v,
       trans_state' (mode_cont [] sigma v)
                    (mode_cont [] (List.map trans_value sigma) (trans_return v))
@@ -1083,137 +1090,136 @@ Proof.
     eapply IHHtrans1; [|solve [eauto]];
     econstructor; eauto
   ].
-  all: simpl; repeat (eapply confluent_star_step_left; [solve [econstructor]|]).
+  all: simpl; repeat (eapply confluent_star_step_left; [solve [econstructor; eauto]|]).
   all: try solve [eapply confluence_star_refl].
-  { inversion H4; repeat list_simpl; simpl.
-    eapply confluence_star_refl. }
   { admit "need that b reduces". }
-  { decompose H3; tryfalse. }
+  { admit "need that b reduces". }
+  { decompose H5; tryfalse. }
   { eapply confluent_star_step_left. {
-      econstructor.
+      econstructor; eauto.
       rewrite List.nth_error_map.
-      rewrite H3. reflexivity.
+      rewrite H5. reflexivity.
     }
     eapply confluence_star_refl.
   }
   { eapply confluence_star_refl_eq.
-    inversion H4.
+    inversion H7.
     all: repeat (list_simpl; simpl).
   }
   { admit "need that b reduces". }
   { admit "need that u reduces". }
   { repeat cleanup.
-    decompose H7.
-    decompose H1.
+    decompose H10.
+    decompose H2.
     eapply append_left_and_right.
-    eapply IHHtrans1; [econstructor|].
+    eapply IHHtrans1; [econstructor; eauto|].
     eauto.
   }
-  { decompose H4.
-    decompose H24.
+  { decompose H6.
+    decompose H27.
     tryfalse.
   }
-  { decompose H1.
-    decompose H1.
+  { decompose H2.
+    decompose H2.
     eapply append_left_and_right.
-    eapply IHHtrans1; [econstructor|].
+    eapply IHHtrans1; [econstructor; eauto|].
     eauto.
   }
   { decompose H3.
-    decompose H24.
+    decompose H29.
     tryfalse.
   }
-  { decompose H3.
-    tryfalse.
-  }
-  { decompose H3.
-    { inversion H5; repeat list_simpl; repeat cleanup.
-      inversion Htrans1; repeat list_simpl; repeat cleanup.
-      simpl.
-      repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
-      repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
-      eapply confluence_star_refl.
-    }
-    { tryfalse. }
-  }
-  { decompose H3.
-    { inversion H5; repeat list_simpl; repeat cleanup.
-      inversion Htrans1; repeat list_simpl; repeat cleanup.
-      simpl.
-      repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
-      repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
-      eapply confluence_star_refl.
-    }
-    { tryfalse. }
-  }
-  {
-    decompose H11.
-    decompose H0.
-    tryfalse.
-  }
-  { decompose H0.
-    {
-      inversion H5; repeat list_simpl; repeat cleanup.
-      inversion Htrans1; repeat list_simpl; repeat cleanup.
-      simpl.
-      repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
-      repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
-      eapply confluence_star_refl.
-    }
-    { eapply append_left_and_right.
-      eapply IHHtrans1; [econstructor|].
-      eauto.
-    }
-  }
-  { decompose H7.
-    decompose H18.
+  { decompose H5.
     tryfalse.
   }
   { decompose H9.
-    { inversion H5; repeat list_simpl; repeat cleanup.
+    { inversion H8; repeat list_simpl; repeat cleanup.
       inversion Htrans1; repeat list_simpl; repeat cleanup.
       simpl.
-      repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
-      repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+      repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
+      repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
+      eapply confluence_star_refl.
+    }
+    { tryfalse. }
+  }
+  { decompose H5.
+    { inversion H8; repeat list_simpl; repeat cleanup.
+      inversion Htrans1; repeat list_simpl; repeat cleanup.
+      simpl.
+      repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
+      repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
+      eapply confluence_star_refl.
+    }
+    { tryfalse. }
+  }
+  {
+    decompose H12.
+    decompose H2.
+    tryfalse.
+  }
+  { decompose H12.
+    {
+      inversion H8; repeat list_simpl; repeat cleanup.
+      inversion Htrans1; repeat list_simpl; repeat cleanup.
+      simpl.
+      repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
+      repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
       eapply confluence_star_refl.
     }
     { eapply append_left_and_right.
-      eapply IHHtrans1; [econstructor|].
+      eapply IHHtrans1; [econstructor; eauto|].
+      eauto.
+    }
+  }
+  { decompose H6.
+    decompose H18.
+    tryfalse.
+  }
+  { decompose H0.
+    { inversion H8; repeat list_simpl; repeat cleanup.
+      inversion Htrans1; repeat list_simpl; repeat cleanup.
+      simpl.
+      repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
+      repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
+      eapply confluence_star_refl.
+    }
+    { eapply append_left_and_right.
+      eapply IHHtrans1; [econstructor; eauto|].
       eauto.
     }
   }
   {
     inversion Htrans1; repeat list_simpl; repeat cleanup.
     simpl.
-    repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
-    repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+    repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
+    repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
     eapply confluence_star_refl.
   }
-  { inversion H5; repeat list_simpl; repeat cleanup.
+  { inversion H8; repeat list_simpl; repeat cleanup.
     inversion Htrans1; repeat list_simpl; repeat cleanup.
-    inversion H9; repeat list_simpl; repeat cleanup.
+    inversion H14; repeat list_simpl; repeat cleanup.
     simpl.
-    repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
-    repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+    repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
+    repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
     admit "need to reduce b".
   }
   { inversion Htrans1; repeat list_simpl; repeat cleanup.
     simpl.
-    repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
-    repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+    repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
+    repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
     eapply confluence_star_refl.
   }
   { inversion Htrans1; repeat list_simpl; repeat cleanup.
     inversion H5; repeat list_simpl; repeat cleanup.
     inversion H7; repeat list_simpl; repeat cleanup.
     simpl.
-    repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
-    repeat (eapply confluent_star_step_right; [solve[econstructor]|]).
+    repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
+    repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
     admit "require to reduce b".
   }
   { inversion Htrans1; repeat list_simpl; repeat cleanup.
     simpl.
-    repeat (eapply confluent_star_step_left; [solve[econstructor]|]).
+    repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
     apply confluence_star_refl.
   }
 Admitted.
