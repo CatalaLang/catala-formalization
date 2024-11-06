@@ -33,24 +33,6 @@ with value :=
   | Bool (b: bool)
 .
 
-(* Declare and delimit the single LaTeX-compatible scope *)
-Declare Scope latex_scope.
-
-(* Notations for terms and values, LaTeX-friendly with minimal parentheses *)
-Notation "'\#' x" := (Var x) (at level 55) : latex_scope.
-Notation "t1 '\@' t2" := (App t1 t2) (at level 60, right associativity) : latex_scope.
-Notation "'\synlambda' t '\syndot'" := (Lam t) (at level 65) : latex_scope.
-Notation "'\synval' v" := (Value v) (at level 70) : latex_scope.
-
-(* Notation for If expressions *)
-Notation "'\synif' u '\synthen' t1 '\synelse' t2" := (If u t1 t2) (at level 80, right associativity) : latex_scope.
-
-(* Notations for values *)
-Notation "'\closure' t , sigma" := (Closure t sigma) (at level 75) : latex_scope.
-Notation "'\bool' b" := (Bool b) (at level 75) : latex_scope.
-
-
-
 #[export] Instance Ids_term : Ids term. derive. Defined.
 #[export] Instance Rename_term : Rename term. derive. Defined.
 #[export] Instance Subst_term : Subst term. derive. Defined.
