@@ -885,9 +885,9 @@ Inductive trans_state' : state -> state -> Prop :=
   | trans_if_false_true :
       info "trans_if_false_true" ->
       forall b t1 t2 sigma s',
-      trans_state' (mode_eval b [] (List.map trans_value sigma)) s' ->
+      trans_state' (mode_eval b [] sigma) s' ->
       trans_state' (mode_eval (If b (Value (Bool false)) (Value (Bool true))) [CIf t1 t2] sigma)
-                   (mode_eval (trans_term b) [CIf t2 t1] (List.map trans_value sigma))
+                   (mode_eval (trans_term b) [CIf (trans_term t2) (trans_term t1)] (List.map trans_value sigma))
 
   (* Case 3: Handle mode_eval with non-empty continuation stack kappa ++ [k] *)
   | trans_mode_eval_non_empty :
@@ -1121,18 +1121,15 @@ Proof.
     inversion H7.
     all: repeat (list_simpl; simpl).
   }
-  { check "trans_mode_eval_empty".
-    check "cred_if".
-    check "trans_if_false_true".
-    admit "need that b reduces". }
+
   { 
     check "trans_mode_eval_empty".
     check "cred_if".
     check "trans_mode_eval_non_empty".
     admit "need that u reduces". }
   { check "trans_mode_cont_if_nested".
-  check "cred_arg".
-  check "trans_if_nested".
+    check "cred_arg".
+    check "trans_if_nested".
     repeat cleanup.
     decompose H10.
     decompose H2.
