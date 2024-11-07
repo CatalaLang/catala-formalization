@@ -48,8 +48,8 @@ Ltac unpack :=
       destruct h
     end.
 
-Ltac unzip :=
-  repeat match goal with
+Ltac unzip_0 :=
+  match goal with
   | [h: _ /\ _ |- _ ] =>
     destruct h
   | [h: _ \/ _ |- _ ] =>
@@ -67,6 +67,18 @@ Ltac unzip :=
     rewrite List.Forall_app in h;
     destruct h
   end.
+
+Ltac unzip := repeat unzip_0.
+
+Ltac unzip_match :=
+  repeat match goal with
+  | _ => unzip_0
+  | [h: match ?t with _ => _ end |- _] =>
+    let x := fresh "x" in
+    remember t as x;
+    induction x
+end.
+
 
 Section unpack_tests.
   Example unpacking_forall_ex1 {A} (P: A -> Prop) l1 l2:
@@ -95,6 +107,16 @@ Section unpack_tests.
     intros.
     unpack; eauto.
   Qed.
+  
+  Example unzip_match (P: nat -> Prop) x l1 l2:
+  match x with S _ => True | O => False end ->
+  List.Forall P (l1 ++ [x] ++ l2)
+  ->
+  List.Forall P l1 /\ List.Forall P l2 /\ P x.
+Proof.
+  intros.
+  unzip_match; unpack; eauto.
+Qed.
 End unpack_tests.
 
 (* -------------------------------------------------------------------------- *)
