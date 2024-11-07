@@ -381,12 +381,61 @@ Ltac sp :=
   end
 .
 
+(** simple information property that help knowing what is the current case *)
+
+Require Export String.
+Require Import List.
+
+Inductive info: string -> Prop :=
+| True_info: forall s: string, info s.
+Hint Constructors info : core.
+
+
+Ltac check s := match goal with
+  | [h: info s |- _] => idtac
+  | _ => fail 1 "the identifier was not found the the current context"
+  end. 
+
+Tactic Notation "check" constr(x):= check x.
+
+Open Scope string.
+Open Scope list.
+
+Goal info "test" -> info "bidule".
+Proof.
+  intros.
+  check "test".
+  Fail check "bidule".
+  eauto.
+Abort.
+
+
 (* Tactic that discard from the current context every hypothesis that can be derived using simpl; eauto *)
 
 Ltac cleanup := match goal with
   |[h: ?T |- _] =>
     let h' := fresh h in
-    assert (h': T); [solve[clear; simpl; eauto]|];
-    clear h h'
+    match T with
+    | info _ => idtac
+    | _ => 
+      assert (h': T); [solve[clear; simpl; eauto]|];
+      clear h h'
+    end
   end
   .
+
+(* cleanup get rid of spurious hypothesis. *)
+Goal True -> False.
+Proof.
+  intros.
+  repeat cleanup.
+Abort.
+
+(* But does not touch info *)
+Goal info "test" -> True -> False.
+Proof.
+  intros.
+  check "test".
+  repeat cleanup.
+  check "test".
+Abort.
