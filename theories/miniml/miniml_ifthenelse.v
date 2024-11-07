@@ -1092,47 +1092,87 @@ Proof.
   ].
   all: simpl; repeat (eapply confluent_star_step_left; [solve [econstructor; eauto]|]).
   all: try solve [eapply confluence_star_refl].
-  { admit "need that b reduces". }
-  { admit "need that b reduces". }
-  { decompose H5; tryfalse. }
-  { eapply confluent_star_step_left. {
+  { check "cred_if".
+    check "trans_if_false_true".
+    check "trans_if_nested".
+    admit "need that b reduces". }
+  { check "trans_mode_eval_non_empty".
+    check "cred_app".
+    check "trans_if_nested".
+    admit "need that b reduces". }
+  { check "trans_mode_eval_non_empty".
+    check "cred_if".
+    check "trans_if_nested".
+    decompose H5; tryfalse. }
+  { check "trans_mode_eval_empty".
+    check "cred_var".
+    check "trans_mode_cont_empty".
+    eapply confluent_star_step_left. {
       econstructor; eauto.
       rewrite List.nth_error_map.
       rewrite H5. reflexivity.
     }
     eapply confluence_star_refl.
   }
-  { eapply confluence_star_refl_eq.
+  { check "trans_mode_eval_empty".
+    check "cred_app".
+    check "trans_mode_eval_non_empty".
+    eapply confluence_star_refl_eq.
     inversion H7.
     all: repeat (list_simpl; simpl).
   }
-  { admit "need that b reduces". }
-  { admit "need that u reduces". }
-  { repeat cleanup.
+  { check "trans_mode_eval_empty".
+    check "cred_if".
+    check "trans_if_false_true".
+    admit "need that b reduces". }
+  { 
+    check "trans_mode_eval_empty".
+    check "cred_if".
+    check "trans_mode_eval_non_empty".
+    admit "need that u reduces". }
+  { check "trans_mode_cont_if_nested".
+  check "cred_arg".
+  check "trans_if_nested".
+    repeat cleanup.
     decompose H10.
     decompose H2.
     eapply append_left_and_right.
     eapply IHHtrans1; [econstructor; eauto|].
     eauto.
   }
-  { decompose H6.
+  { check "trans_mode_cont_if_nested".
+    check "cred_arg".
+    check "trans_mode_eval_non_empty".
+    decompose H6.
     decompose H27.
     tryfalse.
   }
-  { decompose H2.
+  { check "trans_mode_cont_if_nested".
+    check "cred_beta".
+    check "trans_if_nested".
+    decompose H2.
     decompose H2.
     eapply append_left_and_right.
     eapply IHHtrans1; [econstructor; eauto|].
     eauto.
   }
-  { decompose H3.
+  { check "trans_mode_cont_if_nested".
+    check "cred_beta".
+    check "trans_mode_eval_non_empty".
+    decompose H3.
     decompose H29.
     tryfalse.
   }
-  { decompose H5.
+  { check "trans_mode_cont_if_nested".
+    check "cred_return".
+    check "trans_mode_cont_non_empty".
+    decompose H5.
     tryfalse.
   }
-  { decompose H9.
+  { check "trans_mode_cont_if_nested".
+    check "cred_if_true".
+    check "trans_mode_eval_non_empty".
+    decompose H9.
     { inversion H8; repeat list_simpl; repeat cleanup.
       inversion Htrans1; repeat list_simpl; repeat cleanup.
       simpl.
@@ -1142,7 +1182,10 @@ Proof.
     }
     { tryfalse. }
   }
-  { decompose H5.
+  { check "trans_mode_cont_if_nested".
+    check "cred_if_false".
+    check "trans_mode_eval_non_empty".
+    decompose H5.
     { inversion H8; repeat list_simpl; repeat cleanup.
       inversion Htrans1; repeat list_simpl; repeat cleanup.
       simpl.
@@ -1153,11 +1196,17 @@ Proof.
     { tryfalse. }
   }
   {
+    check "trans_mode_cont_non_empty".
+    check "cred_arg".
+    check "trans_if_nested".
     decompose H12.
     decompose H2.
     tryfalse.
   }
-  { decompose H12.
+  { check "trans_mode_cont_non_empty".
+    check "cred_arg".
+    check "trans_mode_eval_non_empty".
+    decompose H12.
     {
       inversion H8; repeat list_simpl; repeat cleanup.
       inversion Htrans1; repeat list_simpl; repeat cleanup.
@@ -1171,11 +1220,17 @@ Proof.
       eauto.
     }
   }
-  { decompose H6.
+  { check "trans_mode_cont_non_empty".
+    check "cred_beta".
+    check "trans_if_nested".
+    decompose H6.
     decompose H18.
     tryfalse.
   }
-  { decompose H0.
+  { check "trans_mode_cont_non_empty".
+    check "cred_beta".
+    check "trans_mode_eval_non_empty".
+    decompose H0.
     { inversion H8; repeat list_simpl; repeat cleanup.
       inversion Htrans1; repeat list_simpl; repeat cleanup.
       simpl.
@@ -1188,14 +1243,19 @@ Proof.
       eauto.
     }
   }
-  {
+  { check "trans_mode_cont_non_empty".
+    check "cred_return".
+    check "trans_mode_cont_empty".
     inversion Htrans1; repeat list_simpl; repeat cleanup.
     simpl.
     repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
     repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
     eapply confluence_star_refl.
   }
-  { inversion H8; repeat list_simpl; repeat cleanup.
+  { check "trans_mode_cont_non_empty".
+    check "cred_if_true".
+    check "trans_if_false_true".
+    inversion H8; repeat list_simpl; repeat cleanup.
     inversion Htrans1; repeat list_simpl; repeat cleanup.
     inversion H14; repeat list_simpl; repeat cleanup.
     simpl.
@@ -1203,13 +1263,19 @@ Proof.
     repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
     admit "need to reduce b".
   }
-  { inversion Htrans1; repeat list_simpl; repeat cleanup.
+  { check "trans_mode_cont_non_empty".
+    check "cred_if_true".
+    check "trans_mode_eval_empty".
+    inversion Htrans1; repeat list_simpl; repeat cleanup.
     simpl.
     repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
     repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
     eapply confluence_star_refl.
   }
-  { inversion Htrans1; repeat list_simpl; repeat cleanup.
+  { check "trans_mode_cont_non_empty".
+    check "cred_if_false".
+    check "trans_if_false_true".
+    inversion Htrans1; repeat list_simpl; repeat cleanup.
     inversion H5; repeat list_simpl; repeat cleanup.
     inversion H7; repeat list_simpl; repeat cleanup.
     simpl.
@@ -1217,7 +1283,10 @@ Proof.
     repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
     admit "require to reduce b".
   }
-  { inversion Htrans1; repeat list_simpl; repeat cleanup.
+  { check "trans_mode_cont_non_empty".
+    check "cred_if_false".
+    check "trans_mode_eval_empty".
+    inversion Htrans1; repeat list_simpl; repeat cleanup.
     simpl.
     repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
     apply confluence_star_refl.
