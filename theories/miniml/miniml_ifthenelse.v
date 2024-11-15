@@ -440,6 +440,27 @@ Require Import Ltac2.Ltac2.
 Set Default Proof Mode "Classic".
 
 
+Lemma jt_conts_app { Gamma1 Gamma3 kappa1 kappa2 T1 T3 }:
+  jt_conts Gamma1 Gamma3 (kappa1 ++ kappa2) T1 T3 ->
+  exists Gamma2 T2,
+  jt_conts Gamma1 Gamma2 kappa1 T1 T2
+  /\ jt_conts Gamma2 Gamma3 kappa2 T2 T3
+.
+Proof.
+  revert Gamma1 Gamma3 kappa2 T1 T3.
+  induction kappa1; simpl; intros Gamma1 Gamma2 kappa2 T1 T3.
+  { intros; repeat eexists.
+    { econstructor. }
+    { eauto. }
+  }
+  { inversion 1; subst.
+    learn (IHkappa1 _ _ _ _ _ H7); unpack.
+    repeat eexists.
+    { econstructor; eauto. }
+    { eauto. }
+  }
+Qed.
+
 (** Specialized tactics to invert typing judgement if one argument is a known constructor. *)
 Ltac2 inv_jt () :=
   match! goal with
@@ -448,6 +469,10 @@ Ltac2 inv_jt () :=
   | [ h: jt_value _ ?c |- _ ] => smart_inversion c h
   | [ h: jt_cont _ _ ?c _ _ |- _ ] => smart_inversion c h
   | [ h: jt_conts _ _ ?c _ _ |- _ ] => smart_inversion c h
+  | [ h: jt_conts _ _ (_ ++ _) _ _ |- _ ] =>
+    let p := Control.hyp h in
+    let h := Fresh.in_goal @L in
+    assert (h := jt_conts_app $p)
   | [ h: jt_state _ ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_result ?c _ |- _ ] => smart_inversion c h
   | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
@@ -456,22 +481,6 @@ Ltac2 inv_jt () :=
 end.
 
 Ltac inv_jt := ltac2:(inv_jt ()).
-
-
-(** Specialiazed tactic to apply econstructor when possible. *)
-Ltac2 econs_jt () :=
-  match! goal with
-  | [ |- jt_term _ _ _] => econstructor
-  | [ |- jt_value _ _] => econstructor
-  | [ |- jt_cont _ _ _ _ _] => econstructor
-  | [ |- jt_conts _ _ _ _ _] => econstructor
-  | [ |- jt_state _ _ _] => econstructor
-  | [ |- jt_result _ _] => econstructor
-  | [ |- List.Forall _ _] => econstructor
-  | [ |- List.Forall2 _ _ _] => econstructor
-  end.
-Ltac econs_jt := ltac2:(econs_jt ()).
-
 
 Theorem Forall2_nth_error_Some {A B F l1 l2}:
   List.Forall2 F l1 l2 ->
@@ -495,7 +504,7 @@ Proof.
   induction 1.
   
   (* Most of the cases are easilly handle by the automation. *)
-  all: intros; repeat inv_jt; repeat econs_jt; eauto.
+  all: intros; repeat inv_jt; repeat econstructor; eauto.
 
   (** One case is left. It requires an external lemma. *)
   { pose proof (Forall2_nth_error_Some H6); eauto. }
@@ -849,29 +858,6 @@ Equations trans_cont_base (k: cont) : cont :=
   trans_cont_base (CReturn sigma) := CReturn (List.map trans_value sigma);
   trans_cont_base (CIf t1 t2) := CIf (trans_term t1) (trans_term t2).
 
-Equations? trans_state_aux (s: state) : state by wf s (@total_relation state) :=
-trans_state_aux (mode_eval t (CIf t1 t2 :: CIf (Value (Bool false)) (Value (Bool true)) :: kappa) sigma) :=
-  cons_stack (trans_state_aux (mode_eval t kappa sigma)) [trans_cont_base (CIf t2 t1)];
-trans_state_aux (mode_eval (If b (Value (Bool false)) (Value (Bool true))) [CIf t1 t2] sigma) :=
-  cons_stack (trans_state_aux (mode_eval b [] (List.map trans_value sigma))) [trans_cont_base (CIf t2 t1)];
-trans_state_aux (mode_eval t (k::kappa) sigma) :=
-  cons_stack (trans_state_aux (mode_eval t kappa sigma)) [trans_cont_base k];
-trans_state_aux (mode_eval t [] sigma) :=
-  (mode_eval (trans_term t) [] (List.map trans_value sigma));
-
-trans_state_aux (mode_cont (CIf t1 t2 :: CIf (Value (Bool false)) (Value (Bool true)) :: kappa) sigma v) :=
-  cons_stack (trans_state_aux (mode_cont kappa sigma v)) [trans_cont_base (CIf t2 t1)];
-trans_state_aux (mode_cont (k::kappa) sigma v) :=
-  cons_stack (trans_state_aux (mode_cont kappa sigma v)) [trans_cont_base k];
-trans_state_aux (mode_cont [] sigma v) :=
-  (mode_cont [] (List.map trans_value sigma) (trans_return v) )
-.
-Proof.
-  all: constructor.
-Defined.
-
-Definition trans_state s := rev_state (trans_state_aux (rev_state s)).
-
 Inductive trans_state' : state -> state -> Prop :=
   (* Case 1: Handle two nested CIf control units *)
   | trans_if_nested :
@@ -1005,13 +991,6 @@ Proof.
   all: try solve [rewrite List.rev_app_distr in *; simpl in *; tryfalse].
 Qed.
 
-Lemma trans_correct:
-  forall s,
-    trans_state' s (trans_state s).
-Proof.
-  (* trop pénible *)
-Admitted.
-
 Theorem cred_append_stack s s':
   (* If you can do a transition, then you can do the same transition with additional informations on the stack. *)
   cred s s' ->
@@ -1058,6 +1037,8 @@ Ltac decompose h :=
 Theorem correction_continuations:
   forall s1 s2,
   cred s1 s2 ->
+  forall Gamma T,
+  jt_state Gamma s1 T ->
   forall s1',
   trans_state' s1 s1' ->
   forall s2',
@@ -1065,45 +1046,76 @@ Theorem correction_continuations:
   exists s3,
     star cred s1' s3 /\ star cred s2' s3.
 Proof.
-  (* induction s1 using (
-    well_founded_induction
-      (wf_inverse_image
-        _
-        nat
-        _
-        (fun s => List.length (stack s))
-        PeanoNat.Nat.lt_wf_0)
-  ). *)
-  intros s1 s2 Hcred ? Htrans1.
+  intros s1 s2 Hcred ? ? Hty ? Htrans1.
   generalize dependent s2.
-  induction Htrans1; inversion 1; subst; inversion 1; subst.
-  all: repeat list_simpl; repeat cleanup.
+  generalize dependent Gamma.
+  generalize dependent T.
+  induction Htrans1; intros T Gamma Hty.
+  all: repeat inv_jt; unpack.
+
+
+  all: ltac2:(
+    Control.enter (fun _ => 
+    let hyps := Control.hyps () in
+    let rename h := 
+      let ht := Fresh.in_goal @HT0 in
+      Std.rename [h, ht]
+    in
+    List.iter (fun (h, _, t) =>
+      match! t with
+      | jt_conts _ _ _ _ _ => rename h
+      | jt_term _ _ _  => rename h  
+      | jt_cont _ _ _ _ _ => rename h  
+      | jt_state _ _ _ => rename h 
+      | jt_result _ _ => rename h 
+      | List.Forall2 jt_value _ _ => rename h  
+      | _ => ()
+      end
+    ) hyps
+    )).
+
+  1: assert (Hspec: jt_state Gamma2 (mode_eval t kappa sigma) T2) by (repeat econstructor; eauto).
+  2: assert (Hspec: jt_state Gamma (mode_eval b [] sigma) TBool) by (repeat econstructor; eauto).
+  3: assert (Hspec: jt_state Gamma2 (mode_eval t kappa sigma) T2) by (repeat econstructor; eauto).
+  5: assert (Hspec: jt_state Gamma2 (mode_cont kappa sigma v) T2) by (repeat econstructor; eauto).
+  6: assert (Hspec: jt_state Gamma2 (mode_cont kappa sigma v) T2) by (repeat econstructor; eauto).
+  all: try specialize (IHHtrans1 _ _ Hspec).
+
+  all: inversion 1; subst; inversion 1; subst. (* 74 *)
+  all: do 5 list_simpl; repeat cleanup. (* 53 *)
   all: try solve [
     repeat rewrite List.app_comm_cons in *;
     repeat rewrite List.rev_app_distr in *;
     simpl in *;
     unzip;
     tryfalse
-  ].
+  ]. (* 41 *)
   all: try solve [
     eapply append_left_and_right;
     eapply IHHtrans1; [|solve [eauto]];
     econstructor; eauto
-  ].
-  all: simpl; repeat (eapply confluent_star_step_left; [solve [econstructor; eauto]|]).
-  all: try solve [eapply confluence_star_refl].
+  ]. (* 25 *)
+  all: simpl; repeat (eapply confluent_star_step_left; [solve [econstructor; eauto]|]). (* 25 *)
+  all: try solve [eapply confluence_star_refl]. (* 22 *)
+
   { check "cred_if".
     check "trans_if_false_true".
     check "trans_if_nested".
-    admit "need that b reduces". }
+    inversion H7; repeat list_simpl; cleanup.
+    simpl.
+    eapply confluence_star_refl.
+  }
   { check "trans_mode_eval_non_empty".
     check "cred_app".
     check "trans_if_nested".
-    admit "need that b reduces". }
+    decompose H1.
+    unzip; tryfalse.
+  }
   { check "trans_mode_eval_non_empty".
     check "cred_if".
     check "trans_if_nested".
-    decompose H5; tryfalse. }
+    decompose H5; tryfalse.
+  }
   { check "trans_mode_eval_empty".
     check "cred_var".
     check "trans_mode_cont_empty".
@@ -1126,7 +1138,15 @@ Proof.
     check "trans_mode_eval_empty".
     check "cred_if".
     check "trans_mode_eval_non_empty".
-    admit "need that u reduces". }
+
+    inversion H7.
+    all: repeat (list_simpl; simpl).
+
+    repeat unzip_match; subst; tryfalse.
+    all: simpl; repeat (eapply confluent_star_step_left; [solve [econstructor; eauto]|]).
+    all: simpl; repeat (eapply confluent_star_step_right; [solve [econstructor; eauto]|]).
+    all: try solve [eapply confluence_star_refl].
+  }
   { check "trans_mode_cont_if_nested".
     check "cred_arg".
     check "trans_if_nested".
@@ -1252,13 +1272,19 @@ Proof.
   { check "trans_mode_cont_non_empty".
     check "cred_if_true".
     check "trans_if_false_true".
-    inversion H8; repeat list_simpl; repeat cleanup.
     inversion Htrans1; repeat list_simpl; repeat cleanup.
-    inversion H14; repeat list_simpl; repeat cleanup.
-    simpl.
-    repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
-    repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
-    admit "need to reduce b".
+    inversion H8; repeat list_simpl; repeat cleanup.
+    inversion H11; repeat list_simpl; repeat cleanup.
+    unfold append_stack, with_stack, stack, List.app, trans_cont_base.
+    all: repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
+    unfold trans_term at 1; fold trans_term.
+    repeat unzip_match.
+    all: repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]); fold trans_term.
+    all: repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]); fold trans_term.
+
+    all: repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
+
+    all: admit "need to reduce b".
   }
   { check "trans_mode_cont_non_empty".
     check "cred_if_true".

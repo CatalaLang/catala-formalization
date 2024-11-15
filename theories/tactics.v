@@ -71,12 +71,12 @@ Ltac unzip_0 :=
 Ltac unzip := repeat unzip_0.
 
 Ltac unzip_match :=
-  repeat match goal with
+  match goal with
   | _ => unzip_0
-  | [h: match ?t with _ => _ end |- _] =>
-    let x := fresh "x" in
-    remember t as x;
-    induction x
+  | [h: context [ match ?t with _ => _ end ] |- _] =>
+    destruct t eqn:?
+  | [ |- context [ match ?t with _ => _ end ] ] =>
+    destruct t eqn:?
 end.
 
 
@@ -108,14 +108,19 @@ Section unpack_tests.
     unpack; eauto.
   Qed.
   
-  Example unzip_match (P: nat -> Prop) x l1 l2:
+  Example unzip_match_test (P: nat -> Prop) x l1 l2:
   match x with S _ => True | O => False end ->
   List.Forall P (l1 ++ [x] ++ l2)
   ->
   List.Forall P l1 /\ List.Forall P l2 /\ P x.
 Proof.
   intros.
-  unzip_match; unpack; eauto.
+  unzip_match.
+  unzip_match.
+  unzip_match.
+  unzip_match.
+  { eauto. }
+  { eauto. }
 Qed.
 End unpack_tests.
 
@@ -255,6 +260,33 @@ Module Learn.
   Tactic Notation "learn" constr(H) := learn_fact H.
 End Learn.
 Export Learn.
+
+(* 
+(** Ported the above tactic to ltac2. *)
+
+Module Learn2.
+  Inductive Learnt {P:Prop} :=
+  | AlreadyLearnt (H:P).
+
+  Local Ltac2 learn_fact (h: constr) :=
+    let p := Constr.type h in
+    let q := constr:(@Learnt $p) in
+    if List.for_all (fun (_, _, v) =>
+      Bool.neg (Constr.equal q v)
+    ) (Control.hyps ()) then
+      let hname := Fresh.in_goal @H0 in
+      let lname := Fresh.in_goal @L0 in
+      Std.assert (Std.AssertValue hname h);
+      Std.assert (Std.AssertValue lname constr:(AlreadyLearnt $h))
+    else
+      Control.backtrack_tactic_failure "Fact already known"
+    .
+
+  Ltac2 Notation "learn"
+    arg(constr) :=
+    learn_fact arg.
+End Learn2.
+Export Learn2. *)
 
 (* -------------------------------------------------------------------------- *)
 
@@ -427,7 +459,7 @@ Goal info "test" -> info "bidule".
 Proof.
   intros.
   check "test".
-  Fail check "bidule".
+  Fail check "autre".
   eauto.
 Abort.
 
