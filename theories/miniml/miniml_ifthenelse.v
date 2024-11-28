@@ -471,16 +471,18 @@ Ltac2 inv_jt () :=
   | [ h: jt_conts _ _ ?c _ _ |- _ ] => smart_inversion c h
   | [ h: jt_conts _ _ (_ ++ _) _ _ |- _ ] =>
     let p := Control.hyp h in
-    let h := Fresh.in_goal @L in
-    assert (h := jt_conts_app $p)
+    let l := Fresh.in_goal @L in
+    Std.assert (Std.AssertValue l constr:(jt_conts_app $p));
+    Std.clear [h]
   | [ h: jt_state _ ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_result ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_result _ ?c |- _ ] => smart_inversion c h
   | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
   | [ h: List.Forall2 _ ?c _ |- _ ] => smart_inversion c h
   | [ h: List.Forall2 _ _ ?c |- _ ] => smart_inversion c h
 end.
 
-Ltac inv_jt := ltac2:(inv_jt ()).
+Ltac inv_jt := ltac2:(inv_jt ()); unpack.
 
 Theorem Forall2_nth_error_Some {A B F l1 l2}:
   List.Forall2 F l1 l2 ->
@@ -754,6 +756,10 @@ with trans_value v :=
   end
 .
 
+Print trans_term.
+
+(* Where is the fuction eliminator that i want ? Do i need the same thing as below for trans_state ? I belive so. *)
+
 (* Generalized transformation for continuations *)
 Fixpoint trans_conts (kappa: list cont): list cont :=
   match kappa with
@@ -919,8 +925,8 @@ Inductive trans_state' : state -> state -> Prop :=
   | trans_mode_cont_non_empty :
       info "trans_mode_cont_non_empty" ->
       forall k kappa sigma v s',
-      forall Hcond1: match List.rev kappa with |  CIf (Value (Bool false)) (Value (Bool true)) ::_ => False | _ => True end \/
-       match k with CIf _ _ => False | _ => True end,
+      forall Hcond1: match List.rev kappa with | CIf (Value (Bool false)) (Value (Bool true)) :: _ => False | _ => True end \/
+      match k with CIf _ _ => False | _ => True end,
       trans_state' (mode_cont kappa sigma v) s' ->
       trans_state' (mode_cont (kappa ++ [k]) sigma v)
                    (append_stack s' [trans_cont_base k])
@@ -1034,287 +1040,79 @@ Ltac decompose h :=
     repeat cleanup
 .
 
-Theorem correction_continuations:
-  forall s1 s2,
-  cred s1 s2 ->
+Lemma stack_app_append_stack_eval {t kappa1 kappa2 sigma}:
+  mode_eval t (kappa1 ++ kappa2) sigma = append_stack (mode_eval t kappa1 sigma) kappa2.
+Proof.
+  simpl; eauto.
+Qed.
+
+Theorem correction_continuations s1:
   forall Gamma T,
   jt_state Gamma s1 T ->
   forall s1',
   trans_state' s1 s1' ->
-  forall s2',
-  trans_state' s2 s2' ->
   exists s3,
-    star cred s1' s3 /\ star cred s2' s3.
+    star cred s1 s3 /\ star cred s1' s3.
 Proof.
-  intros s1 s2 Hcred ? ? Hty ? Htrans1.
-  generalize dependent s2.
-  generalize dependent Gamma.
-  generalize dependent T.
-  induction Htrans1; intros T Gamma Hty.
-  all: repeat inv_jt; unpack.
+  induction s1 as [s1 IHs1] using (
+    well_founded_induction
+      (wf_inverse_image _ nat _ (fun s => List.length (stack s)) 
+      PeanoNat.Nat.lt_wf_0)).
 
+  intros until s1'.
+  induction 1.
+  { unshelve (epose proof (IHs1 _ _ _ _ _ _ H1)).
+    { simpl; rewrite List.app_length; simpl; lia. }
+    3: { repeat inv_jt. econstructor. { apply H6. } { apply H8. } { apply H. } }
 
-  all: ltac2:(
-    Control.enter (fun _ => 
-    let hyps := Control.hyps () in
-    let rename h := 
-      let ht := Fresh.in_goal @HT0 in
-      Std.rename [h, ht]
-    in
-    List.iter (fun (h, _, t) =>
-      match! t with
-      | jt_conts _ _ _ _ _ => rename h
-      | jt_term _ _ _  => rename h  
-      | jt_cont _ _ _ _ _ => rename h  
-      | jt_state _ _ _ => rename h 
-      | jt_result _ _ => rename h 
-      | List.Forall2 jt_value _ _ => rename h  
-      | _ => ()
-      end
-    ) hyps
-    )).
+    unzip.
 
-  1: assert (Hspec: jt_state Gamma2 (mode_eval t kappa sigma) T2) by (repeat econstructor; eauto).
-  2: assert (Hspec: jt_state Gamma (mode_eval b [] sigma) TBool) by (repeat econstructor; eauto).
-  3: assert (Hspec: jt_state Gamma2 (mode_eval t kappa sigma) T2) by (repeat econstructor; eauto).
-  5: assert (Hspec: jt_state Gamma2 (mode_cont kappa sigma v) T2) by (repeat econstructor; eauto).
-  6: assert (Hspec: jt_state Gamma2 (mode_cont kappa sigma v) T2) by (repeat econstructor; eauto).
-  all: try specialize (IHHtrans1 _ _ Hspec).
+    eapply confluent_star_trans_right.
+    { apply star_cred_append_stack. eauto. }
+    eapply confluent_star_trans_left.
+    { rewrite stack_app_append_stack_eval.
+      eapply star_cred_append_stack. eauto.
+    }
 
-  all: inversion 1; subst; inversion 1; subst. (* 74 *)
-  all: do 5 list_simpl; repeat cleanup. (* 53 *)
-  all: try solve [
-    repeat rewrite List.app_comm_cons in *;
-    repeat rewrite List.rev_app_distr in *;
-    simpl in *;
-    unzip;
-    tryfalse
-  ]. (* 41 *)
-  all: try solve [
-    eapply append_left_and_right;
-    eapply IHHtrans1; [|solve [eauto]];
-    econstructor; eauto
-  ]. (* 25 *)
-  all: simpl; repeat (eapply confluent_star_step_left; [solve [econstructor; eauto]|]). (* 25 *)
-  all: try solve [eapply confluence_star_refl]. (* 22 *)
-
-  { check "cred_if".
-    check "trans_if_false_true".
-    check "trans_if_nested".
-    inversion H7; repeat list_simpl; cleanup.
+    assert (exists r sigma, s3 = mode_cont [] sigma r /\ jt_state Gamma s3 TBool) by admit "should be in the assumptions".
+    unpack; subst.
     simpl.
-    eapply confluence_star_refl.
-  }
-  { check "trans_mode_eval_non_empty".
-    check "cred_app".
-    check "trans_if_nested".
-    decompose H1.
-    unzip; tryfalse.
-  }
-  { check "trans_mode_eval_non_empty".
-    check "cred_if".
-    check "trans_if_nested".
-    decompose H5; tryfalse.
-  }
-  { check "trans_mode_eval_empty".
-    check "cred_var".
-    check "trans_mode_cont_empty".
-    eapply confluent_star_step_left. {
-      econstructor; eauto.
-      rewrite List.nth_error_map.
-      rewrite H5. reflexivity.
+    repeat inv_jt; induction b.
+    all: repeat (eapply confluent_star_step_left; [solve 
+    [econstructor; eauto]|]).
+    all: repeat (eapply confluent_star_step_right; [solve [econstructor; eauto]|]).
+    { eapply IHs1.
+      { simpl; try rewrite List.app_length; simpl; lia. }
+      { repeat econstructor; eauto. }
+      { admit "sigma0 should be List.map trans_value on RHS". }
     }
-    eapply confluence_star_refl.
+    { eapply IHs1.
+      { simpl; try rewrite List.app_length; simpl; lia. }
+      { repeat econstructor; eauto. }
+      { admit "sigma0 should be List.map trans_value on RHS". }
+    }
   }
-  { check "trans_mode_eval_empty".
-    check "cred_app".
-    check "trans_mode_eval_non_empty".
-    eapply confluence_star_refl_eq.
-    inversion H7.
-    all: repeat (list_simpl; simpl).
+  { admit. }
+  { admit. }
+  { clear IHs1.
+    revert T Gamma sigma H.
+    induction t.
+    { simpl.
+      admit "change the s3 value".
+    }
+    { intros; simpl; repeat inv_jt.
+      repeat 
+    }
+    induction (trans_term t) eqn: e.
+    (* 5:{ inversion e. }
+    fun_elim trans_term. *)
+    all: admit.
   }
+  { admit. }
+  { admit. }
+  { admit. }
+Abort.
 
-  { 
-    check "trans_mode_eval_empty".
-    check "cred_if".
-    check "trans_mode_eval_non_empty".
-
-    inversion H7.
-    all: repeat (list_simpl; simpl).
-
-    repeat unzip_match; subst; tryfalse.
-    all: simpl; repeat (eapply confluent_star_step_left; [solve [econstructor; eauto]|]).
-    all: simpl; repeat (eapply confluent_star_step_right; [solve [econstructor; eauto]|]).
-    all: try solve [eapply confluence_star_refl].
-  }
-  { check "trans_mode_cont_if_nested".
-    check "cred_arg".
-    check "trans_if_nested".
-    repeat cleanup.
-    decompose H10.
-    decompose H2.
-    eapply append_left_and_right.
-    eapply IHHtrans1; [econstructor; eauto|].
-    eauto.
-  }
-  { check "trans_mode_cont_if_nested".
-    check "cred_arg".
-    check "trans_mode_eval_non_empty".
-    decompose H6.
-    decompose H27.
-    tryfalse.
-  }
-  { check "trans_mode_cont_if_nested".
-    check "cred_beta".
-    check "trans_if_nested".
-    decompose H2.
-    decompose H2.
-    eapply append_left_and_right.
-    eapply IHHtrans1; [econstructor; eauto|].
-    eauto.
-  }
-  { check "trans_mode_cont_if_nested".
-    check "cred_beta".
-    check "trans_mode_eval_non_empty".
-    decompose H3.
-    decompose H29.
-    tryfalse.
-  }
-  { check "trans_mode_cont_if_nested".
-    check "cred_return".
-    check "trans_mode_cont_non_empty".
-    decompose H5.
-    tryfalse.
-  }
-  { check "trans_mode_cont_if_nested".
-    check "cred_if_true".
-    check "trans_mode_eval_non_empty".
-    decompose H9.
-    { inversion H8; repeat list_simpl; repeat cleanup.
-      inversion Htrans1; repeat list_simpl; repeat cleanup.
-      simpl.
-      repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
-      repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
-      eapply confluence_star_refl.
-    }
-    { tryfalse. }
-  }
-  { check "trans_mode_cont_if_nested".
-    check "cred_if_false".
-    check "trans_mode_eval_non_empty".
-    decompose H5.
-    { inversion H8; repeat list_simpl; repeat cleanup.
-      inversion Htrans1; repeat list_simpl; repeat cleanup.
-      simpl.
-      repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
-      repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
-      eapply confluence_star_refl.
-    }
-    { tryfalse. }
-  }
-  {
-    check "trans_mode_cont_non_empty".
-    check "cred_arg".
-    check "trans_if_nested".
-    decompose H12.
-    decompose H2.
-    tryfalse.
-  }
-  { check "trans_mode_cont_non_empty".
-    check "cred_arg".
-    check "trans_mode_eval_non_empty".
-    decompose H12.
-    {
-      inversion H8; repeat list_simpl; repeat cleanup.
-      inversion Htrans1; repeat list_simpl; repeat cleanup.
-      simpl.
-      repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
-      repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
-      eapply confluence_star_refl.
-    }
-    { eapply append_left_and_right.
-      eapply IHHtrans1; [econstructor; eauto|].
-      eauto.
-    }
-  }
-  { check "trans_mode_cont_non_empty".
-    check "cred_beta".
-    check "trans_if_nested".
-    decompose H6.
-    decompose H18.
-    tryfalse.
-  }
-  { check "trans_mode_cont_non_empty".
-    check "cred_beta".
-    check "trans_mode_eval_non_empty".
-    decompose H0.
-    { inversion H8; repeat list_simpl; repeat cleanup.
-      inversion Htrans1; repeat list_simpl; repeat cleanup.
-      simpl.
-      repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
-      repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
-      eapply confluence_star_refl.
-    }
-    { eapply append_left_and_right.
-      eapply IHHtrans1; [econstructor; eauto|].
-      eauto.
-    }
-  }
-  { check "trans_mode_cont_non_empty".
-    check "cred_return".
-    check "trans_mode_cont_empty".
-    inversion Htrans1; repeat list_simpl; repeat cleanup.
-    simpl.
-    repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
-    repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
-    eapply confluence_star_refl.
-  }
-  { check "trans_mode_cont_non_empty".
-    check "cred_if_true".
-    check "trans_if_false_true".
-    inversion Htrans1; repeat list_simpl; repeat cleanup.
-    inversion H8; repeat list_simpl; repeat cleanup.
-    inversion H11; repeat list_simpl; repeat cleanup.
-    unfold append_stack, with_stack, stack, List.app, trans_cont_base.
-    all: repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
-    unfold trans_term at 1; fold trans_term.
-    repeat unzip_match.
-    all: repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]); fold trans_term.
-    all: repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]); fold trans_term.
-
-    all: repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
-
-    all: admit "need to reduce b".
-  }
-  { check "trans_mode_cont_non_empty".
-    check "cred_if_true".
-    check "trans_mode_eval_empty".
-    inversion Htrans1; repeat list_simpl; repeat cleanup.
-    simpl.
-    repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
-    repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
-    eapply confluence_star_refl.
-  }
-  { check "trans_mode_cont_non_empty".
-    check "cred_if_false".
-    check "trans_if_false_true".
-    inversion Htrans1; repeat list_simpl; repeat cleanup.
-    inversion H5; repeat list_simpl; repeat cleanup.
-    inversion H7; repeat list_simpl; repeat cleanup.
-    simpl.
-    repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
-    repeat (eapply confluent_star_step_right; [solve[econstructor; eauto]|]).
-    admit "require to reduce b".
-  }
-  { check "trans_mode_cont_non_empty".
-    check "cred_if_false".
-    check "trans_mode_eval_empty".
-    inversion Htrans1; repeat list_simpl; repeat cleanup.
-    simpl.
-    repeat (eapply confluent_star_step_left; [solve[econstructor; eauto]|]).
-    apply confluence_star_refl.
-  }
-Admitted.
 
 Theorem correction_traditional:
   forall s1 s2,
