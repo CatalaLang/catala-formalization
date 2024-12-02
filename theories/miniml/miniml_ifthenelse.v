@@ -5,6 +5,7 @@ Require Import tactics.
 Import List.ListNotations.
 Require Import common.
 Require Import sequences.
+Require Import FunInd.
 
 Require Import Coq.Classes.SetoidClass.
 Require Import Wellfounded.
@@ -851,7 +852,6 @@ Instance wf_total_init_compute : forall {A}, WellFounded (@total_relation A).
   exact (fun A => Acc_intro_generator 10 wf_total_init).
 Defined. *)
 
-Require Import FunInd.
 
 Function trans_term t :=
   match t with
@@ -1353,12 +1353,12 @@ Theorem correction_traditional:
   star sred
     (trans_term s1) (trans_term s2).
 Proof.
-  Local Ltac step := (
+  Local Ltac step' := (
     try (eapply star_step; [solve
       [ repeat econstructor; simpl; eauto using List.map_nth_error
     ]|]))
   .
-  induction 1; simpl; repeat step; try eapply star_refl.
+  induction 1; simpl; repeat step'; try eapply star_refl.
   { admit "subst lemma". }
   { eapply star_sred_app_right. eauto. }
   { eapply star_sred_app_left. eauto. }
