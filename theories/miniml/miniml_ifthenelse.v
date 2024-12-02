@@ -1085,6 +1085,19 @@ Proof.
   simpl; eauto.
 Qed.
 
+
+Lemma stack_app_append_stack_cont {kappa1 kappa2 sigma r}:
+  mode_cont (kappa1 ++ kappa2) sigma r = append_stack (mode_cont kappa1 sigma r) kappa2.
+Proof.
+  simpl; eauto.
+Qed.
+
+Lemma stack_all_append_stack_cont {kappa sigma r}:
+  mode_cont (kappa) sigma r = append_stack (mode_cont [] sigma r) kappa.
+Proof.
+  simpl; eauto.
+Qed.
+
 Theorem correction_continuations s1:
   forall Gamma T,
   jt_state Gamma s1 T ->
@@ -1097,10 +1110,10 @@ Proof.
   Ltac step := 
     repeat (eapply confluent_prop_star_step_left;   [solve [econstructor; eauto]|]);
     repeat (eapply confluent_prop_star_step_right;  [solve [econstructor; eauto]|]);
-    repeat (eapply confluent_prop_star_trans_right; [solve [rewrite stack_all_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_prop_star_trans_left;  [solve [rewrite stack_all_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_prop_star_trans_right; [solve [rewrite stack_app_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_prop_star_trans_left;  [solve [rewrite stack_app_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_prop_star_trans_right; [solve [first [rewrite stack_all_append_stack_eval| rewrite stack_all_append_stack_cont]; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_prop_star_trans_left;  [solve [first [rewrite stack_all_append_stack_eval| rewrite stack_all_append_stack_cont]; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_prop_star_trans_right; [solve [first [rewrite stack_app_append_stack_eval| rewrite stack_app_append_stack_cont]; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_prop_star_trans_left;  [solve [first [rewrite stack_app_append_stack_eval| rewrite stack_app_append_stack_cont]; eapply star_cred_append_stack; eauto]|]);
     repeat (eapply confluent_prop_star_trans_right; [solve [eapply star_cred_append_stack; eauto]|]);
     repeat (eapply confluent_prop_star_trans_left;  [solve [eapply star_cred_append_stack; eauto]|])
   .
@@ -1258,9 +1271,38 @@ Proof.
       { eapply IHt2. { repeat (econstructor; eauto). } }
     }
   }
-  { admit. }
-  { admit. }
-  { admit. }
+  { repeat inv_jt.
+    exploit (IHs1 (mode_cont kappa sigma v)).
+    { simpl; rewrite List.app_length; simpl; lia. }
+    { repeat (econstructor; eauto). }
+    { eassumption. }
+    intros; unpack; subst; repeat inv_jt; repeat step.
+    induction b; repeat inv_jt; repeat step.
+    { eapply IHs1.
+      { simpl; rewrite List.app_length; simpl; lia. }
+      { repeat (econstructor; eauto). }
+      { econstructor; eauto. }
+    }
+    { eapply IHs1.
+      { simpl; rewrite List.app_length; simpl; lia. }
+      { repeat (econstructor; eauto). }
+      { econstructor; eauto. }
+    }
+  }
+  { repeat inv_jt.
+    exploit (IHs1 (mode_cont kappa sigma v)).
+    { simpl; rewrite List.app_length; simpl; lia. }
+    { repeat (econstructor; eauto). }
+    { eassumption. }
+
+    intros; unpack; subst; repeat inv_jt; repeat step.
+    induction k; repeat inv_jt; simpl; repeat step.
+    { admit. }
+    { admit. }
+    { admit. }
+    { admit. }
+  }
+  { eapply confluent_prop_star_refl; repeat eexists. eauto. }
 Abort.
 
 
