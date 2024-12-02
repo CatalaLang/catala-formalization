@@ -533,8 +533,8 @@ Qed.
 
 Definition is_mode_cont s :=
   match s with
-  | mode_cont _ _ _ => true
-  | _ => false
+  | mode_cont _ _ _ => True
+  | _ => False
   end.
 
 Definition stack s :=
@@ -556,7 +556,7 @@ Qed.
 Theorem progress_cont s1:
   forall Gamma T,
     jt_state Gamma s1 T ->
-    (exists s2, cred s1 s2) \/ (is_mode_cont s1 = true /\ stack s1 = nil).
+    (exists s2, cred s1 s2) \/ (is_mode_cont s1 /\ stack s1 = nil).
 Proof.
   (* Precise case analysis. *)
   induction s1 as [t kappa env|kappa env r]; [induction t|(induction kappa as [|k kappa]; [|induction k]); induction r].
@@ -774,8 +774,6 @@ with trans_value v :=
   | Bool b => Bool b
   end
 .
-
-Print trans_term.
 
 (* Where is the fuction eliminator that i want ? Do i need the same thing as below for trans_state ? I belive so. *)
 
@@ -1092,20 +1090,21 @@ Theorem correction_continuations s1:
   jt_state Gamma s1 T ->
   forall s1',
   trans_state' s1 s1' ->
-  exists s3,
-    star cred s1 s3 /\ star cred s1' s3.
+  exists s3 s3',
+    star cred s1 s3 /\ star cred s1' s3' /\ (jt_state Gamma s3 T /\ exists sigma r, s3 = mode_cont [] sigma r /\ s3' = mode_cont [] (List.map trans_value sigma) (trans_return r)).
 Proof.
 
   Ltac step := 
-    repeat (eapply confluent_star_step_left;   [solve [econstructor; eauto]|]);
-    repeat (eapply confluent_star_step_right;  [solve [econstructor; eauto]|]);
-    repeat (eapply confluent_star_trans_right; [solve [rewrite stack_all_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_star_trans_left;  [solve [rewrite stack_all_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_star_trans_right; [solve [rewrite stack_app_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_star_trans_left;  [solve [rewrite stack_app_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_star_trans_right; [solve [eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_star_trans_left;  [solve [eapply star_cred_append_stack; eauto]|])
+    repeat (eapply confluent_prop_star_step_left;   [solve [econstructor; eauto]|]);
+    repeat (eapply confluent_prop_star_step_right;  [solve [econstructor; eauto]|]);
+    repeat (eapply confluent_prop_star_trans_right; [solve [rewrite stack_all_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_prop_star_trans_left;  [solve [rewrite stack_all_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_prop_star_trans_right; [solve [rewrite stack_app_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_prop_star_trans_left;  [solve [rewrite stack_app_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_prop_star_trans_right; [solve [eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_prop_star_trans_left;  [solve [eapply star_cred_append_stack; eauto]|])
   .
+
   induction s1 as [s1 IHs1] using (
     well_founded_induction
       (wf_inverse_image _ nat _ (fun s => List.length (stack s)) 
@@ -1114,43 +1113,63 @@ Proof.
   intros until s1'.
 
   induction 1.
-  { repeat inv_jt.
+  { check "trans_if_nested".
+    repeat inv_jt.
     exploit IHs1; [| |solve[eapply H1]|];[solve[simpl; try rewrite List.app_length; simpl; lia]|solve[repeat (econstructor; eauto)]|]; intros; unzip.
-    step.
+    subst; repeat inv_jt.
+    induction b; repeat step.
 
-    (* need to use this in a bettery way! *)
-    assert (exists r sigma, s3 = mode_cont [] sigma r /\ jt_state Gamma s3 TBool) by admit "should be in the assumptions".
-    unpack; subst.
-    simpl.
-    repeat inv_jt; induction b; step.
-    { admit "ok". }
-    { admit "ok". }
+    { apply IHs1.
+      { simpl; try rewrite List.app_length; simpl; lia. }
+      { repeat (econstructor; eauto). }
+      { econstructor; eauto. }
+    }
+    { apply IHs1.
+      { simpl; try rewrite List.app_length; simpl; lia. }
+      { repeat (econstructor; eauto). }
+      { econstructor; eauto. }
+    }
   }
-  { 
+  { check "trans_if_false_true".
     repeat inv_jt.
     exploit IHs1; [| |solve[eapply H1]|];[solve[simpl; try rewrite List.app_length; simpl; lia]|solve[repeat (econstructor; eauto)]|]; intros; unzip.
     inversion H1; subst; list_simpl.
-
-    step.
-
-    assert (exists r sigma, s3 = mode_cont [] sigma r /\ jt_state Gamma s3 TBool) by admit "should be in the assumptions"; unpack; subst.
-    repeat inv_jt; induction b0; step.
-    { admit "ok". }
-    { admit "ok". }
+    repeat inv_jt.
+    repeat step.
+    induction b0; repeat step.
+    { apply IHs1.
+      { simpl; try rewrite List.app_length; simpl; lia. }
+      { repeat (econstructor; eauto). }
+      { econstructor; eauto. }
+    }
+    { apply IHs1.
+      { simpl; try rewrite List.app_length; simpl; lia. }
+      { repeat (econstructor; eauto). }
+      { econstructor; eauto. }
+    }
   }
   { repeat inv_jt.
     exploit IHs1; [| |solve[eapply H1]|];[solve[simpl; try rewrite List.app_length; simpl; lia]|solve[repeat (econstructor; eauto)]|]; intros; unpack.
-    step.
-    assert (exists r sigma, s3 = mode_cont [] sigma r /\ jt_state Gamma s3 T2) by admit "should be in the assumptions"; unpack; subst.
-    induction k; simpl; step.
-    all: repeat inv_jt; step.
+    subst; repeat inv_jt; repeat step.
+    induction k; simpl; repeat inv_jt.
+    all: simpl; repeat inv_jt; step.
     { exploit (IHs1 (mode_eval t2 [] sigma0)).
       { simpl; rewrite List.app_length; simpl; lia. }
       { repeat (econstructor; eauto). }
       { repeat econstructor. }
-      intros; unpack.
-      repeat step.
-      admit.
+      intros; unpack; subst.
+      repeat step; simpl; repeat inv_jt.
+      induction r; repeat step; repeat inv_jt.
+
+      exploit (IHs1 (mode_eval tcl [] (v :: sigma_cl))).
+      { simpl; rewrite List.app_length; simpl; lia. }
+      { repeat (econstructor; eauto). }
+      { econstructor; eauto. }
+      
+      intros; unpack; subst; induction r; repeat inv_jt; repeat step.
+
+      eapply confluent_prop_star_refl; repeat eexists.
+      { repeat (econstructor; eauto). }
     }
     { admit . }
     { admit . }
