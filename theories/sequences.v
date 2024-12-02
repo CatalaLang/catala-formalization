@@ -509,56 +509,58 @@ Proof.
   { eapply star_refl. }
 Qed.
 
-(*** Conflutent with external property ***)
+(*** Conflutent with external property linking both targets ***)
 
-Lemma confluent_prop_star_step_left {P: A -> Prop} {R: A -> A -> Prop} {a1 a2 b}:
+Lemma confluent_prop_star_step_left {P: A -> A -> Prop} {R: A -> A -> Prop} {a1 a2 b}:
   R a1 a2 ->
-  (exists target,
-    star R a2 target /\ star R b target /\ P target) ->
-  (exists target,
-    star R a1 target /\ star R b target /\ P target).
+  (exists target1 target2,
+    star R a2 target1 /\ star R b target2 /\ P target1 target2) ->
+  (exists target1 target2,
+    star R a1 target1 /\ star R b target2 /\ P target1 target2).
 Proof.
-  intros; unpack; eexists; split;[eapply star_step|]; eauto.
+  intros; unpack; do 2 eexists; split;[eapply star_step|]; eauto.
 Qed.
 
-Lemma confluent_prop_star_step_right {P: A -> Prop} {R: A -> A -> Prop} {a b1 b2}:
+Lemma confluent_prop_star_step_right {P: A -> A -> Prop} {R: A -> A -> Prop} {a b1 b2}:
   R b1 b2 ->
-  (exists target,
-    star R a target /\ star R b2 target /\ P target) ->
-  (exists target,
-    star R a target /\ star R b1 target /\ P target).
+  (exists target1 target2,
+    star R a target1 /\ star R b2 target2 /\ P target1 target2) ->
+  (exists target1 target2,
+    star R a target1 /\ star R b1 target2 /\ P target1 target2).
 Proof.
-  intros; unpack; eexists; repeat split; [|eapply star_step|]; eauto.
+  intros; unpack; do 2 eexists; repeat split; [|eapply star_step|]; eauto.
 Qed.
 
-Lemma confluent_prop_star_trans_left {P: A -> Prop} {R: A -> A -> Prop} {a1 a2 b}:
+Lemma confluent_prop_star_trans_left {P: A -> A -> Prop} {R: A -> A -> Prop} {a1 a2 b}:
   star R a1 a2 ->
-  (exists target,
-    star R a2 target /\ star R b target /\ P target) ->
-  (exists target,
-    star R a1 target /\ star R b target /\ P target).
+  (exists target1 target2,
+    star R a2 target1 /\ star R b target2 /\ P target1 target2) ->
+  (exists target1 target2,
+    star R a1 target1 /\ star R b target2 /\ P target1 target2).
 Proof.
   intros Hstar; revert b.
   induction Hstar; eauto; intros; unpack.
   eapply confluent_prop_star_step_left; eauto.
+  eapply IHHstar; do 2 eexists; repeat split; eauto.
 Qed.
 
-Lemma confluent_prop_star_trans_right {P: A -> Prop} {R: A -> A -> Prop} {a b1 b2}:
+Lemma confluent_prop_star_trans_right {P: A -> A -> Prop} {R: A -> A -> Prop} {a b1 b2}:
   star R b1 b2 ->
-  (exists target,
-    star R a target /\ star R b2 target /\ P target) ->
-  (exists target,
-    star R a target /\ star R b1 target /\ P target).
+  (exists target1 target2,
+    star R a target1 /\ star R b2 target2 /\ P target1 target2) ->
+  (exists target1 target2,
+    star R a target1 /\ star R b1 target2 /\ P target1 target2).
 Proof.
   intros Hstar; revert a.
   induction Hstar; eauto; intros; unpack.
   eapply confluent_prop_star_step_right; eauto.
+  eapply IHHstar; do 2 eexists; repeat split; eauto.
 Qed.
 
-Lemma confluent_prop_star_refl {P: A -> Prop} {R: A -> A -> Prop} {a}:
-  P a ->
-  (exists target,
-    star R a target /\ star R a target /\ P target).
+Lemma confluent_prop_star_refl {P: A -> A -> Prop} {R: A -> A -> Prop} {a b}:
+  P a b ->
+  (exists target1 target2,
+    star R a target1 /\ star R b target2 /\ P target1 target2).
 Proof.
   eexists; repeat split; eauto using star_refl.
 Qed.
