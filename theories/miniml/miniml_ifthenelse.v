@@ -841,7 +841,7 @@ Set Equations Transparent.
 (* we define trans_state to be rev_state \circ trans_state_aux \circ rev_state
 to permit more adapted pattern matching. *)
 
-Definition total_relation {A : Type} : A -> A -> Prop := fun x y => True.
+(* Definition total_relation {A : Type} : A -> A -> Prop := fun x y => True.
 Axiom wf_total_init : forall {A}, WellFounded (@total_relation A).
 #[local]
 Remove Hints wf_total_init : typeclass_instances.
@@ -849,7 +849,7 @@ Remove Hints wf_total_init : typeclass_instances.
 #[local]
 Instance wf_total_init_compute : forall {A}, WellFounded (@total_relation A).
   exact (fun A => Acc_intro_generator 10 wf_total_init).
-Defined.
+Defined. *)
 
 Require Import FunInd.
 
@@ -1225,7 +1225,7 @@ Proof.
       }
     }
   }
-  { clear IHs1.
+  { clear IHs1. (* IHs1 is unusable since the stack size of the right hand size is null. *)
     revert T Gamma sigma H.
     functional induction (trans_term t).
     all: repeat (intros; simpl; inv_jt; step).
@@ -1297,10 +1297,50 @@ Proof.
 
     intros; unpack; subst; repeat inv_jt; repeat step.
     induction k; repeat inv_jt; simpl; repeat step.
-    { admit. }
-    { admit. }
-    { admit. }
-    { admit. }
+    { exploit (IHs1 (mode_eval t2 [] sigma0)).
+      { simpl; rewrite List.app_length; simpl; lia. }
+      { repeat (econstructor; eauto). }
+      { econstructor; eauto. }
+      intros; unpack; subst; repeat inv_jt; repeat (step; simpl).
+      induction r; repeat inv_jt; repeat step.
+
+      exploit (IHs1 (mode_eval tcl [] (v0:: sigma_cl))).
+      { simpl; rewrite List.app_length; simpl; lia. }
+      { repeat (econstructor; eauto). }
+      { econstructor; eauto. }
+      intros; unpack; subst; repeat inv_jt; repeat (step; simpl).
+
+      eapply confluent_prop_star_refl; repeat econstructor; eauto.
+    }
+    { induction r; repeat inv_jt; repeat step.
+      exploit (IHs1 (mode_eval t_cl [] (v0:: sigma_cl))).
+      { simpl; rewrite List.app_length; simpl; lia. }
+      { repeat (econstructor; eauto). }
+      { econstructor; eauto. }
+      intros; unpack; subst; repeat inv_jt; repeat (step; simpl).
+
+      eapply confluent_prop_star_refl; repeat econstructor; eauto.
+    }
+    { eapply confluent_prop_star_refl; repeat econstructor; eauto.
+    }
+    { induction b; repeat inv_jt; repeat step.
+      { exploit (IHs1 (mode_eval t1 [] sigma0)).
+        { simpl; rewrite List.app_length; simpl; lia. }
+        { repeat (econstructor; eauto). }
+        { econstructor; eauto. }
+        intros; unpack; subst; repeat inv_jt; repeat (step; simpl).
+
+        eapply confluent_prop_star_refl; repeat econstructor; eauto.
+      }
+      { exploit (IHs1 (mode_eval t2 [] sigma0)).
+        { simpl; rewrite List.app_length; simpl; lia. }
+        { repeat (econstructor; eauto). }
+        { econstructor; eauto. }
+        intros; unpack; subst; repeat inv_jt; repeat (step; simpl).
+
+        eapply confluent_prop_star_refl; repeat econstructor; eauto.
+      }
+    }
   }
   { eapply confluent_prop_star_refl; repeat eexists. eauto. }
 Abort.
