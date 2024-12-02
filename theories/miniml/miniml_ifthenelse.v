@@ -1095,58 +1095,138 @@ Theorem correction_continuations s1:
   exists s3,
     star cred s1 s3 /\ star cred s1' s3.
 Proof.
+
+  Ltac step := 
+    repeat (eapply confluent_star_step_left;   [solve [econstructor; eauto]|]);
+    repeat (eapply confluent_star_step_right;  [solve [econstructor; eauto]|]);
+    repeat (eapply confluent_star_trans_right; [solve [rewrite stack_all_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_star_trans_left;  [solve [rewrite stack_all_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_star_trans_right; [solve [rewrite stack_app_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_star_trans_left;  [solve [rewrite stack_app_append_stack_eval; eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_star_trans_right; [solve [eapply star_cred_append_stack; eauto]|]);
+    repeat (eapply confluent_star_trans_left;  [solve [eapply star_cred_append_stack; eauto]|])
+  .
   induction s1 as [s1 IHs1] using (
     well_founded_induction
       (wf_inverse_image _ nat _ (fun s => List.length (stack s)) 
       PeanoNat.Nat.lt_wf_0)).
 
   intros until s1'.
+
   induction 1.
-  { unshelve (epose proof (IHs1 _ _ _ _ _ _ H1)).
-    { simpl; rewrite List.app_length; simpl; lia. }
-    3: { repeat inv_jt. econstructor. { apply H6. } { apply H8. } { apply H. } }
+  { repeat inv_jt.
+    exploit IHs1; [| |solve[eapply H1]|];[solve[simpl; try rewrite List.app_length; simpl; lia]|solve[repeat (econstructor; eauto)]|]; intros; unzip.
+    step.
 
-    unzip.
-
-    eapply confluent_star_trans_right.
-    { apply star_cred_append_stack. eauto. }
-    eapply confluent_star_trans_left.
-    { rewrite stack_app_append_stack_eval.
-      eapply star_cred_append_stack. eauto.
-    }
-
+    (* need to use this in a bettery way! *)
     assert (exists r sigma, s3 = mode_cont [] sigma r /\ jt_state Gamma s3 TBool) by admit "should be in the assumptions".
     unpack; subst.
     simpl.
-    repeat inv_jt; induction b.
-    all: repeat (eapply confluent_star_step_left; [solve 
-    [econstructor; eauto]|]).
-    all: repeat (eapply confluent_star_step_right; [solve [econstructor; eauto]|]).
-    { eapply IHs1.
-      { simpl; try rewrite List.app_length; simpl; lia. }
-      { repeat econstructor; eauto. }
-      { admit "sigma0 should be List.map trans_value on RHS". }
-    }
-    { eapply IHs1.
-      { simpl; try rewrite List.app_length; simpl; lia. }
-      { repeat econstructor; eauto. }
-      { admit "sigma0 should be List.map trans_value on RHS". }
-    }
+    repeat inv_jt; induction b; step.
+    { admit "ok". }
+    { admit "ok". }
   }
-  { admit. }
-  { admit. }
+  { 
+    repeat inv_jt.
+    exploit IHs1; [| |solve[eapply H1]|];[solve[simpl; try rewrite List.app_length; simpl; lia]|solve[repeat (econstructor; eauto)]|]; intros; unzip.
+    inversion H1; subst; list_simpl.
+
+    step.
+
+    assert (exists r sigma, s3 = mode_cont [] sigma r /\ jt_state Gamma s3 TBool) by admit "should be in the assumptions"; unpack; subst.
+    repeat inv_jt; induction b0; step.
+    { admit "ok". }
+    { admit "ok". }
+  }
+  { repeat inv_jt.
+    exploit IHs1; [| |solve[eapply H1]|];[solve[simpl; try rewrite List.app_length; simpl; lia]|solve[repeat (econstructor; eauto)]|]; intros; unpack.
+    step.
+    assert (exists r sigma, s3 = mode_cont [] sigma r /\ jt_state Gamma s3 T2) by admit "should be in the assumptions"; unpack; subst.
+    induction k; simpl; step.
+    all: repeat inv_jt; step.
+    { exploit (IHs1 (mode_eval t2 [] sigma0)).
+      { simpl; rewrite List.app_length; simpl; lia. }
+      { repeat (econstructor; eauto). }
+      { repeat econstructor. }
+      intros; unpack.
+      repeat step.
+      admit.
+    }
+    { admit . }
+    { admit . }
+    { admit . }
+  }
   { clear IHs1.
     revert T Gamma sigma H.
-    induction t.
-    { simpl.
-      admit "change the s3 value".
+    functional induction (trans_term t).
+    all: repeat (intros; simpl; inv_jt; step).
+    { learn (Forall2_nth_error_Some_right HT1 (eq_sym H2)); unzip.
+      learn (List.map_nth_error trans_value _ _ H).
+      step.
+      admit "change the target value".
     }
-    { intros; simpl; repeat inv_jt.
-      repeat 
+    { intros; simpl; repeat inv_jt; step.
+      exploit IHt0; [repeat (econstructor; eauto)|]; intros; unzip.
+      step.
+      admit "use induction hypothesis and conclude".
     }
-    induction (trans_term t) eqn: e.
-    (* 5:{ inversion e. }
-    fun_elim trans_term. *)
+    3:{
+      intros; repeat inv_jt.
+      exploit IHt0; [repeat (econstructor; eauto)|]; intros; unzip.
+      step.
+      all: repeat (eapply confluent_star_step_right; [solve [econstructor; eauto]|]).
+      all: repeat (eapply confluent_star_step_left; [solve [econstructor; eauto]|]).
+      step.
+
+      eapply confluent_star_trans_right; (solve [rewrite stack_all_append_stack_eval; eapply star_cred_append_stack; eauto]).
+      eapply confluent_star_trans_left; (solve [rewrite stack_all_append_stack_eval; eapply star_cred_append_stack; eauto]).
+      { 
+        eapply star_cred_append_stack.
+        eauto.
+      }
+
+      eapply confluent_star_trans_left.
+      { rewrite stack_all_append_stack_eval.
+        eapply star_cred_append_stack.
+        eauto.
+      }
+
+      assert (exists sigma v, s3 = mode_cont [] sigma v /\ jt_state Gamma s3 TBool) by admit.
+      unzip; subst; simpl; repeat inv_jt.
+
+      induction b.
+      { all: repeat (eapply confluent_star_step_right; [solve [econstructor; eauto]|]).
+        all: repeat (eapply confluent_star_step_left; [solve [econstructor; eauto]|]).
+        exploit IHt1; [repeat (econstructor; eauto)|]; eauto.
+        admit "is ok".
+      }
+      { all: repeat (eapply confluent_star_step_right; [solve [econstructor; eauto]|]).
+        all: repeat (eapply confluent_star_step_left; [solve [econstructor; eauto]|]).
+        exploit IHt1; [repeat (econstructor; eauto)|]; eauto.
+        admit "is ok".
+      }
+      admit.
+    }
+    3:{
+      intros; repeat inv_jt.
+      all: repeat (eapply confluent_star_step_right; [solve [econstructor; eauto]|]).
+      all: repeat (eapply confluent_star_step_left; [solve [econstructor; eauto]|]).
+      exploit IHt0; [solve[repeat (econstructor; eauto)]|]; intros; unzip.
+      eapply confluent_star_trans_right.
+      { rewrite stack_all_append_stack_eval.
+        eapply star_cred_append_stack.
+        eauto.
+      }
+
+      eapply confluent_star_trans_left.
+      { rewrite stack_all_append_stack_eval.
+        eapply star_cred_append_stack.
+        eauto.
+      }
+
+      (* ok bon ça marche. Infrastructure maintenant *)
+      admit.
+    }
     all: admit.
   }
   { admit. }
