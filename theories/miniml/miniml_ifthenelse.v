@@ -853,7 +853,9 @@ Instance wf_total_init_compute : forall {A}, WellFounded (@total_relation A).
   exact (fun A => Acc_intro_generator 10 wf_total_init).
 Defined.
 
-Fixpoint trans_term t :=
+Require Import FunInd.
+
+Function trans_term t :=
   match t with
   | Var x => Var x
   | App t1 t2 => App (trans_term t1) (trans_term t2)
@@ -871,6 +873,20 @@ with trans_value v :=
   | Bool b => Bool b
   end
 .
+
+Functional Scheme
+  trans_term_ind2 := Induction for trans_term Sort Prop
+with
+  trans_value_ind2 := Induction for trans_value Sort Prop.
+
+Lemma inversion_trans_term_if {u t1 t2}:
+    trans_term (If u t1 t2) = match u with (If u (Value (Bool false)) (Value (Bool true))) => If (trans_term u) (trans_term t2) (trans_term t1)| _ =>
+    If (trans_term u) (trans_term t1) (trans_term t2)
+    end.
+Proof.
+  induction u; eauto.
+Qed.
+
 
 Definition trans_return (r: result): result :=
   match r with
@@ -1061,6 +1077,12 @@ Ltac decompose h :=
 
 Lemma stack_app_append_stack_eval {t kappa1 kappa2 sigma}:
   mode_eval t (kappa1 ++ kappa2) sigma = append_stack (mode_eval t kappa1 sigma) kappa2.
+Proof.
+  simpl; eauto.
+Qed.
+
+Lemma stack_all_append_stack_eval {t kappa sigma}:
+  mode_eval t (kappa) sigma = append_stack (mode_eval t [] sigma) kappa.
 Proof.
   simpl; eauto.
 Qed.
