@@ -491,23 +491,7 @@ Proof.
   eapply confluent_star_step_right; eauto.
 Qed.
 
-Lemma confluent_change_left {P1 P2 Q: A -> Prop}:
-  (forall t, P1 t -> P2 t) ->
-  (exists t, P1 t /\ Q t) ->
-  exists t, P2 t /\ Q t.
-Proof.
-  intros; unpack; eexists; split; eauto.
-Qed.
-
-Lemma confluent_change_right {P Q1 Q2: A -> Prop}:
-  (forall t, Q1 t -> Q2 t) ->
-  (exists t, P t /\ Q1 t) ->
-  exists t, P t /\ Q2 t.
-Proof.
-  intros; unpack; eexists; split; eauto.
-Qed.
-
-Lemma confluence_star_refl {R: A -> A -> Prop} {a}:
+Lemma confluent_star_refl {R: A -> A -> Prop} {a}:
   (exists target,
     star R a target /\ star R a target).
 Proof.
@@ -515,7 +499,7 @@ Proof.
 Qed.
 
 
-Lemma confluence_star_refl_eq {R: A -> A -> Prop} {a b}:
+Lemma confluent_star_refl_eq {R: A -> A -> Prop} {a b}:
   a = b ->
   (exists target,
     star R a target /\ star R b target).
@@ -525,6 +509,59 @@ Proof.
   { eapply star_refl. }
 Qed.
 
+(*** Conflutent with external property ***)
+
+Lemma confluent_prop_star_step_left {P: A -> Prop} {R: A -> A -> Prop} {a1 a2 b}:
+  R a1 a2 ->
+  (exists target,
+    star R a2 target /\ star R b target /\ P target) ->
+  (exists target,
+    star R a1 target /\ star R b target /\ P target).
+Proof.
+  intros; unpack; eexists; split;[eapply star_step|]; eauto.
+Qed.
+
+Lemma confluent_prop_star_step_right {P: A -> Prop} {R: A -> A -> Prop} {a b1 b2}:
+  R b1 b2 ->
+  (exists target,
+    star R a target /\ star R b2 target /\ P target) ->
+  (exists target,
+    star R a target /\ star R b1 target /\ P target).
+Proof.
+  intros; unpack; eexists; repeat split; [|eapply star_step|]; eauto.
+Qed.
+
+Lemma confluent_prop_star_trans_left {P: A -> Prop} {R: A -> A -> Prop} {a1 a2 b}:
+  star R a1 a2 ->
+  (exists target,
+    star R a2 target /\ star R b target /\ P target) ->
+  (exists target,
+    star R a1 target /\ star R b target /\ P target).
+Proof.
+  intros Hstar; revert b.
+  induction Hstar; eauto; intros; unpack.
+  eapply confluent_prop_star_step_left; eauto.
+Qed.
+
+Lemma confluent_prop_star_trans_right {P: A -> Prop} {R: A -> A -> Prop} {a b1 b2}:
+  star R b1 b2 ->
+  (exists target,
+    star R a target /\ star R b2 target /\ P target) ->
+  (exists target,
+    star R a target /\ star R b1 target /\ P target).
+Proof.
+  intros Hstar; revert a.
+  induction Hstar; eauto; intros; unpack.
+  eapply confluent_prop_star_step_right; eauto.
+Qed.
+
+Lemma confluent_prop_star_refl {P: A -> Prop} {R: A -> A -> Prop} {a}:
+  P a ->
+  (exists target,
+    star R a target /\ star R a target /\ P target).
+Proof.
+  eexists; repeat split; eauto using star_refl.
+Qed.
 
 (* Smart constructors specialized for the forward simulation diagram in the form: *)
 

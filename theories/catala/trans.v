@@ -282,7 +282,7 @@ Proof.
   intros Hsred.
   induction Hsred; intros; unpack.
   (* When the right hand side is the result of the left hand side. *)
-  all: try solve [simpl; repeat step; eapply confluence_star_refl].
+  all: try solve [simpl; repeat step; eapply confluent_star_refl].
   { asimpl. repeat step. eexists; split; simpl trans; [|eapply star_refl; fail].
     rewrite <- List.map_cons.
     eapply star_refl_eq.
@@ -294,7 +294,7 @@ Proof.
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step.
     eapply confluent_star_step_left. { econstructor; simpl; eapply trans_value_op_correct; eauto. }
-    eapply confluence_star_refl.
+    eapply confluent_star_refl.
   }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
@@ -438,7 +438,7 @@ Proof.
   all:
     try solve [
       repeat step';
-      try eapply confluence_star_refl;
+      try eapply confluent_star_refl;
       eauto
     ].
   

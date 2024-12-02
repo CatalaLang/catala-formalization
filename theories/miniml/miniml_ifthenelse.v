@@ -482,7 +482,26 @@ Ltac2 inv_jt () :=
   | [ h: List.Forall2 _ _ ?c |- _ ] => smart_inversion c h
 end.
 
-Ltac inv_jt := ltac2:(inv_jt ()); unpack.
+Ltac2 rename_jt () := 
+  let hyps := Control.hyps () in
+  let rename h := 
+    let ht := Fresh.in_goal @HT0 in
+    Std.rename [h, ht]
+  in
+  List.iter (fun (h, _, t) =>
+    match! t with
+    | jt_conts _ _ _ _ _ => rename h
+    | jt_term _ _ _  => rename h  
+    | jt_cont _ _ _ _ _ => rename h  
+    | jt_state _ _ _ => rename h 
+    | jt_result _ _ => rename h 
+    | List.Forall2 jt_value _ _ => rename h  
+    | _ => ()
+    end
+  ) (List.rev hyps)
+.
+
+Ltac inv_jt := ltac2:(inv_jt (); rename_jt ()); unpack.
 
 Theorem Forall2_nth_error_Some {A B F l1 l2}:
   List.Forall2 F l1 l2 ->
@@ -509,7 +528,7 @@ Proof.
   all: intros; repeat inv_jt; repeat econstructor; eauto.
 
   (** One case is left. It requires an external lemma. *)
-  { pose proof (Forall2_nth_error_Some H6); eauto. }
+  { pose proof (Forall2_nth_error_Some HT0); eauto. }
 Qed.
 
 Definition is_mode_cont s :=
@@ -556,7 +575,7 @@ Proof.
   all: try solve [right; simpl; eauto].
 
   (* One case is left that requires an additional lemma on lists. *)
-  { pose proof (Forall2_nth_error_Some_right H4 (eq_sym H1)); unpack.
+  { pose proof (Forall2_nth_error_Some_right HT0 (eq_sym H1)); unpack.
     left; eexists; econstructor; eauto.
   }
 Qed.
