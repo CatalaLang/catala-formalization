@@ -1106,8 +1106,8 @@ Theorem correction_continuations s1:
   exists s3 s3',
     star cred s1 s3 /\ star cred s1' s3' /\ (jt_state Gamma s3 T /\ exists sigma r, s3 = mode_cont [] sigma r /\ s3' = mode_cont [] (List.map trans_value sigma) (trans_return r)).
 Proof.
-
-  Ltac step := 
+Ltac step := 
+    (* steping using the premade confluence lemma. This could be factorized, but we left it in this format is it is more easy to understand. *)
     repeat (eapply confluent_prop_star_step_left;   [solve [econstructor; eauto]|]);
     repeat (eapply confluent_prop_star_step_right;  [solve [econstructor; eauto]|]);
     repeat (eapply confluent_prop_star_trans_right; [solve [first [rewrite stack_all_append_stack_eval| rewrite stack_all_append_stack_cont]; eapply star_cred_append_stack; eauto]|]);
@@ -1343,7 +1343,7 @@ Proof.
     }
   }
   { eapply confluent_prop_star_refl; repeat eexists. eauto. }
-Abort.
+Admitted.
 
 
 Theorem correction_traditional:
