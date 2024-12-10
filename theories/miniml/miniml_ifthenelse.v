@@ -853,6 +853,89 @@ Instance wf_total_init_compute : forall {A}, WellFounded (@total_relation A).
 Defined. *)
 
 
+(* Inductive R_trans_term : term -> term -> Type :=
+	R_trans_term_0 : forall (t : term) (x : var),
+                     t = Var x -> R_trans_term (Var x) (Var x)
+  | R_trans_term_1 : forall t t1 t2 : term,
+                     t = App t1 t2 ->
+                     forall _res0 : term,
+                     R_trans_term t1 _res0 ->
+                     forall _res : term,
+                     R_trans_term t2 _res ->
+                     R_trans_term (App t1 t2) (App _res0 _res)
+  | R_trans_term_2 : forall (t : term) (t0 : {bind term}),
+                     t = Lam t0 ->
+                     forall _res : term,
+                     R_trans_term t0 _res -> R_trans_term (Lam t0) (Lam _res)
+  | R_trans_term_3 : forall (t : term) (v : value),
+                     t = Value v ->
+                     forall _res : value,
+                     R_trans_value v _res ->
+                     R_trans_term (Value v) (Value _res)
+  | R_trans_term_4 : forall t u t1 t2 : term,
+                     t =
+                     If (If u (Value (Bool false)) (Value (Bool true))) t1 t2 ->
+                     forall _res1 : term,
+                     R_trans_term u _res1 ->
+                     forall _res0 : term,
+                     R_trans_term t2 _res0 ->
+                     forall _res : term,
+                     R_trans_term t1 _res ->
+                     R_trans_term
+                       (If (If u (Value (Bool false)) (Value (Bool true))) t1
+                          t2) (If _res1 _res0 _res)
+  | R_trans_term_5 : forall t u t1 t2 : term,
+                     t = If u t1 t2 ->
+                     match If u t1 t2 with
+                     | If u0 _ _ =>
+                         match u0 with
+                         | If _ t4 t5 =>
+                             match t4 with
+                             | Value v =>
+                                 match v with
+                                 | Closure _ _ => True
+                                 | Bool b =>
+                                     if b
+                                     then True
+                                     else
+                                      match t5 with
+                                      | Value v0 =>
+                                          match v0 with
+                                          | Closure _ _ => True
+                                          | Bool b0 =>
+                                              if b0 then False else True
+                                          end
+                                      | _ => True
+                                      end
+                                 end
+                             | _ => True
+                             end
+                         | _ => True
+                         end
+                     | _ => False
+                     end ->
+                     forall _res1 : term,
+                     R_trans_term u _res1 ->
+                     forall _res0 : term,
+                     R_trans_term t1 _res0 ->
+                     forall _res : term,
+                     R_trans_term t2 _res ->
+                     R_trans_term (If u t1 t2) (If _res1 _res0 _res)
+  with R_trans_value : value -> value -> Type :=
+    R_trans_value_0 : forall (v : value) (t : {bind term})
+                        (sigma : list value),
+                      v = Closure t sigma ->
+                      forall _res : term,
+                      R_trans_term t _res ->
+                      forall _res_v : list value,
+                      List.Forall2 trans_value 
+                      R_trans_value (Closure t sigma)
+                        (Closure _res (List.map trans_value sigma))
+  | R_trans_value_1 : forall (v : value) (b : bool),
+                      v = Bool b -> R_trans_value (Bool b) (Bool b). *)
+
+
+
 Function trans_term t :=
   match t with
   | Var x => Var x
@@ -876,6 +959,8 @@ Functional Scheme
   trans_term_ind2 := Induction for trans_term Sort Prop
 with
   trans_value_ind2 := Induction for trans_value Sort Prop.
+
+Search trans_term.
 
 Lemma inversion_trans_term_if {u t1 t2}:
     trans_term (If u t1 t2) = match u with (If u (Value (Bool false)) (Value (Bool true))) => If (trans_term u) (trans_term t2) (trans_term t1)| _ =>
@@ -1342,7 +1427,7 @@ Ltac step :=
       }
     }
   }
-  { eapply confluent_prop_star_refl; repeat eexists. eauto. }
+  { eapply confluent_prop_star_refl; repeat (econstructor; eauto). }
 Admitted.
 
 
