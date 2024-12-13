@@ -52,6 +52,16 @@ Inductive state :=
 
 
 
+Definition id_var (n: nat): var := n.
+Coercion id_var: nat >-> var.
+Coercion Bool : bool >-> value.
+Coercion Value: value >-> term.
+Coercion App: term >-> Funclass.
+Coercion RValue: value >-> result.
+Coercion Var: var >-> term.
+
+
+
 Inductive cred: state -> state -> Prop :=
   (** Rules related to the lambda calculus *)
   | cred_var:
@@ -109,6 +119,66 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont ((CIf t1 t2 sigma):: kappa)  (RValue (Bool false)))
       (mode_eval t2 kappa sigma)
 .
+
+Notation "'cred' t1 t2" :=
+  (cred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'[hv  ' 'cred' '/' t1  '/' t2 ']'"
+).
+
+Notation "'star' 'cred' t1 t2" :=
+  (star cred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'[hv  ' 'star'  'cred' '/' t1  '/' t2 ']'"
+).
+
+Notation "'plus' 'cred' t1 t2" :=
+  (plus cred t1 t2) (
+  at level 50,
+  t1 at level 3,
+  t2 at level 3,
+  only printing,
+  format "'[hv  ' 'plus' 'cred' '/' t1  '/' t2 ']'"
+).
+
+Notation "'mode_eval' t kappa sigma" :=
+  (mode_eval t kappa sigma) (
+  at level 50,
+  t at level 3,
+  kappa at level 3,
+  sigma at level 3,
+  only printing,
+  format "'[hv  ' 'mode_eval' '/'  t '/'  kappa '/'  sigma ']'"
+).
+
+Notation "'mode_cont' kappa v" :=
+  (mode_cont kappa v) (
+  at level 50,
+  v at level 3,
+  kappa at level 3,
+  only printing,
+  format "'[hv  ' 'mode_cont' '/'  kappa '/'  v  ']'"
+).
+
+Notation "'if' u 'then' t1 'else' t2 'end'" := (If u t1 t2) (at level 10).
+
+Notation "λ. t" := (Lam t) (at level 50).
+
+Goal
+star cred
+  (mode_eval (Lam (If (0 true) true false) (Lam 0)) [] [])
+  (mode_cont [] true).
+Proof.
+  repeat (eapply star_step; [solve [econstructor; simpl; eauto]|]).
+  eapply star_refl.
+Qed.
+
 
 Goal star cred
   (mode_eval (App (Lam (If (App (Var 0) (Value (Bool true))) (Value (Bool true)) (Value (Bool false))) ) (Lam (Var 0))) [] []) (mode_cont [] (RValue (Bool true))).
