@@ -233,98 +233,99 @@ Inductive jt_result: (string -> option type) -> result -> type -> Prop :=
     jt_result Delta RConflict T
 .
 
-Inductive jt_cont: (string -> option type) -> list type -> list type -> cont -> type -> type -> Prop :=
+Inductive jt_cont: (string -> option type) -> type -> cont -> type -> Prop :=
   | JTCAppR:
-    forall Delta Gamma t2 T1 T2,
+    forall Delta sigma Gamma t2 T1 T2,
       jt_term Delta Gamma t2 T1 ->
-      jt_cont Delta Gamma Gamma (CAppR t2) (TFun T1 T2) T2
+      List.Forall2 (jt_value Delta) sigma Gamma ->
+      jt_cont Delta (TFun T1 T2) (CAppR t2 sigma) T2
   | JTCClosure:
-    forall Delta Gamma Gamma_cl sigma_cl T1 T2 tcl,
+    forall Delta Gamma_cl sigma_cl T1 T2 tcl,
       jt_term Delta Gamma_cl (Lam tcl) (TFun T1 T2) ->
       List.Forall2 (jt_value Delta) sigma_cl Gamma_cl ->
-      jt_cont Delta Gamma Gamma (CClosure tcl sigma_cl) T1 T2
+      jt_cont Delta T1 (CClosure tcl sigma_cl) T2
   | JTCBinopL:
-    forall T1 T2 T3 op Delta v1 Gamma,
+    forall T1 T2 T3 op Delta v1,
       (T1, T2, T3) = jt_op op ->
       jt_value Delta v1 T1 ->
-      jt_cont Delta Gamma Gamma (CBinopL op v1) T2 T3
+      jt_cont Delta T2 (CBinopL op v1) T3
   | JTCBinopR:
-    forall T1 T2 T3 op Delta t2 Gamma,
+    forall T1 T2 T3 op Delta t2 sigma Gamma,
       (T1, T2, T3) = jt_op op ->
       jt_term Delta Gamma t2 T2 ->
-      jt_cont Delta Gamma Gamma (CBinopR op t2) T1 T3
+      List.Forall2 (jt_value Delta) sigma Gamma ->
+      jt_cont Delta T1 (CBinopR op t2 sigma) T3
   | JTCDefault:
-    forall Delta Gamma h o ts tj tc T,
+    forall Delta Gamma h o ts tj tc T sigma,
       List.Forall (fun ti => jt_term Delta Gamma ti (TDefault T)) ts ->
       match o with None => True | Some o => jt_value Delta o T end ->
       jt_term Delta Gamma tj TBool ->
       jt_term Delta Gamma tc (TDefault T) ->
-      jt_cont Delta Gamma Gamma (CDefault h o ts tj tc) (TDefault T) (TDefault T)
+      List.Forall2 (jt_value Delta) sigma Gamma ->
+      jt_cont Delta (TDefault T) (CDefault h o ts tj tc sigma) (TDefault T)
   | JTCDefaultBase:
-    forall Delta Gamma tc T,
+    forall Delta sigma Gamma tc T,
       jt_term Delta Gamma tc (TDefault T) ->
-      jt_cont Delta Gamma Gamma (CDefaultBase tc) TBool (TDefault T)
+      List.Forall2 (jt_value Delta) sigma Gamma ->
+      jt_cont Delta TBool (CDefaultBase tc sigma) (TDefault T)
   | JTCDefaultPure:
-    forall Delta Gamma T,
+    forall Delta T,
       inv_no_immediate_default T ->
-      jt_cont Delta Gamma Gamma (CDefaultPure) T (TDefault T)
+      jt_cont Delta T (CDefaultPure) (TDefault T)
   | JTCErrorOnEmpty:
-    forall Delta Gamma T,
-      jt_cont Delta Gamma Gamma (CErrorOnEmpty) (TDefault T) T
+    forall Delta T,
+      jt_cont Delta (TDefault T) (CErrorOnEmpty) T
   | JTCMatch:
-    forall Delta Gamma t1 t2 U T,
+    forall Delta sigma Gamma t1 t2 U T,
       jt_term Delta Gamma t1 T ->
       jt_term Delta (U::Gamma) t2 T ->
-      jt_cont Delta Gamma Gamma (CMatch t1 t2) (TOption U) T
+      List.Forall2 (jt_value Delta) sigma Gamma ->
+      jt_cont Delta (TOption U) (CMatch t1 t2 sigma) T
   | JTCFold:
-    forall Delta Gamma f ts A B,
+    forall Delta sigma Gamma f ts A B,
       jt_term Delta Gamma f (TFun A (TFun B B)) ->
       inv_no_immediate_default A ->
       inv_no_immediate_default B ->
       List.Forall (fun ti => jt_term Delta Gamma ti A) ts ->
-      jt_cont Delta Gamma Gamma (CFold f ts) B B
+      List.Forall2 (jt_value Delta) sigma Gamma ->
+      jt_cont Delta B (CFold f ts sigma) B
   | JTCSome:
-    forall Delta Gamma T,
+    forall Delta T,
       inv_no_immediate_default T ->
-      jt_cont Delta Gamma Gamma CSome T (TOption T)
+      jt_cont Delta T CSome (TOption T)
   | JTCIf:
-    forall Delta Gamma T ta tb,
+    forall Delta sigma Gamma T ta tb,
       jt_term Delta Gamma ta T ->
       jt_term Delta Gamma tb T ->
-      jt_cont Delta Gamma Gamma (CIf ta tb) (TBool) T
-
-  | JTCReturn:
-    forall Delta sigma Gamma1 Gamma2 T,
-      (List.Forall2 (jt_value Delta) sigma Gamma2) ->
-      jt_cont Delta Gamma1 Gamma2 (CReturn sigma) T T
+      List.Forall2 (jt_value Delta) sigma Gamma ->
+      jt_cont Delta TBool (CIf ta tb sigma) T
 .
 
-Inductive jt_conts: (string -> option type) -> list type -> list type -> list cont -> type -> type -> Prop :=
+Inductive jt_conts: (string -> option type) -> type -> list cont -> type -> Prop :=
   | JTNil:
-    forall Delta Gamma T,
+    forall Delta T,
       inv_base T ->
-      jt_conts Delta Gamma Gamma nil T T
+      jt_conts Delta T nil T
   | JTCons:
-    forall Delta Gamma1 Gamma2 Gamma3 cont kappa T1 T2 T3,
-      jt_cont Delta Gamma1 Gamma2 cont T1 T2 ->
-      jt_conts Delta Gamma2 Gamma3 kappa T2 T3 ->
-      jt_conts Delta Gamma1 Gamma3 (cont :: kappa) T1 T3
+    forall Delta cont kappa T1 T2 T3,
+      jt_cont Delta T1 cont T2 ->
+      jt_conts Delta T2 kappa T3 ->
+      jt_conts Delta T1 (cont :: kappa) T3
 .
 
-Inductive jt_state: (string -> option type) -> list type -> state -> type -> Prop :=
-  | JTmode_eval:
-    forall Delta Gamma1 Gamma2 t T1 T2 kappa sigma,
-      List.Forall2 (jt_value Delta) sigma Gamma1 ->
-      jt_term Delta Gamma1 t T1 ->
-      jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
-      jt_state Delta Gamma2 (mode_eval t kappa sigma) T2
-  | JTmode_cont:
-    forall Delta Gamma1 Gamma2 r T1 T2 kappa sigma,
-      List.Forall2 (jt_value Delta) sigma Gamma1 ->
-      jt_result Delta r T1 ->
-      jt_conts Delta Gamma1 Gamma2 kappa T1 T2 ->
-      jt_state Delta Gamma2 (mode_cont kappa sigma r) T2
-.
+Inductive jt_state: (string -> option type) -> state -> type -> Prop :=
+| JTmode_eval:
+  forall Delta Gamma t T1 T2 kappa sigma,
+    List.Forall2 (jt_value Delta) sigma Gamma ->
+    jt_term Delta Gamma t T1 ->
+    jt_conts Delta T1 kappa T2 ->
+    jt_state Delta (mode_eval t kappa sigma) T2
+| JTmode_cont:
+  forall Delta r T1 T2 kappa,
+    jt_result Delta r T1 ->
+    jt_conts Delta T1 kappa T2 ->
+    jt_state Delta (mode_cont kappa r) T2
+. 
 
 (*
 Lemma jt_state_correct:
@@ -336,9 +337,9 @@ Ltac2 sinv_jt () :=
   | [ h: jt_term _ _ ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_value _ ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_value _ _ ?c |- _ ] => smart_inversion c h
-  | [ h: jt_cont _ _ _ ?c _ _ |- _ ] => smart_inversion c h
-  | [ h: jt_conts _ _ _ ?c _ _ |- _ ] => smart_inversion c h
-  | [ h: jt_state _ _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_cont _ _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_conts _ _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_state _ ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_result _ ?c _ |- _ ] => smart_inversion c h
   | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
   | [ h: List.Forall2 _ ?c _ |- _ ] => smart_inversion c h
@@ -349,9 +350,9 @@ Ltac2 econs_jt () :=
   match! goal with
   | [ |- jt_term _ _ _ _] => econstructor
   | [ |- jt_value _ _ _] => econstructor
-  | [ |- jt_cont _ _ _ _ _ _] => econstructor
-  | [ |- jt_conts _ _ _ _ _ _] => econstructor
-  | [ |- jt_state _ _ _ _] => econstructor
+  | [ |- jt_cont _ _ _ _ ] => econstructor
+  | [ |- jt_conts _ _ _ _] => econstructor
+  | [ |- jt_state _ _ _] => econstructor
   | [ |- jt_result _ _ _] => econstructor
   | [ |- List.Forall _ _] => econstructor
   | [ |- List.Forall2 _ _ _] => econstructor
@@ -439,9 +440,9 @@ Ltac learn_inv :=
 
 Theorem preservation s1 s2:
   cred s1 s2 ->
-  forall Delta Gamma T,
-  jt_state Delta Gamma s1 T ->
-  jt_state Delta Gamma s2 T.
+  forall Delta T,
+  jt_state Delta s1 T ->
+  jt_state Delta s2 T.
 Proof.
   intro Hred'.
   assert (Hred: cred s1 s2) by eauto.
@@ -460,25 +461,22 @@ Proof.
   { repeat (econstructor; eauto).
     eapply common.Forall2_nth_error_Some; eauto.
   }
-  { (* Returning an Conflict *)
-    induction phi; try solve [repeat sinv_jt; repeat econstructor; eauto| tryfalse].
-  }
   { induction op, v1, v2; simpl in *; inj; repeat (econstructor; eauto). }
 Qed.
 
 Theorem progress s1:
-  forall Delta Gamma T,
-    jt_state Delta Gamma s1 T ->
+  forall Delta T,
+    jt_state Delta s1 T ->
     (exists s2, cred s1 s2) \/ (is_mode_cont s1 = true /\ stack s1 = nil).
 Proof.
-  induction s1 as [t kappa env|kappa env r]; intros.
+  induction s1 as [t kappa env|kappa r]; intros.
   { repeat sinv_jt.
     left.
     induction t.
     all: repeat sinv_jt.
     all: try solve [eexists; econstructor].
     { symmetry in H0.
-      destruct (common.Forall2_nth_error_Some_right _ _ _ H5 _ _ H0).
+      destruct (common.Forall2_nth_error_Some_right _ _ _ H4 _ _ H0).
       eexists; econstructor; eauto.
     }
   }
@@ -505,13 +503,13 @@ Proof.
 Qed.
 
 Lemma well_typed_finish:
-  forall Delta Gamma s1 T,
+  forall Delta s1 T,
     (forall s2, ~ cred s1 s2) ->
-    jt_state Delta Gamma s1 T ->
+    jt_state Delta s1 T ->
     is_mode_cont s1 = true /\ stack s1 = nil.
 Proof.
   intros.
-  destruct (progress s1 Delta Gamma T); eauto.
+  destruct (progress s1 Delta T); eauto.
   { unpack; exfalso.
     eapply H; eauto.
   }
@@ -522,19 +520,19 @@ Module correctness.
   Parameter measure_decrease: forall s1 s2, cred s1 s2 -> measure s2 < measure s1.
 
   Theorem correctness_technical_aux s1:
-    forall Delta Gamma T,
-      jt_state Delta Gamma s1 T ->
+    forall Delta T,
+      jt_state Delta s1 T ->
       exists s2,
         star cred s1 s2 /\
         is_mode_cont s2 = true /\
         stack s2 = nil /\
-        jt_state Delta Gamma s2 T
+        jt_state Delta s2 T
       .
   Proof.
     induction s1 using (Wf_nat.induction_ltof1 _ measure).
     unfold Wf_nat.ltof in H.
-    intros ? ? ? HT.
-    destruct (progress _ _ _ _ HT).
+    intros ? ? HT.
+    destruct (progress _ _ _ HT).
     { unpack.
       edestruct (H s2).
       { eapply measure_decrease; eauto. }
@@ -548,17 +546,16 @@ Module correctness.
     forall Delta t T,
       inv_base T ->
       jt_term Delta [] t T ->
-      exists r sigma,
+      exists r,
         star cred
           (mode_eval t [] [])
-          (mode_cont [] sigma r)
+          (mode_cont [] r)
   .
   Proof.
     intros.
     destruct correctness_technical_aux with
       (mode_eval t [] [])
       Delta
-      ([]: list type)
       T
     as (s2 & H1 & H2 & H3 & H4).
     { repeat (econstructor; eauto). }
