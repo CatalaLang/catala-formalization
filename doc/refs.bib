@@ -1,0 +1,33 @@
+@article{omnisemantics,
+  author     = {Chargu\'{e}raud, Arthur and Chlipala, Adam and Erbsen, Andres and Gruetter, Samuel},
+  title      = {Omnisemantics: Smooth Handling of Nondeterminism},
+  year       = {2023},
+  issue_date = {March 2023},
+  publisher  = {Association for Computing Machinery},
+  address    = {New York, NY, USA},
+  volume     = {45},
+  number     = {1},
+  issn       = {0164-0925},
+  url        = {https://doi.org/10.1145/3579834},
+  doi        = {10.1145/3579834},
+  abstract   = {This article gives an in-depth presentation of the omni-big-step and omni-small-step styles of semantic judgments. These styles describe operational semantics by relating starting states to sets of outcomes rather than to individual outcomes. A single derivation of these semantics for a particular starting state and program describes all possible nondeterministic executions (hence the name omni), whereas in traditional small-step and big-step semantics, each derivation only talks about one single execution. This restructuring allows for straightforward modeling of both nondeterminism and undefined behavior as commonly encountered in sequential functional and imperative programs. Specifically, omnisemantics inherently assert safety (i.e., they guarantee that none of the execution branches gets stuck), while traditional semantics need either a separate judgment or additional error markers to specify safety in the presence of nondeterminism.Omnisemantics can be understood as an inductively defined weakest-precondition semantics (or more generally, predicate-transformer semantics) that does not involve invariants for loops and recursion but instead uses unrolling rules like in traditional small-step and big-step semantics. Omnisemantics were previously described in association with several projects, but we believe the technique has been underappreciated and deserves a well-motivated, extensive, and pedagogical presentation of its benefits. We also explore several novel aspects associated with these semantics, in particular, their use in type-safety proofs for lambda calculi, partial-correctness reasoning, and forward proofs of compiler correctness for terminating but potentially nondeterministic programs being compiled to nondeterministic target languages. All results in this article are formalized in Coq.},
+  journal    = {ACM Trans. Program. Lang. Syst.},
+  month      = mar,
+  articleno  = {5},
+  numpages   = {43},
+  keywords   = {compiler correctness proofs, termination, Nondeterminism}
+}
+
+
+@article{refocusing,
+  title        = {Refocusing in Reduction Semantics},
+  volume       = {11},
+  url          = {https://tidsskrift.dk/brics/article/view/21851},
+  doi          = {10.7146/brics.v11i26.21851},
+  abstractnote = {The evaluation function of a reduction semantics (i.e., a small-step operational semantics with an explicit representation of the reduction context) is canonically defined as the transitive closure of (1) decomposing a term into a reduction context and a redex, (2) contracting this redex, and (3) plugging the contractum in the context. Directly implementing this evaluation function therefore yields an interpreter with a worst-case overhead, for each step, that is linear in the size of the input term. &amp;lt;br /&amp;gt; &amp;lt;br /&amp;gt;We present sufficient conditions over the constituents of a reduction semantics to circumvent this overhead, by replacing the composition of (3) plugging and (1) decomposing by a single ``refocus’’ function mapping a contractum and a context into a new context and a new redex, if any. We also show how to construct such a refocus function, we prove the correctness of this construction, and we analyze the complexity of the resulting refocus function. &amp;lt;br /&amp;gt; &amp;lt;br /&amp;gt;The refocused evaluation function of a reduction semantics implements the transitive closure of the refocus function, i.e., a ``pre-abstract machine.’’ Fusing the refocus function with the trampoline function computing the transitive closure gives a state-transition function, i.e., an abstract machine. This abstract machine clearly separates between the transitions implementing the congruence rules of the reduction semantics and the transitions implementing its reduction rules. The construction of a refocus function therefore shows how to mechanically obtain an abstract machine out of a reduction semantics, which was done previously on a case-by-case basis. &amp;lt;br /&amp;gt; &amp;lt;br /&amp;gt;We illustrate refocusing by mechanically constructing Felleisen et al.’s CK machine from a call-by-value reduction semantics of the lambda-calculus, and by constructing a substitution-based version of Krivine’s machine from a call-by-name reduction semantics of the lambda-calculus. We also mechanically construct three one-pass CPS transformers from three quadratic context-based CPS transformers for the lambda-calculus.},
+  number       = {26},
+  journal      = {BRICS Report Series},
+  author       = {Danvy, Olivier and Nielsen, Lasse R.},
+  year         = {2004},
+  month        = {Nov.}
+}
