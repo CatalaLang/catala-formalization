@@ -411,6 +411,7 @@ Proof.
   { induction x; rewrite apply_conts_app; simpl; intros; congruence. }
 Qed.
 
+(* 
 
 Theorem simulation_sred_cred_base:
   forall t1 t2,
@@ -485,4 +486,4 @@ Proof.
       }
     }
     { admit "same case". }
-  }
+  } *)
