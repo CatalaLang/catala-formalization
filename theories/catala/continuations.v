@@ -53,9 +53,9 @@ Inductive cont :=
   | CMatch (t1: term) (t2: {bind term}) (sigma: list value)
     (* [ match \square with None -> t1 | Some -> t2 end ] *)
   | CIf (ta: term) (tb: term) (sigma: list value)
-  | CSome
-  | CErrorOnEmpty
-  | CDefaultPure
+  | CSome (sigma: list value)
+  | CErrorOnEmpty (sigma: list value)
+  | CDefaultPure (sigma: list value)
   | CFold (f: term) (ts: list term) (sigma: list value)
 .
 
@@ -141,27 +141,27 @@ Inductive cred: state -> state -> Prop :=
     forall e kappa sigma,
     cred
       (mode_eval (DefaultPure e) kappa sigma)
-      (mode_eval e (CDefaultPure::kappa) sigma)
+      (mode_eval e (CDefaultPure sigma::kappa) sigma)
   | cred_defaultpure_elim:
-    forall kappa v,
+    forall kappa v sigma,
     cred
-      (mode_cont (CDefaultPure::kappa) (RValue v))
+      (mode_cont (CDefaultPure sigma::kappa) (RValue v))
       (mode_cont kappa (RValue (VPure v)))
 
   | cred_erroronempty_intro:
     forall e kappa sigma,
     cred
       (mode_eval (ErrorOnEmpty e) kappa sigma)
-      (mode_eval e (CErrorOnEmpty::kappa) sigma)
+      (mode_eval e (CErrorOnEmpty sigma::kappa) sigma)
   | cred_erroronempty_elim_empty:
-    forall kappa,
+    forall kappa sigma,
     cred
-      (mode_cont (CErrorOnEmpty::kappa) REmpty)
+      (mode_cont (CErrorOnEmpty sigma::kappa) REmpty)
       (mode_cont kappa RConflict)
   | cred_erroronempty_elim_other:
-    forall kappa v,
+    forall kappa v sigma,
     cred
-      (mode_cont (CErrorOnEmpty::kappa) (RValue (VPure v)))
+      (mode_cont (CErrorOnEmpty sigma::kappa) (RValue (VPure v)))
       (mode_cont kappa (RValue v))
 
   | cred_default:
@@ -295,11 +295,11 @@ Inductive cred: state -> state -> Prop :=
     forall t kappa sigma,
     cred
       (mode_eval (ESome t) kappa sigma)
-      (mode_eval t (CSome::kappa) sigma)
+      (mode_eval t (CSome sigma::kappa) sigma)
   | cred_esome_elim:
-    forall v kappa,
+    forall v kappa sigma,
     cred
-      (mode_cont (CSome::kappa) (RValue v))
+      (mode_cont (CSome sigma::kappa) (RValue v))
       (mode_cont kappa (RValue (VSome v)))
   | cred_if:
     forall u t1 t2 kappa sigma,
@@ -508,14 +508,14 @@ Inductive inv_conts_no_hole: cont -> Prop :=
   inv_conts_no_hole (CDefaultBase (tc: term) sigma)
 | inv_CMatch (t1: term) (t2: {bind term}) sigma:
   inv_conts_no_hole (CMatch (t1: term) (t2: {bind term}) sigma)
-| inv_CSome:
-  inv_conts_no_hole (CSome)
+| inv_CSome sigma:
+  inv_conts_no_hole (CSome sigma)
 | inv_If (ta tb: term) sigma:
   inv_conts_no_hole (CIf ta tb sigma)
-| inv_ErrorOnEmpty:
-  inv_conts_no_hole CErrorOnEmpty
-| inv_CDefaultPure:
-  inv_conts_no_hole CDefaultPure
+| inv_ErrorOnEmpty sigma:
+  inv_conts_no_hole (CErrorOnEmpty sigma)
+| inv_CDefaultPure sigma:
+  inv_conts_no_hole (CDefaultPure sigma)
 | inv_CFold:
   forall {f ts sigma},
   inv_conts_no_hole (CFold f ts sigma)

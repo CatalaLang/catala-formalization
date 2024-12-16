@@ -269,12 +269,14 @@ Inductive jt_cont: (string -> option type) -> type -> cont -> type -> Prop :=
       List.Forall2 (jt_value Delta) sigma Gamma ->
       jt_cont Delta TBool (CDefaultBase tc sigma) (TDefault T)
   | JTCDefaultPure:
-    forall Delta T,
+    forall Delta sigma Gamma T,
       inv_no_immediate_default T ->
-      jt_cont Delta T (CDefaultPure) (TDefault T)
+      List.Forall2 (jt_value Delta) sigma Gamma ->
+      jt_cont Delta T (CDefaultPure sigma) (TDefault T)
   | JTCErrorOnEmpty:
-    forall Delta T,
-      jt_cont Delta (TDefault T) (CErrorOnEmpty) T
+    forall Delta T sigma Gamma,
+      List.Forall2 (jt_value Delta) sigma Gamma ->
+      jt_cont Delta (TDefault T) (CErrorOnEmpty sigma) T
   | JTCMatch:
     forall Delta sigma Gamma t1 t2 U T,
       jt_term Delta Gamma t1 T ->
@@ -290,9 +292,10 @@ Inductive jt_cont: (string -> option type) -> type -> cont -> type -> Prop :=
       List.Forall2 (jt_value Delta) sigma Gamma ->
       jt_cont Delta B (CFold f ts sigma) B
   | JTCSome:
-    forall Delta T,
+    forall Delta T sigma Gamma,
       inv_no_immediate_default T ->
-      jt_cont Delta T CSome (TOption T)
+      List.Forall2 (jt_value Delta) sigma Gamma ->
+      jt_cont Delta T (CSome sigma) (TOption T)
   | JTCIf:
     forall Delta sigma Gamma T ta tb,
       jt_term Delta Gamma ta T ->

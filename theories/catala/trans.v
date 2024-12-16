@@ -3,6 +3,8 @@ Require Import small_step tactics.
 Require Import sequences.
 Require Import typing.
 
+Import List.ListNotations.
+
 Definition process_exceptions := 
   (Lam (* x => *) (Lam (* y => *) 
     (Match_ (Var 0 (* y *)) (* with *)
@@ -320,53 +322,54 @@ Qed.
 Require Import continuations.
 
 
-Fixpoint trans_conts (kappa: list cont) (sigma: list value): list cont :=
+Fixpoint trans_conts (kappa: list cont): list cont :=
   (* This is the main function that translate continuations. For most continuation, it does not change anything, it is basically an `map` function.
 
   This is expected since the translation only modify Default terms. 
   *)
   match kappa with
   | nil => nil
-  | CAppR t2 :: kappa => CAppR (trans t2) :: trans_conts kappa sigma
-  | CBinopL op v1 :: kappa => CBinopL op (trans_value v1) :: trans_conts kappa sigma
-  | CBinopR op t2 :: kappa => CBinopR op (trans t2) :: trans_conts kappa sigma
-  | CClosure t_cl sigma_cl :: kappa => CClosure (trans t_cl) (List.map trans_value sigma_cl) :: trans_conts kappa sigma
-  | CReturn sigma' :: kappa => CReturn (List.map trans_value sigma') :: trans_conts kappa (List.map trans_value sigma')
-  | CDefaultBase tc :: kappa => CIf (trans tc) ENone :: trans_conts kappa sigma
-  | CMatch t1 t2 :: kappa => CMatch (trans t1) (trans t2) :: trans_conts kappa sigma
-  | CSome :: kappa => CSome :: trans_conts kappa sigma
-  | CIf t1 t2 :: kappa => CIf (trans t1) (trans t2) :: trans_conts kappa sigma
-  | CErrorOnEmpty :: kappa => CMatch Conflict (Var 0) :: trans_conts kappa sigma
-  | CDefaultPure :: kappa => CSome :: trans_conts kappa sigma
-  | CFold f ts :: kappa =>
-    CFold (trans f) (List.map trans ts) :: trans_conts kappa sigma
+  | CAppR t2 sigma :: kappa => CAppR (trans t2) (List.map trans_value sigma) :: trans_conts kappa
+  | CBinopL op v1 :: kappa => CBinopL op (trans_value v1) :: trans_conts kappa
+  | CBinopR op t2 sigma :: kappa => CBinopR op (trans t2) (List.map trans_value sigma) :: trans_conts kappa
+  | CClosure t_cl sigma_cl :: kappa => CClosure (trans t_cl) (List.map trans_value sigma_cl) :: trans_conts kappa
+  | CDefaultBase tc sigma :: kappa => CIf (trans tc) ENone (List.map trans_value sigma) :: trans_conts kappa
+  | CMatch t1 t2 sigma :: kappa => CMatch (trans t1) (trans t2) (List.map trans_value sigma) :: trans_conts kappa
+  | CSome sigma :: kappa => (CSome (List.map trans_value sigma)) :: trans_conts kappa
+  | CIf t1 t2 sigma :: kappa => CIf (trans t1) (trans t2) (List.map trans_value sigma) :: trans_conts kappa
+  | CErrorOnEmpty sigma :: kappa => (CMatch Conflict (Var 0) (List.map trans_value sigma)) :: trans_conts kappa
+  | CDefaultPure sigma :: kappa => (CSome (List.map trans_value sigma)) :: trans_conts kappa
+  | CFold f ts sigma :: kappa =>
+    CFold (trans f) (List.map trans ts) (List.map trans_value sigma):: trans_conts kappa
 
-  | CDefault b None ts tj tc :: kappa =>
+  | CDefault b None ts tj tc sigma :: kappa =>
     (* This term can be derived from the trans fonction by taking the (mode_eval (trans (Default (t::ts) tj tc)) [] sigma) term and executing it. *)
     (CClosure
       (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
-      (sigma))::
-    (CAppR (Value VNone))::
+      ((List.map trans_value sigma)))::
+    (CAppR (Value VNone) (List.map trans_value sigma))::
     (CFold 
       process_exceptions
-      (List.map trans ts))::
+      (List.map trans ts) (List.map trans_value sigma))::
     (CMatch
       (If (trans tj) (trans tc) ENone)
-      (ESome (Var 0))) ::
-      trans_conts kappa sigma
-  | CDefault b (Some v) ts tj tc :: kappa =>
+      (ESome (Var 0)) (List.map trans_value sigma)) ::
+      trans_conts kappa
+  | CDefault b (Some v) ts tj tc sigma :: kappa =>
     (* This term can be derived from the trans fonction by taking the (mode_eval (trans (Default (Value (VPure v)::t::ts) tj tc)) [] []) term and executing it. *)
     (CClosure
       (Lam (Match_ (Var 0) (Var 1) (Match_ (Var 2) (Var 1) Conflict)))
-      (sigma))::
-    (CAppR (Value (VSome (trans_value v))))::
+      ((List.map trans_value sigma)))::
+    (CAppR (Value (VSome (trans_value v))) (List.map trans_value sigma))::
     (CFold 
       process_exceptions
-      (List.map trans ts))::
+      (List.map trans ts)
+      (List.map trans_value sigma))::
     (CMatch
       (If (trans tj) (trans tc) ENone)
-      (ESome (Var 0))) ::
-      trans_conts kappa sigma
+      (ESome (Var 0))
+      (List.map trans_value sigma)) ::
+      trans_conts kappa
   end.
 
 (* Executing (mode_eval (trans (Default (t::ts) tj tc)) [] sigma) *)
@@ -395,9 +398,9 @@ Definition trans_return (r: result): result:=
 Definition trans_state (s: state) : state :=
   match s with
   | mode_eval e kappa env =>
-    mode_eval (trans e) (trans_conts kappa (List.map trans_value env)) (List.map trans_value env)
-  | mode_cont kappa env r =>
-    mode_cont (trans_conts kappa (List.map trans_value env)) (List.map trans_value env) (trans_return r)
+    mode_eval (trans e) (trans_conts kappa) (List.map trans_value env)
+  | mode_cont kappa r =>
+    mode_cont (trans_conts kappa) (trans_return r)
   end
 .
 
@@ -443,7 +446,6 @@ Proof.
     ].
   
   (* Only two cases are left. *)
-  { tryfalse. }
   { (* requires operator translation correction *)
     eexists; split; asimpl; [|eapply star_refl].
     eapply star_step.
