@@ -138,12 +138,11 @@ Qed.
 (*** Syntax for continuations ***)
 
 Inductive cont :=
-  | CAppR (t2: term) (* [\square t2] *)
+  | CAppR (t2: term) (sigma: list value) (* [\square t2] *)
   | CClosure (t_cl: {bind term}) (sigma_cl: list value)
   (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices,
      there is no variable x. *)
-  | CReturn (sigma: list value) (* call return *)
-  | CIf (t1 t2: term) (* [if \square then t1 else t2]*)
+  | CIf (t1 t2: term) (sigma: list value) (* [if \square then t1 else t2]*)
 .
 
 Inductive result :=
@@ -153,7 +152,7 @@ Inductive result :=
 
 Inductive state :=
   | mode_eval (e: term) (kappa: list cont) (env: list value)
-  | mode_cont (kappa: list cont) (env: list value) (result: result)
+  | mode_cont (kappa: list cont) (result: result)
 .
 
 
@@ -166,62 +165,75 @@ Inductive cred: state -> state -> Prop :=
     List.nth_error sigma x = Some v ->
     cred
       (mode_eval (Var x) kappa sigma)
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont kappa (RValue v))
 
   | cred_app: info "cred_app" ->
     forall t1 t2 kappa sigma,
     cred
       (mode_eval (App t1 t2) kappa sigma)
-      (mode_eval t1 ((CAppR t2) :: kappa) sigma)
+      (mode_eval t1 ((CAppR t2 sigma) :: kappa) sigma)
 
   | cred_clo: info "cred_clo" ->
     forall t kappa sigma,
     cred
       (mode_eval (Lam t) kappa sigma)
-      (mode_cont kappa sigma (RValue (Closure t sigma)))
+      (mode_cont kappa (RValue (Closure t sigma)))
 
   | cred_arg: info "cred_arg" ->
     forall t2 kappa sigma tcl sigmacl,
     cred
-      (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl)))
+      (mode_cont ((CAppR t2 sigma)::kappa) (RValue (Closure tcl sigmacl)))
       (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
 
   | cred_value: info "cred_value" ->
     forall v kappa sigma,
     cred
       (mode_eval (Value v) kappa sigma)
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont kappa (RValue v))
 
   | cred_beta: info "cred_beta" ->
-    forall t_cl sigma_cl kappa sigma v,
+    forall t_cl sigma_cl kappa v,
     cred
-      (mode_cont ((CClosure t_cl sigma_cl)::kappa) sigma (RValue v))
-      (mode_eval t_cl (CReturn sigma::kappa)  (v :: sigma_cl))
-
-  | cred_return: info "cred_return" ->
-    forall sigma_cl kappa sigma r,
-    cred
-      (mode_cont (CReturn sigma::kappa) sigma_cl r)
-      (mode_cont kappa sigma r)
+      (mode_cont ((CClosure t_cl sigma_cl)::kappa) (RValue v))
+      (mode_eval t_cl kappa (v :: sigma_cl))
 
   | cred_if: info "cred_if" ->
     forall u t1 t2 kappa sigma,
     cred
       (mode_eval (If u t1 t2) kappa sigma)
-      (mode_eval u ((CIf t1 t2)::kappa) sigma)
+      (mode_eval u ((CIf t1 t2 sigma)::kappa) sigma)
   
   | cred_if_true: info "cred_if_true" ->
     forall t1 t2 kappa sigma,
     cred
-      (mode_cont ((CIf t1 t2):: kappa) sigma (RValue (Bool true)))
+      (mode_cont ((CIf t1 t2 sigma):: kappa) (RValue (Bool true)))
       (mode_eval t1 kappa sigma)
   
   | cred_if_false: info "cred_if_false" ->
     forall t1 t2 kappa sigma,
     cred
-      (mode_cont ((CIf t1 t2):: kappa) sigma (RValue (Bool false)))
+      (mode_cont ((CIf t1 t2 sigma):: kappa) (RValue (Bool false)))
       (mode_eval t2 kappa sigma)
 .
+
+Coercion App : term >-> Funclass.
+Notation "'λ.' t" := (Lam t) (at level 50).
+Notation "'S(' t , kappa , sigma )" := (mode_eval t kappa sigma).
+Notation "'C(' v , kappa )" := (mode_cont kappa v).
+Notation "'λ' sigma '.' t " := (Value (Closure t sigma)) (at level 10).
+Notation "'λ' sigma '.' t " := (RValue (Closure t sigma)) (at level 10).
+Notation "'if' u 'then' t1 'else' t2 'end'" := (If u t1 t2) (at level 10).
+Notation "'k_app1' ( t )" := (CAppR t) (at level 50).
+Notation "'k_app2' ( t , sigma )" := (CClosure t sigma) (at level 50).
+(* Notation "'k_ret' ( sigma )" := (CReturn sigma) (at level 50). *)
+Notation "s1 ~> s2" := (cred s1 s2) (at level 20).
+Definition id_var (n: nat): var := n.
+Coercion id_var: nat >-> var.
+Coercion Value: value >-> term.
+Coercion RValue: value >-> result.
+Coercion Bool : bool >-> value.
+Coercion Var: var >-> term.
+
 
 Example example_of_reduction t1 t2:
   star cred
@@ -386,76 +398,72 @@ Inductive jt_result: result -> type -> Prop :=
     jt_result (RValue v) T.
 
 Inductive jt_cont:
-  list type -> list type ->
-  cont ->
-  type -> type -> Prop :=
+  type -> cont -> type -> Prop :=
   | JTCAppR:
-    forall {Gamma t2 T1 T2},
+    forall {Gamma sigma t2 T1 T2},
       jt_term Gamma t2 T1 ->
-      jt_cont Gamma Gamma (CAppR t2) (TFun T1 T2) T2
+      List.Forall2 jt_value sigma Gamma ->
+      jt_cont (TFun T1 T2) (CAppR t2 sigma) T2
   | JTCClosure:
-    forall {Gamma Gamma_cl sigma_cl T1 T2 tcl},
+    forall {Gamma_cl sigma_cl T1 T2 tcl},
       jt_term Gamma_cl (Lam tcl) (TFun T1 T2) ->
-      List.Forall2 (jt_value) sigma_cl Gamma_cl ->
-      jt_cont Gamma Gamma (CClosure tcl sigma_cl) T1 T2
+      List.Forall2 jt_value sigma_cl Gamma_cl ->
+      jt_cont T1 (CClosure tcl sigma_cl) T2
   | JTCIf:
-    forall Gamma T ta tb,
+    forall Gamma T sigma ta tb,
       jt_term Gamma ta T ->
       jt_term Gamma tb T ->
-      jt_cont Gamma Gamma (CIf ta tb) (TBool) T
-  | JTCReturn:
-    forall {sigma Gamma1 Gamma2 T},
-      (List.Forall2 (jt_value) sigma Gamma2) ->
-      jt_cont Gamma1 Gamma2 (CReturn sigma) T T
+      List.Forall2 jt_value sigma Gamma ->
+      jt_cont TBool (CIf ta tb sigma) T
 .
 
-Inductive jt_conts:  list type -> list type -> list cont -> type -> type -> Prop :=
+Inductive jt_conts:  type -> list cont -> type -> Prop :=
 | JTNil:
-  forall {Gamma T},
-    jt_conts Gamma Gamma nil T T
+  forall {T},
+    jt_conts T nil T
 | JTCons:
-  forall {Gamma1 Gamma2 Gamma3 cont kappa T1 T2 T3},
-    jt_cont Gamma1 Gamma2 cont T1 T2 ->
-    jt_conts Gamma2 Gamma3 kappa T2 T3 ->
-    jt_conts Gamma1 Gamma3 (cont :: kappa) T1 T3
+  forall {cont kappa T1 T2 T3},
+    jt_cont T1 cont T2 ->
+    jt_conts T2 kappa T3 ->
+    jt_conts T1 (cont :: kappa) T3
 .
 
 (** Finall well-typeness of the state. *)
-Inductive jt_state:  list type -> state -> type -> Prop :=
+Inductive jt_state: state -> type -> Prop :=
 | JTmode_eval:
-  forall Gamma1 Gamma2 t T1 T2 kappa sigma,
-    List.Forall2 (jt_value) sigma Gamma1 ->
-    jt_term Gamma1 t T1 ->
-    jt_conts Gamma1 Gamma2 kappa T1 T2 ->
-    jt_state Gamma2 (mode_eval t kappa sigma) T2
+  forall Gamma t T1 T2 kappa sigma,
+    List.Forall2 (jt_value) sigma Gamma ->
+    jt_term Gamma t T1 ->
+    jt_conts T1 kappa T2 ->
+    jt_state (mode_eval t kappa sigma) T2
 | JTmode_cont:
-  forall Gamma1 Gamma2 r T1 T2 kappa sigma,
-    List.Forall2 (jt_value) sigma Gamma1 ->
+  forall r T1 T2 kappa,
     jt_result r T1 ->
-    jt_conts Gamma1 Gamma2 kappa T1 T2 ->
-    jt_state Gamma2 (mode_cont kappa sigma r) T2
+    jt_conts T1 kappa T2 ->
+    jt_state (mode_cont kappa r) T2
 . 
+
 
 
 Require Import Ltac2.Ltac2.
 Set Default Proof Mode "Classic".
 
 
-Lemma jt_conts_app { Gamma1 Gamma3 kappa1 kappa2 T1 T3 }:
-  jt_conts Gamma1 Gamma3 (kappa1 ++ kappa2) T1 T3 ->
-  exists Gamma2 T2,
-  jt_conts Gamma1 Gamma2 kappa1 T1 T2
-  /\ jt_conts Gamma2 Gamma3 kappa2 T2 T3
+Lemma jt_conts_app { kappa1 kappa2 T1 T3 }:
+  jt_conts T1 (kappa1 ++ kappa2) T3 ->
+  exists T2,
+  jt_conts T1 kappa1 T2
+  /\ jt_conts T2 kappa2 T3
 .
 Proof.
-  revert Gamma1 Gamma3 kappa2 T1 T3.
-  induction kappa1; simpl; intros Gamma1 Gamma2 kappa2 T1 T3.
+  revert kappa2 T1 T3.
+  induction kappa1; simpl; intros kappa2 T1 T3.
   { intros; repeat eexists.
     { econstructor. }
     { eauto. }
   }
   { inversion 1; subst.
-    learn (IHkappa1 _ _ _ _ _ H7); unpack.
+    learn (IHkappa1 _ _ _ H5); unpack.
     repeat eexists.
     { econstructor; eauto. }
     { eauto. }
@@ -468,14 +476,14 @@ Ltac2 inv_jt () :=
   | [ h: jt_term _ ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_value ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_value _ ?c |- _ ] => smart_inversion c h
-  | [ h: jt_cont _ _ ?c _ _ |- _ ] => smart_inversion c h
-  | [ h: jt_conts _ _ ?c _ _ |- _ ] => smart_inversion c h
-  | [ h: jt_conts _ _ (_ ++ _) _ _ |- _ ] =>
+  | [ h: jt_cont _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_conts _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_conts _ (_ ++ _) _ |- _ ] =>
     let p := Control.hyp h in
     let l := Fresh.in_goal @L in
     Std.assert (Std.AssertValue l constr:(jt_conts_app $p));
     Std.clear [h]
-  | [ h: jt_state _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_state ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_result ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_result _ ?c |- _ ] => smart_inversion c h
   | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
@@ -518,9 +526,9 @@ Qed.
 (** Main preservation lemma for continuation-based semantics. *)
 Theorem preservation_cont s1 s2:
   cred s1 s2 ->
-  forall Gamma T,
-  jt_state Gamma s1 T ->
-  jt_state Gamma s2 T.
+  forall T,
+  jt_state s1 T ->
+  jt_state s2 T.
 Proof.
   (* Case analysis over all possible rules *)
   induction 1.
@@ -534,14 +542,14 @@ Qed.
 
 Definition is_mode_cont s :=
   match s with
-  | mode_cont _ _ _ => True
+  | mode_cont _ _ => True
   | _ => False
   end.
 
 Definition stack s :=
   match s with
   | mode_eval _ k _ => k
-  | mode_cont k _ _ => k
+  | mode_cont k _ => k
   end.
 
 Theorem Forall2_nth_error_Some_right {A B F l1 l2}:
@@ -555,12 +563,12 @@ Qed.
 
 (** Main progress lemma for continuation-based semantics. *)
 Theorem progress_cont s1:
-  forall Gamma T,
-    jt_state Gamma s1 T ->
+  forall T,
+    jt_state s1 T ->
     (exists s2, cred s1 s2) \/ (is_mode_cont s1 /\ stack s1 = nil).
 Proof.
   (* Precise case analysis. *)
-  induction s1 as [t kappa env|kappa env r]; [induction t|(induction kappa as [|k kappa]; [|induction k]); induction r].
+  induction s1 as [t kappa env|kappa r]; [induction t|(induction kappa as [|k kappa]; [|induction k]); induction r].
 
   
 
