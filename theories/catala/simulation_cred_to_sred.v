@@ -74,41 +74,39 @@ induction t; intros; tryfalse; injections; subst; eauto.
 Qed.
 
 Definition apply_cont
-  (param1: term * list value)
+  (t: term )
   (k: cont)
-  : term * list value :=
-  let '(t, sigma) := param1 in
+  : term :=
   match k with
-  | CAppR t2 =>
-    (App t t2.[subst_of_env sigma], sigma)
+  | CAppR t2 sigma =>
+    App t t2.[subst_of_env sigma]
   | CBinopL op v1 =>
-    (Binop op (Value v1) t, sigma)
-  | CBinopR op t2 =>
-    (Binop op t t2.[subst_of_env sigma], sigma)
+    Binop op (Value v1) t
+  | CBinopR op t2 sigma =>
+    Binop op t t2.[subst_of_env sigma]
   | CClosure t_cl sigma_cl =>
-    (App (Value (Closure t_cl sigma_cl)) t, sigma)
-  | CReturn sigma' => (t, sigma')
-  | CDefault h o ts tj tc =>
-    (apply_CDefault o ts tj tc t sigma, sigma)
-  | CDefaultBase tc =>
-    (Default nil t tc.[subst_of_env sigma], sigma)
-  | CMatch t1 t2 =>
-    (Match_ t t1.[subst_of_env sigma] t2.[up (subst_of_env sigma)], sigma)
-  | CSome =>
-    (ESome t, sigma)
-  | CIf ta tb =>
-    (If t ta.[subst_of_env sigma] tb.[subst_of_env sigma], sigma)
-  | CErrorOnEmpty =>
-    (ErrorOnEmpty t, sigma)
-  | CDefaultPure =>
-    (DefaultPure t, sigma)
-  | CFold f ts =>
-    (Fold f.[subst_of_env sigma] ts..[subst_of_env sigma] t, sigma)
+    App (Value (Closure t_cl sigma_cl)) t
+  | CDefault h o ts tj tc sigma =>
+    apply_CDefault o ts tj tc t sigma
+  | CDefaultBase tc sigma =>
+    Default nil t tc.[subst_of_env sigma]
+  | CMatch t1 t2 sigma =>
+    Match_ t t1.[subst_of_env sigma] t2.[up (subst_of_env sigma)]
+  | CSome sigma =>
+    ESome t
+  | CIf ta tb sigma =>
+    If t ta.[subst_of_env sigma] tb.[subst_of_env sigma]
+  | CErrorOnEmpty sigma =>
+    ErrorOnEmpty t
+  | CDefaultPure sigma =>
+    DefaultPure t
+  | CFold f ts sigma =>
+    Fold f.[subst_of_env sigma] ts..[subst_of_env sigma] t
   end.
 
 Definition apply_conts
   (kappa: list cont)
-  : term * list value -> term * list value :=
+  : term -> term :=
   List.fold_left apply_cont kappa.
 
 Definition apply_return (r: result) :=
@@ -118,16 +116,13 @@ Definition apply_return (r: result) :=
   | RConflict => Conflict
   end.
 
-Definition apply_state_aux (s: state): term * list value :=
+Definition apply_state (s: state): term :=
   match s with
   | mode_eval t stack env =>
-    (apply_conts stack (t.[subst_of_env env], env))
-  | mode_cont stack env r =>
-    (apply_conts stack ((apply_return r),env))
+    apply_conts stack (t.[subst_of_env env])
+  | mode_cont stack  r =>
+    apply_conts stack (apply_return r)
   end.
-
-(* We use an notation to be apple to simplify this definition. *)
-Notation "'apply_state' s" := (fst (apply_state_aux s)) (at level 50, only parsing).
 
 Inductive sim_state: state -> term -> Prop :=
   | InvBase: forall s,
@@ -229,34 +224,6 @@ Proof.
   rewrite List.fold_left_app; eauto.
 Qed.
 
-Fixpoint last_env (l: list cont) (env0: list value) : list value :=
-  match l with
-  | [] => env0
-  | CReturn env1 :: l =>
-    last_env l env1
-  | _ :: l =>
-    last_env l env0
-  end.
-
-Lemma snd_apply_conts_last_env :
-  forall kappa env0 t, (snd (apply_conts kappa (t, env0))) = (last_env kappa env0).
-Proof.
-  induction kappa.
-  { simpl; eauto. }
-  { induction a; simpl; intros; try induction o.
-
-    all: repeat match goal with
-    | [ |- context [match ?t with Empty => _ | _ => _ end]] =>
-      induction t
-    | [h: _ \/ _ |- _] =>
-      destruct h
-    | _ => progress subst
-    end.
-    all: try eapply IHkappa.
-  }
-Qed.
-
-
 (* -------------------------------------------------------------------------- *)
 
 
@@ -276,18 +243,18 @@ Hint Resolve
   star_refl
 : sred.
 
-Theorem sred_apply_conts: forall kappa t t' sigma,
+Theorem sred_apply_conts: forall kappa t t',
   sred t t' ->
   star sred
-    (fst (apply_conts kappa (t, sigma)))
-    (fst (apply_conts kappa (t', sigma)))
+    (apply_conts kappa t)
+    (apply_conts kappa t')
 .
 Proof.
   induction kappa as [|k kappa] using List.rev_ind.
   { simpl; eauto with sequences. }
   { induction k;
-    intros t t' env Htt'.
-    all: pose proof (IHkappa _ _ env Htt') as Hred_kappa.
+    intros t t' Htt'.
+    all: pose proof (IHkappa _ _ Htt') as Hred_kappa.
 
     all:
       setoid_rewrite apply_conts_app;
@@ -321,33 +288,34 @@ Proof.
   }
 Qed.
 
-Theorem star_sred_apply_conts: forall kappa t t' sigma,
+Theorem star_sred_apply_conts: forall kappa t t',
   star sred t t' ->
   star sred
-    (fst (apply_conts kappa (t, sigma)))
-    (fst (apply_conts kappa (t', sigma)))
+    (apply_conts kappa t)
+    (apply_conts kappa t')
 .
   induction 1; [eapply star_refl|eapply star_trans]; eauto.
   eapply sred_apply_conts; eauto.
 Qed.
 
-Lemma sim_term_apply_conts {kappa t1 t2 sigma}:
+Lemma sim_term_apply_conts {kappa t1 t2}:
   sim_term t1 t2 ->
   sim_term
-    (fst (apply_conts kappa (t1, sigma)))
-    (fst (apply_conts kappa (t2, sigma))).
+    (apply_conts kappa t1)
+    (apply_conts kappa t2)
+  .
 Proof.
-  revert sigma t1 t2.
+  revert t1 t2.
   induction kappa as [|k kappa] using List.rev_ind; simpl; eauto.
   induction k; intros; repeat rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl.
   all: repeat econstructor.
   all: try eapply IHkappa; eauto.
   all: repeat rewrite snd_apply_conts_last_env.
   all: try reflexivity.
-  { learn (IHkappa sigma _ _ H).
-    assert (fst (apply_conts kappa (t1, sigma)) = Empty <-> fst (apply_conts kappa (t2, sigma)) = Empty).
+  { learn (IHkappa _ _ H).
+    assert ((apply_conts kappa (t1)) = Empty <-> (apply_conts kappa t2) = Empty).
     { split; intros; rewrite H2 in *; inversion H0; eauto. }
-    destruct (EmptyOrNotEmpty (fst (apply_conts kappa (t1, sigma)))).
+    destruct (EmptyOrNotEmpty (apply_conts kappa t1)).
     { rewrite H3 in *; destruct H2; rewrite H2; eauto.
       induction o; simpl; reflexivity.
     }
@@ -372,14 +340,14 @@ Proof.
   eexists; eauto.
 Qed.
 
-Lemma sim_term_star_sred_apply_counts {t1 t2' kappa sigma}: 
+Lemma sim_term_star_sred_apply_counts {t1 t2' kappa}: 
 (exists t2,
   sim_term t2' t2 /\
   star sred t1 t2
 ) ->
 (exists t2 : term,
-  sim_term (fst (apply_conts kappa (t2', sigma))) t2 /\
-  star sred (fst (apply_conts kappa (t1, sigma))) t2).
+  sim_term (apply_conts kappa t2') t2 /\
+  star sred (apply_conts kappa t1) t2).
 Proof.
   intros; unpack; eexists; split.
   { eapply sim_term_apply_conts. eauto. }
@@ -420,7 +388,6 @@ Proof.
     rewrite soe_nil; asimpl.
     reflexivity.
   }
-  { exfalso; eapply H; eauto. } 
   { induction o; simpl; repeat step; eapply star_refl_prop; reflexivity. }
   { eapply star_refl_prop.
     asimpl.
