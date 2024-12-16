@@ -886,34 +886,6 @@ Defined. *)
                           t2) (If _res1 _res0 _res)
   | R_trans_term_5 : forall t u t1 t2 : term,
                      t = If u t1 t2 ->
-                     match If u t1 t2 with
-                     | If u0 _ _ =>
-                         match u0 with
-                         | If _ t4 t5 =>
-                             match t4 with
-                             | Value v =>
-                                 match v with
-                                 | Closure _ _ => True
-                                 | Bool b =>
-                                     if b
-                                     then True
-                                     else
-                                      match t5 with
-                                      | Value v0 =>
-                                          match v0 with
-                                          | Closure _ _ => True
-                                          | Bool b0 =>
-                                              if b0 then False else True
-                                          end
-                                      | _ => True
-                                      end
-                                 end
-                             | _ => True
-                             end
-                         | _ => True
-                         end
-                     | _ => False
-                     end ->
                      forall _res1 : term,
                      R_trans_term u _res1 ->
                      forall _res0 : term,
