@@ -721,14 +721,12 @@ with trans_value v :=
 Fixpoint trans_conts (kappa: list cont): list cont :=
   match kappa with
   | nil => nil
-  | CAppR t2 :: kappa => CAppR (trans_term t2) :: trans_conts kappa
+  | CAppR t2 sigma :: kappa => CAppR (trans_term t2) (List.map trans_value sigma) :: trans_conts kappa
   | CClosure t sigma :: kappa =>
     CClosure (trans_term t) (List.map trans_value sigma) :: trans_conts kappa
-  | CReturn sigma :: kappa =>
-    CReturn (List.map trans_value sigma) :: trans_conts kappa
-  | CIf t1 t2 :: kappa =>
-    CIf (Value (Bool false)) (Value (Bool true))::
-    CIf (trans_term t2) (trans_term t1) ::
+  | CIf t1 t2 sigma :: kappa =>
+    CIf (Value (Bool false)) (Value (Bool true)) (List.map trans_value sigma)::
+    CIf (trans_term t2) (trans_term t1) (List.map trans_value sigma)::
     trans_conts kappa
   end
 .
@@ -742,8 +740,8 @@ Definition trans_state (s: state) : state :=
   match s with
   | mode_eval e kappa env =>
     mode_eval (trans_term e) (trans_conts kappa) (List.map trans_value env)
-  | mode_cont kappa env r =>
-    mode_cont (trans_conts kappa) (List.map trans_value env) (trans_return r)
+  | mode_cont kappa r =>
+    mode_cont (trans_conts kappa) (trans_return r)
   end
 .
 
@@ -787,7 +785,7 @@ with trans_value v :=
 (* Where is the fuction eliminator that i want ? Do i need the same thing as below for trans_state ? I belive so. *)
 
 (* Generalized transformation for continuations *)
-Fixpoint trans_conts (kappa: list cont): list cont :=
+(* Fixpoint trans_conts (kappa: list cont): list cont :=
   match kappa with
   | nil => nil
   | CAppR t2 :: kappa => CAppR (trans_term t2) :: trans_conts kappa
@@ -797,7 +795,7 @@ Fixpoint trans_conts (kappa: list cont): list cont :=
     CReturn (List.map trans_value sigma) :: trans_conts kappa
   | CIf (Value (Bool false)) (Value (Bool true)) :: CIf t1 t2 :: kappa =>
     CIf (trans_term t1) (trans_term t2) :: trans_conts kappa
-  | CIf  t1 t2 :: kappa =>
+  | CIf t1 t2 :: kappa =>
     CIf (trans_term t1) (trans_term t2) :: trans_conts kappa
   end.
 
@@ -1429,6 +1427,6 @@ Proof.
   { eapply star_sred_app_left. eauto. }
   { admit "Here we don't have the induction hypothesis on a subterm of u1. Hence we cannot continue".
   }
-Admitted.
+Admitted. *)
 
-End trans3.
+End trans2.
