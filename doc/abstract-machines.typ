@@ -67,6 +67,13 @@ of what was the correct substitution to use.
 For example, $k_"ErrorOnEmpty"$ is transformed into a match control unit, hence
 it requires to have the current substitution.
 
+This is not an issue when showing equivalence between semantics when the
+environement is not needed.
+
+== Typing the CEK machine
+
+Typing is straightforward.
+
 = La Machine CK
 
 = La Machine CLS

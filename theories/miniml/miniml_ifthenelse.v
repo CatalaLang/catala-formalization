@@ -762,6 +762,8 @@ Qed.
 
 End trans1.
 
+
+(*
 Module trans2.
 Fixpoint trans_term t :=
   match t with
@@ -826,12 +828,13 @@ f (cons a (cons b l)) := cons (a+b) (f l);
 f (cons a l) := cons a (f l).
 
 *)
+*) *)
 
 Module trans3.
 
 Definition with_stack s kappa :=
   match s with
-  | mode_cont _ sigma v => mode_cont kappa sigma v
+  | mode_cont _ v => mode_cont kappa v
   | mode_eval t _ sigma => mode_eval t kappa sigma
   end.
 
@@ -858,61 +861,39 @@ Instance wf_total_init_compute : forall {A}, WellFounded (@total_relation A).
   exact (fun A => Acc_intro_generator 10 wf_total_init).
 Defined. *)
 
-
-(* Inductive R_trans_term : term -> term -> Type :=
-	R_trans_term_0 : forall (t : term) (x : var),
-                     t = Var x -> R_trans_term (Var x) (Var x)
-  | R_trans_term_1 : forall t t1 t2 : term,
-                     t = App t1 t2 ->
-                     forall _res0 : term,
-                     R_trans_term t1 _res0 ->
-                     forall _res : term,
-                     R_trans_term t2 _res ->
-                     R_trans_term (App t1 t2) (App _res0 _res)
-  | R_trans_term_2 : forall (t : term) (t0 : {bind term}),
-                     t = Lam t0 ->
-                     forall _res : term,
-                     R_trans_term t0 _res -> R_trans_term (Lam t0) (Lam _res)
-  | R_trans_term_3 : forall (t : term) (v : value),
-                     t = Value v ->
-                     forall _res : value,
-                     R_trans_value v _res ->
-                     R_trans_term (Value v) (Value _res)
-  | R_trans_term_4 : forall t u t1 t2 : term,
-                     t =
-                     If (If u (Value (Bool false)) (Value (Bool true))) t1 t2 ->
-                     forall _res1 : term,
-                     R_trans_term u _res1 ->
-                     forall _res0 : term,
-                     R_trans_term t2 _res0 ->
-                     forall _res : term,
-                     R_trans_term t1 _res ->
-                     R_trans_term
-                       (If (If u (Value (Bool false)) (Value (Bool true))) t1
-                          t2) (If _res1 _res0 _res)
-  | R_trans_term_5 : forall t u t1 t2 : term,
-                     t = If u t1 t2 ->
-                     forall _res1 : term,
-                     R_trans_term u _res1 ->
-                     forall _res0 : term,
-                     R_trans_term t1 _res0 ->
-                     forall _res : term,
-                     R_trans_term t2 _res ->
-                     R_trans_term (If u t1 t2) (If _res1 _res0 _res)
-  with R_trans_value : value -> value -> Type :=
-    R_trans_value_0 : forall (v : value) (t : {bind term})
-                        (sigma : list value),
-                      v = Closure t sigma ->
-                      forall _res : term,
-                      R_trans_term t _res ->
-                      forall _res_v : list value,
-                      List.Forall2 trans_value 
-                      R_trans_value (Closure t sigma)
-                        (Closure _res (List.map trans_value sigma))
-  | R_trans_value_1 : forall (v : value) (b : bool),
-                      v = Bool b -> R_trans_value (Bool b) (Bool b). *)
-
-
+Inductive cong_term: term -> term -> Prop :=
+  | cong_if_base {u t1 t2 u' t1' t2'}:
+    cong_term u u' ->
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    cong_term
+      (If (If u (Value (Bool false)) (Value (Bool true))) t1 t2)
+      (If u' t2' t1')
+  | cong_Var {x}:
+    cong_term (Var x) (Var x)
+  | cong_App { t1 t2 t1' t2' }:
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    cong_term (App t1 t2) (t1' t2')
+  | cong_Lam { t t' }:
+    cong_term t t' ->
+    cong_term (Lam t) (Lam t')
+  | cong_Value {v v'}:
+    cong_value v v' ->
+    cong_term (Value v) (Value v')
+  | cong_If {u t1 t2 u' t1' t2'}:
+    cong_term u u' ->
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    cong_term (If u t1 t2) (If u' t1' t2')
+with cong_value: value -> value -> Prop :=
+  | cong_Bool {b}:
+    cong_value (Bool b) (Bool b)
+  | cong_Closure {t sigma t' sigma'}:
+    cong_term t t' ->
+    List.Forall2 (cong_value) sigma sigma' ->
+    cong_value (Closure t sigma) (Closure t' sigma')
+.
 
 Function trans_term t :=
   match t with
@@ -938,103 +919,110 @@ Functional Scheme
 with
   trans_value_ind2 := Induction for trans_value Sort Prop.
 
-Search trans_term.
 
-Lemma inversion_trans_term_if {u t1 t2}:
-    trans_term (If u t1 t2) = match u with (If u (Value (Bool false)) (Value (Bool true))) => If (trans_term u) (trans_term t2) (trans_term t1)| _ =>
-    If (trans_term u) (trans_term t1) (trans_term t2)
-    end.
+(* Correspondance between trans_term and cong_term*)
+Theorem trans_cong_term:
+  forall t,
+  cong_term t (trans_term t).
 Proof.
-  induction u; eauto.
-Qed.
+  intros t.
+  eapply trans_term_ind2.
+  all: try solve [intros; econstructor; eauto].
+  { intros; econstructor; eauto.
+    admit "missing case from the induction principle generated by coq".
+  }
+Admitted.
+
+(* Generalization of the equivalence between terms to an equivalence between states. *)
 
 
-Definition trans_return (r: result): result :=
-  match r with
-  | RValue v => RValue (trans_value v)
+(* In this definition, I choose to not separate the mode_eval and mode_cont when it was possible. I hence used the "append_stack" function. This might pose issues when applying the "econstructor" tactic. *)
+Inductive cong_state: state -> state -> Prop :=
+  (* Base cases *)
+  | cong_mode_eval {t sigma t' sigma'}:
+    cong_term t t' ->
+    List.Forall2 cong_value sigma sigma' ->
+    cong_state
+      (mode_eval t [] sigma)
+      (mode_eval t' [] sigma')
+  
+  | cong_mode_cont {v v' }:
+    cong_value v v' ->
+    cong_state
+      (mode_cont [] (RValue v))
+      (mode_cont [] (RValue v'))
+
+  (* Normal congruence cases *)
+  | cong_CAppR {s s' t t' sigma sigma'}:
+    cong_term t t' ->
+    cong_state s s' ->
+    List.Forall2 cong_value sigma sigma' ->
+    cong_state
+      (append_stack s [CAppR t sigma])
+      (append_stack s' [CAppR t' sigma'])
+  | cong_CClosure {s s' t t' sigma sigma'}:
+    cong_term t t' ->
+    cong_state s s' ->
+    List.Forall2 cong_value sigma sigma' ->
+    cong_state
+      (append_stack s [CClosure t sigma])
+      (append_stack s' [CClosure t' sigma'])
+  | cong_CIf {s s' t1 t1' t2 t2' sigma sigma'}:
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    cong_state s s' ->
+    List.Forall2 cong_value sigma sigma' ->
+    cong_state
+      (append_stack s [CIf t1 t2 sigma])
+      (append_stack s' [CIf t1' t2' sigma'])
+
+  (* Additional cases *)
+  | cong_if_stack {s s' t1 t1' t2 t2' sigma0 sigma sigma'} :
+    (* Nothing tells me that the environement is the same for both continuations. Hence, i separate them. 
+    
+    TODO: when the proof is done, change sigma0 into sigma, and check what breaks. *)
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    cong_state s s' ->
+    List.Forall2 cong_value sigma sigma' ->
+    cong_state
+      (append_stack s [CIf true false sigma0; CIf t1 t2 sigma])
+      (append_stack s' [CIf t1' t2' sigma'])
+
+  | cong_if_overlap {u u' t1 t1' t2 t2' sigma0 sigma0' sigma sigma'}:
+    (* Same comment as above *)
+    cong_term u u' ->
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    List.Forall2 cong_value sigma sigma' ->
+    List.Forall2 cong_value sigma0 sigma0' ->
+    cong_state
+      (mode_eval (If u false true) [CIf t1 t2 sigma] sigma0)
+      (mode_eval u' [CIf t2' t1' sigma'] sigma0')
+.
+
+(** let's start with the statement we want to show *)
+
+
+Ltac2 sinv_cong () :=
+  match! goal with
+  | [ h: cong_term ?c _ |- _ ] => smart_inversion c h
+  | [ h: cong_value ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 _ _ ?c |- _ ] => smart_inversion c h
   end.
 
-Equations trans_cont_base (k: cont) : cont :=
-  trans_cont_base (CAppR t2) := CAppR (trans_term t2);
-  trans_cont_base (CClosure t sigma) := CClosure (trans_term t) (List.map trans_value sigma);
-  trans_cont_base (CReturn sigma) := CReturn (List.map trans_value sigma);
-  trans_cont_base (CIf t1 t2) := CIf (trans_term t1) (trans_term t2).
+Ltac sinv_cong := ltac2:(sinv_cong ()).
 
-Inductive trans_state' : state -> state -> Prop :=
-  (* Case 1: Handle two nested CIf control units *)
-  | trans_if_nested :
-      info "trans_if_nested" ->
-      forall t t1 t2 kappa sigma s',
-      trans_state' (mode_eval t kappa sigma) s' ->
-      trans_state' (mode_eval t (kappa ++ [CIf (Value (Bool false)) (Value (Bool true)); CIf t1 t2]) sigma)
-                   (append_stack s' [CIf (trans_term t2) (trans_term t1)])
-
-  (* Case 2: Handle If False True term with kappa ++ [CIf t2 t1] *)
-  | trans_if_false_true :
-      info "trans_if_false_true" ->
-      forall b t1 t2 sigma s',
-      trans_state' (mode_eval b [] sigma) s' ->
-      trans_state' (mode_eval (If b (Value (Bool false)) (Value (Bool true))) [CIf t1 t2] sigma)
-                   (mode_eval (trans_term b) [CIf (trans_term t2) (trans_term t1)] (List.map trans_value sigma))
-
-  (* Case 3: Handle mode_eval with non-empty continuation stack kappa ++ [k] *)
-  | trans_mode_eval_non_empty :
-      info "trans_mode_eval_non_empty" ->
-      forall t k kappa sigma s',
-      forall Hcond1:
-        (* mode_eval
-            (If b (Value (Bool false)) (Value (Bool true)))
-            [CIf t1 t2]
-            sigma
-        *)
-           match t with | If _ (Value (Bool false)) (Value (Bool true)) => False | _ => True end
-        \/ (match kappa with | [] => False | _ => True end)
-        \/ match k with | CIf _ _ => False | _ => True end,
-      forall Hcond2:
-          (* mode_eval
-              t 
-              (kappa ++ [CIf (Value (Bool false)) (Value (Bool true)); CIf t1 t2])
-              sigma
-          *)
-           match List.rev kappa with | CIf (Value (Bool false)) (Value (Bool true)) ::_ => False | _ => True end
-        \/ match k with | CIf _ _ => False | _ => True end,
-      trans_state' (mode_eval t kappa sigma) s' ->
-      trans_state' (mode_eval t (kappa ++ [k]) sigma)
-                   (append_stack s' [trans_cont_base k])
-
-  (* Case 4: Handle mode_eval with empty continuation stack kappa ++ [] *)
-  | trans_mode_eval_empty :
-      info "trans_mode_eval_empty" ->
-      forall t sigma,
-      trans_state' (mode_eval t [] sigma)
-                   (mode_eval (trans_term t) [] (List.map trans_value sigma))
-
-  (* Case 5: Handle two nested CIf statements in mode_cont with kappa ++ [CIf t2 t1] *)
-  | trans_mode_cont_if_nested :
-      info "trans_mode_cont_if_nested" ->
-      forall t1 t2 kappa sigma v s',
-      trans_state' (mode_cont kappa sigma v) s' ->
-      trans_state' (mode_cont (kappa ++ [CIf (Value (Bool false)) (Value (Bool true)); CIf t1 t2]) sigma v)
-                   (append_stack s' [CIf (trans_term t2) (trans_term t1)])
-
-  (* Case 6: Handle mode_cont with non-empty continuation stack kappa ++ [k] *)
-  | trans_mode_cont_non_empty :
-      info "trans_mode_cont_non_empty" ->
-      forall k kappa sigma v s',
-      forall Hcond1: match List.rev kappa with | CIf (Value (Bool false)) (Value (Bool true)) :: _ => False | _ => True end \/
-      match k with CIf _ _ => False | _ => True end,
-      trans_state' (mode_cont kappa sigma v) s' ->
-      trans_state' (mode_cont (kappa ++ [k]) sigma v)
-                   (append_stack s' [trans_cont_base k])
-
-  (* Case 7: Handle mode_cont with empty continuation stack kappa ++ [] *)
-  | trans_mode_cont_empty :
-      info "trans_mode_cont_empty" ->
-      forall sigma v,
-      trans_state' (mode_cont [] sigma v)
-                   (mode_cont [] (List.map trans_value sigma) (trans_return v))
-  .
-
+Theorem correction_traditional:
+  forall s1 s2,
+    cred s1 s2 ->
+    forall s1',
+      cong_state s1 s1' ->
+      exists s2',
+        cong_state s2 s2' /\ star cred s1' s2'.
+Abort.
 
 
 Ltac list_simpl_base h := 
