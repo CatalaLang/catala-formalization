@@ -261,9 +261,9 @@ Module Learn.
 End Learn.
 Export Learn.
 
-(* 
-(** Ported the above tactic to ltac2. *)
 
+(** Ported the above tactic to ltac2. *)
+(* 
 Module Learn2.
   Inductive Learnt {P:Prop} :=
   | AlreadyLearnt (H:P).
@@ -367,6 +367,20 @@ Ltac inv_jt := ltac2:(inv_jt ())
 In the refactored version, [smart_inversion] elegantly replaces the verbose pattern matching, making the tactic more concise and maintainable.
 
 *)
+
+
+Ltac2 get_head (c: constr) : constr option :=
+    match Unsafe.kind c with
+    | Unsafe.App c _ =>
+      match Unsafe.kind c with
+      | Unsafe.Constructor _ _ => Some c
+      | _ => None
+      end
+    | Unsafe.Constructor _ _ => Some c
+    | _ => None
+    end.
+
+Ltac2 Eval get_head (constr : ( @List.nil nat )).
 
 Ltac2 is_applied_constructor (c: constr) :=
   Bool.and
