@@ -28,33 +28,44 @@ dérivation depuis un interpréteur est basé sur @refocusing. Les parties 3, 4 
 
 La machine de Krivine est la machine abstraite la plus simple de toutes celles
 qui sont présente dans ce document. Elle peut être dérivé par rapport au lambda
-calcul en appel par noms. L'idée de l'appel par noms et de ne pas évaluer les arguments des fonction lors d'un appel, mais de directement faire la substitution avec le terme argument. Nous rappelons en premier les règles de réduction de cette variant du lambda calcul.
+calcul en appel par noms. L'idée de l'appel par noms et de ne pas évaluer les
+arguments des fonction lors d'un appel, mais de directement faire la
+substitution avec le terme argument. Nous rappelons en premier les règles de
+réduction de cette variant du lambda calcul.
 
 #let subst(x, y) = [#x .[ #y #math.slash]]
 // #show rule: smallcaps
 
-#let mathpar(..rules) = block(
-  rules.pos().join(h(0.5cm)),
-)
+#let mathpar(..rules) = block(rules.pos().join(h(0.5cm)))
 
-#mathpar(
-  proof-tree(rule(
-    label: smallcaps[cbn-$beta$<cbn-beta>],
-    $(lambda. t_1) t_2 -> subst(t_1, t_2)$
-  )),
-  proof-tree(rule(
-    label: smallcaps[cbn-l <cbn-l>],
-    $t_1 thick t_2 -> t'_1 thick t_2$,
-    $t_1 -> t'_1$
-  ))
-)
+#mathpar(proof-tree(rule(
+  label: smallcaps[cbn-$beta$<cbn-beta>],
+  $(lambda. t_1) t_2 -> subst(t_1, t_2)$,
+)), proof-tree(rule(
+  label: smallcaps[cbn-l <cbn-l>],
+  $t_1 thick t_2 -> t'_1 thick t_2$,
+  $t_1 -> t'_1$,
+)))
 
-Il n'est pas nécessaire d'ajouter une règle de réduction contextuelle pour la droite d'une reduction. Les variables et les abstractions sont des valeurs et ne peuvent pas être réduite.
+Il n'est pas nécessaire d'ajouter une règle de réduction contextuelle pour la
+droite d'une reduction. Les variables et les abstractions sont des valeurs et ne
+peuvent pas être réduite.
 
-La machine abstraite de Krivine définie dans @refocusing permet d'encoder ce comportement.
-
+La machine abstraite de Krivine définie dans @refocusing permet d'encoder ce
+comportement.
 
 = La Machine CEK
+
+== Using the CEK machine
+
+Defining the CEK machine using more than just than the regular $k_"app"$ control
+unit still requires to include the environement $sigma$ even if the continuation
+does not include any terms requiring a substitution. This is because when
+generalizing a transformation to control units, we need to have the information
+of what was the correct substitution to use.
+
+For example, $k_"ErrorOnEmpty"$ is transformed into a match control unit, hence
+it requires to have the current substitution.
 
 = La Machine CK
 
