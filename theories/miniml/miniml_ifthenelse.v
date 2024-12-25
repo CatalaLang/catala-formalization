@@ -1911,12 +1911,41 @@ Proof.
       }
     }
     { induction s; simpl in *; injections; tryfalse; subst.
-      admit "decompose H2.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
-      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
-      eapply star_refl_prop.
-      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
-      econstructor; eauto.".
+      list_simpl; decompose H.
+      decompose H10.
+      { (* intersting case *)
+        inversion H5; subst; repeat sinv_cong.
+        { simpl.
+          (eapply star_step_prop; [solve[econstructor; eauto]|]).
+          admit "not working here.".
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H10).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H10).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H13).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H13).
+          induction s; simpl in *; list_simpl.
+        }
+      }
+      { exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+        eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+        eapply star_refl_prop.
+        repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+        simpl.
+        rewrite List.rev_involutive.
+        rewrite <- List.app_assoc.
+        simpl.
+        erewrite append_stack_app; [|solve[reflexivity]].
+        repeat (econstructor; eauto).
     }
   }
 Abort. 
