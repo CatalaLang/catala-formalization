@@ -1001,6 +1001,30 @@ Inductive cong_state: state -> state -> Prop :=
       (mode_eval u' [CIf t2' t1' sigma'] sigma0')
 .
 
+Lemma mode_eval_cong_state:
+  forall { s s'},
+    cong_state s s' ->
+    forall {t kappa sigma},
+    s = mode_eval t kappa sigma ->
+    exists t' kappa' sigma', 
+      s' = mode_eval t' kappa' sigma'.
+Proof.
+  induction 1; intros; injections; subst; try solve
+  [ repeat econstructor| tryfalse].
+  { induction s; simpl in *; tryfalse; injections; subst.
+    edestruct IHcong_state; [solve[reflexivity]|]; unpack; subst; simpl.
+    repeat econstructor. }
+  { induction s; simpl in *; tryfalse; injections; subst.
+    edestruct IHcong_state; [solve[reflexivity]|]; unpack; subst; simpl.
+    repeat econstructor. }
+  { induction s; simpl in *; tryfalse; injections; subst.
+    edestruct IHcong_state; [solve[reflexivity]|]; unpack; subst; simpl.
+    repeat econstructor. }
+  { induction s; simpl in *; tryfalse; injections; subst.
+    edestruct IHcong_state; [solve[reflexivity]|]; unpack; subst; simpl.
+    repeat econstructor. }
+Qed.
+
 (** let's start with the statement we want to show *)
 
 
@@ -1176,6 +1200,7 @@ Abort.
 
 (* Same theorem, but we first do the induction on cred. *)
 
+(** Second tentative *)
 Theorem correction_traditional:
   forall s1 s2,
     cred s1 s2 ->  
@@ -1186,24 +1211,15 @@ Theorem correction_traditional:
 Abort.
 
 
-(* This time, we do the well-founded induction based on kappa. *)
-Theorem correction_traditional:
-  forall kappa,
-  forall s1,
-    stack s1 = kappa ->
-    forall s2,
-      cred s1 s2 ->  
-      forall s1',
-        cong_state s1 s1' ->
-        exists s2',
-          cong_state s2 s2' /\ star cred s1' s2'.
+
+(****************************************************************)
+(* Third tentative *)
+
+Lemma stack_append_stack {s kappa}:
+  stack (append_stack s kappa) = stack s ++ kappa.
 Proof.
-  induction kappa as [kappa IHkappa] using (
-    well_founded_induction
-      (wf_inverse_image _ nat _ (@List.length cont) 
-      PeanoNat.Nat.lt_wf_0)).
-  intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
-Abort. 
+  induction s; simpl; eauto.
+Qed.
 
 
 
@@ -1330,6 +1346,168 @@ Lemma stack_all_append_stack_cont {kappa r}:
 Proof.
   simpl; eauto.
 Qed.
+
+
+(* Modifying the induction hypothesis : *)
+
+Lemma modify_WF_IH {n}:
+  (forall y : list cont,
+  Datatypes.length y < n ->
+  forall s1 : state,
+    stack s1 = y ->
+    forall s2 : state,
+      cred s1 s2 ->
+      forall s1' : state,
+        cong_state s1 s1' ->
+        exists s2' : state, cong_state s2 s2' /\ star cred s1' s2'
+        )
+  ->
+  forall s1 s1',
+    cong_state s1 s1' ->
+    forall s2,
+      cred s1 s2 ->
+      List.length (stack s1) < n ->
+      exists s2', cong_state s2 s2' /\ star cred s1' s2'
+  .
+Proof.
+  intros.
+  eapply H; eauto.
+Qed.
+
+
+(* This time, we do the well-founded induction based on kappa. *)
+Theorem correction_traditional:
+  forall kappa,
+  forall s1,
+    stack s1 = kappa ->
+    forall s2,
+      cred s1 s2 ->  
+      forall s1',
+        cong_state s1 s1' ->
+        exists s2',
+          cong_state s2 s2' /\ star cred s1' s2'.
+Proof.
+  induction kappa as [kappa IHkappa] using (
+    well_founded_induction
+      (wf_inverse_image _ nat _ (@List.length cont) 
+      PeanoNat.Nat.lt_wf_0)).
+  rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
+  intros until s2; induction 1.
+  { inversion 1; subst; repeat sinv_cong. all: admit. }
+  { inversion 1; subst; repeat sinv_cong. all: admit. }
+  { inversion 1; subst; repeat sinv_cong. all: admit. }
+  { inversion 1; subst; repeat sinv_cong. all: admit. }
+  { inversion 1; subst; repeat sinv_cong.
+    { eapply star_step_prop. { econstructor; eauto. }
+      eapply star_refl_prop.
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      econstructor; eauto.
+    }
+  }
+  { inversion 1; subst; repeat sinv_cong.
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      { inversion H4; subst; simpl.
+        { repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
+          eapply star_refl_prop.
+          repeat (econstructor; eauto).
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H11).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H11).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H12).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H12).
+          induction s; simpl in *; list_simpl.
+        }
+      }
+      {
+        exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+        eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+        eapply star_refl_prop.
+        erewrite append_stack_app; [|solve[simpl; reflexivity]].
+        econstructor; eauto.
+      }
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      admit "need a better decomposition tactic".
+      (* exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      econstructor; eauto. *)
+    }  
+  }
+  { inversion 1; subst; repeat sinv_cong. all: admit. }
+  { inversion 1; subst; repeat sinv_cong. all: admit. }
+  { inversion 1; subst; repeat sinv_cong. all: admit. }
+  25:{
+    pose proof (f_equal stack H2); simpl in H; rewrite stack_append_stack in H.
+    decompose H.
+
+  }
+Abort. 
+
+
 
 
 
