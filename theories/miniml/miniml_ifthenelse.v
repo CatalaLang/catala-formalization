@@ -1393,8 +1393,76 @@ Proof.
       PeanoNat.Nat.lt_wf_0)).
   rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
   intros until s2; induction 1.
-  { inversion 1; subst; repeat sinv_cong. all: admit. }
-  { inversion 1; subst; repeat sinv_cong. all: admit. }
+  { inversion 1; subst; repeat sinv_cong.
+    { inversion H2; subst.
+      { learn (Forall2_nth_error_Some_left _ _ _ H7 _ _ H1); unpack.
+        learn (Forall2_nth_error_Some H7 _ _ _ H1 H).
+        eapply star_step_prop. { econstructor; eauto. }
+        eapply star_refl_prop.
+        econstructor; eauto.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H7).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H7).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H9).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H9).
+        induction s; simpl in *; list_simpl.
+      }
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+  }
+  { inversion 1; subst; repeat sinv_cong.
+    { admit. }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    all: admit. }
   { inversion 1; subst; repeat sinv_cong. all: admit. }
   { inversion 1; subst; repeat sinv_cong. all: admit. }
   { inversion 1; subst; repeat sinv_cong.
@@ -1407,7 +1475,7 @@ Proof.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
-      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       econstructor; eauto.
     }
     {
@@ -1415,7 +1483,7 @@ Proof.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
-      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       econstructor; eauto.
     }
     {
@@ -1423,7 +1491,7 @@ Proof.
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
-      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       econstructor; eauto.
     }
     {
@@ -1431,7 +1499,7 @@ Proof.
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
-      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       econstructor; eauto.
     }
   }
@@ -1442,7 +1510,7 @@ Proof.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
-      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       econstructor; eauto.
     }
     {
@@ -1474,7 +1542,7 @@ Proof.
         exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
         eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
         eapply star_refl_prop.
-        erewrite append_stack_app; [|solve[simpl; reflexivity]].
+        repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
         econstructor; eauto.
       }
     }
@@ -1484,7 +1552,7 @@ Proof.
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
-      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       econstructor; eauto.
     }
     {
@@ -1493,9 +1561,9 @@ Proof.
       (* exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; rewrite List.app_length; simpl; lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
-      erewrite append_stack_app; [|solve[simpl; reflexivity]].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       econstructor; eauto. *)
-    }  
+    }  econstructor; eauto
   }
   { inversion 1; subst; repeat sinv_cong. all: admit. }
   { inversion 1; subst; repeat sinv_cong. all: admit. }
