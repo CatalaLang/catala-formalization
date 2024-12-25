@@ -1,13 +1,20 @@
 #import "@preview/unequivocal-ams:0.1.1": ams-article, theorem, proof
 #import "@preview/curryst:0.3.0": rule, proof-tree
 
-#show: ams-article.with(title: [Abstract Machines], authors: ((
-  name: "Alain Delaët",
-  department: [Equipe PROSECCO],
-  organization: [Inria Paris],
-  location: [48 Rue Barrault, 75013 Paris, France ],
-  email: "alain.delaet@inria.fr",
-),), abstract: lorem(100), bibliography: bibliography("refs.bib"))
+#show: ams-article.with(
+  title: [Abstract Machines],
+  authors: (
+    (
+      name: "Alain Delaët",
+      department: [Equipe PROSECCO],
+      organization: [Inria Paris],
+      location: [48 Rue Barrault, 75013 Paris, France ],
+      email: "alain.delaet@inria.fr",
+    ),
+  ),
+  abstract: lorem(100),
+  bibliography: bibliography("refs.bib"),
+)
 
 Le but de ce document est d'établir des résultats génériques sur les machines
 abstraites, en tant que modèle de calcul purement syntaxique du lambda calcul,
@@ -38,14 +45,21 @@ réduction de cette variant du lambda calcul.
 
 #let mathpar(..rules) = block(rules.pos().join(h(0.5cm)))
 
-#mathpar(proof-tree(rule(
-  label: smallcaps[cbn-$beta$<cbn-beta>],
-  $(lambda. t_1) t_2 -> subst(t_1, t_2)$,
-)), proof-tree(rule(
-  label: smallcaps[cbn-l <cbn-l>],
-  $t_1 thick t_2 -> t'_1 thick t_2$,
-  $t_1 -> t'_1$,
-)))
+#mathpar(
+  proof-tree(
+    rule(
+      label: smallcaps[cbn-$beta$<cbn-beta>],
+      $(lambda. t_1) t_2 -> subst(t_1, t_2)$,
+    ),
+  ),
+  proof-tree(
+    rule(
+      label: smallcaps[cbn-l <cbn-l>],
+      $t_1 thick t_2 -> t'_1 thick t_2$,
+      $t_1 -> t'_1$,
+    ),
+  ),
+)
 
 Il n'est pas nécessaire d'ajouter une règle de réduction contextuelle pour la
 droite d'une reduction. Les variables et les abstractions sont des valeurs et ne
@@ -72,7 +86,14 @@ environement is not needed.
 
 == Typing the CEK machine
 
-Typing is straightforward.
+Typing is straightforward. The modification from our machine to the CEK is a simplfication. Indeed, because the "environement of a control unit" was set by the previous "CReturn" control unit in the environement stack, we previously needed to pass this environement for each of the continuation control judgement. This is no longer needed, as the environement is directly stored within the control unit. Hence, this change simplifies the construction.
+
+
+== Showing complex transformations
+
+This shows to be an harder task than premedited. Because of the possible disynchronization done. This could be fixed by an big step semantics that terminates a-priori. Be if we stick with the small steps semantics, we need ways to extend the syntaxtic nature of coq to those new constructions. What i really mean by that is that it often happends that we have tons of equality/multiple ways to see the same term. For exemple, we can see $S(x, [k_"app" (t_1, sigma')], sigma)$ also as $S(x, [], sigma) plus.double [k_"app" ( t_1, sigma')]$. While trivial to state, this kind of equalities happends everywhere. Hence, it is a requirement to be able to apply them automatically in order to discard cases as much as possible.
+
+This kind of structure happends for exeple when defining `cong_state`
 
 = La Machine CK
 
