@@ -263,31 +263,49 @@ Export Learn.
 
 
 (** Ported the above tactic to ltac2. *)
-(* 
+
 Module Learn2.
-  Inductive Learnt {P:Prop} :=
-  | AlreadyLearnt (H:P).
+  Inductive Learnt2 {P:Prop} :=
+  | AlreadyLearnt2 (H:P).
 
   Local Ltac2 learn_fact (h: constr) :=
     let p := Constr.type h in
-    let q := constr:(@Learnt $p) in
+    let q := constr:(@Learnt2 $p) in
     if List.for_all (fun (_, _, v) =>
       Bool.neg (Constr.equal q v)
     ) (Control.hyps ()) then
       let hname := Fresh.in_goal @H0 in
       let lname := Fresh.in_goal @L0 in
       Std.assert (Std.AssertValue hname h);
-      Std.assert (Std.AssertValue lname constr:(AlreadyLearnt $h))
+      Std.assert (Std.AssertValue lname constr:(AlreadyLearnt2 $h));
+      hname
     else
       Control.backtrack_tactic_failure "Fact already known"
     .
 
-  Ltac2 Notation "learn"
+  (* This tactic takes a constr, and add it to the goal, returning the new name. If the term is already present, then it backtracks. *)
+  Ltac2 Notation "learn2"
     arg(constr) :=
     learn_fact arg.
 End Learn2.
-Export Learn2. *)
+Export Learn2.
 
+Set Default Proof Mode "Ltac2".
+
+Require Import Ltac2.Printf.
+Goal [0] = [] -> False.
+  intros H.
+  match! goal with
+  | [h: @eq (list _) _ _ |- _] => 
+    let h :=
+      learn2 (f_equal (@List.length _) H) in
+      Std.simpl {
+        rBeta:=true; rMatch:=true; rFix:=false; rCofix:=false; rZeta:= false; rDelta:=false; rConst:=[]} None {on_hyps:=Some [(h, AllOccurrences, InHyp)]; on_concl:= NoOccurrences}
+  end.
+Abort.
+
+
+Set Default Proof Mode "Classic".
 (* -------------------------------------------------------------------------- *)
 
 (* Complementary to the learn tactic: prints everything that has been learn in the current context. Source: myself*)

@@ -1756,7 +1756,7 @@ Proof.
       induction s; simpl in *; injections; tryfalse; subst.
       list_simpl.
       decompose H.
-      decompose H10.
+      decompose H8.
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -1822,7 +1822,6 @@ Proof.
   { inversion 1; subst; repeat sinv_cong.
     { induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
-      print_learnt.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -1997,7 +1996,7 @@ Proof.
       }
     }
   }
-Abort. 
+Abort.
 
 
 
