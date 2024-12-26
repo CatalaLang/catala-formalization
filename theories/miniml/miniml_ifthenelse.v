@@ -1351,7 +1351,7 @@ Qed.
 
 (* Modifying the induction hypothesis : *)
 
-Lemma modify_WF_IH {n}:
+Lemma modify_WF_IH {P n}:
   (forall y : list cont,
   Datatypes.length y < n ->
   forall s1 : state,
@@ -1360,23 +1360,24 @@ Lemma modify_WF_IH {n}:
       cred s1 s2 ->
       forall s1' : state,
         cong_state s1 s1' ->
-        exists s2' : state, cong_state s2 s2' /\ star cred s1' s2'
-        )
+        P s1 s2 s1')
   ->
   forall s1 s1',
     cong_state s1 s1' ->
     forall s2,
       cred s1 s2 ->
       List.length (stack s1) < n ->
-      exists s2', cong_state s2 s2' /\ star cred s1' s2'
+      P s1 s2 s1'
   .
 Proof.
   intros.
-  eapply H; eauto.
+  eapply X; eauto.
 Qed.
 
 
 (* This time, we do the well-founded induction based on kappa. *)
+
+(* The diagram does not work, but we can find why: the diagram is incorrect. I first try to automatize the proof.*)
 Theorem correction_traditional:
   forall kappa,
   forall s1,
@@ -1998,28 +1999,74 @@ Proof.
   }
 Abort.
 
+Theorem correction_traditional:
+  forall kappa,
+  forall s1,
+    stack s1 = kappa ->
+    forall s2,
+      cred s1 s2 ->  
+      forall s1',
+        cong_state s1 s1' ->
+        exists s2',
+          cong_state s2 s2' /\ star cred s1' s2'.
+Proof.
+  induction kappa as [kappa IHkappa] using (
+    well_founded_induction
+      (wf_inverse_image _ nat _ (@List.length cont) 
+      PeanoNat.Nat.lt_wf_0)).
+  rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
+  intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
+  all: try induction s; simpl in *; injections; tryfalse; subst.
+  all: repeat match goal with
+  | [h: _ ++ _ = _ :: _ |- _] => decompose h
+  | [h: _ :: _ = _ ++ _ |- _] => decompose h
+  end.
+  all: try match goal with
+  | [h: cong_state _ _ |- _] =>
+    exploit (IHkappa _ _ h); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ];
+    clear IHkappa
+  | [h: cong_state (mode_cont [] _) _ |- _] => inversion h; subst
+  | [h: cong_state (mode_eval _ [] _) _ |- _] => inversion h; subst
+  end; try sinv_cong.
 
-
+  all: (* cleanup additional goals that are incoherent. *)
+    repeat match goal with
+    | [h: @eq state _ _ |- _ ] => 
+      learn (f_equal stack h)
+    end;
+    try (induction s); simpl in *; list_simpl.
+  all: repeat first
+    [ eapply star_trans_prop; [solve[apply star_cred_append_stack; eauto]|]
+    | eapply star_step_prop; [solve[econstructor; eauto]|]
+  ].
+  (* Can't fail. *)
+  all: eapply star_refl_prop.
+  all: (repeat rewrite List.app_comm_cons; try (erewrite append_stack_app; [|solve[reflexivity]])).
+  all: try (match goal with [|- cong_state ?s1 ?s2] =>
+    try rewrite (@append_stack_app s1);
+    try rewrite (@append_stack_app s2);
+    simpl with_stack; simpl stack
+  end; solve [repeat (econstructor; eauto)]).
+  all: try (match goal with [|- cong_state ?s1 ?s2] =>
+    try rewrite (@append_stack_all s1);
+    try rewrite (@append_stack_all s2);
+    simpl with_stack; simpl stack
+  end; solve [repeat (econstructor; eauto)]).
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+  { admit. }
+Abort.
 
 
 Theorem correction_traditional:
-  forall s1 s2,
-  sred s1 s2 ->
-
-  star sred
-    (trans_term s1) (trans_term s2).
-Proof.
-  Local Ltac step' := (
-    try (eapply star_step; [solve
-      [ repeat econstructor; simpl; eauto using List.map_nth_error
-    ]|]))
-  .
-  induction 1; simpl; repeat step'; try eapply star_refl.
-  { admit "subst lemma". }
-  { eapply star_sred_app_right. eauto. }
-  { eapply star_sred_app_left. eauto. }
-  { admit "Here we don't have the induction hypothesis on a subterm of u1. Hence we cannot continue".
-  }
-Abort.
-
-End trans3.
+  forall kappa,
+  forall s1,
+    stack s1 = kappa ->
+    forall s2,
+      cred s1 s2 ->  
+      forall s1',
+        cong_state s1 s1' ->
+        exists s2',
+          cong_state s2 s2' /\ star cred s1' s2'.
