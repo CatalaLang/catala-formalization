@@ -1999,7 +1999,7 @@ Proof.
   }
 Abort.
 
-Theorem correction_traditional:
+Theorem correction_traditional_automated:
   forall kappa,
   forall s1,
     stack s1 = kappa ->
@@ -2060,6 +2060,42 @@ Proof.
 Abort.
 
 
+(* The goal is to show the following diagram. *)
+Theorem correction_diagram:
+  forall s1 s1' s2,
+    cong_state s1 s1' ->
+    cred s1 s2 ->
+    exists s3 s3',
+      star cred s2 s3 /\
+      star cred s1' s3' /\
+      cong_state s3 s3'
+.
+Abort.
+
+(* For that, we reorganise the different lemmas to be able to do the induction on kappa. *)
+
+Theorem correction_diagram:
+  forall kappa,
+  forall s1,
+    stack s1 = kappa ->
+    forall s2,
+      cred s1 s2 ->
+      forall s1',
+        cong_state s1 s1' ->
+      exists s3 s3',
+        star cred s2 s3 /\
+        star cred s1' s3' /\
+        cong_state s3 s3'
+.
+induction kappa as [kappa IHkappa] using (
+  well_founded_induction
+    (wf_inverse_image _ nat _ (@List.length cont) 
+    PeanoNat.Nat.lt_wf_0)).
+rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
+intros until s2; induction 1; inversion 1; subst.
+
+
+
 Theorem correction_traditional:
   forall kappa,
   forall s1,
@@ -2071,7 +2107,9 @@ Theorem correction_traditional:
         forall s2',
         cong_state s2 s2' ->
         exists target1 target2,
-        star cred s1' target1 /\ star cred s2' target2  /\ cong_state target1 target2.
+        star cred s1' target1
+        /\ star cred s2' target2
+        /\ cong_state target1 target2.
 Proof.
   induction kappa as [kappa IHkappa] using (
     well_founded_induction
