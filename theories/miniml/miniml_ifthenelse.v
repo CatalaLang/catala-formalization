@@ -2355,7 +2355,20 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     decompose H13.
     exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
 
-    admit "Nontrivial list manipulation".
+    (* Nontrivial list manipulation to get the Cif outside *)
+    simpl List.rev.
+    repeat rewrite List.app_comm_cons.
+    rewrite <- List.app_assoc.
+    simpl List.app.
+    rewrite List.app_comm_cons.
+    erewrite append_stack_app; [|solve[reflexivity]].
+    
+
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+
   }
   { eapply confluent_prop_star_step_right. { econstructor; eauto. }
     eapply confluent_prop_star_refl.
@@ -2457,9 +2470,20 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     decompose H.
     decompose H8.
     exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
-    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+
+    (* Nontrivial list manipulation to get the Cif outside *)
+    simpl List.rev.
+    repeat rewrite List.app_comm_cons.
+    rewrite <- List.app_assoc.
+    simpl List.app.
+    simpl.
+    erewrite append_stack_app; [|solve[reflexivity]].
+
+    
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
-    admit "nontrivial list manipulation".
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
   }
   { (* "Interresting" case *)
     eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|].
@@ -2596,8 +2620,20 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     }
     {
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      
+      (* Nontrivial list manipulation to get the Cif outside *)
+      simpl List.rev.
+      rewrite List.rev_involutive.
+      repeat rewrite List.app_comm_cons.
+      rewrite <- List.app_assoc.
+      simpl List.app.
+      erewrite append_stack_app; [|solve[reflexivity]].
+      simpl with_stack.
+
       eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
-      admit "nontrivial list handling".
+      eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_refl.
+      econstructor; eauto.
     }
   }
   { induction s; simpl in *; injections; tryfalse; subst.
@@ -2682,84 +2718,22 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     }
     {
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
-      admit "nontrivial list handling".
+
+      (* Nontrivial list manipulation to get the Cif outside *)
+      simpl List.rev.
+      repeat rewrite List.app_comm_cons.
+      try rewrite List.rev_involutive.
+      rewrite <- List.app_assoc.
+      simpl List.app.
+      simpl.
+      erewrite append_stack_app; [|solve[reflexivity]].
+      simpl with_stack.
+
+      
+      eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_refl.
+      econstructor; eauto.
     }
   }
 Qed.
-
-
-Theorem correction_traditional:
-  forall kappa,
-  forall s1,
-    stack s1 = kappa ->
-    forall s2,
-      cred s1 s2 ->  
-      forall s1',
-        cong_state s1 s1' ->
-        forall s2',
-        cong_state s2 s2' ->
-        exists target1 target2,
-        star cred s1' target1
-        /\ star cred s2' target2
-        /\ cong_state target1 target2.
-Proof.
-  induction kappa as [kappa IHkappa] using (
-    well_founded_induction
-      (wf_inverse_image _ nat _ (@List.length cont) 
-      PeanoNat.Nat.lt_wf_0)).
-  rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
-  intros until s2; induction 1; inversion 1; inversion 1; subst.
-
-  all: try induction s; simpl in *; injections; tryfalse; subst.
-  all: repeat match goal with
-  | [h: _ ++ _ = _ :: _ |- _] => decompose h
-  | [h: _ :: _ = _ ++ _ |- _] => decompose h
-  end.
-  all: try match goal with
-  | [h: cong_state _ _ |- _] =>
-    exploit (IHkappa _ _ h); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ];
-    clear IHkappa
-  | [h: cong_state (mode_cont [] _) _ |- _] => inversion h; subst
-  | [h: cong_state (mode_eval _ [] _) _ |- _] => inversion h; subst
-  end; try sinv_cong.
-
-  all: (* cleanup additional goals that are incoherent. *)
-    repeat match goal with
-    | [h: @eq state _ _ |- _ ] => 
-      learn (f_equal stack h)
-    end;
-    ltac2:(repeat (match! goal with
-      |[h: context [append_stack ?s _] |- _] =>
-        match Constr.Unsafe.kind s with
-        | Constr.Unsafe.Var i =>
-          Std.induction false [{Std.indcl_arg:= Std.ElimOnIdent i; Std.indcl_eqn:=None; Std.indcl_as := None; Std.indcl_in := None}] None
-        | _ =>
-          Control.backtrack_tactic_failure "unapplicable induction"
-        end
-      end));
-    simpl in * |-; repeat list_simpl.
-
-  all: repeat first
-    [ eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]
-    | eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]
-    | eapply confluent_prop_star_step_left; [solve[econstructor; eauto]|]
-  ].
-  191:{
-    list_simpl; cleanup.
-    
-  }
-
-  (* Can't fail. *)
-  all: eapply confluent_prop_star_refl.
-  all: (repeat rewrite List.app_comm_cons; try (erewrite append_stack_app; [|solve[reflexivity]])).
-  all: try (match goal with [|- cong_state ?s1 ?s2] =>
-    try rewrite (@append_stack_app s1);
-    try rewrite (@append_stack_app s2);
-    simpl with_stack; simpl stack
-  end; solve [repeat (econstructor; eauto)]).
-  all: try (match goal with [|- cong_state ?s1 ?s2] =>
-    try rewrite (@append_stack_all s1);
-    try rewrite (@append_stack_all s2);
-    simpl with_stack; simpl stack
-  end; solve [repeat (econstructor; eauto)]).
-Abort.
