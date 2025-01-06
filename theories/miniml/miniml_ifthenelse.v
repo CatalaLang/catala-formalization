@@ -12,8 +12,6 @@ Require Import Wellfounded.
 
 Require Import Coq.Program.Equality.
 
-From Equations Require Import Equations.
-
 Set Default Goal Selector "!".
 
 
@@ -846,8 +844,6 @@ Definition rev_state (s: state): state :=
   with_stack s (List.rev (stack s))
 . 
 
-Set Equations Transparent.
-
 (* we define trans_state to be rev_state \circ trans_state_aux \circ rev_state
 to permit more adapted pattern matching. *)
 
@@ -978,9 +974,7 @@ Inductive cong_state: state -> state -> Prop :=
 
   (* Additional cases *)
   | cong_if_stack {s s' t1 t1' t2 t2' sigma0 sigma sigma'} :
-    (* Nothing tells me that the environement is the same for both continuations. Hence, i separate them. 
-    
-    TODO: when the proof is done, change sigma0 into sigma, and check what breaks. *)
+    (* Nothing tells us that the environement is the same for both continuations. Hence, we separate them. *)
     cong_term t1 t1' ->
     cong_term t2 t2' ->
     cong_state s s' ->
@@ -1000,33 +994,6 @@ Inductive cong_state: state -> state -> Prop :=
       (mode_eval (If u false true) [CIf t1 t2 sigma] sigma0)
       (mode_eval u' [CIf t2' t1' sigma'] sigma0')
 .
-
-Lemma mode_eval_cong_state:
-  forall { s s'},
-    cong_state s s' ->
-    forall {t kappa sigma},
-    s = mode_eval t kappa sigma ->
-    exists t' kappa' sigma', 
-      s' = mode_eval t' kappa' sigma'.
-Proof.
-  induction 1; intros; injections; subst; try solve
-  [ repeat econstructor| tryfalse].
-  { induction s; simpl in *; tryfalse; injections; subst.
-    edestruct IHcong_state; [solve[reflexivity]|]; unpack; subst; simpl.
-    repeat econstructor. }
-  { induction s; simpl in *; tryfalse; injections; subst.
-    edestruct IHcong_state; [solve[reflexivity]|]; unpack; subst; simpl.
-    repeat econstructor. }
-  { induction s; simpl in *; tryfalse; injections; subst.
-    edestruct IHcong_state; [solve[reflexivity]|]; unpack; subst; simpl.
-    repeat econstructor. }
-  { induction s; simpl in *; tryfalse; injections; subst.
-    edestruct IHcong_state; [solve[reflexivity]|]; unpack; subst; simpl.
-    repeat econstructor. }
-Qed.
-
-(** let's start with the statement we want to show *)
-
 
 Ltac2 sinv_cong () :=
   match! goal with
@@ -1087,44 +1054,11 @@ Proof.
   induction s; intros; simpl in *; subst; reflexivity.
 Qed.
 
-
-Lemma app_injective {A: Type} { kappa kappa0 kappa1 kappa2 : list A}:
- Datatypes.length kappa1 = Datatypes.length kappa2 ->
- kappa ++ kappa1 = kappa0 ++ kappa2 ->
- kappa = kappa0 /\ kappa1 = kappa2.
-Proof.
-Abort.
-
-
-Lemma append_stack_inj {kappa1 kappa2}:
-  List.length kappa1 = List.length kappa2 ->
-  forall {s1 s2},
-    append_stack s1 kappa1 = append_stack s2 kappa2 ->
-    s1 = s2 /\ kappa1 = kappa2.
-Proof.
-  (* induction s1, s2; simpl; intros; tryfalse; injections; subst.
-  { split; repeat f_equal; destruct (app_injective H H1); eauto. }
-  { split; repeat f_equal; destruct (app_injective H H1); eauto. }
-Qed. *)
-Abort.
-
 Lemma append_stack_all {s}:
   s = append_stack (with_stack s []) (stack s).
 Proof.
   induction s; intros; simpl in *; subst; reflexivity.
 Qed.
-
-
-Lemma cong_state_Var {x kappa sigma s'}:
-  cong_state (mode_eval (Var x) kappa sigma) s' ->
-  exists kappa' sigma',
-    List.Forall2 cong_value sigma sigma' /\
-    s' = mode_eval (Var x) kappa' sigma'.
-Proof.
-  induction kappa using List.rev_ind; inversion 1; repeat sinv_cong; subst.
-  { repeat eexists; repeat split; eauto. }
-  { repeat eexists; repeat split; eauto.
-Abort.
 
 Theorem correction_traditional:
   forall s1 s1',
@@ -1195,13 +1129,12 @@ Proof.
     repeat (econstructor; eauto).
     admit.
   }
-
 Abort.
 
 
 (* Same theorem, but we first do the induction on cred. *)
 
-(** Second tentative *)
+(** Second tentative: doing an induction on cred *)
 Theorem correction_traditional:
   forall s1 s2,
     cred s1 s2 ->  
@@ -1216,15 +1149,15 @@ Abort.
 (****************************************************************)
 (* Third tentative *)
 
+
+
+(* We first define tactics specialized to handle statements in the form of _ ++ _ = _ ++ _ *)
+
 Lemma stack_append_stack {s kappa}:
   stack (append_stack s kappa) = stack s ++ kappa.
 Proof.
   induction s; simpl; eauto.
 Qed.
-
-
-
-
 
 Ltac list_simpl_base h := 
   learn (f_equal (@List.rev _) h);
@@ -1280,6 +1213,21 @@ Proof.
   all: repeat f_equal; eauto.
 Abort.
 
+
+Lemma cong_term_non_deterministic:
+  exists t t1,
+    cong_term t t1 /\
+    exists t2,
+    cong_term t t2 /\
+    t1 <> t2.
+Proof.
+  exists (If (If true false true) true false).
+  repeat eexists.
+  { eapply cong_if_base; repeat econstructor. }
+  { eapply cong_If; repeat econstructor. }
+  { intros; congruence. }
+Qed.
+
 Theorem cred_append_stack s s':
   (* If you can do a transition, then you can do the same transition with additional informations on the stack. *)
   cred s s' ->
@@ -1300,18 +1248,6 @@ Proof.
   * eapply star_step; eauto using cred_append_stack.
 Qed.
 
-
-Lemma append_left_and_right {s1 s2 kappa}:
-  (exists tgt, star cred s1 tgt /\ star cred s2 tgt) ->
-  (exists tgt,
-    star cred (append_stack s1 kappa) tgt
-    /\ star cred (append_stack s2 kappa) tgt
-  ).
-Proof.
-  intros; unpack.
-  eexists; split; eapply star_cred_append_stack; eauto.
-Qed.
-
 Ltac decompose h :=
   let kappa := fresh "kappa" in
   first
@@ -1323,34 +1259,21 @@ Ltac decompose h :=
     repeat cleanup
 .
 
-Lemma stack_app_append_stack_eval {t kappa1 kappa2 sigma}:
-  mode_eval t (kappa1 ++ kappa2) sigma = append_stack (mode_eval t kappa1 sigma) kappa2.
-Proof.
-  simpl; eauto.
-Qed.
 
-Lemma stack_all_append_stack_eval {t kappa sigma}:
-  mode_eval t (kappa) sigma = append_stack (mode_eval t [] sigma) kappa.
-Proof.
-  simpl; eauto.
-Qed.
+(* 
+  We prove the lemma using a well-formed induction on the length of the stack.  However, this statement is not directly usable in Coq because we lack certain hypotheses when applying (such as the stack length and its proof of being less than n). To address this, we reorganize the induction hypothesis so that these requirements are introduced properly.
 
+  Usage:
+    Once you have an instance [H] of [cong_state s1 s1'], use the following tactic to apply the induction hypothesis.
 
-Lemma stack_app_append_stack_cont {kappa1 kappa2 r}:
-  mode_cont (kappa1 ++ kappa2) r = append_stack (mode_cont kappa1 r) kappa2.
-Proof.
-  simpl; eauto.
-Qed.
+      exploit (IHkappa _ _ H);
+        [ solve [econstructor; eauto]   (* solves [cred s1 s2] *)
+        | solve [simpl; repeat (rewrite List.app_length; simpl); lia] 
+          (* handles the proof that the stack length is smaller than n *)
+        | intros; unpack ].   (* introduces and unpacks the new hypotheses *)
 
-Lemma stack_all_append_stack_cont {kappa r}:
-  mode_cont (kappa) r = append_stack (mode_cont [] r) kappa.
-Proof.
-  simpl; eauto.
-Qed.
-
-
-(* Modifying the induction hypothesis : *)
-
+  
+*)
 Lemma modify_WF_IH {P n}:
   (forall y : list cont,
   Datatypes.length y < n ->
@@ -1370,10 +1293,8 @@ Lemma modify_WF_IH {P n}:
       P s1 s2 s1'
   .
 Proof.
-  intros.
-  eapply X; eauto.
+  intros X ? ? ? ? ? ?; eapply X; eauto.
 Qed.
-
 
 (* This time, we do the well-founded induction based on kappa. *)
 
@@ -1395,6 +1316,14 @@ Proof.
       PeanoNat.Nat.lt_wf_0)).
   rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
   intros until s2; induction 1.
+
+  (* 43 cases. But two cases are not working because the diagram is incorrect with this precise invariant.
+
+  The cases are those related to if-then-else when the argument is true (resp. false).
+
+  Namely, we cannot show [cred s1 s2 -> cong_state s1 s1' -> exists s2', cong_state s2 s2' /\ star cred s1' s2'] when [s2] is [mode_eval false [CIf t1 t1' sigma1] sigma1'] and [s1'] is [mode_cont [CIf t2 t1' sigma'] true].
+
+  *)
   { inversion 1; subst; repeat sinv_cong.
     { inversion H2; subst.
       { learn (Forall2_nth_error_Some_left _ _ _ H7 _ _ H1); unpack.
@@ -2000,7 +1929,9 @@ Proof.
   }
 Abort.
 
-(* The goal is to show the following diagram. *)
+
+(* Because the above diagram does not work, we prove a slight variation of this diagram : *)
+
 Theorem correction_diagram:
   forall s1 s1' s2,
     cong_state s1 s1' ->
@@ -2012,7 +1943,7 @@ Theorem correction_diagram:
 .
 Abort.
 
-(* For that, we reorganise the different lemmas to be able to do the induction on kappa. *)
+(* We first reorganise the diagram to be able to do the induction on the stack. *)
 
 Theorem correction_diagram_aux:
   forall kappa,
@@ -2027,6 +1958,15 @@ Theorem correction_diagram_aux:
         star cred s1' s3' /\
         cong_state s3 s3'
 .
+
+Ltac mytryfalse :=
+  tryfalse;
+  try solve [repeat match goal with 
+  | [h: @eq state _ _ |- _ ] => learn (f_equal stack h)
+  | [h: @eq (list _) _ _ |- _ ] => learn (f_equal (@List.length _) h)
+  | [h: context[append_stack ?s _] |- _] => learn (eq_refl s); destruct s
+  end; simpl in *; repeat cleanup; list_simpl].
+
 induction kappa as [kappa IHkappa] using (
   well_founded_induction
     (wf_inverse_image _ nat _ (@List.length cont) 
