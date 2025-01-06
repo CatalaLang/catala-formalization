@@ -184,6 +184,20 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont kappa sigma r)
 .
 
+
+(* Coercion App : term >-> Funclass.
+Notation "'λ.' t" := (Lam t) (at level 50) .
+Notation "'S(' t , kappa , sigma )" := (mode_eval t kappa sigma).
+Notation "'C(' v , kappa , sigma )" := (mode_cont kappa sigma v).
+Notation "'λ' sigma '.' t " := (Value (Closure t sigma)) (at level 50).
+Notation "'λ' sigma '.' t " := (RValue (Closure t sigma)) (at level 50).
+Notation "'k_app1' ( t )" := (CAppR t) (at level 50).
+Notation "'k_app2' ( t , sigma )" := (CClosure t sigma) (at level 50).
+Notation "'k_ret' ( sigma )" := (CReturn sigma) (at level 50).
+Notation "s1 ~> s2" := (cred s1 s2) (at level 20).
+Print cred. *)
+
+
 (*** small step semantics ***)
 
 Import List.ListNotations.

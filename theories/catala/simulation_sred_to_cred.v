@@ -880,14 +880,14 @@ Theorem rev_ind_wf {A}:
     P [] ->
     (forall (x:A) (l:list A),
       P l ->
-      (forall l', length l' < length (l ++ [x]) -> P l') ->
+      (forall l', List.length l' < List.length (l ++ [x]) -> P l') ->
       P (l ++ [x])) ->
     forall l:list A, P l.
 Proof.
   intros P Hnil Hcons l.
   induction l as [l IHl] using (
     well_founded_induction
-      (wf_inverse_image _ nat _ (@length _)
+      (wf_inverse_image _ nat _ (@List.length _)
       PeanoNat.Nat.lt_wf_0)).
   induction l using List.rev_ind.
   { eapply Hnil. }

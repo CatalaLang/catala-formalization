@@ -274,15 +274,15 @@ Theorem correction_small_steps:
 Proof.
 
   Local Ltac step := (
-    try (eapply step_left; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|]);
-    try (eapply step_right; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|])
+    try (eapply confluent_star_step_left; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|]);
+    try (eapply confluent_star_step_right; [solve [repeat econstructor; simpl; eauto; repeat intro; tryfalse]|])
   ).
 
   intros s1 s2.
   intros Hsred.
   induction Hsred; intros; unpack.
   (* When the right hand side is the result of the left hand side. *)
-  all: try solve [simpl; repeat step; eapply diagram_finish].
+  all: try solve [simpl; repeat step; eapply confluent_star_refl].
   { asimpl. repeat step. eexists; split; simpl trans; [|eapply star_refl; fail].
     rewrite <- List.map_cons.
     eapply star_refl_eq.
@@ -293,8 +293,8 @@ Proof.
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step.
-    eapply step_left. { econstructor; simpl; eapply trans_value_op_correct; eauto. }
-    eapply diagram_finish.
+    eapply confluent_star_step_left. { econstructor; simpl; eapply trans_value_op_correct; eauto. }
+    eapply confluent_star_refl.
   }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
   { simpl; repeat step; eexists; split; asimpl; eapply star_trans; eauto with sred; eapply star_refl. }
@@ -417,13 +417,13 @@ Proof.
 
   Local Ltac step' := (
     (* This tatic try to advance the computation on the right or on the left of the diagram. *)
-    try (eapply step_left; [solve
+    try (eapply confluent_star_step_left; [solve
       (* generic case *)
       [ econstructor; simpl; eauto using List.map_nth_error
       (* for contextual error cases *)
       | econstructor; repeat intro; tryfalse
     ]|])
-    ; try (eapply step_right; [solve
+    ; try (eapply confluent_star_step_right; [solve
       [ econstructor; simpl; eauto using List.map_nth_error
       | econstructor; repeat intro; tryfalse
     ]|])
@@ -438,7 +438,7 @@ Proof.
   all:
     try solve [
       repeat step';
-      try eapply diagram_finish;
+      try eapply confluent_star_refl;
       eauto
     ].
   

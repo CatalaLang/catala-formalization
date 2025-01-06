@@ -24,12 +24,12 @@ Proof.
 Qed.
 
 Lemma lastn_cons {A} n:
-  forall a (l: list A), length l >= n -> lastn n (a::l) = lastn n l.
+  forall a (l: list A), List.length l >= n -> lastn n (a::l) = lastn n l.
 Proof.
   unfold lastn.
   intros.
-  simpl length.
-  replace (S (length l) - n) with (S (length l - n)); eauto.
+  simpl List.length.
+  replace (S (List.length l) - n) with (S (List.length l - n)); eauto.
   lia.
 Qed.
 
@@ -82,12 +82,12 @@ Theorem droplastn_def_firstn {A} n (l: list A) : droplastn n l = List.firstn ((L
 Proof. eauto. Qed.
 
 Lemma droplastn_cons {A} a n (l: list A) :
-  n <= length l -> droplastn n (a :: l) = a :: droplastn n l.
+  n <= List.length l -> droplastn n (a :: l) = a :: droplastn n l.
 Proof.
   intros H.
   rewrite droplastn_def_firstn.
-  simpl length.
-  replace (S (length l) - n) with (S (length l - n)) by lia.
+  simpl List.length.
+  replace (S (List.length l) - n) with (S (List.length l - n)) by lia.
   simpl firstn.
   rewrite <- droplastn_def_firstn.
   eauto.
