@@ -666,8 +666,9 @@ Proof.
   }
 Qed.
 
+(* -------------------------------------------------------------------------- *)
 
-(*** Determinism of the relation *)
+(*** Determinism of both reductions *)
 
 Theorem cred_deterministic:
   forall s1 s2, cred s1 s2 -> forall s2', cred s1 s2' -> s2 = s2'.
@@ -694,6 +695,31 @@ Proof.
   { inversion H. }
   { repeat f_equal. eapply IHsred. eauto. }
 Qed.
+
+
+(* Each deterministic relation have te following lemma. *)
+Lemma star_path_determinism {A: Type} {R: A -> A -> Prop}:
+  (forall s1 s2, R s1 s2 -> forall s3, R s1 s3 -> s2 = s3)
+  ->
+  forall s1 s2,
+    star R s1 s2 ->
+    forall s3,
+    star R s1 s3 ->
+    (star R s2 s3 \/ star R s3 s2).
+Proof.
+  intros determinism.
+  induction 1; intros.
+  { eauto. }
+  { destruct H1.
+    { right. eapply star_step; eauto. }
+    { learn (determinism _ _ H _ H1); subst.
+      learn (IHstar _ H2); unzip; eauto.
+    }
+  }
+Qed.
+
+
+(* -------------------------------------------------------------------------- *)
 
 (** Simple translation of [if t then ta else tb] into [if (if t then false else true) then tb else ta] *)
 
@@ -761,72 +787,9 @@ Qed.
 End trans1.
 
 
-(*
-Module trans2.
-Fixpoint trans_term t :=
-  match t with
-  | Var x => Var x
-  | App t1 t2 => App (trans_term t1) (trans_term t2)
-  | Lam t => Lam (trans_term t)
-  | Value v => Value (trans_value v)
-  | If (If u (Value (Bool false)) (Value (Bool true))) t1 t2 =>
-    If (trans_term u) (trans_term t2) (trans_term t1)
-  | If u t1 t2 =>
-    If (trans_term u) (trans_term t1) (trans_term t2)
-  end
-with trans_value v :=
-  match v with
-  | Closure t sigma =>
-    Closure (trans_term t) (List.map trans_value sigma)
-  | Bool b => Bool b
-  end
-.
+(* -------------------------------------------------------------------------- *)
 
-(* Where is the fuction eliminator that i want ? Do i need the same thing as below for trans_state ? I belive so. *)
-
-(* Generalized transformation for continuations *)
-(* Fixpoint trans_conts (kappa: list cont): list cont :=
-  match kappa with
-  | nil => nil
-  | CAppR t2 :: kappa => CAppR (trans_term t2) :: trans_conts kappa
-  | CClosure t sigma :: kappa =>
-    CClosure (trans_term t) (List.map trans_value sigma) :: trans_conts kappa
-  | CReturn sigma :: kappa =>
-    CReturn (List.map trans_value sigma) :: trans_conts kappa
-  | CIf (Value (Bool false)) (Value (Bool true)) :: CIf t1 t2 :: kappa =>
-    CIf (trans_term t1) (trans_term t2) :: trans_conts kappa
-  | CIf t1 t2 :: kappa =>
-    CIf (trans_term t1) (trans_term t2) :: trans_conts kappa
-  end.
-
-(* Generalized transformation for results *)
-Definition trans_return (r: result): result :=
-  match r with
-  | RValue v => RValue (trans_value v)
-  end.
-
-(* Generalized transformation for states with the special If case *)
-Definition trans_state (s: state) : state :=
-  match s with
-  | mode_eval (If b (Value (Bool false)) (Value (Bool true))) (CIf t2 t1::kappa) env =>
-    mode_eval (trans_term b) (CIf (trans_term t1) (trans_term t2)::trans_conts kappa) (List.map trans_value env)
-  | mode_eval e kappa env =>
-    mode_eval (trans_term e) (trans_conts kappa) (List.map trans_value env)
-  | mode_cont kappa env r =>
-    mode_cont (trans_conts kappa) (List.map trans_value env) (trans_return r)
-    end.
-
-End trans2.
-
-(*
-
-Equations f (l : list nat) : list nat :=
-f []  := [];
-f (cons a (cons b l)) := cons (a+b) (f l);
-f (cons a l) := cons a (f l).
-
-*)
-*) *)
+(** More complex translation and inverse of the previous translation. [if (if t then false else true) then tb else ta] is translated into [if t then ta else tb] *)
 
 Module trans3.
 
@@ -840,22 +803,6 @@ Definition append_stack s kappa :=
   with_stack s (stack s ++ kappa).
 Definition cons_stack s kappa :=
   with_stack s (kappa ++ stack s ).
-Definition rev_state (s: state): state :=
-  with_stack s (List.rev (stack s))
-. 
-
-(* we define trans_state to be rev_state \circ trans_state_aux \circ rev_state
-to permit more adapted pattern matching. *)
-
-(* Definition total_relation {A : Type} : A -> A -> Prop := fun x y => True.
-Axiom wf_total_init : forall {A}, WellFounded (@total_relation A).
-#[local]
-Remove Hints wf_total_init : typeclass_instances.
-
-#[local]
-Instance wf_total_init_compute : forall {A}, WellFounded (@total_relation A).
-  exact (fun A => Acc_intro_generator 10 wf_total_init).
-Defined. *)
 
 Inductive cong_term: term -> term -> Prop :=
   | cong_if_base {u t1 t2 u' t1' t2'}:
