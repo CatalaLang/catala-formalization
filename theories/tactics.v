@@ -293,16 +293,24 @@ Export Learn2.
 Set Default Proof Mode "Ltac2".
 
 Require Import Ltac2.Printf.
-Goal [0] = [] -> False.
+(* Goal [0] = [] -> False.
   intros H.
   match! goal with
   | [h: @eq (list _) _ _ |- _] => 
     let h :=
       learn2 (f_equal (@List.length _) H) in
       Std.simpl {
-        rBeta:=true; rMatch:=true; rFix:=false; rCofix:=false; rZeta:= false; rDelta:=false; rConst:=[]} None {on_hyps:=Some [(h, AllOccurrences, InHyp)]; on_concl:= NoOccurrences}
+        rBeta:=true;
+        rMatch:=true;
+        rFix:=false;
+        rCofix:=false;
+        rZeta:= false;
+        rDelta:=false;
+        rConst:=[]} None {on_hyps:=Some [(h, AllOccurrences, InHyp)];
+        on_concl:= NoOccurrences
+      }
   end.
-Abort.
+Abort. *)
 
 
 Set Default Proof Mode "Classic".
