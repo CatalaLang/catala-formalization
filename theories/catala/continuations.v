@@ -38,29 +38,25 @@ Theorem is_hole_eq_dec: forall (x y : is_hole), {x = y}+{x <> y}.
   decide equality.
 Qed.
 
-
-(* App (Var 0) (up t2) *)
-
 Inductive cont :=
-  | CAppR (t2: term) (* [\square t2] *)
+  | CAppR (t2: term) (sigma: list value) (* [\square t2] *)
   | CClosure (t_cl: {bind term}) (sigma_cl: list value)
   (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices,
      there is no variable x. *)
 
   | CBinopL (op: op) (v1: value) (* [op t1 \square] *)
-  | CBinopR (op: op) (t2: term) (* [op \square t2] *)
-  | CReturn (sigma: list value) (* call return *)
-  | CDefault (b: is_hole) (o: option value) (ts: list term) (tj: term) (tc: term)
+  | CBinopR (op: op) (t2: term) (sigma: list value) (* [op \square t2] *)
+  | CDefault (b: is_hole) (o: option value) (ts: list term) (tj: term) (tc: term) (sigma: list value)
     (* [Def(o, ts, tj, tc)] *)
-  | CDefaultBase (tc: term)
+  | CDefaultBase (tc: term) (sigma: list value)
     (* [ <| \square :- tc >] *)
-  | CMatch (t1: term) (t2: {bind term})
+  | CMatch (t1: term) (t2: {bind term}) (sigma: list value)
     (* [ match \square with None -> t1 | Some -> t2 end ] *)
-  | CIf (ta: term) (tb: term)
-  | CSome
-  | CErrorOnEmpty
-  | CDefaultPure
-  | CFold (f: term) (ts: list term)
+  | CIf (ta: term) (tb: term) (sigma: list value)
+  | CSome (sigma: list value)
+  | CErrorOnEmpty (sigma: list value)
+  | CDefaultPure (sigma: list value)
+  | CFold (f: term) (ts: list term) (sigma: list value)
 .
 
 Theorem option_eq_dec
@@ -88,7 +84,7 @@ Qed.
 
 Inductive state :=
   | mode_eval (e: term) (kappa: list cont) (env: list value)
-  | mode_cont (kappa: list cont) (env: list value) (result: result)
+  | mode_cont (kappa: list cont) (result: result)
 .
 
 Theorem state_eq_dec: forall (x y : state), {x = y}+{x <> y}.
@@ -112,37 +108,31 @@ Inductive cred: state -> state -> Prop :=
     List.nth_error sigma x = Some v ->
     cred
       (mode_eval (Var x) kappa sigma)
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont kappa (RValue v))
 
   | cred_app:
     forall t1 t2 kappa sigma,
     cred
       (mode_eval (App t1 t2) kappa sigma)
-      (mode_eval t1 ((CAppR t2) :: kappa) sigma)
+      (mode_eval t1 ((CAppR t2 sigma) :: kappa) sigma)
 
   | cred_clo:
     forall t kappa sigma,
     cred
       (mode_eval (Lam t) kappa sigma)
-      (mode_cont kappa sigma (RValue (Closure t sigma)))
+      (mode_cont kappa (RValue (Closure t sigma)))
 
   | cred_arg:
     forall t2 kappa sigma tcl sigmacl,
     cred
-      (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl)))
+      (mode_cont ((CAppR t2 sigma)::kappa) (RValue (Closure tcl sigmacl)))
       (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
 
   | cred_beta:
-    forall t_cl sigma_cl kappa sigma v,
+    forall t_cl sigma_cl kappa v,
     cred
-      (mode_cont ((CClosure t_cl sigma_cl)::kappa) sigma (RValue v))
-      (mode_eval t_cl (CReturn sigma::kappa)  (v :: sigma_cl))
-
-  | cred_return:
-    forall sigma_cl kappa sigma r,
-    cred
-      (mode_cont (CReturn sigma::kappa) sigma_cl r)
-      (mode_cont kappa sigma r)
+      (mode_cont ((CClosure t_cl sigma_cl)::kappa) (RValue v))
+      (mode_eval t_cl kappa  (v :: sigma_cl))
 
 
   (** Rules related to the defaults *)
@@ -151,198 +141,196 @@ Inductive cred: state -> state -> Prop :=
     forall e kappa sigma,
     cred
       (mode_eval (DefaultPure e) kappa sigma)
-      (mode_eval e (CDefaultPure::kappa) sigma)
+      (mode_eval e (CDefaultPure sigma::kappa) sigma)
   | cred_defaultpure_elim:
-    forall kappa sigma v,
+    forall kappa v sigma,
     cred
-      (mode_cont (CDefaultPure::kappa) sigma (RValue v))
-      (mode_cont kappa sigma (RValue (VPure v)))
+      (mode_cont (CDefaultPure sigma::kappa) (RValue v))
+      (mode_cont kappa (RValue (VPure v)))
 
   | cred_erroronempty_intro:
     forall e kappa sigma,
     cred
       (mode_eval (ErrorOnEmpty e) kappa sigma)
-      (mode_eval e (CErrorOnEmpty::kappa) sigma)
+      (mode_eval e (CErrorOnEmpty sigma::kappa) sigma)
   | cred_erroronempty_elim_empty:
     forall kappa sigma,
     cred
-      (mode_cont (CErrorOnEmpty::kappa) sigma REmpty)
-      (mode_cont kappa sigma RConflict)
+      (mode_cont (CErrorOnEmpty sigma::kappa) REmpty)
+      (mode_cont kappa RConflict)
   | cred_erroronempty_elim_other:
-    forall kappa sigma v,
+    forall kappa v sigma,
     cred
-      (mode_cont (CErrorOnEmpty::kappa) sigma (RValue (VPure v)))
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont (CErrorOnEmpty sigma::kappa) (RValue (VPure v)))
+      (mode_cont kappa (RValue v))
 
   | cred_default:
     forall ts tj tc kappa sigma,
     cred
       (mode_eval (Default ts tj tc) kappa sigma)
-      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault Hole None ts tj tc sigma)::kappa) REmpty)
 
   | cred_default_unpack:
     forall o th ts tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault Hole o (th::ts) tj tc)::kappa) sigma REmpty)
-      (mode_eval th ((CDefault NoHole o ts tj tc)::kappa) sigma)
+      (mode_cont ((CDefault Hole o (th::ts) tj tc sigma)::kappa) REmpty)
+      (mode_eval th ((CDefault NoHole o ts tj tc sigma)::kappa) sigma)
 
   | cred_default_value:
     forall o ts tj tc kappa sigma v,
     cred
-      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma (RValue (VPure v)))
-      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma (RValue (VPure v)))
+      (mode_cont ((CDefault NoHole o ts tj tc sigma)::kappa) (RValue (VPure v)))
+      (mode_cont ((CDefault Hole o ts tj tc sigma)::kappa) (RValue (VPure v)))
 
   | cred_default_value_none_to_some:
     forall ts tj tc kappa sigma v,
     cred
-      (mode_cont ((CDefault Hole None ts tj tc)::kappa) sigma (RValue (VPure v)))
-      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault Hole None ts tj tc sigma)::kappa)  (RValue (VPure v)))
+      (mode_cont ((CDefault Hole (Some v) ts tj tc sigma)::kappa)  REmpty)
 
   | cred_default_value_conflict:
     forall ts tj tc kappa sigma v v',
     cred
-      (mode_cont ((CDefault Hole (Some v) ts tj tc)::kappa) sigma (RValue (VPure v')))
-      (mode_cont kappa sigma RConflict)
+      (mode_cont ((CDefault Hole (Some v) ts tj tc sigma)::kappa)  (RValue (VPure v')))
+      (mode_cont kappa RConflict)
 
   | cred_default_value_return:
     forall v tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault Hole (Some v) [] tj tc)::kappa) sigma REmpty)
-      (mode_cont kappa sigma (RValue (VPure v)))
+      (mode_cont ((CDefault Hole (Some v) [] tj tc sigma)::kappa) REmpty)
+      (mode_cont kappa (RValue (VPure v)))
 
   (* empty *)
   | cred_default_empty:
     forall o ts tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault NoHole o ts tj tc)::kappa) sigma REmpty)
-      (mode_cont ((CDefault Hole o ts tj tc)::kappa) sigma REmpty)
+      (mode_cont ((CDefault NoHole o ts tj tc sigma)::kappa) REmpty)
+      (mode_cont ((CDefault Hole o ts tj tc sigma)::kappa) REmpty)
 
   | cred_defaultbase:
     forall tj tc kappa sigma,
     cred
-      (mode_cont ((CDefault Hole None [] tj tc)::kappa) sigma REmpty)
-      (mode_eval tj ((CDefaultBase tc)::kappa) sigma)
+      (mode_cont ((CDefault Hole None [] tj tc sigma)::kappa) REmpty)
+      (mode_eval tj ((CDefaultBase tc sigma)::kappa) sigma)
 
   | cred_defaultbasetrue:
     forall tc kappa sigma,
     cred
-      (mode_cont ((CDefaultBase tc)::kappa) sigma (RValue (Bool true)))
+      (mode_cont ((CDefaultBase tc sigma)::kappa) (RValue (Bool true)))
       (mode_eval tc kappa sigma)
 
   | cred_defaultbasefalse:
     forall tc kappa sigma,
     cred
-      (mode_cont ((CDefaultBase tc)::kappa) sigma (RValue (Bool false)))
-      (mode_cont kappa sigma REmpty)
+      (mode_cont ((CDefaultBase tc sigma)::kappa) (RValue (Bool false)))
+      (mode_cont kappa REmpty)
 
   (* Conflict panics and stop the execution of the program.
      We only pop the stack one at the time to ensure the size of kappa
      is changed by one at most. *)
   | cred_conflict:
-    forall phi kappa sigma,
-    (* This is an other implementation of forall sigma, phi <> CReturn sigma. It more usefull in the proofs. *)
-    match phi with | CReturn _ => False | _ => True end ->
+    forall phi kappa,
     cred
-      (mode_cont (phi::kappa) sigma RConflict)
-      (mode_cont kappa sigma RConflict)
+      (mode_cont (phi::kappa) RConflict)
+      (mode_cont kappa RConflict)
 
   | cred_confict_intro:
     forall kappa sigma,
     cred
       (mode_eval Conflict kappa sigma)
-      (mode_cont kappa sigma RConflict)
+      (mode_cont kappa RConflict)
 
   | cred_empty_intro:
     forall kappa sigma,
     cred
       (mode_eval Empty kappa sigma)
-      (mode_cont kappa sigma REmpty)
+      (mode_cont kappa REmpty)
 
   | cred_value_intro:
     forall v kappa sigma,
     cred
       (mode_eval (Value v) kappa sigma)
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont kappa (RValue v))
 
   | cred_op_intro:
     forall op e1 e2 kappa sigma,
     cred
       (mode_eval (Binop op e1 e2) kappa sigma)
-      (mode_eval e1 (CBinopR op e2::kappa) sigma)
+      (mode_eval e1 (CBinopR op e2 sigma::kappa) sigma)
 
   | cred_op_mid:
     forall op e2 kappa sigma v,
     cred
-      (mode_cont (CBinopR op e2 :: kappa) sigma (RValue v))
+      (mode_cont (CBinopR op e2 sigma:: kappa) (RValue v))
       (mode_eval e2 (CBinopL op v :: kappa) sigma)
 
   | cred_op_final:
-    forall op v v1 v2 kappa sigma,
+    forall op v v1 v2 kappa,
     Some v = get_op op v1 v2 ->
     cred
-      (mode_cont (CBinopL op v1 :: kappa) sigma (RValue v2))
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont (CBinopL op v1 :: kappa) (RValue v2))
+      (mode_cont kappa (RValue v))
 
   | cred_match:
     forall u t1 t2 kappa sigma,
     cred
       (mode_eval (Match_ u t1 t2) kappa sigma)
-      (mode_eval u ((CMatch t1 t2)::kappa) sigma)
+      (mode_eval u ((CMatch t1 t2 sigma)::kappa) sigma)
   | cred_match_none:
     forall t1 t2 kappa sigma,
     cred
-      (mode_cont ((CMatch t1 t2)::kappa) sigma (RValue VNone))
+      (mode_cont ((CMatch t1 t2 sigma)::kappa) (RValue VNone))
       (mode_eval t1 kappa sigma)
   | cred_match_some:
     forall t1 t2 kappa sigma v,
     cred
-      (mode_cont ((CMatch t1 t2) :: kappa) sigma (RValue (VSome (v))))
-      (mode_eval t2 (CReturn sigma :: kappa) (v::sigma))
+      (mode_cont ((CMatch t1 t2 sigma) :: kappa) (RValue (VSome (v))))
+      (mode_eval t2 kappa (v::sigma))
   | cred_enone:
     forall kappa sigma,
     cred
       (mode_eval ENone kappa sigma)
-      (mode_cont kappa sigma (RValue VNone))
+      (mode_cont kappa (RValue VNone))
   | cred_esome_intro:
     forall t kappa sigma,
     cred
       (mode_eval (ESome t) kappa sigma)
-      (mode_eval t (CSome::kappa) sigma)
+      (mode_eval t (CSome sigma::kappa) sigma)
   | cred_esome_elim:
     forall v kappa sigma,
     cred
-      (mode_cont (CSome::kappa) sigma (RValue v))
-      (mode_cont kappa sigma (RValue (VSome v)))
+      (mode_cont (CSome sigma::kappa) (RValue v))
+      (mode_cont kappa (RValue (VSome v)))
   | cred_if:
     forall u t1 t2 kappa sigma,
     cred
       (mode_eval (If u t1 t2) kappa sigma)
-      (mode_eval u ((CIf t1 t2)::kappa) sigma)
+      (mode_eval u ((CIf t1 t2 sigma)::kappa) sigma)
   | cred_if_none:
     forall t1 t2 kappa sigma,
     cred
-      (mode_cont ((CIf t1 t2)::kappa) sigma (RValue (Bool true)))
+      (mode_cont ((CIf t1 t2 sigma)::kappa) (RValue (Bool true)))
       (mode_eval t1 kappa sigma)
   | cred_if_some:
     forall t1 t2 kappa sigma,
     cred
-      (mode_cont ((CIf t1 t2) :: kappa) sigma (RValue (Bool false)))
+      (mode_cont ((CIf t1 t2 sigma) :: kappa) (RValue (Bool false)))
       (mode_eval t2 kappa sigma)
   | cred_fold_intro:
     forall f ts acc kappa sigma,
     cred
       (mode_eval (Fold f ts acc) kappa sigma)
-      (mode_eval acc (CFold f ts :: kappa) sigma)
+      (mode_eval acc (CFold f ts sigma :: kappa) sigma)
   | cred_fold_rec:
     forall f h ts v kappa sigma,
     cred
-      (mode_cont (CFold f (h::ts) :: kappa) sigma (RValue v))
-      (mode_eval (App (App f h) (Value v)) (CFold f ts :: kappa) sigma)
+      (mode_cont (CFold f (h::ts) sigma :: kappa) (RValue v))
+      (mode_eval (App (App f h) (Value v)) (CFold f ts sigma:: kappa) sigma)
   | cred_fold_init:
     forall f v kappa sigma,
     cred
-      (mode_cont (CFold f [] :: kappa) sigma (RValue v))
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont (CFold f [] sigma :: kappa) (RValue v))
+      (mode_cont kappa (RValue v))
 .
 
 Notation "'cred' t1 t2" :=
@@ -373,7 +361,7 @@ Notation "'plus' 'cred' t1 t2" :=
 Example example1:
   star cred
     (mode_eval (App (Lam (Var 0)) (Value (Bool true))) [] [])
-    (mode_cont [] [] (RValue (Bool true))).
+    (mode_cont [] (RValue (Bool true))).
 Proof.
   eapply star_step; [econstructor|].
   eapply star_step; [econstructor|].
@@ -381,7 +369,6 @@ Proof.
   eapply star_step; [econstructor|].
   eapply star_step; [econstructor|].
   eapply star_step; [econstructor; simpl; eauto|].
-  eapply star_step; [econstructor|].
   eapply star_refl.
 Qed.
 
@@ -390,7 +377,7 @@ Example example2:
   forall v e_cons e_just sigma, 
   star cred
     (mode_eval (Default [Empty; DefaultPure (Value v)] e_cons e_just) [] sigma)
-    (mode_cont [] sigma (RValue (VPure v))).
+    (mode_cont [] (RValue (VPure v))).
 Proof.
   intros.
   eapply star_step; [econstructor|].
@@ -413,13 +400,13 @@ Qed.
 Definition stack s :=
   match s with
   | mode_eval _ k _ => k
-  | mode_cont k _ _ => k
+  | mode_cont k _ => k
   end.
 
 Definition with_stack s kappa :=
   match s with
   | mode_eval t _ sigma => mode_eval t kappa sigma
-  | mode_cont _ sigma v => mode_cont kappa sigma v
+  | mode_cont _ v => mode_cont kappa v
   end.
 
 Definition is_mode_eval s :=
@@ -430,7 +417,7 @@ Definition is_mode_eval s :=
 
 Definition is_mode_cont s :=
   match s with
-  | mode_cont _ _ _ => true
+  | mode_cont _ _ => true
   | _ => false
   end.
 
@@ -438,8 +425,8 @@ Definition append_stack s kappa2 :=
   match s with
   | mode_eval t kappa1 sigma =>
     mode_eval t (kappa1++kappa2) sigma
-  | mode_cont kappa1 sigma v =>
-    mode_cont (kappa1++kappa2) sigma v
+  | mode_cont kappa1 v =>
+    mode_cont (kappa1++kappa2) v
   end
 .
 
@@ -507,44 +494,42 @@ Qed.
 *)
 
 Inductive inv_conts_no_hole: cont -> Prop :=
-| inv_CAppR (t2: term):
-  inv_conts_no_hole (CAppR (t2: term))
+| inv_CAppR t2 sigma:
+  inv_conts_no_hole (CAppR t2 sigma)
 | inv_CClosure (t_cl: {bind term}) (sigma_cl: list value):
   inv_conts_no_hole (CClosure (t_cl: {bind term}) (sigma_cl: list value))
 | inv_CBinopL (op: op) (v1: value):
   inv_conts_no_hole (CBinopL (op) (v1: value))
-| inv_CBinopR (op: op) (t2: term):
-  inv_conts_no_hole (CBinopR (op) (t2: term))
-| inv_CReturn (sigma: list value):
-  inv_conts_no_hole (CReturn (sigma: list value))
-| inv_CDefault (o: option value) (ts: list term) (tj: term) (tc: term):
-  inv_conts_no_hole (CDefault (NoHole) (o: option value) (ts: list term) (tj: term) (tc: term))
-| inv_CDefaultBase (tc: term):
-  inv_conts_no_hole (CDefaultBase (tc: term))
-| inv_CMatch (t1: term) (t2: {bind term}):
-  inv_conts_no_hole (CMatch (t1: term) (t2: {bind term}))
-| inv_CSome:
-  inv_conts_no_hole (CSome)
-| inv_If (ta tb: term):
-  inv_conts_no_hole (CIf ta tb)
-| inv_ErrorOnEmpty:
-  inv_conts_no_hole CErrorOnEmpty
-| inv_CDefaultPure:
-  inv_conts_no_hole CDefaultPure
+| inv_CBinopR (op: op) (t2: term) sigma:
+  inv_conts_no_hole (CBinopR (op) (t2: term) sigma)
+| inv_CDefault (o: option value) (ts: list term) (tj: term) (tc: term) sigma:
+  inv_conts_no_hole (CDefault (NoHole) (o: option value) (ts: list term) (tj: term) (tc: term) sigma)
+| inv_CDefaultBase (tc: term) sigma:
+  inv_conts_no_hole (CDefaultBase (tc: term) sigma)
+| inv_CMatch (t1: term) (t2: {bind term}) sigma:
+  inv_conts_no_hole (CMatch (t1: term) (t2: {bind term}) sigma)
+| inv_CSome sigma:
+  inv_conts_no_hole (CSome sigma)
+| inv_If (ta tb: term) sigma:
+  inv_conts_no_hole (CIf ta tb sigma)
+| inv_ErrorOnEmpty sigma:
+  inv_conts_no_hole (CErrorOnEmpty sigma)
+| inv_CDefaultPure sigma:
+  inv_conts_no_hole (CDefaultPure sigma)
 | inv_CFold:
-  forall f ts,
-  inv_conts_no_hole (CFold f ts)
+  forall {f ts sigma},
+  inv_conts_no_hole (CFold f ts sigma)
 .
 
 Inductive inv_state: state -> Prop :=
 | inv_mode_eval t kappa env:
   List.Forall inv_conts_no_hole kappa ->
   inv_state (mode_eval t kappa env)
-| inv_mode_cont_cons k kappa env r:
+| inv_mode_cont_cons k kappa r:
   List.Forall inv_conts_no_hole kappa ->
-  inv_state (mode_cont (k::kappa) env r)
-| inv_mode_cont_nil env r:
-  inv_state (mode_cont [] env r)
+  inv_state (mode_cont (k::kappa) r)
+| inv_mode_cont_nil r:
+  inv_state (mode_cont [] r)
 .
 
 Lemma inv_state_append_stack {s kappa}:
@@ -586,8 +571,8 @@ Qed.
 
 
 Theorem cred_stack_empty_irred:
-  forall sigma v,
-    irred cred (mode_cont [] sigma v)
+  forall v,
+    irred cred (mode_cont [] v)
 .
 Proof.
   repeat intro.
@@ -670,21 +655,21 @@ Proof.
 Qed.
 
 Theorem cred_stack_drop:
-  forall t k env env'' r'',
+  forall t k env r'',
     star cred
       (mode_eval t [k] env)
-      (mode_cont [] env'' r'')
+      (mode_cont [] r'')
     ->
-    exists env' r',
+    exists r',
     star cred
       (mode_eval t [] env)
-      (mode_cont [] env' r').
+      (mode_cont [] r').
 Proof.
   intros.
 
   (* Let s1 be the starting state, and s3 the ending state. The goal is find s2, the first state before there is a change on the last continuation of the stack.  *)
   remember (mode_eval t [k] env) as s1.
-  remember (mode_cont [] env'' r'') as s3.
+  remember (mode_cont [] r'') as s3.
   destruct (takewhile (fun s s' => RMicromega.sumboolb (List.list_eq_dec cont_eq_dec (lastn 1 (stack s1)) (lastn 1 (stack s')))) H)
   as [Htakewhile| (s2 & s2' & Hs1s2 & Hs2's3 & Hs2s2' & Hs2')].
   { (* This state does exists since s1 and s3 have different stacks. *)
@@ -747,11 +732,11 @@ Proof.
     induction s2; subst; simpl in *. { tryfalse. }
 
     subst.
-    exists env0, result0.
+    exists result0.
     remember (mode_eval t [k] env) as s1.
-    remember (mode_cont [k] env0 result0) as s2.
+    remember (mode_cont [k] result0) as s2.
     replace (mode_eval t [] env) with (with_stack s1 (droplastn 1 (stack s1))).
-    replace (mode_cont [] env0 result0) with (with_stack s2 (droplastn 1 (stack s2))).
+    replace (mode_cont [] result0) with (with_stack s2 (droplastn 1 (stack s2))).
     all: try solve [unfold with_stack; unfold droplastn; subst; simpl; eauto].
 
     assert (lastn 1 (stack s1) = [k]).

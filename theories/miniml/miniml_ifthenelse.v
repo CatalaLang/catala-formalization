@@ -12,8 +12,6 @@ Require Import Wellfounded.
 
 Require Import Coq.Program.Equality.
 
-From Equations Require Import Equations.
-
 Set Default Goal Selector "!".
 
 
@@ -138,12 +136,11 @@ Qed.
 (*** Syntax for continuations ***)
 
 Inductive cont :=
-  | CAppR (t2: term) (* [\square t2] *)
+  | CAppR (t2: term) (sigma: list value) (* [\square t2] *)
   | CClosure (t_cl: {bind term}) (sigma_cl: list value)
   (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices,
      there is no variable x. *)
-  | CReturn (sigma: list value) (* call return *)
-  | CIf (t1 t2: term) (* [if \square then t1 else t2]*)
+  | CIf (t1 t2: term) (sigma: list value) (* [if \square then t1 else t2]*)
 .
 
 Inductive result :=
@@ -153,7 +150,7 @@ Inductive result :=
 
 Inductive state :=
   | mode_eval (e: term) (kappa: list cont) (env: list value)
-  | mode_cont (kappa: list cont) (env: list value) (result: result)
+  | mode_cont (kappa: list cont) (result: result)
 .
 
 
@@ -166,62 +163,75 @@ Inductive cred: state -> state -> Prop :=
     List.nth_error sigma x = Some v ->
     cred
       (mode_eval (Var x) kappa sigma)
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont kappa (RValue v))
 
   | cred_app: info "cred_app" ->
     forall t1 t2 kappa sigma,
     cred
       (mode_eval (App t1 t2) kappa sigma)
-      (mode_eval t1 ((CAppR t2) :: kappa) sigma)
+      (mode_eval t1 ((CAppR t2 sigma) :: kappa) sigma)
 
   | cred_clo: info "cred_clo" ->
     forall t kappa sigma,
     cred
       (mode_eval (Lam t) kappa sigma)
-      (mode_cont kappa sigma (RValue (Closure t sigma)))
+      (mode_cont kappa (RValue (Closure t sigma)))
 
   | cred_arg: info "cred_arg" ->
     forall t2 kappa sigma tcl sigmacl,
     cred
-      (mode_cont ((CAppR t2)::kappa) sigma (RValue (Closure tcl sigmacl)))
+      (mode_cont ((CAppR t2 sigma)::kappa) (RValue (Closure tcl sigmacl)))
       (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
 
   | cred_value: info "cred_value" ->
     forall v kappa sigma,
     cred
       (mode_eval (Value v) kappa sigma)
-      (mode_cont kappa sigma (RValue v))
+      (mode_cont kappa (RValue v))
 
   | cred_beta: info "cred_beta" ->
-    forall t_cl sigma_cl kappa sigma v,
+    forall t_cl sigma_cl kappa v,
     cred
-      (mode_cont ((CClosure t_cl sigma_cl)::kappa) sigma (RValue v))
-      (mode_eval t_cl (CReturn sigma::kappa)  (v :: sigma_cl))
-
-  | cred_return: info "cred_return" ->
-    forall sigma_cl kappa sigma r,
-    cred
-      (mode_cont (CReturn sigma::kappa) sigma_cl r)
-      (mode_cont kappa sigma r)
+      (mode_cont ((CClosure t_cl sigma_cl)::kappa) (RValue v))
+      (mode_eval t_cl kappa (v :: sigma_cl))
 
   | cred_if: info "cred_if" ->
     forall u t1 t2 kappa sigma,
     cred
       (mode_eval (If u t1 t2) kappa sigma)
-      (mode_eval u ((CIf t1 t2)::kappa) sigma)
+      (mode_eval u ((CIf t1 t2 sigma)::kappa) sigma)
   
   | cred_if_true: info "cred_if_true" ->
     forall t1 t2 kappa sigma,
     cred
-      (mode_cont ((CIf t1 t2):: kappa) sigma (RValue (Bool true)))
+      (mode_cont ((CIf t1 t2 sigma):: kappa) (RValue (Bool true)))
       (mode_eval t1 kappa sigma)
   
   | cred_if_false: info "cred_if_false" ->
     forall t1 t2 kappa sigma,
     cred
-      (mode_cont ((CIf t1 t2):: kappa) sigma (RValue (Bool false)))
+      (mode_cont ((CIf t1 t2 sigma):: kappa) (RValue (Bool false)))
       (mode_eval t2 kappa sigma)
 .
+
+Coercion App : term >-> Funclass.
+(* Notation "'λ.' t" := (Lam t) (at level 50).
+Notation "'S(' t , kappa , sigma )" := (mode_eval t kappa sigma).
+Notation "'C(' v , kappa )" := (mode_cont kappa v).
+Notation "'λ' sigma '.' t " := (Value (Closure t sigma)) (at level 10).
+Notation "'λ' sigma '.' t " := (RValue (Closure t sigma)) (at level 10).
+Notation "'if' u 'then' t1 'else' t2 'end'" := (If u t1 t2) (at level 10).
+Notation "'k_app1' ( t )" := (CAppR t) (at level 50).
+Notation "'k_app2' ( t , sigma )" := (CClosure t sigma) (at level 50).
+(* Notation "'k_ret' ( sigma )" := (CReturn sigma) (at level 50). *)
+Notation "s1 ~> s2" := (cred s1 s2) (at level 20). *)
+Definition id_var (n: nat): var := n.
+Coercion id_var: nat >-> var.
+Coercion Value: value >-> term.
+Coercion RValue: value >-> result.
+Coercion Bool : bool >-> value.
+Coercion Var: var >-> term.
+
 
 Example example_of_reduction t1 t2:
   star cred
@@ -386,76 +396,72 @@ Inductive jt_result: result -> type -> Prop :=
     jt_result (RValue v) T.
 
 Inductive jt_cont:
-  list type -> list type ->
-  cont ->
-  type -> type -> Prop :=
+  type -> cont -> type -> Prop :=
   | JTCAppR:
-    forall {Gamma t2 T1 T2},
+    forall {Gamma sigma t2 T1 T2},
       jt_term Gamma t2 T1 ->
-      jt_cont Gamma Gamma (CAppR t2) (TFun T1 T2) T2
+      List.Forall2 jt_value sigma Gamma ->
+      jt_cont (TFun T1 T2) (CAppR t2 sigma) T2
   | JTCClosure:
-    forall {Gamma Gamma_cl sigma_cl T1 T2 tcl},
+    forall {Gamma_cl sigma_cl T1 T2 tcl},
       jt_term Gamma_cl (Lam tcl) (TFun T1 T2) ->
-      List.Forall2 (jt_value) sigma_cl Gamma_cl ->
-      jt_cont Gamma Gamma (CClosure tcl sigma_cl) T1 T2
+      List.Forall2 jt_value sigma_cl Gamma_cl ->
+      jt_cont T1 (CClosure tcl sigma_cl) T2
   | JTCIf:
-    forall Gamma T ta tb,
+    forall Gamma T sigma ta tb,
       jt_term Gamma ta T ->
       jt_term Gamma tb T ->
-      jt_cont Gamma Gamma (CIf ta tb) (TBool) T
-  | JTCReturn:
-    forall {sigma Gamma1 Gamma2 T},
-      (List.Forall2 (jt_value) sigma Gamma2) ->
-      jt_cont Gamma1 Gamma2 (CReturn sigma) T T
+      List.Forall2 jt_value sigma Gamma ->
+      jt_cont TBool (CIf ta tb sigma) T
 .
 
-Inductive jt_conts:  list type -> list type -> list cont -> type -> type -> Prop :=
+Inductive jt_conts:  type -> list cont -> type -> Prop :=
 | JTNil:
-  forall {Gamma T},
-    jt_conts Gamma Gamma nil T T
+  forall {T},
+    jt_conts T nil T
 | JTCons:
-  forall {Gamma1 Gamma2 Gamma3 cont kappa T1 T2 T3},
-    jt_cont Gamma1 Gamma2 cont T1 T2 ->
-    jt_conts Gamma2 Gamma3 kappa T2 T3 ->
-    jt_conts Gamma1 Gamma3 (cont :: kappa) T1 T3
+  forall {cont kappa T1 T2 T3},
+    jt_cont T1 cont T2 ->
+    jt_conts T2 kappa T3 ->
+    jt_conts T1 (cont :: kappa) T3
 .
 
 (** Finall well-typeness of the state. *)
-Inductive jt_state:  list type -> state -> type -> Prop :=
+Inductive jt_state: state -> type -> Prop :=
 | JTmode_eval:
-  forall Gamma1 Gamma2 t T1 T2 kappa sigma,
-    List.Forall2 (jt_value) sigma Gamma1 ->
-    jt_term Gamma1 t T1 ->
-    jt_conts Gamma1 Gamma2 kappa T1 T2 ->
-    jt_state Gamma2 (mode_eval t kappa sigma) T2
+  forall Gamma t T1 T2 kappa sigma,
+    List.Forall2 (jt_value) sigma Gamma ->
+    jt_term Gamma t T1 ->
+    jt_conts T1 kappa T2 ->
+    jt_state (mode_eval t kappa sigma) T2
 | JTmode_cont:
-  forall Gamma1 Gamma2 r T1 T2 kappa sigma,
-    List.Forall2 (jt_value) sigma Gamma1 ->
+  forall r T1 T2 kappa,
     jt_result r T1 ->
-    jt_conts Gamma1 Gamma2 kappa T1 T2 ->
-    jt_state Gamma2 (mode_cont kappa sigma r) T2
+    jt_conts T1 kappa T2 ->
+    jt_state (mode_cont kappa r) T2
 . 
+
 
 
 Require Import Ltac2.Ltac2.
 Set Default Proof Mode "Classic".
 
 
-Lemma jt_conts_app { Gamma1 Gamma3 kappa1 kappa2 T1 T3 }:
-  jt_conts Gamma1 Gamma3 (kappa1 ++ kappa2) T1 T3 ->
-  exists Gamma2 T2,
-  jt_conts Gamma1 Gamma2 kappa1 T1 T2
-  /\ jt_conts Gamma2 Gamma3 kappa2 T2 T3
+Lemma jt_conts_app { kappa1 kappa2 T1 T3 }:
+  jt_conts T1 (kappa1 ++ kappa2) T3 ->
+  exists T2,
+  jt_conts T1 kappa1 T2
+  /\ jt_conts T2 kappa2 T3
 .
 Proof.
-  revert Gamma1 Gamma3 kappa2 T1 T3.
-  induction kappa1; simpl; intros Gamma1 Gamma2 kappa2 T1 T3.
+  revert kappa2 T1 T3.
+  induction kappa1; simpl; intros kappa2 T1 T3.
   { intros; repeat eexists.
     { econstructor. }
     { eauto. }
   }
   { inversion 1; subst.
-    learn (IHkappa1 _ _ _ _ _ H7); unpack.
+    learn (IHkappa1 _ _ _ H5); unpack.
     repeat eexists.
     { econstructor; eauto. }
     { eauto. }
@@ -468,14 +474,14 @@ Ltac2 inv_jt () :=
   | [ h: jt_term _ ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_value ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_value _ ?c |- _ ] => smart_inversion c h
-  | [ h: jt_cont _ _ ?c _ _ |- _ ] => smart_inversion c h
-  | [ h: jt_conts _ _ ?c _ _ |- _ ] => smart_inversion c h
-  | [ h: jt_conts _ _ (_ ++ _) _ _ |- _ ] =>
+  | [ h: jt_cont _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_conts _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_conts _ (_ ++ _) _ |- _ ] =>
     let p := Control.hyp h in
     let l := Fresh.in_goal @L in
     Std.assert (Std.AssertValue l constr:(jt_conts_app $p));
     Std.clear [h]
-  | [ h: jt_state _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_state ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_result ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_result _ ?c |- _ ] => smart_inversion c h
   | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
@@ -518,9 +524,9 @@ Qed.
 (** Main preservation lemma for continuation-based semantics. *)
 Theorem preservation_cont s1 s2:
   cred s1 s2 ->
-  forall Gamma T,
-  jt_state Gamma s1 T ->
-  jt_state Gamma s2 T.
+  forall T,
+  jt_state s1 T ->
+  jt_state s2 T.
 Proof.
   (* Case analysis over all possible rules *)
   induction 1.
@@ -534,14 +540,14 @@ Qed.
 
 Definition is_mode_cont s :=
   match s with
-  | mode_cont _ _ _ => True
+  | mode_cont _ _ => True
   | _ => False
   end.
 
 Definition stack s :=
   match s with
   | mode_eval _ k _ => k
-  | mode_cont k _ _ => k
+  | mode_cont k _ => k
   end.
 
 Theorem Forall2_nth_error_Some_right {A B F l1 l2}:
@@ -555,12 +561,12 @@ Qed.
 
 (** Main progress lemma for continuation-based semantics. *)
 Theorem progress_cont s1:
-  forall Gamma T,
-    jt_state Gamma s1 T ->
+  forall T,
+    jt_state s1 T ->
     (exists s2, cred s1 s2) \/ (is_mode_cont s1 /\ stack s1 = nil).
 Proof.
   (* Precise case analysis. *)
-  induction s1 as [t kappa env|kappa env r]; [induction t|(induction kappa as [|k kappa]; [|induction k]); induction r].
+  induction s1 as [t kappa env|kappa r]; [induction t|(induction kappa as [|k kappa]; [|induction k]); induction r].
 
   
 
@@ -660,8 +666,9 @@ Proof.
   }
 Qed.
 
+(* -------------------------------------------------------------------------- *)
 
-(*** Determinism of the relation *)
+(*** Determinism of both reductions *)
 
 Theorem cred_deterministic:
   forall s1 s2, cred s1 s2 -> forall s2', cred s1 s2' -> s2 = s2'.
@@ -689,6 +696,31 @@ Proof.
   { repeat f_equal. eapply IHsred. eauto. }
 Qed.
 
+
+(* Each deterministic relation have te following lemma. *)
+Lemma star_path_determinism {A: Type} {R: A -> A -> Prop}:
+  (forall s1 s2, R s1 s2 -> forall s3, R s1 s3 -> s2 = s3)
+  ->
+  forall s1 s2,
+    star R s1 s2 ->
+    forall s3,
+    star R s1 s3 ->
+    (star R s2 s3 \/ star R s3 s2).
+Proof.
+  intros determinism.
+  induction 1; intros.
+  { eauto. }
+  { destruct H1.
+    { right. eapply star_step; eauto. }
+    { learn (determinism _ _ H _ H1); subst.
+      learn (IHstar _ H2); unzip; eauto.
+    }
+  }
+Qed.
+
+
+(* -------------------------------------------------------------------------- *)
+
 (** Simple translation of [if t then ta else tb] into [if (if t then false else true) then tb else ta] *)
 
 Module trans1.
@@ -713,14 +745,12 @@ with trans_value v :=
 Fixpoint trans_conts (kappa: list cont): list cont :=
   match kappa with
   | nil => nil
-  | CAppR t2 :: kappa => CAppR (trans_term t2) :: trans_conts kappa
+  | CAppR t2 sigma :: kappa => CAppR (trans_term t2) (List.map trans_value sigma) :: trans_conts kappa
   | CClosure t sigma :: kappa =>
     CClosure (trans_term t) (List.map trans_value sigma) :: trans_conts kappa
-  | CReturn sigma :: kappa =>
-    CReturn (List.map trans_value sigma) :: trans_conts kappa
-  | CIf t1 t2 :: kappa =>
-    CIf (Value (Bool false)) (Value (Bool true))::
-    CIf (trans_term t2) (trans_term t1) ::
+  | CIf t1 t2 sigma :: kappa =>
+    CIf (Value (Bool false)) (Value (Bool true)) (List.map trans_value sigma)::
+    CIf (trans_term t2) (trans_term t1) (List.map trans_value sigma)::
     trans_conts kappa
   end
 .
@@ -734,8 +764,8 @@ Definition trans_state (s: state) : state :=
   match s with
   | mode_eval e kappa env =>
     mode_eval (trans_term e) (trans_conts kappa) (List.map trans_value env)
-  | mode_cont kappa env r =>
-    mode_cont (trans_conts kappa) (List.map trans_value env) (trans_return r)
+  | mode_cont kappa r =>
+    mode_cont (trans_conts kappa) (trans_return r)
   end
 .
 
@@ -756,76 +786,16 @@ Qed.
 
 End trans1.
 
-Module trans2.
-Fixpoint trans_term t :=
-  match t with
-  | Var x => Var x
-  | App t1 t2 => App (trans_term t1) (trans_term t2)
-  | Lam t => Lam (trans_term t)
-  | Value v => Value (trans_value v)
-  | If (If u (Value (Bool false)) (Value (Bool true))) t1 t2 =>
-    If (trans_term u) (trans_term t2) (trans_term t1)
-  | If u t1 t2 =>
-    If (trans_term u) (trans_term t1) (trans_term t2)
-  end
-with trans_value v :=
-  match v with
-  | Closure t sigma =>
-    Closure (trans_term t) (List.map trans_value sigma)
-  | Bool b => Bool b
-  end
-.
 
-(* Where is the fuction eliminator that i want ? Do i need the same thing as below for trans_state ? I belive so. *)
+(* -------------------------------------------------------------------------- *)
 
-(* Generalized transformation for continuations *)
-Fixpoint trans_conts (kappa: list cont): list cont :=
-  match kappa with
-  | nil => nil
-  | CAppR t2 :: kappa => CAppR (trans_term t2) :: trans_conts kappa
-  | CClosure t sigma :: kappa =>
-    CClosure (trans_term t) (List.map trans_value sigma) :: trans_conts kappa
-  | CReturn sigma :: kappa =>
-    CReturn (List.map trans_value sigma) :: trans_conts kappa
-  | CIf (Value (Bool false)) (Value (Bool true)) :: CIf t1 t2 :: kappa =>
-    CIf (trans_term t1) (trans_term t2) :: trans_conts kappa
-  | CIf  t1 t2 :: kappa =>
-    CIf (trans_term t1) (trans_term t2) :: trans_conts kappa
-  end.
-
-(* Generalized transformation for results *)
-Definition trans_return (r: result): result :=
-  match r with
-  | RValue v => RValue (trans_value v)
-  end.
-
-(* Generalized transformation for states with the special If case *)
-Definition trans_state (s: state) : state :=
-  match s with
-  | mode_eval (If b (Value (Bool false)) (Value (Bool true))) (CIf t2 t1::kappa) env =>
-    mode_eval (trans_term b) (CIf (trans_term t1) (trans_term t2)::trans_conts kappa) (List.map trans_value env)
-  | mode_eval e kappa env =>
-    mode_eval (trans_term e) (trans_conts kappa) (List.map trans_value env)
-  | mode_cont kappa env r =>
-    mode_cont (trans_conts kappa) (List.map trans_value env) (trans_return r)
-    end.
-
-End trans2.
-
-(*
-
-Equations f (l : list nat) : list nat :=
-f []  := [];
-f (cons a (cons b l)) := cons (a+b) (f l);
-f (cons a l) := cons a (f l).
-
-*)
+(** More complex translation and inverse of the previous translation. [if (if t then false else true) then tb else ta] is translated into [if t then ta else tb] *)
 
 Module trans3.
 
 Definition with_stack s kappa :=
   match s with
-  | mode_cont _ sigma v => mode_cont kappa sigma v
+  | mode_cont _ v => mode_cont kappa v
   | mode_eval t _ sigma => mode_eval t kappa sigma
   end.
 
@@ -833,108 +803,40 @@ Definition append_stack s kappa :=
   with_stack s (stack s ++ kappa).
 Definition cons_stack s kappa :=
   with_stack s (kappa ++ stack s ).
-Definition rev_state (s: state): state :=
-  with_stack s (List.rev (stack s))
-. 
 
-Set Equations Transparent.
-
-(* we define trans_state to be rev_state \circ trans_state_aux \circ rev_state
-to permit more adapted pattern matching. *)
-
-(* Definition total_relation {A : Type} : A -> A -> Prop := fun x y => True.
-Axiom wf_total_init : forall {A}, WellFounded (@total_relation A).
-#[local]
-Remove Hints wf_total_init : typeclass_instances.
-
-#[local]
-Instance wf_total_init_compute : forall {A}, WellFounded (@total_relation A).
-  exact (fun A => Acc_intro_generator 10 wf_total_init).
-Defined. *)
-
-
-(* Inductive R_trans_term : term -> term -> Type :=
-	R_trans_term_0 : forall (t : term) (x : var),
-                     t = Var x -> R_trans_term (Var x) (Var x)
-  | R_trans_term_1 : forall t t1 t2 : term,
-                     t = App t1 t2 ->
-                     forall _res0 : term,
-                     R_trans_term t1 _res0 ->
-                     forall _res : term,
-                     R_trans_term t2 _res ->
-                     R_trans_term (App t1 t2) (App _res0 _res)
-  | R_trans_term_2 : forall (t : term) (t0 : {bind term}),
-                     t = Lam t0 ->
-                     forall _res : term,
-                     R_trans_term t0 _res -> R_trans_term (Lam t0) (Lam _res)
-  | R_trans_term_3 : forall (t : term) (v : value),
-                     t = Value v ->
-                     forall _res : value,
-                     R_trans_value v _res ->
-                     R_trans_term (Value v) (Value _res)
-  | R_trans_term_4 : forall t u t1 t2 : term,
-                     t =
-                     If (If u (Value (Bool false)) (Value (Bool true))) t1 t2 ->
-                     forall _res1 : term,
-                     R_trans_term u _res1 ->
-                     forall _res0 : term,
-                     R_trans_term t2 _res0 ->
-                     forall _res : term,
-                     R_trans_term t1 _res ->
-                     R_trans_term
-                       (If (If u (Value (Bool false)) (Value (Bool true))) t1
-                          t2) (If _res1 _res0 _res)
-  | R_trans_term_5 : forall t u t1 t2 : term,
-                     t = If u t1 t2 ->
-                     match If u t1 t2 with
-                     | If u0 _ _ =>
-                         match u0 with
-                         | If _ t4 t5 =>
-                             match t4 with
-                             | Value v =>
-                                 match v with
-                                 | Closure _ _ => True
-                                 | Bool b =>
-                                     if b
-                                     then True
-                                     else
-                                      match t5 with
-                                      | Value v0 =>
-                                          match v0 with
-                                          | Closure _ _ => True
-                                          | Bool b0 =>
-                                              if b0 then False else True
-                                          end
-                                      | _ => True
-                                      end
-                                 end
-                             | _ => True
-                             end
-                         | _ => True
-                         end
-                     | _ => False
-                     end ->
-                     forall _res1 : term,
-                     R_trans_term u _res1 ->
-                     forall _res0 : term,
-                     R_trans_term t1 _res0 ->
-                     forall _res : term,
-                     R_trans_term t2 _res ->
-                     R_trans_term (If u t1 t2) (If _res1 _res0 _res)
-  with R_trans_value : value -> value -> Type :=
-    R_trans_value_0 : forall (v : value) (t : {bind term})
-                        (sigma : list value),
-                      v = Closure t sigma ->
-                      forall _res : term,
-                      R_trans_term t _res ->
-                      forall _res_v : list value,
-                      List.Forall2 trans_value 
-                      R_trans_value (Closure t sigma)
-                        (Closure _res (List.map trans_value sigma))
-  | R_trans_value_1 : forall (v : value) (b : bool),
-                      v = Bool b -> R_trans_value (Bool b) (Bool b). *)
-
-
+Inductive cong_term: term -> term -> Prop :=
+  | cong_if_base {u t1 t2 u' t1' t2'}:
+    cong_term u u' ->
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    cong_term
+      (If (If u (Value (Bool false)) (Value (Bool true))) t1 t2)
+      (If u' t2' t1')
+  | cong_Var {x}:
+    cong_term (Var x) (Var x)
+  | cong_App { t1 t2 t1' t2' }:
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    cong_term (App t1 t2) (t1' t2')
+  | cong_Lam { t t' }:
+    cong_term t t' ->
+    cong_term (Lam t) (Lam t')
+  | cong_Value {v v'}:
+    cong_value v v' ->
+    cong_term (Value v) (Value v')
+  | cong_If {u t1 t2 u' t1' t2'}:
+    cong_term u u' ->
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    cong_term (If u t1 t2) (If u' t1' t2')
+with cong_value: value -> value -> Prop :=
+  | cong_Bool {b}:
+    cong_value (Bool b) (Bool b)
+  | cong_Closure {t sigma t' sigma'}:
+    cong_term t t' ->
+    List.Forall2 (cong_value) sigma sigma' ->
+    cong_value (Closure t sigma) (Closure t' sigma')
+.
 
 Function trans_term t :=
   match t with
@@ -960,104 +862,249 @@ Functional Scheme
 with
   trans_value_ind2 := Induction for trans_value Sort Prop.
 
-Search trans_term.
 
-Lemma inversion_trans_term_if {u t1 t2}:
-    trans_term (If u t1 t2) = match u with (If u (Value (Bool false)) (Value (Bool true))) => If (trans_term u) (trans_term t2) (trans_term t1)| _ =>
-    If (trans_term u) (trans_term t1) (trans_term t2)
-    end.
+(* Correspondance between trans_term and cong_term*)
+Theorem trans_cong_term:
+  forall t,
+  cong_term t (trans_term t).
 Proof.
-  induction u; eauto.
-Qed.
+  intros t.
+  eapply trans_term_ind2.
+  all: try solve [intros; econstructor; eauto].
+  { intros; econstructor; eauto.
+    admit "missing case from the induction principle generated by coq, but it is correct".
+  }
+Abort.
+
+(* Generalization of the equivalence between terms to an equivalence between states. *)
 
 
-Definition trans_return (r: result): result :=
-  match r with
-  | RValue v => RValue (trans_value v)
+(* In this definition, I choose to not separate the mode_eval and mode_cont when it was possible. I hence used the "append_stack" function. This might pose issues when applying the "econstructor" tactic. *)
+Inductive cong_state: state -> state -> Prop :=
+  (* Base cases *)
+  | cong_mode_eval {t sigma t' sigma'}:
+    cong_term t t' ->
+    List.Forall2 cong_value sigma sigma' ->
+    cong_state
+      (mode_eval t [] sigma)
+      (mode_eval t' [] sigma')
+  
+  | cong_mode_cont {v v' }:
+    cong_value v v' ->
+    cong_state
+      (mode_cont [] (RValue v))
+      (mode_cont [] (RValue v'))
+
+  (* Normal congruence cases *)
+  | cong_CAppR {s s' t t' sigma sigma'}:
+    cong_term t t' ->
+    cong_state s s' ->
+    List.Forall2 cong_value sigma sigma' ->
+    cong_state
+      (append_stack s [CAppR t sigma])
+      (append_stack s' [CAppR t' sigma'])
+  | cong_CClosure {s s' t t' sigma sigma'}:
+    cong_term t t' ->
+    cong_state s s' ->
+    List.Forall2 cong_value sigma sigma' ->
+    cong_state
+      (append_stack s [CClosure t sigma])
+      (append_stack s' [CClosure t' sigma'])
+  | cong_CIf {s s' t1 t1' t2 t2' sigma sigma'}:
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    cong_state s s' ->
+    List.Forall2 cong_value sigma sigma' ->
+    cong_state
+      (append_stack s [CIf t1 t2 sigma])
+      (append_stack s' [CIf t1' t2' sigma'])
+
+  (* Additional cases *)
+  | cong_if_stack {s s' t1 t1' t2 t2' sigma0 sigma sigma'} :
+    (* Nothing tells us that the environement is the same for both continuations. Hence, we separate them. *)
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    cong_state s s' ->
+    List.Forall2 cong_value sigma sigma' ->
+    cong_state
+      (append_stack s [CIf false true sigma0; CIf t1 t2 sigma])
+      (append_stack s' [CIf t2' t1' sigma'])
+
+  | cong_if_overlap {u u' t1 t1' t2 t2' sigma0 sigma0' sigma sigma'}:
+    (* Same comment as above *)
+    cong_term u u' ->
+    cong_term t1 t1' ->
+    cong_term t2 t2' ->
+    List.Forall2 cong_value sigma sigma' ->
+    List.Forall2 cong_value sigma0 sigma0' ->
+    cong_state
+      (mode_eval (If u false true) [CIf t1 t2 sigma] sigma0)
+      (mode_eval u' [CIf t2' t1' sigma'] sigma0')
+.
+
+Ltac2 sinv_cong () :=
+  match! goal with
+  | [ h: cong_term ?c _ |- _ ] => smart_inversion c h
+  | [ h: cong_value ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 _ _ ?c |- _ ] => smart_inversion c h
   end.
 
-Equations trans_cont_base (k: cont) : cont :=
-  trans_cont_base (CAppR t2) := CAppR (trans_term t2);
-  trans_cont_base (CClosure t sigma) := CClosure (trans_term t) (List.map trans_value sigma);
-  trans_cont_base (CReturn sigma) := CReturn (List.map trans_value sigma);
-  trans_cont_base (CIf t1 t2) := CIf (trans_term t1) (trans_term t2).
+Ltac sinv_cong := ltac2:(sinv_cong ()).
 
-Inductive trans_state' : state -> state -> Prop :=
-  (* Case 1: Handle two nested CIf control units *)
-  | trans_if_nested :
-      info "trans_if_nested" ->
-      forall t t1 t2 kappa sigma s',
-      trans_state' (mode_eval t kappa sigma) s' ->
-      trans_state' (mode_eval t (kappa ++ [CIf (Value (Bool false)) (Value (Bool true)); CIf t1 t2]) sigma)
-                   (append_stack s' [CIf (trans_term t2) (trans_term t1)])
 
-  (* Case 2: Handle If False True term with kappa ++ [CIf t2 t1] *)
-  | trans_if_false_true :
-      info "trans_if_false_true" ->
-      forall b t1 t2 sigma s',
-      trans_state' (mode_eval b [] sigma) s' ->
-      trans_state' (mode_eval (If b (Value (Bool false)) (Value (Bool true))) [CIf t1 t2] sigma)
-                   (mode_eval (trans_term b) [CIf (trans_term t2) (trans_term t1)] (List.map trans_value sigma))
-
-  (* Case 3: Handle mode_eval with non-empty continuation stack kappa ++ [k] *)
-  | trans_mode_eval_non_empty :
-      info "trans_mode_eval_non_empty" ->
-      forall t k kappa sigma s',
-      forall Hcond1:
-        (* mode_eval
-            (If b (Value (Bool false)) (Value (Bool true)))
-            [CIf t1 t2]
-            sigma
-        *)
-           match t with | If _ (Value (Bool false)) (Value (Bool true)) => False | _ => True end
-        \/ (match kappa with | [] => False | _ => True end)
-        \/ match k with | CIf _ _ => False | _ => True end,
-      forall Hcond2:
-          (* mode_eval
-              t 
-              (kappa ++ [CIf (Value (Bool false)) (Value (Bool true)); CIf t1 t2])
-              sigma
-          *)
-           match List.rev kappa with | CIf (Value (Bool false)) (Value (Bool true)) ::_ => False | _ => True end
-        \/ match k with | CIf _ _ => False | _ => True end,
-      trans_state' (mode_eval t kappa sigma) s' ->
-      trans_state' (mode_eval t (kappa ++ [k]) sigma)
-                   (append_stack s' [trans_cont_base k])
-
-  (* Case 4: Handle mode_eval with empty continuation stack kappa ++ [] *)
-  | trans_mode_eval_empty :
-      info "trans_mode_eval_empty" ->
-      forall t sigma,
-      trans_state' (mode_eval t [] sigma)
-                   (mode_eval (trans_term t) [] (List.map trans_value sigma))
-
-  (* Case 5: Handle two nested CIf statements in mode_cont with kappa ++ [CIf t2 t1] *)
-  | trans_mode_cont_if_nested :
-      info "trans_mode_cont_if_nested" ->
-      forall t1 t2 kappa sigma v s',
-      trans_state' (mode_cont kappa sigma v) s' ->
-      trans_state' (mode_cont (kappa ++ [CIf (Value (Bool false)) (Value (Bool true)); CIf t1 t2]) sigma v)
-                   (append_stack s' [CIf (trans_term t2) (trans_term t1)])
-
-  (* Case 6: Handle mode_cont with non-empty continuation stack kappa ++ [k] *)
-  | trans_mode_cont_non_empty :
-      info "trans_mode_cont_non_empty" ->
-      forall k kappa sigma v s',
-      forall Hcond1: match List.rev kappa with | CIf (Value (Bool false)) (Value (Bool true)) :: _ => False | _ => True end \/
-      match k with CIf _ _ => False | _ => True end,
-      trans_state' (mode_cont kappa sigma v) s' ->
-      trans_state' (mode_cont (kappa ++ [k]) sigma v)
-                   (append_stack s' [trans_cont_base k])
-
-  (* Case 7: Handle mode_cont with empty continuation stack kappa ++ [] *)
-  | trans_mode_cont_empty :
-      info "trans_mode_cont_empty" ->
-      forall sigma v,
-      trans_state' (mode_cont [] sigma v)
-                   (mode_cont [] (List.map trans_value sigma) (trans_return v))
+Lemma append_stack_mode_eval {s k t kappa sigma}:
+  append_stack s [k] = mode_eval t kappa sigma ->
+  exists kappa',
+  kappa = kappa' ++ [k] /\
+  s = mode_eval t kappa' sigma
   .
+Proof.
+  induction kappa using List.rev_ind.
+  { intros; exfalso. induction s; simpl in *; tryfalse.
+    injections; subst.
+    apply (f_equal (@Datatypes.length cont)) in H0; rewrite List.length_app in *; simpl in *.
+    lia.
+  }
+  { intros; induction s; simpl in *; tryfalse.
+    repeat injections; subst.
+    learn (List.app_inj_tail _ _ _ _ H0); unpack; subst.
+    repeat econstructor.
+  }
+Qed.
+
+Lemma append_stack_mode_cont {s k v kappa}:
+  append_stack s [k] = mode_cont kappa v ->
+  exists kappa',
+  kappa = kappa' ++ [k] /\
+  s = mode_cont kappa' v
+  .
+Proof.
+  induction kappa using List.rev_ind.
+  { intros; exfalso. induction s; simpl in *; tryfalse.
+    injections; subst.
+    apply (f_equal (@Datatypes.length cont)) in H0; rewrite List.length_app in *; simpl in *.
+    lia.
+  }
+  { intros; induction s; simpl in *; tryfalse.
+    repeat injections; subst.
+    learn (List.app_inj_tail _ _ _ _ H0); unpack; subst.
+    repeat econstructor.
+  }
+Qed.
+
+Lemma append_stack_app {s kappa1 kappa2}:
+  stack s = kappa1 ++ kappa2 ->
+  s = append_stack (with_stack s kappa1) kappa2.
+Proof.
+  induction s; intros; simpl in *; subst; reflexivity.
+Qed.
+
+Lemma append_stack_all {s}:
+  s = append_stack (with_stack s []) (stack s).
+Proof.
+  induction s; intros; simpl in *; subst; reflexivity.
+Qed.
+
+Theorem correction_traditional:
+  forall s1 s1',
+    cong_state s1 s1' ->
+    forall s2,
+      cred s1 s2 ->  
+      exists s2',
+        cong_state s2 s2' /\ star cred s1' s2'.
+Proof.
+  induction 1; inversion 1; subst; try sinv_cong.
+  all: repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
+  { learn (Forall2_nth_error_Some_left _ _ _ H0 _ _ H7); unpack.
+    eapply star_step_prop; [econstructor; eauto|].
+    eapply star_refl_prop; econstructor.
+    eapply Forall2_nth_error_Some; eauto.
+  }
+  { eapply star_refl_prop.
+    match goal with [|- cong_state ?s1 ?s2] =>
+      rewrite (@append_stack_all s1);
+      rewrite (@append_stack_all s2);
+      simpl with_stack; simpl stack
+    end.
+    repeat (econstructor; eauto).
+  }
+  { eapply star_refl_prop.
+    match goal with [|- cong_state ?s1 ?s2] =>
+      rewrite (@append_stack_all s1);
+      rewrite (@append_stack_all s2);
+      simpl with_stack; simpl stack
+    end.
+    repeat (econstructor; eauto).
+  }
+  { eapply star_refl_prop.
+    match goal with [|- cong_state ?s1 ?s2] =>
+      rewrite (@append_stack_all s1);
+      rewrite (@append_stack_all s2);
+      simpl with_stack; simpl stack
+    end.
+    repeat (econstructor; eauto).
+  }
+  { eapply star_refl_prop.
+    repeat (econstructor; eauto).
+  }
+  { eapply star_refl_prop.
+    match goal with [|- cong_state ?s1 ?s2] =>
+      rewrite (@append_stack_all s1);
+      rewrite (@append_stack_all s2);
+      simpl with_stack; simpl stack
+    end.
+    repeat (econstructor; eauto).
+  }
+  { learn (append_stack_mode_eval (eq_sym H3)); unpack; subst.
+    eapply star_refl_prop.
+    match goal with [|- cong_state ?s1 ?s2] =>
+      try (erewrite (@append_stack_app s1); [|solve[simpl; eauto]]);
+      try (erewrite (@append_stack_app s2); [|solve[simpl; eauto]]);
+      simpl with_stack; simpl stack
+    end.
+    repeat (econstructor; eauto).
+    admit "use H0 to derive information about s'. For exmeple, the term is the same. and since H1.".
+  }
+  { eapply star_refl_prop.
+    match goal with [|- cong_state ?s1 ?s2] =>
+      rewrite (@append_stack_all s1);
+      rewrite (@append_stack_all s2);
+      simpl with_stack; simpl stack
+    end.
+    repeat (econstructor; eauto).
+    admit.
+  }
+Abort.
 
 
+(* Same theorem, but we first do the induction on cred. *)
+
+(** Second tentative: doing an induction on cred *)
+Theorem correction_traditional:
+  forall s1 s2,
+    cred s1 s2 ->  
+    forall s1',
+      cong_state s1 s1' ->
+      exists s2',
+        cong_state s2 s2' /\ star cred s1' s2'.
+Abort.
+
+
+
+(****************************************************************)
+(* Third tentative *)
+
+
+
+(* We first define tactics specialized to handle statements in the form of _ ++ _ = _ ++ _ *)
+
+Lemma stack_append_stack {s kappa}:
+  stack (append_stack s kappa) = stack s ++ kappa.
+Proof.
+  induction s; simpl; eauto.
+Qed.
 
 Ltac list_simpl_base h := 
   learn (f_equal (@List.rev _) h);
@@ -1101,18 +1148,31 @@ Proof.
 Qed.
 
 
-
-Lemma trans_state_deterministic:
-  forall s s1,
-    trans_state' s s1 ->
-    forall s2,
-    trans_state' s s2 ->
-    s1 = s2.
+(* This lemma is not true for the cong_state relation, as expected *)
+Lemma cong_term_deterministic:
+  forall t t1,
+    cong_term t t1 ->
+    forall t2,
+    cong_term t t2 ->
+    t1 = t2.
 Proof.
   induction 1; inversion 1; subst.
-  all: repeat list_simpl; repeat cleanup.
-  all: try solve [eapply f_equal2; eauto | tryfalse ].
-  all: try solve [rewrite List.rev_app_distr in *; simpl in *; tryfalse].
+  all: repeat f_equal; eauto.
+Abort.
+
+
+Lemma cong_term_non_deterministic:
+  exists t t1,
+    cong_term t t1 /\
+    exists t2,
+    cong_term t t2 /\
+    t1 <> t2.
+Proof.
+  exists (If (If true false true) true false).
+  repeat eexists.
+  { eapply cong_if_base; repeat econstructor. }
+  { eapply cong_If; repeat econstructor. }
+  { intros; congruence. }
 Qed.
 
 Theorem cred_append_stack s s':
@@ -1135,18 +1195,6 @@ Proof.
   * eapply star_step; eauto using cred_append_stack.
 Qed.
 
-
-Lemma append_left_and_right {s1 s2 kappa}:
-  (exists tgt, star cred s1 tgt /\ star cred s2 tgt) ->
-  (exists tgt,
-    star cred (append_stack s1 kappa) tgt
-    /\ star cred (append_stack s2 kappa) tgt
-  ).
-Proof.
-  intros; unpack.
-  eexists; split; eapply star_cred_append_stack; eauto.
-Qed.
-
 Ltac decompose h :=
   let kappa := fresh "kappa" in
   first
@@ -1158,297 +1206,1362 @@ Ltac decompose h :=
     repeat cleanup
 .
 
-Lemma stack_app_append_stack_eval {t kappa1 kappa2 sigma}:
-  mode_eval t (kappa1 ++ kappa2) sigma = append_stack (mode_eval t kappa1 sigma) kappa2.
-Proof.
-  simpl; eauto.
-Qed.
 
-Lemma stack_all_append_stack_eval {t kappa sigma}:
-  mode_eval t (kappa) sigma = append_stack (mode_eval t [] sigma) kappa.
-Proof.
-  simpl; eauto.
-Qed.
+(* 
+  We prove the lemma using a well-formed induction on the length of the stack.  However, this statement is not directly usable in Coq because we lack certain hypotheses when applying (such as the stack length and its proof of being less than n). To address this, we reorganize the induction hypothesis so that these requirements are introduced properly.
 
+  Usage:
+    Once you have an instance [H] of [cong_state s1 s1'], use the following tactic to apply the induction hypothesis.
 
-Lemma stack_app_append_stack_cont {kappa1 kappa2 sigma r}:
-  mode_cont (kappa1 ++ kappa2) sigma r = append_stack (mode_cont kappa1 sigma r) kappa2.
-Proof.
-  simpl; eauto.
-Qed.
+      exploit (IHkappa _ _ H);
+        [ solve [econstructor; eauto]   (* solves [cred s1 s2] *)
+        | solve [simpl; repeat (rewrite List.length_app; simpl); lia] 
+          (* handles the proof that the stack length is smaller than n *)
+        | intros; unpack ].   (* introduces and unpacks the new hypotheses *)
 
-Lemma stack_all_append_stack_cont {kappa sigma r}:
-  mode_cont (kappa) sigma r = append_stack (mode_cont [] sigma r) kappa.
-Proof.
-  simpl; eauto.
-Qed.
-
-Theorem correction_continuations s1:
-  forall Gamma T,
-  jt_state Gamma s1 T ->
-  forall s1',
-  trans_state' s1 s1' ->
-  exists s3 s3',
-    star cred s1 s3 /\ star cred s1' s3' /\ (jt_state Gamma s3 T /\ exists sigma r, s3 = mode_cont [] sigma r /\ s3' = mode_cont [] (List.map trans_value sigma) (trans_return r)).
-Proof.
-Ltac step := 
-    (* steping using the premade confluence lemma. This could be factorized, but we left it in this format is it is more easy to understand. *)
-    repeat (eapply confluent_prop_star_step_left;   [solve [econstructor; eauto]|]);
-    repeat (eapply confluent_prop_star_step_right;  [solve [econstructor; eauto]|]);
-    repeat (eapply confluent_prop_star_trans_right; [solve [first [rewrite stack_all_append_stack_eval| rewrite stack_all_append_stack_cont]; eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_prop_star_trans_left;  [solve [first [rewrite stack_all_append_stack_eval| rewrite stack_all_append_stack_cont]; eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_prop_star_trans_right; [solve [first [rewrite stack_app_append_stack_eval| rewrite stack_app_append_stack_cont]; eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_prop_star_trans_left;  [solve [first [rewrite stack_app_append_stack_eval| rewrite stack_app_append_stack_cont]; eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_prop_star_trans_right; [solve [eapply star_cred_append_stack; eauto]|]);
-    repeat (eapply confluent_prop_star_trans_left;  [solve [eapply star_cred_append_stack; eauto]|])
+  
+*)
+Lemma modify_WF_IH {P n}:
+  (forall y : list cont,
+  Datatypes.length y < n ->
+  forall s1 : state,
+    stack s1 = y ->
+    forall s2 : state,
+      cred s1 s2 ->
+      forall s1' : state,
+        cong_state s1 s1' ->
+        P s1 s2 s1')
+  ->
+  forall s1 s1',
+    cong_state s1 s1' ->
+    forall s2,
+      cred s1 s2 ->
+      List.length (stack s1) < n ->
+      P s1 s2 s1'
   .
+Proof.
+  intros X ? ? ? ? ? ?; eapply X; eauto.
+Qed.
 
-  induction s1 as [s1 IHs1] using (
+(* This time, we do the well-founded induction based on kappa. *)
+
+(* The diagram does not work, but we can find why: the diagram is incorrect. I first try to automatize the proof.*)
+Theorem correction_traditional:
+  forall kappa,
+  forall s1,
+    stack s1 = kappa ->
+    forall s2,
+      cred s1 s2 ->  
+      forall s1',
+        cong_state s1 s1' ->
+        exists s2',
+          cong_state s2 s2' /\ star cred s1' s2'.
+Proof.
+  induction kappa as [kappa IHkappa] using (
     well_founded_induction
-      (wf_inverse_image _ nat _ (fun s => List.length (stack s)) 
+      (wf_inverse_image _ nat _ (@List.length cont) 
       PeanoNat.Nat.lt_wf_0)).
+  rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
+  intros until s2; induction 1.
 
-  intros until s1'.
+  (* 43 cases. But two cases are not working because the diagram is incorrect with this precise invariant.
 
-  induction 1.
-  { check "trans_if_nested".
-    repeat inv_jt.
-    exploit IHs1; [| |solve[eapply H1]|];[solve[simpl; try rewrite List.app_length; simpl; lia]|solve[repeat (econstructor; eauto)]|]; intros; unzip.
-    subst; repeat inv_jt.
-    induction b; repeat step.
+  The cases are those related to if-then-else when the argument is true (resp. false).
 
-    { apply IHs1.
-      { simpl; try rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { econstructor; eauto. }
-    }
-    { apply IHs1.
-      { simpl; try rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { econstructor; eauto. }
-    }
-  }
-  { check "trans_if_false_true".
-    repeat inv_jt.
-    exploit IHs1; [| |solve[eapply H1]|];[solve[simpl; try rewrite List.app_length; simpl; lia]|solve[repeat (econstructor; eauto)]|]; intros; unzip.
-    inversion H1; subst; list_simpl.
-    repeat inv_jt.
-    repeat step.
-    induction b0; repeat step.
-    { apply IHs1.
-      { simpl; try rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { econstructor; eauto. }
-    }
-    { apply IHs1.
-      { simpl; try rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { econstructor; eauto. }
-    }
-  }
-  { repeat inv_jt.
-    exploit IHs1; [| |solve[eapply H1]|];[solve[simpl; try rewrite List.app_length; simpl; lia]|solve[repeat (econstructor; eauto)]|]; intros; unpack.
-    subst; repeat inv_jt; repeat step.
-    induction k; simpl; repeat inv_jt.
-    all: simpl; repeat inv_jt; step.
-    { exploit (IHs1 (mode_eval t2 [] sigma0)).
-      { simpl; rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { repeat econstructor. }
-      intros; unpack; subst.
-      repeat step; simpl; repeat inv_jt.
-      induction r; repeat step; repeat inv_jt.
+  Namely, we cannot show [cred s1 s2 -> cong_state s1 s1' -> exists s2', cong_state s2 s2' /\ star cred s1' s2'] when [s2] is [mode_eval false [CIf t1 t1' sigma1] sigma1'] and [s1'] is [mode_cont [CIf t2 t1' sigma'] true].
 
-      exploit (IHs1 (mode_eval tcl [] (v :: sigma_cl))).
-      { simpl; rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { econstructor; eauto. }
-      
-      intros; unpack; subst; induction r; repeat inv_jt; repeat step.
-
-      eapply confluent_prop_star_refl; repeat eexists.
-      { repeat (econstructor; eauto). }
-    }
-    { induction r; repeat step; repeat inv_jt.
-
-      exploit (IHs1 (mode_eval t_cl [] (v :: sigma_cl))).
-      { simpl; rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { econstructor; eauto. }
-      intros; unpack; subst.
-      induction r; repeat inv_jt; repeat step.
-
-      eapply confluent_prop_star_refl; repeat eexists.
-      { repeat (econstructor; eauto). }
-    }
-    { induction r; repeat step; repeat inv_jt.
-
-      eapply confluent_prop_star_refl; repeat eexists.
-      { repeat (econstructor; eauto). }
-    }
-    { induction b; repeat step.
-      { exploit (IHs1 (mode_eval t1 [] sigma0)).
-        { simpl; rewrite List.app_length; simpl; lia. }
-        { repeat (econstructor; eauto). }
-        { econstructor; eauto. }
-        intros; unpack; subst.
-        induction r; repeat inv_jt; repeat step.
-
-        eapply confluent_prop_star_refl; repeat eexists.
-        { repeat (econstructor; eauto). }
+  *)
+  { inversion 1; subst; repeat sinv_cong.
+    { inversion H2; subst.
+      { learn (Forall2_nth_error_Some_left _ _ _ H7 _ _ H1); unpack.
+        learn (Forall2_nth_error_Some H7 _ _ _ H1 H).
+        eapply star_step_prop. { econstructor; eauto. }
+        eapply star_refl_prop.
+        econstructor; eauto.
       }
-
-      { exploit (IHs1 (mode_eval t2 [] sigma0)).
-        { simpl; rewrite List.app_length; simpl; lia. }
-        { repeat (econstructor; eauto). }
-        { econstructor; eauto. }
-        intros; unpack; subst.
-        induction r; repeat inv_jt; repeat step.
-
-        eapply confluent_prop_star_refl; repeat eexists.
-        { repeat (econstructor; eauto). }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H7).
+        induction s; simpl in *; list_simpl.
       }
-    }
-  }
-  { clear IHs1. (* IHs1 is unusable since the stack size of the right hand size is null. *)
-    revert T Gamma sigma H.
-    functional induction (trans_term t).
-    all: repeat (intros; simpl; inv_jt; step).
-    { learn (Forall2_nth_error_Some_right HT1 (eq_sym H2)); unzip.
-      learn (Forall2_nth_error_Some HT1 _ _ _ H (eq_sym H2)).
-      learn (List.map_nth_error trans_value _ _ H).
-      repeat step.
-
-      eapply confluent_prop_star_refl; repeat eexists.
-      { repeat (econstructor; eauto). }
-    }
-    { intros; simpl; repeat inv_jt; step.
-      exploit IHt0; [repeat (econstructor; eauto)|].
-      intros; unzip; subst; repeat inv_jt.
-      repeat (step; simpl).
-
-      exploit IHt1. { econstructor. 2: eauto. 1: eauto. econstructor. }
-      intros; unzip; subst; repeat inv_jt.
-      induction r; repeat inv_jt.
-      repeat (step; simpl).
-      admit "hum! i don't have the hypothesis here".
-    }
-    { eapply confluent_prop_star_refl; repeat eexists.
-      { repeat (econstructor; eauto). }
-    }
-    { eapply confluent_prop_star_refl; repeat eexists.
-      { repeat (econstructor; eauto). }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H7).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H9).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H9).
+        induction s; simpl in *; list_simpl.
+      }
     }
     {
-      intros; repeat inv_jt.
-      exploit IHt0; [repeat (econstructor; eauto)|]; intros; unzip; subst.
-      repeat inv_jt; repeat step; simpl.
-
-      induction b; repeat step; simpl.
-      { eapply IHt1. { repeat (econstructor; eauto). } }
-      { eapply IHt2. { repeat (econstructor; eauto). } }
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      eapply star_refl_prop.
+      
+      econstructor; eauto.
     }
-    { intros; repeat inv_jt.
-      exploit IHt0; [repeat (econstructor; eauto) |]; intros; unzip; subst.
-      repeat inv_jt; repeat step; simpl.
-      induction b; repeat step; simpl.
-      { eapply IHt1. { repeat (econstructor; eauto). } }
-      { eapply IHt2. { repeat (econstructor; eauto). } }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
     }
   }
-  { repeat inv_jt.
-    exploit (IHs1 (mode_cont kappa sigma v)).
-    { simpl; rewrite List.app_length; simpl; lia. }
-    { repeat (econstructor; eauto). }
-    { eassumption. }
-    intros; unpack; subst; repeat inv_jt; repeat step.
-    induction b; repeat inv_jt; repeat step.
-    { eapply IHs1.
-      { simpl; rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { econstructor; eauto. }
-    }
-    { eapply IHs1.
-      { simpl; rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { econstructor; eauto. }
-    }
-  }
-  { repeat inv_jt.
-    exploit (IHs1 (mode_cont kappa sigma v)).
-    { simpl; rewrite List.app_length; simpl; lia. }
-    { repeat (econstructor; eauto). }
-    { eassumption. }
-
-    intros; unpack; subst; repeat inv_jt; repeat step.
-    induction k; repeat inv_jt; simpl; repeat step.
-    { exploit (IHs1 (mode_eval t2 [] sigma0)).
-      { simpl; rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { econstructor; eauto. }
-      intros; unpack; subst; repeat inv_jt; repeat (step; simpl).
-      induction r; repeat inv_jt; repeat step.
-
-      exploit (IHs1 (mode_eval tcl [] (v0:: sigma_cl))).
-      { simpl; rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { econstructor; eauto. }
-      intros; unpack; subst; repeat inv_jt; repeat (step; simpl).
-
-      eapply confluent_prop_star_refl; repeat econstructor; eauto.
-    }
-    { induction r; repeat inv_jt; repeat step.
-      exploit (IHs1 (mode_eval t_cl [] (v0:: sigma_cl))).
-      { simpl; rewrite List.app_length; simpl; lia. }
-      { repeat (econstructor; eauto). }
-      { econstructor; eauto. }
-      intros; unpack; subst; repeat inv_jt; repeat (step; simpl).
-
-      eapply confluent_prop_star_refl; repeat econstructor; eauto.
-    }
-    { eapply confluent_prop_star_refl; repeat econstructor; eauto.
-    }
-    { induction b; repeat inv_jt; repeat step.
-      { exploit (IHs1 (mode_eval t1 [] sigma0)).
-        { simpl; rewrite List.app_length; simpl; lia. }
-        { repeat (econstructor; eauto). }
-        { econstructor; eauto. }
-        intros; unpack; subst; repeat inv_jt; repeat (step; simpl).
-
-        eapply confluent_prop_star_refl; repeat econstructor; eauto.
+  { inversion 1; subst; repeat sinv_cong.
+    { inversion H1; subst.
+      {
+        eapply star_step_prop. { econstructor; eauto. }
+        eapply star_refl_prop.
+        (* This requires prices rewriting *)
+        match goal with [|- cong_state ?s1 ?s2] =>
+          rewrite (@append_stack_all s1);
+          rewrite (@append_stack_all s2);
+          simpl with_stack; simpl stack
+        end.
+        repeat (econstructor; eauto).
       }
-      { exploit (IHs1 (mode_eval t2 [] sigma0)).
-        { simpl; rewrite List.app_length; simpl; lia. }
-        { repeat (econstructor; eauto). }
-        { econstructor; eauto. }
-        intros; unpack; subst; repeat inv_jt; repeat (step; simpl).
-
-        eapply confluent_prop_star_refl; repeat econstructor; eauto.
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H9).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H9).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H10).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H10).
+        induction s; simpl in *; list_simpl.
       }
     }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
   }
-  { eapply confluent_prop_star_refl; repeat (econstructor; eauto). }
-Admitted.
+  { inversion 1; subst; repeat sinv_cong.
+    { inversion H1; subst.
+      {
+        eapply star_step_prop. { econstructor; eauto. }
+        eapply star_refl_prop.
+        repeat (econstructor; eauto).
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H8).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H8).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H9).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H9).
+        induction s; simpl in *; list_simpl.
+      }
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+  }
+  { inversion 1; subst; repeat sinv_cong.
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      { inversion H4; subst.
+        { cleanup. simpl.
+          inversion H2; subst.
+          repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
+          eapply star_refl_prop.
+          match goal with [|- cong_state ?s1 ?s2] =>
+            rewrite (@append_stack_all s1);
+            rewrite (@append_stack_all s2);
+            simpl with_stack; simpl stack
+          end.
+          repeat (econstructor; eauto).
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H11).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H11).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H12).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H12).
+          induction s; simpl in *; list_simpl.
+        }
+      }
+      {
+        exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+        eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+        eapply star_refl_prop.
+
+        repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+        econstructor; eauto.
+      }
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      list_simpl.
+      decompose H.
+      decompose H13.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      simpl.
+      repeat rewrite List.app_comm_cons.
+      rewrite <- List.app_assoc.
+      simpl.
+      simpl.
+      rewrite List.app_comm_cons.
+      erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+  }
+  { inversion 1; subst; repeat sinv_cong.
+    { eapply star_step_prop. { econstructor; eauto. }
+      eapply star_refl_prop.
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+  }
+  { inversion 1; subst; repeat sinv_cong.
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      { inversion H4; subst; simpl.
+        { repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
+          eapply star_refl_prop.
+          repeat (econstructor; eauto).
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H11).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H11).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H12).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H12).
+          induction s; simpl in *; list_simpl.
+        }
+      }
+      {
+        exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+        eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+        eapply star_refl_prop.
+        repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+        econstructor; eauto.
+      }
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    {
+      induction s; simpl in *; injections; tryfalse; subst.
+      list_simpl.
+      decompose H.
+      decompose H8.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]]; simpl; repeat rewrite List.rev_involutive.
+
+      rewrite <- List.app_assoc; simpl.
+      erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+  }
+  { inversion 1; subst; repeat sinv_cong.
+    { (* "Interresting" case *)
+      eapply star_step_prop; [solve[econstructor; eauto]|].
+      eapply star_refl_prop.
+      repeat (econstructor; eauto).
+    }
+    { eapply star_step_prop; [solve[econstructor; eauto]|].
+      eapply star_refl_prop.
+      match goal with [|- cong_state ?s1 ?s2] =>
+        rewrite (@append_stack_all s1);
+        rewrite (@append_stack_all s2);
+        simpl with_stack; simpl stack
+      end.
+      repeat (econstructor; eauto).
+    }
+    { induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    { induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    { induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    { induction s; simpl in *; injections; tryfalse; subst.
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    { eapply star_refl_prop.
+      match goal with [|- cong_state ?s1 ?s2] =>
+        rewrite (@append_stack_all s1);
+        rewrite (@append_stack_all s2);
+        simpl with_stack; simpl stack
+      end.
+      repeat (econstructor; eauto).
+    }
+  }
+  { inversion 1; subst; repeat sinv_cong.
+    { induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    { induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    { induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      { inversion H5; subst; repeat sinv_cong.
+        { (eapply star_step_prop; [solve[econstructor; eauto]|]).
+          eapply star_refl_prop.
+          repeat (econstructor; eauto).
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H12).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H12).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H13).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H13).
+          induction s; simpl in *; list_simpl.
+        }
+      }
+      { exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+        eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+        eapply star_refl_prop.
+        repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+        econstructor; eauto.
+      }
+    }
+    { induction s; simpl in *; injections; tryfalse; subst.
+      list_simpl.
+      decompose H.
+      decompose H10.
+      { inversion H5; subst; repeat sinv_cong.
+        { simpl.
+
+          admit "The diagram is not working because of this reason". }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H10).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H10).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H13).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H13).
+          induction s; simpl in *; list_simpl.
+        }
+      }
+      {
+        exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+        eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+        eapply star_refl_prop.
+        repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+        simpl.
+        rewrite List.rev_involutive.
+        rewrite <- List.app_assoc.
+        simpl.
+        erewrite append_stack_app; [|solve[reflexivity]].
+        econstructor; eauto.
+      }
+    }
+  }
+  { inversion 1; subst; repeat sinv_cong.
+    { induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    { induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+      eapply star_refl_prop.
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      econstructor; eauto.
+    }
+    { induction s; simpl in *; injections; tryfalse; subst.
+      decompose H2.
+      { inversion H5; subst; repeat sinv_cong.
+        { (eapply star_step_prop; [solve[econstructor; eauto]|]).
+          eapply star_refl_prop.
+          repeat (econstructor; eauto).
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H12).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H12).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H13).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H13).
+          induction s; simpl in *; list_simpl.
+        }
+      }
+      {
+        exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+        eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+        eapply star_refl_prop.
+        repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+        econstructor; eauto.
+      }
+    }
+    { induction s; simpl in *; injections; tryfalse; subst.
+      list_simpl; decompose H.
+      decompose H10.
+      { (* intersting case *)
+        inversion H5; subst; repeat sinv_cong.
+        { simpl.
+          (* The diagram is not working for this case. *)
+          (eapply star_step_prop; [solve[econstructor; eauto]|]).
+          admit "not working here.".
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H10).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H10).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H13).
+          induction s; simpl in *; list_simpl.
+        }
+        { learn (f_equal stack H).
+          learn (f_equal (@List.length _) H13).
+          induction s; simpl in *; list_simpl.
+        }
+      }
+      {
+        exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+        eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
+        eapply star_refl_prop.
+        repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+        simpl.
+        rewrite List.rev_involutive.
+        rewrite <- List.app_assoc.
+        simpl.
+        erewrite append_stack_app; [|solve[reflexivity]].
+        repeat (econstructor; eauto).
+      }
+    }
+  }
+Abort.
 
 
-Theorem correction_traditional:
-  forall s1 s2,
-  sred s1 s2 ->
+(* Because the above diagram does not work, we prove a slight variation of this diagram : *)
 
-  star sred
-    (trans_term s1) (trans_term s2).
-Proof.
-  Local Ltac step' := (
-    try (eapply star_step; [solve
-      [ repeat econstructor; simpl; eauto using List.map_nth_error
-    ]|]))
+Theorem correction_diagram:
+  forall s1 s1' s2,
+    cong_state s1 s1' ->
+    cred s1 s2 ->
+    exists s3 s3',
+      star cred s2 s3 /\
+      star cred s1' s3' /\
+      cong_state s3 s3'
+.
+Abort.
+
+(* We first reorganise the diagram to be able to do the induction on the stack. *)
+
+Theorem correction_diagram_aux:
+  forall kappa,
+  forall s1,
+    stack s1 = kappa ->
+    forall s2,
+      cred s1 s2 ->
+      forall s1',
+        cong_state s1 s1' ->
+      exists s3 s3',
+        star cred s2 s3 /\
+        star cred s1' s3' /\
+        cong_state s3 s3'
+.
+
+Ltac mytryfalse :=
+  tryfalse;
+  try solve [repeat match goal with 
+  | [h: @eq state _ _ |- _ ] => learn (f_equal stack h)
+  | [h: @eq (list _) _ _ |- _ ] => learn (f_equal (@List.length _) h)
+  | [h: context[append_stack ?s _] |- _] => learn (eq_refl s); destruct s
+  end; simpl in *; repeat list_simpl]
   .
-  induction 1; simpl; repeat step'; try eapply star_refl.
-  { admit "subst lemma". }
-  { eapply star_sred_app_right. eauto. }
-  { eapply star_sred_app_left. eauto. }
-  { admit "Here we don't have the induction hypothesis on a subterm of u1. Hence we cannot continue".
+
+induction kappa as [kappa IHkappa] using (
+  well_founded_induction
+    (wf_inverse_image _ nat _ (@List.length cont) 
+    PeanoNat.Nat.lt_wf_0)).
+rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
+intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
+  { inversion H2; subst; mytryfalse.
+    learn (Forall2_nth_error_Some_left _ _ _ H7 _ _ H1); unpack.
+    learn (Forall2_nth_error_Some H7 _ _ _ H1 H).
+    eapply confluent_prop_star_step_right. { econstructor; eauto. }
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
   }
-Admitted.
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  { inversion H1; subst.
+    {
+      eapply confluent_prop_star_step_right. { econstructor; eauto. }
+      eapply confluent_prop_star_refl.
+      (* This requires prices rewriting *)
+      match goal with [|- cong_state ?s1 ?s2] =>
+        rewrite (@append_stack_all s1);
+        rewrite (@append_stack_all s2);
+        simpl with_stack; simpl stack
+      end.
+      repeat (econstructor; eauto).
+    }
+    { learn (f_equal stack H).
+      learn (f_equal (@List.length _) H9).
+      induction s; simpl in *; list_simpl.
+    }
+    { learn (f_equal stack H).
+      learn (f_equal (@List.length _) H9).
+      induction s; simpl in *; list_simpl.
+    }
+    { learn (f_equal stack H).
+      learn (f_equal (@List.length _) H10).
+      induction s; simpl in *; list_simpl.
+    }
+    { learn (f_equal stack H).
+      learn (f_equal (@List.length _) H10).
+      induction s; simpl in *; list_simpl.
+    }
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+
+    
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+
+    
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+
+    econstructor; eauto.
+  }
+  { inversion H1; subst.
+    {
+      eapply confluent_prop_star_step_right. { econstructor; eauto. }
+      eapply confluent_prop_star_refl.
+      repeat (econstructor; eauto).
+    }
+    { learn (f_equal stack H).
+      learn (f_equal (@List.length _) H8).
+      induction s; simpl in *; list_simpl.
+    }
+    { learn (f_equal stack H).
+      learn (f_equal (@List.length _) H8).
+      induction s; simpl in *; list_simpl.
+    }
+    { learn (f_equal stack H).
+      learn (f_equal (@List.length _) H9).
+      induction s; simpl in *; list_simpl.
+    }
+    { learn (f_equal stack H).
+      learn (f_equal (@List.length _) H9).
+      induction s; simpl in *; list_simpl.
+    }
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    { inversion H4; subst.
+      { simpl.
+        inversion H2; subst.
+        repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+        eapply confluent_prop_star_refl.
+        match goal with [|- cong_state ?s1 ?s2] =>
+          rewrite (@append_stack_all s1);
+          rewrite (@append_stack_all s2);
+          simpl with_stack; simpl stack
+        end.
+        repeat (econstructor; eauto).
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H11).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H11).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H12).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H12).
+        induction s; simpl in *; list_simpl.
+      }
+    }
+    {
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_refl.
+      econstructor; eauto.
+    }
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    list_simpl.
+    decompose H.
+    decompose H13.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+
+    (* Nontrivial list manipulation to get the Cif outside *)
+    simpl List.rev.
+    repeat rewrite List.app_comm_cons.
+    rewrite <- List.app_assoc.
+    simpl List.app.
+    rewrite List.app_comm_cons.
+    erewrite append_stack_app; [|solve[reflexivity]].
+    
+
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+
+  }
+  { eapply confluent_prop_star_step_right. { econstructor; eauto. }
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    { inversion H4; subst; simpl.
+      { repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+        eapply confluent_prop_star_refl.
+        repeat (econstructor; eauto).
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H11).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H11).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H12).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H12).
+        induction s; simpl in *; list_simpl.
+      }
+    }
+    {
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_refl.
+      econstructor; eauto.
+    }
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  {
+    induction s; simpl in *; injections; tryfalse; subst.
+    list_simpl.
+    decompose H.
+    decompose H8.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+
+    (* Nontrivial list manipulation to get the Cif outside *)
+    simpl List.rev.
+    repeat rewrite List.app_comm_cons.
+    rewrite <- List.app_assoc.
+    simpl List.app.
+    simpl.
+    erewrite append_stack_app; [|solve[reflexivity]].
+
+    
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  { (* "Interresting" case *)
+    eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|].
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+  }
+  { eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|].
+    eapply confluent_prop_star_refl.
+    match goal with [|- cong_state ?s1 ?s2] =>
+      rewrite (@append_stack_all s1);
+      rewrite (@append_stack_all s2);
+      simpl with_stack; simpl stack
+    end.
+    repeat (econstructor; eauto).
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  { eapply confluent_prop_star_refl.
+    match goal with [|- cong_state ?s1 ?s2] =>
+      rewrite (@append_stack_all s1);
+      rewrite (@append_stack_all s2);
+      simpl with_stack; simpl stack
+    end.
+    repeat (econstructor; eauto).
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    { inversion H5; subst; repeat sinv_cong.
+      { (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+        eapply confluent_prop_star_refl.
+        repeat (econstructor; eauto).
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H12).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H12).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H13).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H13).
+        induction s; simpl in *; list_simpl.
+      }
+    }
+    { exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_refl.
+      econstructor; eauto.
+    }
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    list_simpl.
+    decompose H.
+    decompose H10.
+    { inversion H5; subst; repeat sinv_cong.
+      { simpl.
+        repeat (eapply confluent_prop_star_step_left; [solve[econstructor; eauto]|]).
+        repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+        eapply confluent_prop_star_refl.
+        econstructor; eauto.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H10).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H10).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H13).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H13).
+        induction s; simpl in *; list_simpl.
+      }
+    }
+    {
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      
+      (* Nontrivial list manipulation to get the Cif outside *)
+      simpl List.rev.
+      rewrite List.rev_involutive.
+      repeat rewrite List.app_comm_cons.
+      rewrite <- List.app_assoc.
+      simpl List.app.
+      erewrite append_stack_app; [|solve[reflexivity]].
+      simpl with_stack.
+
+      eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_refl.
+      econstructor; eauto.
+    }
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+    eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    decompose H2.
+    { inversion H5; subst; repeat sinv_cong.
+      { (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+        eapply confluent_prop_star_refl.
+        repeat (econstructor; eauto).
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H12).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H12).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H13).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H13).
+        induction s; simpl in *; list_simpl.
+      }
+    }
+    {
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+      repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
+      eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_refl.
+      econstructor; eauto.
+    }
+  }
+  { induction s; simpl in *; injections; tryfalse; subst.
+    list_simpl; decompose H.
+    decompose H10.
+    { (* intersting case *)
+      inversion H5; subst; repeat sinv_cong.
+      { simpl.
+        (* The diagram is not working for this case. *)
+        repeat (eapply confluent_prop_star_step_left; [solve[econstructor; eauto]|]).
+        repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+        eapply confluent_prop_star_refl.
+        econstructor; eauto.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H10).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H10).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H13).
+        induction s; simpl in *; list_simpl.
+      }
+      { learn (f_equal stack H).
+        learn (f_equal (@List.length _) H13).
+        induction s; simpl in *; list_simpl.
+      }
+    }
+    {
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
+
+      (* Nontrivial list manipulation to get the Cif outside *)
+      simpl List.rev.
+      repeat rewrite List.app_comm_cons.
+      try rewrite List.rev_involutive.
+      rewrite <- List.app_assoc.
+      simpl List.app.
+      simpl.
+      erewrite append_stack_app; [|solve[reflexivity]].
+      simpl with_stack.
+
+      
+      eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
+      eapply confluent_prop_star_refl.
+      econstructor; eauto.
+    }
+  }
+Qed.
+
+
+
+Theorem correction_diagram:
+  forall s1 s1' s2,
+    cong_state s1 s1' ->
+    cred s1 s2 ->
+    exists s3 s3',
+      star cred s2 s3 /\
+      star cred s1' s3' /\
+      cong_state s3 s3'
+.
+Proof.
+  intros.
+  eapply (correction_diagram_aux (stack s1) _ eq_refl _ H0 _ H).
+Qed.
 
 End trans3.

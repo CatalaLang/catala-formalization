@@ -20,7 +20,7 @@ Lemma length_lastn {A} n:
   forall l: list A, List.length (lastn n l) = min n (List.length l).
 Proof.
   unfold lastn.
-  setoid_rewrite List.skipn_length; lia.
+  setoid_rewrite List.length_skipn; lia.
 Qed.
 
 Lemma lastn_cons {A} n:

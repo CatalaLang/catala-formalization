@@ -136,7 +136,7 @@ Ltac push h :=
 (* [ltac_Mark] and [ltac_mark] are dummies. They are used as sentinels by
    certain tactics, to mark a position in the context or in the goal. *)
 
-Inductive ltac_Mark : Type :=
+Inductive ltac_Mark : Prop :=
 | ltac_mark : ltac_Mark.
 
 (* [push_until_mark] moves all hypotheses from the context into the goal,
@@ -261,33 +261,59 @@ Module Learn.
 End Learn.
 Export Learn.
 
-(* 
+
 (** Ported the above tactic to ltac2. *)
 
 Module Learn2.
-  Inductive Learnt {P:Prop} :=
-  | AlreadyLearnt (H:P).
+  Inductive Learnt2 {P:Prop} :=
+  | AlreadyLearnt2 (H:P).
 
   Local Ltac2 learn_fact (h: constr) :=
     let p := Constr.type h in
-    let q := constr:(@Learnt $p) in
+    let q := constr:(@Learnt2 $p) in
     if List.for_all (fun (_, _, v) =>
       Bool.neg (Constr.equal q v)
     ) (Control.hyps ()) then
       let hname := Fresh.in_goal @H0 in
       let lname := Fresh.in_goal @L0 in
       Std.assert (Std.AssertValue hname h);
-      Std.assert (Std.AssertValue lname constr:(AlreadyLearnt $h))
+      Std.assert (Std.AssertValue lname constr:(AlreadyLearnt2 $h));
+      hname
     else
       Control.backtrack_tactic_failure "Fact already known"
     .
 
-  Ltac2 Notation "learn"
+  (* This tactic takes a constr, and add it to the goal, returning the new name. If the term is already present, then it backtracks. *)
+  Ltac2 Notation "learn2"
     arg(constr) :=
     learn_fact arg.
 End Learn2.
-Export Learn2. *)
+Export Learn2.
 
+Set Default Proof Mode "Ltac2".
+
+Require Import Ltac2.Printf.
+(* Goal [0] = [] -> False.
+  intros H.
+  match! goal with
+  | [h: @eq (list _) _ _ |- _] => 
+    let h :=
+      learn2 (f_equal (@List.length _) H) in
+      Std.simpl {
+        rBeta:=true;
+        rMatch:=true;
+        rFix:=false;
+        rCofix:=false;
+        rZeta:= false;
+        rDelta:=false;
+        rConst:=[]} None {on_hyps:=Some [(h, AllOccurrences, InHyp)];
+        on_concl:= NoOccurrences
+      }
+  end.
+Abort. *)
+
+
+Set Default Proof Mode "Classic".
 (* -------------------------------------------------------------------------- *)
 
 (* Complementary to the learn tactic: prints everything that has been learn in the current context. Source: myself*)
@@ -367,6 +393,20 @@ Ltac inv_jt := ltac2:(inv_jt ())
 In the refactored version, [smart_inversion] elegantly replaces the verbose pattern matching, making the tactic more concise and maintainable.
 
 *)
+
+
+Ltac2 get_head (c: constr) : constr option :=
+    match Unsafe.kind c with
+    | Unsafe.App c _ =>
+      match Unsafe.kind c with
+      | Unsafe.Constructor _ _ => Some c
+      | _ => None
+      end
+    | Unsafe.Constructor _ _ => Some c
+    | _ => None
+    end.
+
+(* Ltac2 Eval get_head (constr : ( @List.nil nat )). *)
 
 Ltac2 is_applied_constructor (c: constr) :=
   Bool.and
@@ -466,23 +506,67 @@ Abort.
 
 (* Tactic that discard from the current context every hypothesis that can be derived using simpl; eauto *)
 
-Ltac cleanup := match goal with
-  |[h: ?T |- _] =>
-    let h' := fresh h in
-    match T with
-    | info _ => idtac
-    | _ => 
-      assert (h': T); [solve[clear; simpl; eauto]|];
-      clear h h'
-    end
-  end
-  .
+Ltac2 Type exn ::= [Cleanup (ident list)].
 
-(* cleanup get rid of spurious hypothesis. *)
+Ltac2 rec map_filter (f : 'a -> 'b option) (l : 'a list) : 'b list :=
+  match l with
+  | [] => []
+  | x :: l =>
+    match f x with
+    | Some y => y :: map_filter f l
+    | None => map_filter f l
+    end
+  end.
+
+
+Ltac2 cleanup tac :=
+  let hyps := (Control.hyps ()) in
+  match Control.case (fun () =>
+    Control.zero (Cleanup
+      (map_filter (fun (h, _, t) =>
+      match! t with
+      | info _ => None
+      | _ =>
+        match
+          Control.case ( fun () => 
+            Std.assert (Std.AssertType None t (Some (fun () => tac ()))))
+        with
+        | Err _ => None
+        | Val _ => Some h
+        end
+      end
+    ) hyps
+    ))
+  ) with
+  | Err (Cleanup hs) =>
+    (* It is not possible to cleanup everything at once, because some *)
+    (* List.iter (fun h => printf "%I" h) hs; *)
+    List.iter (fun h => Notations.try0 (fun () => Std.clear [h])) hs
+  | Err e => Control.throw e
+  | _ => Control.throw Assertion_failure
+  end.
+
+Ltac cleanup := ltac2:(Control.enter (fun () => cleanup (fun () => clear; simpl; auto))).
+
+
+(* Cleanup unnecessary hypothesis *)
 Goal True -> False.
 Proof.
   intros.
   repeat cleanup.
+Abort.
+
+Goal forall n, n = 2.
+Proof.
+  intros.
+  cleanup.
+Abort.
+
+
+Goal forall n: nat, n = n -> 2 = 1+1.
+Proof.
+  intros.
+  cleanup.
 Abort.
 
 (* But does not touch info *)
@@ -493,8 +577,6 @@ Proof.
   repeat cleanup.
   check "test".
 Abort.
-
-
 
 
 (* From compcert.lib.Coqlib *)
