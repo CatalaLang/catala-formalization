@@ -964,7 +964,7 @@ Proof.
   induction kappa using List.rev_ind.
   { intros; exfalso. induction s; simpl in *; tryfalse.
     injections; subst.
-    apply (f_equal (@Datatypes.length cont)) in H0; rewrite List.app_length in *; simpl in *.
+    apply (f_equal (@Datatypes.length cont)) in H0; rewrite List.length_app in *; simpl in *.
     lia.
   }
   { intros; induction s; simpl in *; tryfalse.
@@ -984,7 +984,7 @@ Proof.
   induction kappa using List.rev_ind.
   { intros; exfalso. induction s; simpl in *; tryfalse.
     injections; subst.
-    apply (f_equal (@Datatypes.length cont)) in H0; rewrite List.app_length in *; simpl in *.
+    apply (f_equal (@Datatypes.length cont)) in H0; rewrite List.length_app in *; simpl in *.
     lia.
   }
   { intros; induction s; simpl in *; tryfalse.
@@ -1215,7 +1215,7 @@ Ltac decompose h :=
 
       exploit (IHkappa _ _ H);
         [ solve [econstructor; eauto]   (* solves [cred s1 s2] *)
-        | solve [simpl; repeat (rewrite List.app_length; simpl); lia] 
+        | solve [simpl; repeat (rewrite List.length_app; simpl); lia] 
           (* handles the proof that the stack length is smaller than n *)
         | intros; unpack ].   (* introduces and unpacks the new hypotheses *)
 
@@ -1298,7 +1298,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       eapply star_refl_prop.
@@ -1307,7 +1307,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1315,7 +1315,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1323,7 +1323,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1362,7 +1362,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
 
@@ -1371,7 +1371,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
 
@@ -1380,7 +1380,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
 
@@ -1389,7 +1389,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
 
@@ -1423,7 +1423,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
 
@@ -1432,7 +1432,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
 
@@ -1441,7 +1441,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
 
@@ -1450,7 +1450,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
 
@@ -1463,7 +1463,7 @@ Proof.
       induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
       { inversion H4; subst.
-        { simpl.
+        { cleanup. simpl.
           inversion H2; subst.
           repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
           eapply star_refl_prop.
@@ -1492,7 +1492,7 @@ Proof.
         }
       }
       {
-        exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+        exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
         eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
         eapply star_refl_prop.
 
@@ -1503,7 +1503,7 @@ Proof.
     {
       induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
 
@@ -1513,7 +1513,7 @@ Proof.
     {
       induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
 
@@ -1525,7 +1525,7 @@ Proof.
       list_simpl.
       decompose H.
       decompose H13.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
 
@@ -1547,7 +1547,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1555,7 +1555,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1563,7 +1563,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1571,7 +1571,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1582,7 +1582,7 @@ Proof.
     {
       induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1614,7 +1614,7 @@ Proof.
         }
       }
       {
-        exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+        exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
         eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
         eapply star_refl_prop.
         repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1624,7 +1624,7 @@ Proof.
     {
       induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1635,7 +1635,7 @@ Proof.
       list_simpl.
       decompose H.
       decompose H8.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]]; simpl; repeat rewrite List.rev_involutive.
@@ -1661,28 +1661,28 @@ Proof.
       repeat (econstructor; eauto).
     }
     { induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       econstructor; eauto.
     }
     { induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       econstructor; eauto.
     }
     { induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       econstructor; eauto.
     }
     { induction s; simpl in *; injections; tryfalse; subst.
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1700,7 +1700,7 @@ Proof.
   { inversion 1; subst; repeat sinv_cong.
     { induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1708,7 +1708,7 @@ Proof.
     }
     { induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1738,7 +1738,7 @@ Proof.
           induction s; simpl in *; list_simpl.
         }
       }
-      { exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      { exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
         eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
         eapply star_refl_prop.
         repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1771,7 +1771,7 @@ Proof.
         }
       }
       {
-        exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+        exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
         eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
         eapply star_refl_prop.
         repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1787,7 +1787,7 @@ Proof.
   { inversion 1; subst; repeat sinv_cong.
     { induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1795,7 +1795,7 @@ Proof.
     }
     { induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1826,7 +1826,7 @@ Proof.
         }
       }
       {
-        exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+        exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
         eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
         eapply star_refl_prop.
         repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1861,7 +1861,7 @@ Proof.
         }
       }
       {
-        exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+        exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
         eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
         eapply star_refl_prop.
         repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -1912,7 +1912,8 @@ Ltac mytryfalse :=
   | [h: @eq state _ _ |- _ ] => learn (f_equal stack h)
   | [h: @eq (list _) _ _ |- _ ] => learn (f_equal (@List.length _) h)
   | [h: context[append_stack ?s _] |- _] => learn (eq_refl s); destruct s
-  end; simpl in *; repeat cleanup; list_simpl].
+  end; simpl in *; repeat list_simpl]
+  .
 
 induction kappa as [kappa IHkappa] using (
   well_founded_induction
@@ -1920,33 +1921,16 @@ induction kappa as [kappa IHkappa] using (
     PeanoNat.Nat.lt_wf_0)).
 rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
 intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
-  { inversion H2; subst.
-    { learn (Forall2_nth_error_Some_left _ _ _ H7 _ _ H1); unpack.
-      learn (Forall2_nth_error_Some H7 _ _ _ H1 H).
-      eapply confluent_prop_star_step_right. { econstructor; eauto. }
-      eapply confluent_prop_star_refl.
-      econstructor; eauto.
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H7).
-      induction s; simpl in *; list_simpl.
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H7).
-      induction s; simpl in *; list_simpl.
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H9).
-      induction s; simpl in *; list_simpl.
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H9).
-      induction s; simpl in *; list_simpl.
-    }
+  { inversion H2; subst; mytryfalse.
+    learn (Forall2_nth_error_Some_left _ _ _ H7 _ _ H1); unpack.
+    learn (Forall2_nth_error_Some H7 _ _ _ H1 H).
+    eapply confluent_prop_star_step_right. { econstructor; eauto. }
+    eapply confluent_prop_star_refl.
+    econstructor; eauto.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -1956,7 +1940,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -1966,7 +1950,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -1976,7 +1960,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H6); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2015,7 +1999,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2026,7 +2010,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2036,7 +2020,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2047,7 +2031,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2080,7 +2064,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2089,7 +2073,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2097,7 +2081,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2106,7 +2090,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2146,7 +2130,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
       }
     }
     {
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
       eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2157,7 +2141,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   {
     induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2167,7 +2151,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   {
     induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2179,7 +2163,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     list_simpl.
     decompose H.
     decompose H13.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
 
     (* Nontrivial list manipulation to get the Cif outside *)
     simpl List.rev.
@@ -2202,7 +2186,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2211,7 +2195,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2220,7 +2204,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2229,7 +2213,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2239,7 +2223,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   {
     induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2272,7 +2256,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
       }
     }
     {
-      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
       eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2283,7 +2267,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   {
     induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2295,7 +2279,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     list_simpl.
     decompose H.
     decompose H8.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
 
     (* Nontrivial list manipulation to get the Cif outside *)
     simpl List.rev.
@@ -2326,7 +2310,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     repeat (econstructor; eauto).
   }
   { induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2334,7 +2318,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     econstructor; eauto.
   }
   { induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2342,7 +2326,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     econstructor; eauto.
   }
   { induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2350,7 +2334,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     econstructor; eauto.
   }
   { induction s; simpl in *; injections; tryfalse; subst.
-    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2368,7 +2352,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   { induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2377,7 +2361,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   { induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2408,7 +2392,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
         induction s; simpl in *; list_simpl.
       }
     }
-    { exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    { exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
       eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2445,7 +2429,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
       }
     }
     {
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       
       (* Nontrivial list manipulation to get the Cif outside *)
       simpl List.rev.
@@ -2464,7 +2448,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   { induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2473,7 +2457,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   { induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+    exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
     repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
     eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
     eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2505,7 +2489,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
       }
     }
     {
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
       eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
       eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
@@ -2543,7 +2527,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
       }
     }
     {
-      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.app_length; simpl); lia] | intros; unpack ].
+      exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
 
       (* Nontrivial list manipulation to get the Cif outside *)
       simpl List.rev.

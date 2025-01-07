@@ -1149,7 +1149,7 @@ Proof.
       | [h: sred _.[subst_of_env _] _ |- _] =>
         rewrite subst_of_env_apply_state in h;
         unshelve epose proof (IHkappa_wf [] _ _ _ h _ _);
-        [ solve[try rewrite List.app_length; simpl; lia]
+        [ solve[try rewrite List.length_app; simpl; lia]
         | solve[eauto]
         | solve[repeat econstructor]|];
         unpack
@@ -1166,7 +1166,7 @@ Proof.
       | [h: sred (apply_conts _ _) _ |- _] =>
         rewrite apply_conts_apply_state in h;
         unshelve epose proof (IHkappa_wf _ _ _ _ Ht2t3 eq_refl _);
-        [ solve[try rewrite List.app_length; simpl; lia]
+        [ solve[try rewrite List.length_app; simpl; lia]
         | solve[eauto]
         |];
         unpack
@@ -1178,7 +1178,7 @@ Proof.
         | rewrite apply_conts_apply_state_empty in h
         ];
         unshelve epose proof (IHkappa_wf _ _ _ _ Ht2t3 eq_refl _);
-        [ solve[try rewrite List.app_length; simpl; lia]
+        [ solve[try rewrite List.length_app; simpl; lia]
         | solve[eauto]
         |];
         unpack

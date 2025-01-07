@@ -183,7 +183,7 @@ Notation "'λ.' t" := (Lam t) (at level 50).
 Notation "'S(' t , kappa , sigma )" := (mode_eval t kappa sigma).
 Notation "'C(' v , kappa )" := (mode_cont kappa v).
 Notation "'λ' sigma '.' t " := (Value (Closure t sigma)) (at level 10).
-Notation "'λ' sigma '.' t " := (RValue (Closure t sigma)) (at level 10).
+(* Notation "'λ' sigma '.' t " := (RValue (Closure t sigma)) (at level 10). *)
 Notation "'k_app1' ( t )" := (CAppR t) (at level 50).
 Notation "'k_app2' ( t , sigma )" := (CClosure t sigma) (at level 50).
 (* Notation "'k_ret' ( sigma )" := (CReturn sigma) (at level 50). *)
@@ -480,7 +480,7 @@ Lemma lift_inj_Var:
   lift 1 t = Var (S x) <-> t = Var x.
 Proof.
   split; intros.
-  { eauto using lift_inj. }
+  { apply lift_inj; eauto. }
   { subst. eauto. }
 Qed.
 
@@ -564,7 +564,7 @@ Proof.
   { intros. rewrite fv_Var_eq in *.
     rewrite <- (List.firstn_skipn k Gamma) in H.
     rewrite List.nth_error_app1 in H.
-    2:{ rewrite List.firstn_length. rewrite List.firstn_skipn in *.
+    2:{ rewrite List.length_firstn. rewrite List.firstn_skipn in *.
         pose proof (nth_error_Some' (eq_sym H)).
         lia.
     }
@@ -635,7 +635,7 @@ Proof.
   repeat intros.
   { rewrite <- H0 in H.
     pose proof (nth_error_Some' (eq_sym H)).
-    rewrite List.app_length in *.
+    rewrite List.length_app in *.
     destruct (lt_dec x (List.length Gamma1)).
     { simpl.
       rewrite upn_k_sigma_x by eauto.
@@ -1688,7 +1688,7 @@ Proof.
 
   Unshelve.
   all: simpl; try reflexivity.
-  all: try rewrite List.app_length; simpl; lia.
+  all: try rewrite List.length_app; simpl; lia.
 Qed.
 
 
