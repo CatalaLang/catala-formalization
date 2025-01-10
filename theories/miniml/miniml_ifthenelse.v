@@ -2108,34 +2108,16 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     eapply confluent_prop_star_refl.
     econstructor; eauto.
   }
-  { inversion H1; subst.
-    {
-      eapply confluent_prop_star_step_right. { econstructor; eauto. }
-      eapply confluent_prop_star_refl.
-      (* This requires prices rewriting *)
-      match goal with [|- cong_state ?s1 ?s2] =>
-        rewrite (@append_stack_all s1);
-        rewrite (@append_stack_all s2);
-        simpl with_stack; simpl stack
-      end.
-      repeat (econstructor; eauto).
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H9).
-      induction s; simpl in *; list_simpl.
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H9).
-      induction s; simpl in *; list_simpl.
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H10).
-      induction s; simpl in *; list_simpl.
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H10).
-      induction s; simpl in *; list_simpl.
-    }
+  { inversion H1; subst; mytryfalse.
+    eapply confluent_prop_star_step_right. { econstructor; eauto. }
+    eapply confluent_prop_star_refl.
+    (* This requires prices rewriting *)
+    match goal with [|- cong_state ?s1 ?s2] =>
+      rewrite (@append_stack_all s1);
+      rewrite (@append_stack_all s2);
+      simpl with_stack; simpl stack
+    end.
+    repeat (econstructor; eauto).
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
@@ -2179,28 +2161,10 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
 
     econstructor; eauto.
   }
-  { inversion H1; subst.
-    {
-      eapply confluent_prop_star_step_right. { econstructor; eauto. }
-      eapply confluent_prop_star_refl.
-      repeat (econstructor; eauto).
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H8).
-      induction s; simpl in *; list_simpl.
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H8).
-      induction s; simpl in *; list_simpl.
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H9).
-      induction s; simpl in *; list_simpl.
-    }
-    { learn (f_equal stack H).
-      learn (f_equal (@List.length _) H9).
-      induction s; simpl in *; list_simpl.
-    }
+  { inversion H1; subst; mytryfalse.
+    eapply confluent_prop_star_step_right. { econstructor; eauto. }
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
   }
   {
     induction s; simpl in *; injections; tryfalse; subst.
@@ -2240,34 +2204,17 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   {
     induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    { inversion H4; subst.
-      { simpl.
-        inversion H2; subst.
-        repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
-        eapply confluent_prop_star_refl.
-        match goal with [|- cong_state ?s1 ?s2] =>
-          rewrite (@append_stack_all s1);
-          rewrite (@append_stack_all s2);
-          simpl with_stack; simpl stack
-        end.
-        repeat (econstructor; eauto).
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H11).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H11).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H12).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H12).
-        induction s; simpl in *; list_simpl.
-      }
+    { inversion H4; subst; mytryfalse.
+      simpl.
+      inversion H2; subst.
+      repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+      eapply confluent_prop_star_refl.
+      match goal with [|- cong_state ?s1 ?s2] =>
+        rewrite (@append_stack_all s1);
+        rewrite (@append_stack_all s2);
+        simpl with_stack; simpl stack
+      end.
+      repeat (econstructor; eauto).
     }
     {
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
@@ -2373,27 +2320,10 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   {
     induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    { inversion H4; subst; simpl.
-      { repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
-        eapply confluent_prop_star_refl.
-        repeat (econstructor; eauto).
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H11).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H11).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H12).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H12).
-        induction s; simpl in *; list_simpl.
-      }
+    { inversion H4; subst; simpl; mytryfalse.
+      repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+      eapply confluent_prop_star_refl.
+      repeat (econstructor; eauto).
     }
     {
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
@@ -2510,27 +2440,11 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   { induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    { inversion H5; subst; repeat sinv_cong.
-      { (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
-        eapply confluent_prop_star_refl.
-        repeat (econstructor; eauto).
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H12).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H12).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H13).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H13).
-        induction s; simpl in *; list_simpl.
-      }
+    { inversion H5; subst; mytryfalse.
+      repeat sinv_cong.
+      (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+      eapply confluent_prop_star_refl.
+      repeat (econstructor; eauto).
     }
     { exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]].
@@ -2544,29 +2458,13 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     list_simpl.
     decompose H.
     decompose H10.
-    { inversion H5; subst; repeat sinv_cong.
-      { simpl.
-        repeat (eapply confluent_prop_star_step_left; [solve[econstructor; eauto]|]).
-        repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
-        eapply confluent_prop_star_refl.
-        econstructor; eauto.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H10).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H10).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H13).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H13).
-        induction s; simpl in *; list_simpl.
-      }
+    { inversion H5; subst; mytryfalse.
+      repeat sinv_cong.
+      simpl.
+      repeat (eapply confluent_prop_star_step_left; [solve[econstructor; eauto]|]).
+      repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+      eapply confluent_prop_star_refl.
+      repeat (econstructor; eauto).
     }
     {
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
@@ -2606,27 +2504,11 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   }
   { induction s; simpl in *; injections; tryfalse; subst.
     decompose H2.
-    { inversion H5; subst; repeat sinv_cong.
-      { (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
-        eapply confluent_prop_star_refl.
-        repeat (econstructor; eauto).
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H12).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H12).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H13).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H13).
-        induction s; simpl in *; list_simpl.
-      }
+    { inversion H5; subst; mytryfalse. 
+      repeat sinv_cong.
+      (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+      eapply confluent_prop_star_refl.
+      repeat (econstructor; eauto).
     }
     {
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
@@ -2641,30 +2523,14 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     list_simpl; decompose H.
     decompose H10.
     { (* intersting case *)
-      inversion H5; subst; repeat sinv_cong.
-      { simpl.
-        (* The diagram is not working for this case. *)
-        repeat (eapply confluent_prop_star_step_left; [solve[econstructor; eauto]|]).
-        repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
-        eapply confluent_prop_star_refl.
-        econstructor; eauto.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H10).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H10).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H13).
-        induction s; simpl in *; list_simpl.
-      }
-      { learn (f_equal stack H).
-        learn (f_equal (@List.length _) H13).
-        induction s; simpl in *; list_simpl.
-      }
+      inversion H5; subst; mytryfalse.
+      repeat sinv_cong.
+      simpl.
+      (* The diagram is not working for this case. *)
+      repeat (eapply confluent_prop_star_step_left; [solve[econstructor; eauto]|]).
+      repeat (eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]).
+      eapply confluent_prop_star_refl.
+      econstructor; eauto.
     }
     {
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
@@ -2679,7 +2545,6 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
       erewrite append_stack_app; [|solve[reflexivity]].
       simpl with_stack.
 
-      
       eapply confluent_prop_star_trans_right; [apply star_cred_append_stack; eauto|].
       eapply confluent_prop_star_trans_left; [apply star_cred_append_stack; eauto|].
       eapply confluent_prop_star_refl.
