@@ -12,10 +12,112 @@ Require Import Wellfounded.
 
 Require Import Coq.Program.Equality.
 
+
+Require Import Ltac2.Ltac2.
+Set Default Proof Mode "Classic".
+
 Set Default Goal Selector "!".
 
 
-(*** Definitions of terms and continuations for mini-ML ***)
+(* This file demonstrates an proof for compiler correctness using continuation-based semantics. The base language is lambda-calculus + if-then-else.
+
+We define both type of semantics, with adapted lemmas. We then prove type safety for both semantics. Finally, we show why continuation-based semantics is better regarding to the proof some exemples of compilation passes using smulation diagrams. Namely, we show two simulation diagrams two simple compiler optimisations.
+*)
+
+
+(* -------------------------------------------------------------------------- *)
+(*** Additions to the Lists library ***)
+
+Theorem Forall2_nth_error_Some_left {A B F l1 l2}:
+  List.Forall2 F l1 l2 ->
+  forall {k} {x: A},
+    List.nth_error l1 k = Some x ->
+    exists (y: B), List.nth_error l2 k = Some y.
+Proof.
+  induction 1, k; simpl; intros; inj; eauto.
+Qed.
+
+
+Theorem Forall2_nth_error_Some_right {A B F l1 l2}:
+  List.Forall2 F l1 l2 ->
+  forall {k} {y: B},
+    List.nth_error l2 k = Some y ->
+    exists (x: A), List.nth_error l1 k = Some x.
+Proof.
+  induction 1, k; simpl; intros; inj; eauto.
+Qed.
+
+Theorem Forall2_nth_error_Some {A B F l1 l2}:
+  List.Forall2 F l1 l2 ->
+  forall {k} {x: A} {y: B},
+    List.nth_error l1 k = Some x ->
+    List.nth_error l2 k = Some y ->
+    F x y.
+Proof.
+  induction 1, k; simpl; intros; inj; eauto.
+Qed.
+
+
+(* This is a tactic that tries to infer equalities between terms in a list where :: and ++ are used. It uses [List.rev] and the [List.rev_app_distr] lemmas. *)
+
+Ltac list_simpl_base h := 
+  learn (f_equal (@List.rev _) h);
+    repeat multimatch goal with
+    | [h: _ |- _] =>
+      let P := typeof h in
+      match P with
+      | @Learnt _ =>
+        idtac
+      | _ =>
+        repeat rewrite List.rev_involutive in h;
+        repeat rewrite List.rev_app_distr in h;
+        simpl in h
+      end
+    end;
+    injections;
+    subst;
+    try congruence
+.
+
+Ltac list_simpl := 
+  (try multimatch goal with
+  | [h: @eq (list _) _ _ |- _] =>
+    list_simpl_base h
+  end)
+  .
+
+(* This lemmas precisely decompose an equality in the form: [k1 :: kappa1 = kappa2 ++ [k2]]. *)
+Lemma list_append_decompose: forall {A} {kappa1 kappa2} {k1 k2: A} ,
+  k1 :: kappa1 = kappa2 ++ [k2] ->
+  (k1 = k2 /\ kappa1 = nil /\ kappa2 = nil)
+  \/ (exists kappa, kappa1 = kappa ++ [k2] /\ kappa2 = k1 :: kappa).
+Proof.
+  induction kappa1 as [|a1 kappa1]; intros.
+  { repeat list_simpl.
+    left; unzip; eauto.
+  }
+  {
+    induction kappa2 as [|a2 kappa2]; repeat list_simpl.
+    destruct IHkappa1 with kappa2 a1 k2; eauto.
+  }
+Qed.
+
+(* We use it with the decompose tactic *)
+Ltac decompose h :=
+  let kappa := fresh "kappa" in
+  first
+    [ destruct (list_append_decompose h) as [?|[kappa ?]]
+    | destruct (list_append_decompose (eq_sym h)) as [?|[kappa ?]]
+    ];
+    unpack;
+    repeat list_simpl;
+    repeat cleanup
+.
+
+
+
+(* -------------------------------------------------------------------------- *)
+(*** Definition of the syntax of our language ***)
 
 
 Inductive term :=
@@ -25,6 +127,7 @@ Inductive term :=
   | Lam (t: {bind term})
   | Value (v: value)
 
+  (* The additionnal if-then-else *)
   | If (u t1 t2: term)
 
 with value :=
@@ -42,8 +145,17 @@ Lemma ids_inj:
 intros; inj; eauto.
 Qed.
 
+(* -------------------------------------------------------------------------- *)
 
 (*** Strong induction principle for terms ***)
+
+(* This proves usefull to show a correct induction principle, because our syntax inductive definition is pretty complex in Coq's terms, hence the gneerated induction principle is not strong enought. Indeed, our syntax is a mutally inductive type defintion, and it contains containers. At the time of this publication, no tool openly available for coq is able to generate a suitable induction principle.
+
+
+Moreover, we need for one of the transformation to have a deep induction principle because of a rewriting of depth 2.
+
+
+Hence, we define a metric, and show an induction principle. *)
 
 Fixpoint size_term t := 
   match t with
@@ -59,6 +171,9 @@ with size_value v :=
   | Bool _ => 0
   end.
 
+(* To define the induction principle, we use the following trick: we show the induction principle on [term + value]. This permit us to derive the induction principle on both [term] and [value]. *)
+
+
 Definition size (x : term + value) :=
   match x with
   | inl t => size_term t
@@ -67,16 +182,16 @@ Definition size (x : term + value) :=
 
 
 Theorem term_value_induction
-: forall {P : term -> Prop} {P0 : value -> Prop}
+: forall {P : term -> Prop} {Q : value -> Prop}
     {HVar: forall x : var, P (Var x)}
     {HApp: forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)}
     {HLam: forall t : {bind term}, P t -> P (Lam t)}
-    {HValue: forall v : value, P0 v -> P (Value v)}
+    {HValue: forall v : value, Q v -> P (Value v)}
     {HIf: forall u, P u -> forall t1, P t1 -> forall t2, P t2 -> P (If u t1 t2)}
     {HClosure: forall t,
-      P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)}
-    {HBool: forall b, P0 (Bool b)},
-    (forall x : term + value, match x with | inl t => P t | inr v => P0 v end).
+      P t -> forall sigma, (List.Forall Q sigma) -> Q (Closure t sigma)}
+    {HBool: forall b, Q (Bool b)},
+    (forall x : term + value, match x with | inl t => P t | inr v => Q v end).
 Proof.
   induction x as [x IHx] using (
     well_founded_induction
@@ -90,19 +205,21 @@ Proof.
         eapply HValue|
         eapply HIf
       ].
-      1: eapply (IHx (inl t1)).
-      2: eapply (IHx (inl t2)).
-      3: eapply (IHx (inl t)).
-      4: eapply (IHx (inr v)).
-      5: eapply (IHx (inl t1)).
-      6: eapply (IHx (inl t2)).
-      7: eapply (IHx (inl t3)).
+      all: match goal with
+      | [|- _ ?t] => eapply (IHx (inl t))
+      | [|- _ ?v] => eapply (IHx (inr v))
+      end.
       all: simpl; lia.
     }
     { destruct v; try first [
-        eapply HClosure
+        eapply HClosure|
+        eapply HBool
       ].
-      { eapply (IHx (inl t)); simpl; lia. }
+      all: try match goal with
+      | [|- _ ?t] => eapply (IHx (inl t))
+      | [|- _ ?v] => eapply (IHx (inr v))
+      end.
+      all: try solve [simpl; lia].
       {
         induction sigma; econstructor; eauto.
         { eapply (IHx (inr a)); simpl; lia. }
@@ -110,22 +227,21 @@ Proof.
         eapply IHsigma; intros.
         { eapply IHx. simpl in *; lia. }
       }
-      eapply HBool.
     }
   }
 Qed.
 
 Theorem term_ind'
-  : forall (P : term -> Prop) (P0 : value -> Prop),
-      (forall x : var, P (Var x)) ->
-      (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
-      (forall t : {bind term}, P t -> P (Lam t)) ->
-      (forall v : value, P0 v -> P (Value v)) ->
-      (forall t,
-       P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)) ->
-      (forall u, P u -> forall t1, P t1 -> forall t2, P t2 -> P (If u t1 t2)) ->
-      (forall b, P0 (Bool b)) ->
-      (forall t : term, P t) /\ (forall v : value, P0 v).
+  : forall {P : term -> Prop} {Q : value -> Prop}
+      {HVar: forall x : var, P (Var x)}
+      {HApp: forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)}
+      {HLam: forall t : {bind term}, P t -> P (Lam t)}
+      {HValue: forall v : value, Q v -> P (Value v)}
+      {HIf: forall u, P u -> forall t1, P t1 -> forall t2, P t2 -> P (If u t1 t2)}
+      {HClosure: forall t,
+        P t -> forall sigma, (List.Forall Q sigma) -> Q (Closure t sigma)}
+      {HBool: forall b, Q (Bool b)},
+      (forall t, P t) /\ (forall v, Q v).
 Proof.
   split; intros.
   { unshelve eapply (term_value_induction (inl t)); eauto. }
@@ -133,7 +249,9 @@ Proof.
 Qed.
 
 
-(*** Syntax for continuations ***)
+(* -------------------------------------------------------------------------- *)
+
+(* We can now define the continuation-based semantics for our language. We first to define what are the control units and what is a state. *)
 
 Inductive cont :=
   | CAppR (t2: term) (sigma: list value) (* [\square t2] *)
@@ -143,6 +261,7 @@ Inductive cont :=
   | CIf (t1 t2: term) (sigma: list value) (* [if \square then t1 else t2]*)
 .
 
+(* In this example, results can only be values, but in larger languages it can hold also exceptions. *)
 Inductive result :=
   | RValue (v: value)
 .
@@ -153,8 +272,15 @@ Inductive state :=
   | mode_cont (kappa: list cont) (result: result)
 .
 
+(* -------------------------------------------------------------------------- *)
 
-(*** Continuation step semantics ***)
+(*** Continuation-based small-step semantics ***)
+
+(* We define the continuation-based small-step semantics as defined in the paper. The syntax is a bit more verbose that in the paper, but we define notations to get closer to the paper's notation next.
+
+We use an additional implementation trick: each case have an [info "rule_name"] hypothesis. This is used to know in what case using the `check "rule_name"` tactic we are to be able to debugger proof script more easily.
+
+Contrary to the paper, we use de Bruijn indices to represent variables. No substitution is needed to define this reduction as environement are passed in the computation. *)
 
 Inductive cred: state -> state -> Prop :=
   (** Rules related to the lambda calculus *)
@@ -214,17 +340,20 @@ Inductive cred: state -> state -> Prop :=
       (mode_eval t2 kappa sigma)
 .
 
-Coercion App : term >-> Funclass.
+(* Some notations to get closer to the paper. Those are disabled except for the coercions that provide a lot more clarity. Uncomment and [Check cred] to get a pretty-printed version of the cred reduction predicate. *)
+
+
 (* Notation "'λ.' t" := (Lam t) (at level 50).
 Notation "'S(' t , kappa , sigma )" := (mode_eval t kappa sigma).
 Notation "'C(' v , kappa )" := (mode_cont kappa v).
-Notation "'λ' sigma '.' t " := (Value (Closure t sigma)) (at level 10).
-Notation "'λ' sigma '.' t " := (RValue (Closure t sigma)) (at level 10).
+Notation "'λ' sigma '.' t " := ((Closure t sigma)) (at level 10).
 Notation "'if' u 'then' t1 'else' t2 'end'" := (If u t1 t2) (at level 10).
-Notation "'k_app1' ( t )" := (CAppR t) (at level 50).
+Notation "'k_app1' ( t, sigma )" := (CAppR t sigma) (at level 50).
 Notation "'k_app2' ( t , sigma )" := (CClosure t sigma) (at level 50).
-(* Notation "'k_ret' ( sigma )" := (CReturn sigma) (at level 50). *)
-Notation "s1 ~> s2" := (cred s1 s2) (at level 20). *)
+Notation "'k_if' ( t1 , t2 , sigma )" := (CIf t1 t2 sigma) (at level 50).
+Notation "s1 ~> s2" := (cred s1 s2) (at level 20).
+Notation "s1 ~>* s2" := (star cred s1 s2) (at level 20). *)
+Coercion App : term >-> Funclass.
 Definition id_var (n: nat): var := n.
 Coercion id_var: nat >-> var.
 Coercion Value: value >-> term.
@@ -232,22 +361,144 @@ Coercion RValue: value >-> result.
 Coercion Bool : bool >-> value.
 Coercion Var: var >-> term.
 
+(* Here is an exemple of reduction with continuation-based small-step semantics. As you can see, we can simply implement an interpreter in ltac for continuation based semantics directly in ltac. *)
 
 Example example_of_reduction t1 t2:
   star cred
     (mode_eval (If (Value (Bool true)) t1 t2) [] [])
     (mode_eval t1 [] []).
 Proof.
-  eapply star_step;[econstructor; econstructor|].
-  eapply star_step;[econstructor; econstructor|].
-  eapply star_step;[econstructor; econstructor|].
+  eapply star_step; [solve[econstructor; eauto]|].
+  eapply star_step; [solve[econstructor; eauto]|].
+  eapply star_step; [solve[econstructor; eauto]|].
   eapply star_refl.
 Qed.
 
-(*** small step semantics ***)
+(* -------------------------------------------------------------------------- *)
+(*** Some definitions and property of CBSS ***)
+
+(* Returns [True] if the state is in cont mode. *)
+Definition is_mode_cont s :=
+  match s with
+  | mode_cont _ _ => True
+  | _ => False
+  end.
+
+(* Returns the continuation stack of a state. *)
+Definition stack s :=
+  match s with
+  | mode_eval _ k _ => k
+  | mode_cont k _ => k
+  end.
+
+(* Replaces the continuation stack with a new one *)
+Definition with_stack s kappa :=
+  match s with
+  | mode_cont _ v => mode_cont kappa v
+  | mode_eval t _ sigma => mode_eval t kappa sigma
+  end.
+
+(* Adds a continuation to an existing state *)
+Definition append_stack s kappa :=
+  with_stack s (stack s ++ kappa).
+
+(* The function [append_stack] is central to the understanding of continuation-based small-step semantics. This is due to the following theorem: *)
+
+(* This theorem states that if you can do a reduction, then you can do the same reduction while having a larger continuation. *)
+Theorem cred_append_stack s s':
+  cred s s' ->
+  forall k,
+  cred (append_stack s k) (append_stack s' k).
+Proof.
+  induction 1; intros; asimpl; try econstructor; eauto.
+Qed.
+
+(* The same is true for any number of reductions. *)
+Theorem star_cred_append_stack s s':
+  star cred s s'
+  ->
+  forall k,
+  star cred (append_stack s k) (append_stack s' k).
+Proof.
+  induction 1; intros.
+  { eauto with sequences. }
+  { eapply star_step; eauto using cred_append_stack. }
+Qed.
+
+
+(* The following lemmas are rewriting lemmas to get more information from equality in the current context. *)
+
+Lemma append_stack_mode_eval {s k t kappa sigma}:
+  append_stack s [k] = mode_eval t kappa sigma ->
+  exists kappa',
+  kappa = kappa' ++ [k] /\
+  s = mode_eval t kappa' sigma
+  .
+Proof.
+  induction kappa using List.rev_ind.
+  { intros; exfalso. induction s; simpl in *; tryfalse.
+    injections; subst.
+    apply (f_equal (@Datatypes.length cont)) in H0; rewrite List.length_app in *; simpl in *.
+    lia.
+  }
+  { intros; induction s; simpl in *; tryfalse.
+    repeat injections; subst.
+    learn (List.app_inj_tail _ _ _ _ H0); unpack; subst.
+    repeat econstructor.
+  }
+Qed.
+
+Lemma append_stack_mode_cont {s k v kappa}:
+  append_stack s [k] = mode_cont kappa v ->
+  exists kappa',
+  kappa = kappa' ++ [k] /\
+  s = mode_cont kappa' v
+  .
+Proof.
+  induction kappa using List.rev_ind.
+  { intros; exfalso. induction s; simpl in *; tryfalse.
+    injections; subst.
+    apply (f_equal (@Datatypes.length cont)) in H0; rewrite List.length_app in *; simpl in *.
+    lia.
+  }
+  { intros; induction s; simpl in *; tryfalse.
+    repeat injections; subst.
+    learn (List.app_inj_tail _ _ _ _ H0); unpack; subst.
+    repeat econstructor.
+  }
+Qed.
+
+(* The following lemmas are rewriting lemmas to get the continuation stack in a certain shape before applying functions. *)
+
+Lemma append_stack_app {s kappa1 kappa2}:
+  stack s = kappa1 ++ kappa2 ->
+  s = append_stack (with_stack s kappa1) kappa2.
+Proof.
+  induction s; intros; simpl in *; subst; reflexivity.
+Qed.
+
+Lemma append_stack_all {s}:
+  s = append_stack (with_stack s []) (stack s).
+Proof.
+  induction s; intros; simpl in *; subst; reflexivity.
+Qed.
+
+Lemma stack_append_stack {s kappa}:
+  stack (append_stack s kappa) = stack s ++ kappa.
+Proof.
+  induction s; simpl; eauto.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+(*** Traditional small-step semanitcs ***)
+
+(* We also define traditional small-step semantics for our language. *)
 
 Import List.ListNotations.
 Open Scope list.
+
+
+(* Because autosubst uses functions [nat -> term] and we use lists in the syntax, we need a way to get from one version to the other. *)
 
 Definition subst_of_env sigma :=
   fun n =>
@@ -257,8 +508,9 @@ Definition subst_of_env sigma :=
   end
 .
 
+(* To stay coherent with our over language, we have both closures and lambda in this language. When a lambda is created, we define a closure with an empty environement.
 
-
+We don't show in this file the equivalence between both style of semantics. But we show it for the lambda calculus fragment in `miniml.v` file, and for the full catala language in the `simulation_cred_to_sred.v` and `simulation_sred_to_cred.v` files. In both cases, a diagram is shown and the equivalence relation states that two closures are equivalent if the terms are the same after substitution. *)
 
 Inductive sred: term -> term -> Prop :=
   | sred_lam:
@@ -296,6 +548,8 @@ Inductive sred: term -> term -> Prop :=
       sred u1 u2 ->
       sred (If u1 t1 t2) (If u2 t1 t2)
 .
+
+(* In traditional small-step semantics, we need to extend each contextual rules to the star of the reduction. *)
 
 Lemma star_sred_app_right:
 forall t sigma u1 u2,
@@ -340,15 +594,18 @@ Proof.
 Qed.
 
 
-
+(* -------------------------------------------------------------------------- *)
 (*** Typing ***)
+
+
+(* Our typing syntax is pretty basic. *)
 
 Inductive type :=
   | TBool
   | TFun (T1 T2: type)
 .
 
-(* Standard typing rules for lambda calculus *)
+(* Standard typing rules for lambda calculus. Those are classical. We use a list of type as typing environement. This is because we uses de Bruijn indices. *)
 
 Inductive jt_term:
   list type -> term -> type -> Prop :=
@@ -439,13 +696,12 @@ Inductive jt_state: state -> type -> Prop :=
     jt_result r T1 ->
     jt_conts T1 kappa T2 ->
     jt_state (mode_cont kappa r) T2
-. 
+.
+
+(* Because the shape of the typing judgment, we can usually derive what rule have been applied by looking at the head term. Hence, inversion is non-ambiguious when the head-term is known. Because of this we can define a smart-inversion tactic for typing judgement. 
 
 
-
-Require Import Ltac2.Ltac2.
-Set Default Proof Mode "Classic".
-
+We extend a little bit this statement for cases where we have an concatenation of two continuations. [TODO: what is the name of such a property ?] This simplify induction using the [List.rev_ind] induction principle of lists. *)
 
 Lemma jt_conts_app { kappa1 kappa2 T1 T3 }:
   jt_conts T1 (kappa1 ++ kappa2) T3 ->
@@ -468,7 +724,6 @@ Proof.
   }
 Qed.
 
-(** Specialized tactics to invert typing judgement if one argument is a known constructor. *)
 Ltac2 inv_jt () :=
   match! goal with
   | [ h: jt_term _ ?c _ |- _ ] => smart_inversion c h
@@ -489,6 +744,8 @@ Ltac2 inv_jt () :=
   | [ h: List.Forall2 _ _ ?c |- _ ] => smart_inversion c h
 end.
 
+(* We also define a tactic to automatically rename typing judgements to HT. This trick permit to add to an existing proof new hypothesis regarding typing, without having to change other's hypothesis naming. *)
+
 Ltac2 rename_jt () := 
   let hyps := Control.hyps () in
   let rename h := 
@@ -508,18 +765,16 @@ Ltac2 rename_jt () :=
   ) (List.rev hyps)
 .
 
+(* To be used as [repeat inv_jt]. *)
 Ltac inv_jt := ltac2:(inv_jt (); rename_jt ()); unpack.
 
-Theorem Forall2_nth_error_Some {A B F l1 l2}:
-  List.Forall2 F l1 l2 ->
-  forall k (x: A) (y: B),
-    List.nth_error l1 k = Some x ->
-    List.nth_error l2 k = Some y ->
-    F x y.
-Proof.
-  induction 1, k; simpl; intros; inj; eauto.
-Qed.
 
+
+(* -------------------------------------------------------------------------- *)
+(*** Type safety for continuation-based semantics. ***)
+
+
+(* we show type safety using preservation and progress lemmas.*)
 
 (** Main preservation lemma for continuation-based semantics. *)
 Theorem preservation_cont s1 s2:
@@ -535,29 +790,9 @@ Proof.
   all: intros; repeat inv_jt; repeat econstructor; eauto.
 
   (** One case is left. It requires an external lemma. *)
-  { pose proof (Forall2_nth_error_Some HT0); eauto. }
+  { eapply (Forall2_nth_error_Some HT0); eauto. }
 Qed.
 
-Definition is_mode_cont s :=
-  match s with
-  | mode_cont _ _ => True
-  | _ => False
-  end.
-
-Definition stack s :=
-  match s with
-  | mode_eval _ k _ => k
-  | mode_cont k _ => k
-  end.
-
-Theorem Forall2_nth_error_Some_right {A B F l1 l2}:
-  List.Forall2 F l1 l2 ->
-  forall {k} {y: A},
-    List.nth_error l2 k = Some y ->
-    exists (x: B), List.nth_error l1 k = Some x.
-Proof.
-  induction 1, k; simpl; intros; inj; eauto.
-Qed.
 
 (** Main progress lemma for continuation-based semantics. *)
 Theorem progress_cont s1:
@@ -587,38 +822,8 @@ Proof.
   }
 Qed.
 
-
-Definition fv k t :=
-  t.[upn k (ren (+1))] = t.
-
-Lemma fv_Lam_eq:
-  forall k t,
-  fv k (Lam t) <-> fv (S k) t.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-Lemma fv_App_eq:
-  forall k t1 t2,
-  fv k (App t1 t2) <-> fv k t1 /\ fv k t2.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-Lemma fv_If_eq:
-  forall k u t1 t2,
-  fv k (If u t1 t2) <-> fv k u /\ fv k t1 /\ fv k t2.
-Proof.
-  unfold fv. intros. asimpl. split; intros.
-  { injections. eauto. }
-  { unpack. congruence. }
-Qed.
-
-Hint Rewrite fv_Lam_eq fv_App_eq fv_If_eq : fv.
+(* -------------------------------------------------------------------------- *)
+(*** Type safety for Traditional small-step semantics. ***)
 
 
 (** Main progress lemma for continuation-based semantics. *)
@@ -667,16 +872,17 @@ Proof.
 Qed.
 
 (* -------------------------------------------------------------------------- *)
+(*** Determinism of the reductions. ***)
 
-(*** Determinism of both reductions *)
-
+(* Because of the syntactix nature of continuation-based small step semantics, no cases are left. *)
 Theorem cred_deterministic:
   forall s1 s2, cred s1 s2 -> forall s2', cred s1 s2' -> s2 = s2'.
 Proof.
   induction 1; inversion 1; subst; simpl in *; eauto.
-  { rewrite H0 in H7; inj; eauto. }
+  { congruence. }
 Qed.
 
+(* This is not the case for traditional small-step semantics. *)
 Theorem sred_deterministic:
   forall t1 t2, sred t1 t2 -> forall t2', sred t1 t2' -> t2 = t2'.
 Proof.
@@ -696,34 +902,12 @@ Proof.
   { repeat f_equal. eapply IHsred. eauto. }
 Qed.
 
-
-(* Each deterministic relation have te following lemma. *)
-Lemma star_path_determinism {A: Type} {R: A -> A -> Prop}:
-  (forall s1 s2, R s1 s2 -> forall s3, R s1 s3 -> s2 = s3)
-  ->
-  forall s1 s2,
-    star R s1 s2 ->
-    forall s3,
-    star R s1 s3 ->
-    (star R s2 s3 \/ star R s3 s2).
-Proof.
-  intros determinism.
-  induction 1; intros.
-  { eauto. }
-  { destruct H1.
-    { right. eapply star_step; eauto. }
-    { learn (determinism _ _ H _ H1); subst.
-      learn (IHstar _ H2); unzip; eauto.
-    }
-  }
-Qed.
-
-
 (* -------------------------------------------------------------------------- *)
-
-(** Simple translation of [if t then ta else tb] into [if (if t then false else true) then tb else ta] *)
+(** Translation of [if t then ta else tb] into [if (if t then false else true) then tb else ta] *)
 
 Module trans1.
+
+(* Let use define the translation on terms. *)
 Fixpoint trans_term t :=
   match t with
   | Var x => Var x
@@ -742,6 +926,7 @@ with trans_value v :=
   end
 .
 
+(* To define it to states, we need to extend the definition. *)
 Fixpoint trans_conts (kappa: list cont): list cont :=
   match kappa with
   | nil => nil
@@ -769,10 +954,11 @@ Definition trans_state (s: state) : state :=
   end
 .
 
+(* After defining the extension of the translation to states, the proof of the following diagram is immediate. *)
+
 Theorem correction_continuations:
   forall s1 s2,
   cred s1 s2 ->
-
   star cred
     (trans_state s1) (trans_state s2).
 Proof.
@@ -788,21 +974,59 @@ End trans1.
 
 
 (* -------------------------------------------------------------------------- *)
+(*** Translating [if (if t then false else true) then tb else ta] into [if t then ta else tb] ***)
 
-(** More complex translation and inverse of the previous translation. [if (if t then false else true) then tb else ta] is translated into [if t then ta else tb] *)
+(* Inverse of the previous translation. This is significantly harder to show because of de-synchronization issues, as explained below. *)
 
-Module trans3.
+Module trans2.
 
-Definition with_stack s kappa :=
-  match s with
-  | mode_cont _ v => mode_cont kappa v
-  | mode_eval t _ sigma => mode_eval t kappa sigma
-  end.
+(* Definition of the translation on terms. *)
+Function trans_term t :=
+  match t with
+  | Var x => Var x
+  | App t1 t2 => App (trans_term t1) (trans_term t2)
+  | Lam t => Lam (trans_term t)
+  | Value v => Value (trans_value v)
+  | If (If u (Value (Bool false)) (Value (Bool true))) t1 t2 =>
+    If (trans_term u) (trans_term t2) (trans_term t1)
+  | If u t1 t2 =>
+    If (trans_term u) (trans_term t1) (trans_term t2)
+  end
+with trans_value v :=
+  match v with
+  | Closure t sigma =>
+    Closure (trans_term t) (List.map trans_value sigma)
+  | Bool b => Bool b
+  end
+.
 
-Definition append_stack s kappa :=
-  with_stack s (stack s ++ kappa).
-Definition cons_stack s kappa :=
-  with_stack s (kappa ++ stack s ).
+(** Inside the diagrams, we use an invariant and not this translation function. This is due to a desynchronization between the translation of terms after a reduction:
+
+Indeed, the term `t1`
+
+[ t1 = if (if true then if t then false else true else u) then a else b]
+
+is translated into `t1'`
+
+[t1' = if (if true then (trans_term (if t then false else true)) else (trans_term u)) then (trans_term a) else (trans_term b)]
+
+Which reduces to 
+
+[t2' = if (trans_term (if t then false else true)) then (trans_term a) else (trans_term b)]
+
+while after one step of reduction, the term ` becomes the term `t2`
+
+[t2 = if if t then false else true then a else b]
+
+which translates to `t2'`
+
+[t2'' = if (trans_term t) then (trans_term b) else (trans_term a)]
+
+You can observe that the terms `t2'` and `t2''` are not the same as the translation applies either to the outer if or to the condition. 
+
+Hence, we need to define an invariant between terms that is more general than the above function, in the sense that we can decide to apply the translation or not, non-deterministicly. This fixes the desynchronization issue but requires more work to find an show the correct diagram.
+
+*)
 
 Inductive cong_term: term -> term -> Prop :=
   | cong_if_base {u t1 t2 u' t1' t2'}:
@@ -838,33 +1062,31 @@ with cong_value: value -> value -> Prop :=
     cong_value (Closure t sigma) (Closure t' sigma')
 .
 
-Function trans_term t :=
-  match t with
-  | Var x => Var x
-  | App t1 t2 => App (trans_term t1) (trans_term t2)
-  | Lam t => Lam (trans_term t)
-  | Value v => Value (trans_value v)
-  | If (If u (Value (Bool false)) (Value (Bool true))) t1 t2 =>
-    If (trans_term u) (trans_term t2) (trans_term t1)
-  | If u t1 t2 =>
-    If (trans_term u) (trans_term t1) (trans_term t2)
-  end
-with trans_value v :=
-  match v with
-  | Closure t sigma =>
-    Closure (trans_term t) (List.map trans_value sigma)
-  | Bool b => Bool b
-  end
+(* -------------------------------------------------------------------------- *)
+(** The goal of this paragraph is to show that the [trans_term] function is a subcase of the [cong_term] relation : *)
+
+Theorem trans_cong_term :
+  forall t, 
+    cong_term t (trans_term t)
 .
-
-Functional Scheme
-  trans_term_ind2 := Induction for trans_term Sort Prop
-with
-  trans_value_ind2 := Induction for trans_value Sort Prop.
+Abort.
 
 
-(* Correspondance between trans_term and cong_term*)
-Theorem trans_cong_term:
+(** For that, we need to show the result for both values and terms. Because we have deep-sub-terms, we need to use well-founded induction (or reprove a induction principle for our needs). We reuse the trick to show our theorem that we already presented in the section about inductions principles on terms: we show our property on objects [x] of type [term + values]. This permit to, after the use of the `econstructor` tactic apply the induction principle on both terms and values of smaller size. 
+
+
+This is an obligation beacause the induction principle generated by Functional Scheme [trans_term_ind2] is lacking an hypothesis in the case of the [List.Forall2].
+
+*)
+
+Functional Scheme trans_term_ind2 := Induction for trans_term Sort Prop
+with trans_value_ind2 := Induction for trans_value Sort Prop.
+
+(* Missing induction hypothesis related to List.Forall2 sigma _ _. Uncomment to show. *)
+(* Check trans_term_ind2. *)
+
+
+Lemma trans_cong_technical:
   forall x,
   match x with
   | inl t => cong_term t (trans_term t)
@@ -880,8 +1102,12 @@ Proof.
   all: simpl.
   all: repeat unzip_match.
   all: repeat econstructor; fold trans_term; fold trans_value.
-  all: try match goal with [ |- cong_term ?e _ ] => eapply (IHx (inl e)); simpl; lia end.
-  all: try match goal with [ |- cong_value ?e _ ] => eapply (IHx (inr e)); simpl; lia end.
+  all: try match goal with
+    | [ |- cong_term ?e _ ] => solve [eapply (IHx (inl e)); simpl; lia]
+    | [ |- cong_value ?e _ ] => solve [eapply (IHx (inr e)); simpl; lia]
+  end.
+
+  (* One case is left, corresponding to where we have a List.Forall2. We do the induction on the first list to derive the result. *)
   { induction sigma; econstructor.
     { eapply (IHx (inr a)).
       simpl; lia.
@@ -894,10 +1120,25 @@ Proof.
   }
 Qed.
 
-(* Generalization of the equivalence between terms to an equivalence between states. *)
+(** The wanted theorem can be derived by a simple application. of the above result. *)
+Theorem trans_cong_term :
+  forall t, 
+    cong_term t (trans_term t)
+.
+Proof.
+  intros.
+  eapply (trans_cong_technical (inl t)).
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+(*** Extending [cong_term] into [cong_states] ***)
+
+(* To be able to state the theorem on continuation based small-step semantics reductions, we first need to extend our invariant to states.
+*)
 
 
-(* In this definition, I choose to not separate the mode_eval and mode_cont when it was possible. I hence used the "append_stack" function. This might pose issues when applying the "econstructor" tactic. *)
+(* In this definition, we choose to not separate the mode_eval and mode_cont when it was possible. we hence used the "append_stack" function. This might pose issues when applying the "econstructor" tactic. In those case, we use the rewriting lemmas present in the section about continuation-based small-step semantics. *)
+
 Inductive cong_state: state -> state -> Prop :=
   (* Base cases *)
   | cong_mode_eval {t sigma t' sigma'}:
@@ -960,70 +1201,54 @@ Inductive cong_state: state -> state -> Prop :=
       (mode_eval u' [CIf t2' t1' sigma'] sigma0')
 .
 
+(* We define a smart-inversion tactic for this invariant. This comes handy when deconstructing hypothesis of type cong_term. Sadly, we cannot have such an tactic with [cong_state] because we are using [append_stack] and not a coq constructor. *)
 Ltac2 sinv_cong () :=
   match! goal with
   | [ h: cong_term ?c _ |- _ ] => smart_inversion c h
   | [ h: cong_value ?c _ |- _ ] => smart_inversion c h
-  | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
-  | [ h: List.Forall2 _ ?c _ |- _ ] => smart_inversion c h
-  | [ h: List.Forall2 _ _ ?c |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 cong_value ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 cong_value _ ?c |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 cong_term ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 cong_term _ ?c |- _ ] => smart_inversion c h
   end.
 
-Ltac sinv_cong := ltac2:(sinv_cong ()).
+Ltac sinv_cong := ltac2: (sinv_cong ()).
+
+(* -------------------------------------------------------------------------- *)
+(** Some properties about cong_term and cong_value. *)
 
 
-Lemma append_stack_mode_eval {s k t kappa sigma}:
-  append_stack s [k] = mode_eval t kappa sigma ->
-  exists kappa',
-  kappa = kappa' ++ [k] /\
-  s = mode_eval t kappa' sigma
-  .
+(* [cong_term] is not deterministic. *)
+Lemma cong_term_deterministic:
+  forall t t1,
+    cong_term t t1 ->
+    forall t2,
+    cong_term t t2 ->
+    t1 = t2.
 Proof.
-  induction kappa using List.rev_ind.
-  { intros; exfalso. induction s; simpl in *; tryfalse.
-    injections; subst.
-    apply (f_equal (@Datatypes.length cont)) in H0; rewrite List.length_app in *; simpl in *.
-    lia.
-  }
-  { intros; induction s; simpl in *; tryfalse.
-    repeat injections; subst.
-    learn (List.app_inj_tail _ _ _ _ H0); unpack; subst.
-    repeat econstructor.
-  }
+  induction 1; inversion 1; subst.
+  all: repeat f_equal; eauto.
+  (* All of the remaning cases are linked to the non-determinism of the translation of the if, and are unsolvable *)
+Abort.
+
+Lemma cong_term_non_deterministic:
+  exists t t1,
+    cong_term t t1 /\
+    exists t2,
+    cong_term t t2 /\
+    t1 <> t2.
+Proof.
+  exists (If (If true false true) true false).
+  repeat eexists.
+  { eapply cong_if_base; repeat econstructor. }
+  { eapply cong_If; repeat econstructor. }
+  { intros; congruence. }
 Qed.
 
-Lemma append_stack_mode_cont {s k v kappa}:
-  append_stack s [k] = mode_cont kappa v ->
-  exists kappa',
-  kappa = kappa' ++ [k] /\
-  s = mode_cont kappa' v
-  .
-Proof.
-  induction kappa using List.rev_ind.
-  { intros; exfalso. induction s; simpl in *; tryfalse.
-    injections; subst.
-    apply (f_equal (@Datatypes.length cont)) in H0; rewrite List.length_app in *; simpl in *.
-    lia.
-  }
-  { intros; induction s; simpl in *; tryfalse.
-    repeat injections; subst.
-    learn (List.app_inj_tail _ _ _ _ H0); unpack; subst.
-    repeat econstructor.
-  }
-Qed.
+(* -------------------------------------------------------------------------- *)
+(*** Naive simulation diagram. ***)
 
-Lemma append_stack_app {s kappa1 kappa2}:
-  stack s = kappa1 ++ kappa2 ->
-  s = append_stack (with_stack s kappa1) kappa2.
-Proof.
-  induction s; intros; simpl in *; subst; reflexivity.
-Qed.
-
-Lemma append_stack_all {s}:
-  s = append_stack (with_stack s []) (stack s).
-Proof.
-  induction s; intros; simpl in *; subst; reflexivity.
-Qed.
+(* We first try to show a simulation diagram. by induction on cong_state. *)
 
 Theorem correction_traditional:
   forall s1 s1',
@@ -1035,7 +1260,7 @@ Theorem correction_traditional:
 Proof.
   induction 1; inversion 1; subst; try sinv_cong.
   all: repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
-  { learn (Forall2_nth_error_Some_left _ _ _ H0 _ _ H7); unpack.
+  { learn (Forall2_nth_error_Some_left H0 H7); unpack.
     eapply star_step_prop; [econstructor; eauto|].
     eapply star_refl_prop; econstructor.
     eapply Forall2_nth_error_Some; eauto.
@@ -1096,7 +1321,7 @@ Proof.
   }
 Abort.
 
-
+(* -------------------------------------------------------------------------- *)
 (* Same theorem, but we first do the induction on cred. *)
 
 (** Second tentative: doing an induction on cred *)
@@ -1109,121 +1334,8 @@ Theorem correction_traditional:
         cong_state s2 s2' /\ star cred s1' s2'.
 Abort.
 
-
-
-(****************************************************************)
-(* Third tentative *)
-
-
-
-(* We first define tactics specialized to handle statements in the form of _ ++ _ = _ ++ _ *)
-
-Lemma stack_append_stack {s kappa}:
-  stack (append_stack s kappa) = stack s ++ kappa.
-Proof.
-  induction s; simpl; eauto.
-Qed.
-
-Ltac list_simpl_base h := 
-  learn (f_equal (@List.rev _) h);
-    repeat multimatch goal with
-    | [h: _ |- _] =>
-      let P := typeof h in
-      match P with
-      | @Learnt _ =>
-        idtac
-      | _ =>
-        repeat rewrite List.rev_involutive in h;
-        repeat rewrite List.rev_app_distr in h;
-        simpl in h
-      end
-    end;
-    injections;
-    subst;
-    try congruence
-.
-
-Ltac list_simpl := 
-  (try multimatch goal with
-  | [h: _ = _ |- _] =>
-    list_simpl_base h
-  end)
-  .
-
-Lemma list_append_decompose: forall {A} {kappa1 kappa2} {k1 k2: A} ,
-  k1 :: kappa1 = kappa2 ++ [k2] ->
-  (k1 = k2 /\ kappa1 = nil /\ kappa2 = nil)
-  \/ (exists kappa, kappa1 = kappa ++ [k2] /\ kappa2 = k1 :: kappa).
-Proof.
-  induction kappa1 as [|a1 kappa1]; intros.
-  { repeat list_simpl.
-    left; unzip; eauto.
-  }
-  {
-    induction kappa2 as [|a2 kappa2]; repeat list_simpl.
-    destruct IHkappa1 with kappa2 a1 k2; eauto.
-  }
-Qed.
-
-
-(* This lemma is not true for the cong_state relation, as expected *)
-Lemma cong_term_deterministic:
-  forall t t1,
-    cong_term t t1 ->
-    forall t2,
-    cong_term t t2 ->
-    t1 = t2.
-Proof.
-  induction 1; inversion 1; subst.
-  all: repeat f_equal; eauto.
-Abort.
-
-
-Lemma cong_term_non_deterministic:
-  exists t t1,
-    cong_term t t1 /\
-    exists t2,
-    cong_term t t2 /\
-    t1 <> t2.
-Proof.
-  exists (If (If true false true) true false).
-  repeat eexists.
-  { eapply cong_if_base; repeat econstructor. }
-  { eapply cong_If; repeat econstructor. }
-  { intros; congruence. }
-Qed.
-
-Theorem cred_append_stack s s':
-  (* If you can do a transition, then you can do the same transition with additional informations on the stack. *)
-  cred s s' ->
-  forall k,
-  cred (append_stack s k) (append_stack s' k).
-Proof.
-  induction 1; intros; asimpl; try econstructor; eauto.
-Qed.
-
-Theorem star_cred_append_stack s s':
-  star cred s s'
-  ->
-  forall k,
-  star cred (append_stack s k) (append_stack s' k).
-Proof.
-  induction 1; intros.
-  * eauto with sequences.
-  * eapply star_step; eauto using cred_append_stack.
-Qed.
-
-Ltac decompose h :=
-  let kappa := fresh "kappa" in
-  first
-    [ destruct (list_append_decompose h) as [?|[kappa ?]]
-    | destruct (list_append_decompose (eq_sym h)) as [?|[kappa ?]]
-    ];
-    unpack;
-    repeat list_simpl;
-    repeat cleanup
-.
-
+(* -------------------------------------------------------------------------- *)
+(*** Doing a well-founded induction on the continuation stack. ***)
 
 (* 
   We prove the lemma using a well-formed induction on the length of the stack.  However, this statement is not directly usable in Coq because we lack certain hypotheses when applying (such as the stack length and its proof of being less than n). To address this, we reorganize the induction hypothesis so that these requirements are introduced properly.
@@ -1236,9 +1348,8 @@ Ltac decompose h :=
         | solve [simpl; repeat (rewrite List.length_app; simpl); lia] 
           (* handles the proof that the stack length is smaller than n *)
         | intros; unpack ].   (* introduces and unpacks the new hypotheses *)
-
-  
 *)
+
 Lemma modify_WF_IH {P n}:
   (forall y : list cont,
   Datatypes.length y < n ->
@@ -1291,8 +1402,8 @@ Proof.
   *)
   { inversion 1; subst; repeat sinv_cong.
     { inversion H2; subst.
-      { learn (Forall2_nth_error_Some_left _ _ _ H7 _ _ H1); unpack.
-        learn (Forall2_nth_error_Some H7 _ _ _ H1 H).
+      { learn (Forall2_nth_error_Some_left H7  H1); unpack.
+        learn (Forall2_nth_error_Some H7 H1 H).
         eapply star_step_prop. { econstructor; eauto. }
         eapply star_refl_prop.
         econstructor; eauto.
@@ -1894,8 +2005,14 @@ Proof.
   }
 Abort.
 
+(* -------------------------------------------------------------------------- *)
+(*** Refined diagram ***)
 
-(* Because the above diagram does not work, we prove a slight variation of this diagram : *)
+(* As stated above, the naive diagram does not work. This is due to the cred_if_true reduction: two reduction are needed in the source, while only one reduction is possible in the target. To solve this issue, we modify slightly the diagram, permitting multiple reduction in the source as well as in the target.
+
+More precisely, we show the following:
+*)
+
 
 Theorem correction_diagram:
   forall s1 s1' s2,
@@ -1908,7 +2025,12 @@ Theorem correction_diagram:
 .
 Abort.
 
-(* We first reorganise the diagram to be able to do the induction on the stack. *)
+(* The main point of using continution-based semantics and our reduction lemmas [star_refl_prop, star_step_prop, star_trans_prop] is that we can reuse the above proof with minimal modifications.
+
+Indeed, the structure is globally the same. We need to change each [star_step_prop] with a similar application of [confluent_prop_star_step_right], and every cases that worked previously works again. There is no issues with the application of the induction principle as it is solved automatically using lia. 
+
+This means we can focus on the additional cases.
+*)
 
 Theorem correction_diagram_aux:
   forall kappa,
@@ -1940,8 +2062,8 @@ induction kappa as [kappa IHkappa] using (
 rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
 intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   { inversion H2; subst; mytryfalse.
-    learn (Forall2_nth_error_Some_left _ _ _ H7 _ _ H1); unpack.
-    learn (Forall2_nth_error_Some H7 _ _ _ H1 H).
+    learn (Forall2_nth_error_Some_left H7  H1); unpack.
+    learn (Forall2_nth_error_Some H7 H1 H).
     eapply confluent_prop_star_step_right. { econstructor; eauto. }
     eapply confluent_prop_star_refl.
     econstructor; eauto.
@@ -2582,4 +2704,4 @@ Proof.
   eapply (correction_diagram_aux (stack s1) _ eq_refl _ H0 _ H).
 Qed.
 
-End trans3.
+End trans2.
