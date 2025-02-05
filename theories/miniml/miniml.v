@@ -17,15 +17,227 @@ Inductive term :=
   (* Lambda calculus part of the language*)
   | Var (x: var)
   | App (t1 t2: term)
+  | Value (v: value)
+with value :=
   | Lam (t: {bind term}).
 
 Inductive expressible_value :=
   | Closure (t: {bind term}) (sigma: list expressible_value).
 
 #[export] Instance Ids_term : Ids term. derive. Defined.
-#[export] Instance Rename_term : Rename term. derive. Defined.
-#[export] Instance Subst_term : Subst term. derive. Defined.
-#[export] Instance SubstLemmas_term : SubstLemmas term. derive. Qed.
+
+Fixpoint rename_term (xi : var -> var) (s : term) {struct s} : term :=
+  match s as t return (annot term t) with
+  | Var x => (fun x0 : var => Var (xi x0)) x
+  | App t1 t2 =>
+    (fun s1 s2 : term => App (rename_term xi s1) (rename_term xi s2)) t1 t2
+  | Value v => Value (rename_value xi v)
+  end
+with rename_value (xi: var -> var) (s: value) {struct s} : value :=
+  match s as v return (annot value v) with
+  | Lam t => Lam (rename_term (upren xi) t)
+  end.
+
+#[export] Instance Rename_term : Rename term := rename_term.
+#[export] Instance Rename_value : Rename value := rename_value.
+
+Locate "..[".
+
+Fixpoint subst_term (xi : var -> term) (s : term) {struct s} : term :=
+  match s as t return (annot term t) with
+  | Var x => (fun x0 : var => (xi x0)) x
+  | App t1 t2 =>
+    (fun s1 s2 : term => App (subst_term xi s1) (subst_term xi s2)) t1 t2
+  | Value v => Value (subst_value xi v)
+  end
+with subst_value (xi: var -> term) (s: value) {struct s} : value :=
+  match s as v return (annot value v) with
+  | Lam t => Lam (subst_term (up xi) t)
+  end.
+
+Definition subst_value' (xi: var -> value) (s: value) := subst_value (xi >>> Value) (s).
+
+#[export] Instance Subst_term : Subst term := subst_term.
+#[export] Instance Subst_value : Subst value := subst_value'.
+
+
+Fixpoint size_term t := 
+  match t with
+  | Var _ => 0
+  | App t1 t2 => S (size_term t1 + size_term t2)
+  | Value v => S (size_value v)
+  end
+with size_value v :=
+  match v with
+  | Lam t => S (size_term t)
+  end.
+
+Definition size x := match x with | inl t => size_term t | inr v => size_value v end.
+
+Fixpoint size_value_expressible v :=
+  match v with
+  | Closure t env => S (size_term t + (List.list_sum (List.map size_value_expressible env)))
+  end.
+
+Theorem term_value_induction
+: forall {P : term -> Prop} {Q : value -> Prop}
+    {HVar: forall x : var, P (Var x)}
+    {HApp: forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)}
+    {HValue: forall v: value, Q v -> P (Value v)}
+    {HLam: forall t : {bind term}, P t -> Q (Lam t)},
+    (forall x : term + value, match x with | inl t => P t | inr v => Q v end).
+Proof.
+  induction x as [x IHx] using (
+    well_founded_induction
+      (wf_inverse_image _ nat _ size 
+      PeanoNat.Nat.lt_wf_0)).
+  { destruct x.
+    { destruct t; try first [
+        eapply HVar|
+        eapply HApp|
+        eapply HValue
+      ].
+      1: eapply (IHx (inl t1)).
+      2: eapply (IHx (inl t2)).
+      3: eapply (IHx (inr v)).
+      all: simpl; lia.
+    }
+    { destruct v; try first [
+        eapply HLam
+      ].
+      { eapply (IHx (inl t)).
+        all: simpl; lia.
+      }
+    }
+  }
+Qed.
+
+Definition term_value_induction_term P Q HVar
+HApp
+HValue
+HLam t : P t := @term_value_induction P Q HVar
+HApp
+HValue
+HLam (inl t).
+
+Lemma SubstLemmas_term1: forall (xi : var -> var) (s : term), rename xi s = s.[ren xi].
+Proof.
+  intros xi s.
+  revert s xi.
+  eapply (term_value_induction_term
+    (fun t => forall xi, rename_term xi t = subst_term (ren xi) t)
+    (fun v => forall xi, rename_value xi v = subst_value (ren xi) v)).
+  { simpl; eauto. }
+  { intros; simpl; eauto.
+    unfold rename in *.
+    unfold Rename_term in *.
+    unfold subst in *.
+    unfold Subst_term in *.
+    rewrite H, H0.
+    eauto.
+  }
+  { intros; simpl; eauto.
+    unfold rename in *.
+    unfold Rename_value in *.
+    unfold subst in *.
+    unfold Subst_value in *.
+    unfold subst_value' in *.
+    rewrite H.
+    eauto.
+  }
+  {
+    intros; simpl; eauto.
+    unfold rename in *.
+    unfold Rename_term in *.
+    unfold subst in *.
+    unfold Subst_term in *.
+    rewrite H.
+
+    rewrite up_upren_internal; simpl; eauto.
+  }
+Qed.
+
+Lemma SubstLemmas_term2: forall s : term, s.[ids] = s.
+Proof.
+  eapply (term_value_induction_term
+    (fun t => subst_term ids t = t)
+    (fun v => subst_value ids v = v)).
+  
+  all: intros; simpl; eauto; unfold subst, Subst_term, Subst_value, subst_value' in *.
+  { rewrite H, H0; eauto. }
+  { rewrite H; eauto. }
+  { rewrite up_id_internal, H; eauto. }
+Qed.
+
+Lemma SubstLemmas_term3:
+  forall (sigma : var -> term) (x : var), (ids x).[sigma] = sigma x.
+Proof.
+  simpl; eauto.
+Qed.
+
+Lemma SubstLemmas_term4_ren_left: forall (xi : var -> var) (sigma0 : var -> term) (s : term),
+(rename xi s).[sigma0] = s.[xi >>> sigma0].
+Proof.
+  intros sigma tau s.
+  revert s sigma tau.
+  eapply (term_value_induction_term
+    (fun t => forall sigma tau, subst_term tau (rename_term sigma t) = subst_term (sigma >>> tau) t)
+    (fun v => forall sigma tau, subst_value tau (rename_value sigma v) = subst_value (sigma >>> tau) v)).
+  all: intros; simpl; eauto.
+  { rewrite H, H0; eauto. }
+  { rewrite H; eauto. }
+  { rewrite H.
+    autosubst.
+  }
+Qed.
+
+Lemma SubstLemmas_term4_ren_right:
+  forall (sigma0 : var -> term) (xi : var -> var) (s : term),
+  rename xi s.[sigma0] = s.[sigma0 >>> rename xi].
+Proof.
+  intros sigma tau s.
+  revert s sigma tau.
+  eapply (term_value_induction_term
+    (fun t => forall sigma tau, rename_term tau (subst_term sigma t) = subst_term (sigma >>> rename tau) t)
+    (fun v => forall sigma tau, rename_value tau (subst_value sigma v) = subst_value (sigma >>> rename tau) v)).
+  all: intros; simpl; eauto.
+  { rewrite H, H0. eauto. }
+  { rewrite H. eauto. }
+  { rewrite H.
+    rewrite up_comp_subst_ren_internal; simpl; eauto.
+    { eapply SubstLemmas_term1. }
+    { eapply SubstLemmas_term4_ren_left. }
+  }
+Qed.
+
+Lemma SubstLemmas_term4: forall (sigma tau : var -> term) (s : term), s.[sigma].[tau] = s.[sigma >> tau].
+Proof.
+  intros sigma tau s.
+  revert s sigma tau.
+  eapply (term_value_induction_term
+    (fun t => forall sigma tau, subst_term tau (subst_term sigma t) = subst_term (sigma >> tau) t)
+    (fun v => forall sigma tau, subst_value tau (subst_value sigma v) = subst_value (sigma >> tau) v)).
+  all: intros; simpl; eauto.
+  {
+    rewrite H, H0.
+    eauto.
+  }
+  { rewrite H; eauto. }
+  { rewrite H; eauto.
+
+    rewrite up_comp_internal; asimpl; eauto.
+    { eapply SubstLemmas_term4_ren_left. }
+    { eapply SubstLemmas_term4_ren_right. }
+  }
+Qed.
+
+#[export] Instance SubstLemmas_term : SubstLemmas term. 
+  split.
+  { eapply SubstLemmas_term1. }
+  { eapply SubstLemmas_term2. }
+  { eapply SubstLemmas_term3. }
+  { eapply SubstLemmas_term4. }
+Defined.
 
 Lemma ids_inj:
   forall x y, ids x = ids y -> x = y.
@@ -98,7 +310,7 @@ Theorem term_ind'
   : forall (P : term -> Prop) (P0 : expressible_value -> Prop),
       (forall x : var, P (Var x)) ->
       (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
-      (forall t : {bind term}, P t -> P (Lam t)) ->
+      (forall t : {bind term}, P t -> P0 (Lam t)) ->
       (forall t,
        P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)) ->
       (forall t : term, P t) /\ (forall v : expressible_value, P0 v).
@@ -107,6 +319,9 @@ Proof.
   unshelve eapply (term_value_induction (inl t)); eauto.
   unshelve eapply (term_value_induction (inr v)); eauto.
 Qed.
+
+
+
 
 
 (*** Syntax for continuations ***)
@@ -202,7 +417,7 @@ Definition subst_of_env sigma :=
 Inductive sred: term -> term -> Prop :=
   | sred_beta:
     forall t v,
-      match v with | Lam _ | Var _ => True | _ => False end ->
+      match v with | Lam _ => True | _ => False end ->
       sred
         (App (Lam t) v)
         (t.[v/])
