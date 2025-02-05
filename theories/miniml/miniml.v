@@ -17,12 +17,10 @@ Inductive term :=
   (* Lambda calculus part of the language*)
   | Var (x: var)
   | App (t1 t2: term)
-  | Lam (t: {bind term})
-  | Value (v: value)
+  | Lam (t: {bind term}).
 
-with value :=
-  | Closure (t: {bind term}) (sigma: list value)
-.
+Inductive expressible_value :=
+  | Closure (t: {bind term}) (sigma: list expressible_value).
 
 #[export] Instance Ids_term : Ids term. derive. Defined.
 #[export] Instance Rename_term : Rename term. derive. Defined.
@@ -42,14 +40,13 @@ Fixpoint size_term t :=
   | Var _ => 0
   | App t1 t2 => S (size_term t1 + size_term t2)
   | Lam t => S (size_term t)
-  | Value v => S (size_value v)
-  end
-with size_value v :=
+  end.
+Fixpoint size_value v :=
   match v with
   | Closure t env => S (size_term t + (List.list_sum (List.map size_value env)))
   end.
 
-Definition size (x : term + value) :=
+Definition size (x : term + expressible_value) :=
   match x with
   | inl t => size_term t
   | inr v => size_value v
@@ -57,14 +54,13 @@ Definition size (x : term + value) :=
 
 
 Theorem term_value_induction
-: forall {P : term -> Prop} {P0 : value -> Prop}
+: forall {P : term -> Prop} {P0 : expressible_value -> Prop}
     {HVar: forall x : var, P (Var x)}
     {HApp: forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)}
     {HLam: forall t : {bind term}, P t -> P (Lam t)}
-    {HValue: forall v : value, P0 v -> P (Value v)}
     {HClosure: forall t,
       P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)},
-    (forall x : term + value, match x with | inl t => P t | inr v => P0 v end).
+    (forall x : term + expressible_value, match x with | inl t => P t | inr v => P0 v end).
 Proof.
   induction x as [x IHx] using (
     well_founded_induction
@@ -80,10 +76,9 @@ Proof.
       1: eapply (IHx (inl t1)).
       2: eapply (IHx (inl t2)).
       3: eapply (IHx (inl t)).
-      4: eapply (IHx (inr v)).
       all: simpl; lia.
     }
-    { destruct v; try first [
+    { destruct e; try first [
         eapply HClosure
       ].
       { eapply (IHx (inl t)); simpl; lia. }
@@ -100,14 +95,13 @@ Proof.
 Qed.
 
 Theorem term_ind'
-  : forall (P : term -> Prop) (P0 : value -> Prop),
+  : forall (P : term -> Prop) (P0 : expressible_value -> Prop),
       (forall x : var, P (Var x)) ->
       (forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)) ->
       (forall t : {bind term}, P t -> P (Lam t)) ->
-      (forall v : value, P0 v -> P (Value v)) ->
       (forall t,
        P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)) ->
-      (forall t : term, P t) /\ (forall v : value, P0 v).
+      (forall t : term, P t) /\ (forall v : expressible_value, P0 v).
 Proof.
   split; intros.
   unshelve eapply (term_value_induction (inl t)); eauto.
@@ -118,19 +112,19 @@ Qed.
 (*** Syntax for continuations ***)
 
 Inductive cont :=
-  | CAppR (t2: term) (sigma: list value) (* [\square t2] *)
-  | CClosure (t_cl: {bind term}) (sigma_cl: list value)
+  | CAppR (t2: term) (sigma: list expressible_value) (* [\square t2] *)
+  | CClosure (t_cl: {bind term}) (sigma_cl: list expressible_value)
   (* [Clo(x, t_cl, sigma_cl) \square] Since we are using De Bruijn indices,
      there is no variable x. *)
 .
 
 Inductive result :=
-  | RValue (v: value)
+  | RValue (v: expressible_value)
 .
 
 
 Inductive state :=
-  | mode_eval (e: term) (kappa: list cont) (env: list value)
+  | mode_eval (e: term) (kappa: list cont) (env: list expressible_value)
   | mode_cont (kappa: list cont) (result: result)
 .
 
@@ -164,12 +158,6 @@ Inductive cred: state -> state -> Prop :=
       (mode_cont ((CAppR t2 sigma)::kappa) (RValue (Closure tcl sigmacl)))
       (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
 
-  | cred_value:
-    forall v kappa sigma,
-    cred
-      (mode_eval (Value v) kappa sigma)
-      (mode_cont kappa (RValue v))
-
   | cred_beta:
     forall t_cl sigma_cl kappa v,
     cred
@@ -182,7 +170,7 @@ Coercion App : term >-> Funclass.
 Notation "'λ.' t" := (Lam t) (at level 50).
 Notation "'S(' t , kappa , sigma )" := (mode_eval t kappa sigma).
 Notation "'C(' v , kappa )" := (mode_cont kappa v).
-Notation "'λ' sigma '.' t " := (Value (Closure t sigma)) (at level 10).
+Notation "'λ' sigma '.' t " := (Closure t sigma) (at level 10).
 (* Notation "'λ' sigma '.' t " := (RValue (Closure t sigma)) (at level 10). *)
 Notation "'k_app1' ( t )" := (CAppR t) (at level 50).
 Notation "'k_app2' ( t , sigma )" := (CClosure t sigma) (at level 50).
@@ -190,8 +178,7 @@ Notation "'k_app2' ( t , sigma )" := (CClosure t sigma) (at level 50).
 Notation "s1 ~> s2" := (cred s1 s2) (at level 20).
 Definition id_var (n: nat): var := n.
 Coercion id_var: nat >-> var.
-Coercion Value: value >-> term.
-Coercion RValue: value >-> result.
+Coercion RValue: expressible_value >-> result.
 Coercion Var: var >-> term.
 
 
@@ -205,7 +192,7 @@ Definition subst_of_env sigma :=
   fun n =>
   match List.nth_error sigma n with
   | None => ids (n - List.length sigma)
-  | Some t => Value t
+  | Some t => t
   end
 .
 
@@ -213,22 +200,18 @@ Definition subst_of_env sigma :=
 
 
 Inductive sred: term -> term -> Prop :=
-  | sred_lam:
-    forall t,
-      sred
-        (Lam t)
-        (Value (Closure t []))
   | sred_beta:
-    forall t v sigma',
+    forall t v,
+      match v with | Lam _ | Var _ => True | _ => False end ->
       sred
-        (App (Value (Closure t sigma')) (Value v))
-        (t.[subst_of_env (v :: sigma')])
+        (App (Lam t) v)
+        (t.[v/])
   | sred_app_right:
-    forall t sigma u1 u2,
+    forall t u1 u2,
       sred (u1) (u2) ->
       sred
-        (App (Value (Closure t sigma)) u1)
-        (App (Value (Closure t sigma)) u2)
+        (App (Lam t) u1)
+        (App (Lam t) u2)
   | sred_app_left:
     forall t1 t2 u,
       sred (t1) (t2) ->
@@ -262,10 +245,10 @@ Inductive jt_term:
     forall Gamma t T1 T2,
       jt_term (T1::Gamma) t T2 ->
       jt_term Gamma (Lam t) (TFun T1 T2)
-  | JTValue:
+  (* | JTValue:
     forall Gamma v T,
       jt_value v T ->
-      jt_term Gamma (Value v) T
+      jt_term Gamma (Value v) T *)
   (* | JTEIf:
     forall Gamma u ta tb T,
       jt_term Gamma u TBool ->
@@ -273,7 +256,7 @@ Inductive jt_term:
       jt_term Gamma tb T ->
       jt_term Gamma (If u ta tb) T *)
 with jt_value:
-   value -> type -> Prop :=
+   expressible_value -> type -> Prop :=
   | JTValueClosure:
     forall  tcl sigma_cl Gamma_cl T1 T2,
       List.Forall2 jt_value sigma_cl Gamma_cl ->
@@ -500,12 +483,6 @@ Proof.
     rewrite lift_inj_Var. rewrite IHk. lia. }
 Qed.
 
-Lemma fv_Value_eq:
-  forall k v,
-  fv k (Value v).
-Proof.
-  unfold fv. intros. asimpl; eauto.
-Qed.
 
 Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq : fv.
 
@@ -515,7 +492,7 @@ Theorem progress_trad t1:
   forall Gamma T,
     jt_term Gamma t1 T ->
     fv 0 t1 ->
-    (exists t2, sred t1 t2) \/ (exists v, t1 = Value v).
+    (exists t2, sred t1 t2) \/ (match t1 with |Lam _ | Var _ => True | _ => False end).
 Proof.
   induction 1.
 
@@ -527,9 +504,6 @@ Proof.
   all: try solve [left; eexists; econstructor; eauto].
   all: try solve [right; simpl; eauto].
 
-  { (* Could be shown in a different lemma. *)
-    exfalso. unfold fv in *; unfold upn in *; unfold ren in *. asimpl in *. inj. clear -H1. induction x; congruence. }
-
   { (** Manual handling of the proof here. *)
     rewrite fv_App_eq in *; unpack.
     pose proof (IHjt_term1 H1).
@@ -538,6 +512,16 @@ Proof.
     all: intros; repeat inv_jt.
     (* automation here depends on the order of the constructors. *)
     all: try solve [left; eexists; econstructor; eauto].
+    { (* The automation does not even work *)
+      induction t1.
+      { rewrite fv_Var_eq in H1. lia. }
+      { tryfalse. }
+      { left; eexists. eapply sred_app_right. eauto. }
+    }
+    { (* The automation does not work either in this case. This is because of the is_value predicate. *)
+      induction t1; induction t2; try rewrite fv_Var_eq in *; try lia; tryfalse.
+      { left; eexists. eapply sred_beta. eauto. }
+    }
   }
 Qed.
 
@@ -550,7 +534,6 @@ Proof.
   { eapply fv_Var_eq. eapply List.nth_error_Some; repeat intro; tryfalse. }
   { rewrite fv_App_eq; eauto. }
   { rewrite fv_Lam_eq; eauto. }
-  { eapply fv_Value_eq. }
 Qed.
 
 Lemma jt_term_firstn_fv:
@@ -580,7 +563,6 @@ Proof.
     pose proof (IHjt_term _ H0).
     repeat econs_jt; eauto.
   }
-  { intros. repeat econs_jt. eauto. }
 Qed.
 
 (* Compute (Var 0).[upn 0 (subst_of_env [Closure (Var 0) []])]. *)
@@ -599,7 +581,7 @@ Proof.
   }
 Qed.
 
-Lemma upn_k_sigma_x':
+(* Lemma upn_k_sigma_x':
   forall k sigma x,
   x >= k ->
   x < List.length sigma + k ->
@@ -619,10 +601,10 @@ Proof.
       }
     }
   }
-Qed.
+Qed. *)
 
 
-Theorem jt_term_subst_aux: forall {Gamma t T},
+(* Theorem jt_term_subst_aux: forall {Gamma t T},
   jt_term Gamma t T ->
   forall Gamma1 Gamma2,
   Gamma1++Gamma2 = Gamma ->
@@ -703,7 +685,7 @@ Proof.
   { rewrite List.nth_error_app1; eauto.
     eapply nth_error_Some'; eauto.    
   }
-Qed.
+Qed. *)
 
 
 Theorem preservation_trad t1:
@@ -716,21 +698,25 @@ Theorem preservation_trad t1:
 Proof.
   intros Hfv.
   induction 1; intros; repeat inv_jt; repeat econs_jt; eauto.
-  { (* ugly thing is here. Untold invarant : the terms are free of variables inside lambda. *)
-    rewrite fv_Lam_eq in *.
-    replace [T1] with (List.firstn 1 (T1::Gamma)) by (simpl; eauto).
-    eapply jt_term_firstn_fv; eauto.
-  }
-  { (* should be provable with substitution lemma *)
-    assert (H: List.Forall2 jt_value (v :: sigma') (T1 :: Gamma_cl)) by (econstructor; eauto).
-    pose proof (jt_term_subst H3 _ H).
+  (* { ugly thing is here. Untold invarant : the terms are free of variables inside lambda.
+    rewrite fv_App_eq in Hfv.
+    rewrite fv_Lam_eq in Hfv.
+    admit.
+    (* progress replace [T1] with (List.firstn 1 (T1::Gamma)) by (simpl; eauto).
+    eapply jt_term_firstn_fv; eauto. *)
+  } *)
+  (* { 
+    (* should be provable with substitution lemma *)
+    (* assert (H: List.Forall2 jt_value (v :: sigma') (T1 :: Gamma_cl)) by (econstructor; eauto). *)
+    (* pose proof (jt_term_subst H3 _ H). *)
     replace Gamma with ([] ++ Gamma) by (simpl; eauto).
-    apply jt_term_more_env.
+    (* apply jt_term_more_env. *)
     eauto.
-  }
+  } *)
+  { admit "requires an substitution theorem". }
   { rewrite fv_App_eq in *; unpack. eapply IHsred; eauto. }
   { rewrite fv_App_eq in *; unpack; eapply IHsred; eauto. }
-Qed.
+Admitted.
 
 
 
@@ -747,13 +733,13 @@ Theorem sred_deterministic:
   forall t1 t2, sred t1 t2 -> forall t2', sred t1 t2' -> t2 = t2'.
 Proof.
   induction 1; inversion 1; subst; simpl in *; eauto.
-  { inversion H4. }
-  { inversion H3. }
-  { inversion H. }
+  { inversion H4; subst; tryfalse. }
+  { inversion H4; subst; tryfalse. }
+  { inversion H; subst; tryfalse. }
   { repeat f_equal. eapply IHsred. eauto. }
-  { inversion H4. }
-  { inversion H. }
-  { inversion H. }
+  { inversion H4; subst; tryfalse. }
+  { inversion H; subst; tryfalse. }
+  { inversion H; subst; tryfalse. }
   { repeat f_equal. eapply IHsred. eauto. }
 Qed.
 
@@ -773,13 +759,6 @@ Inductive sim_term: term -> term -> Prop :=
   | sim_term_3: forall t1 u1,
     sim_term t1 u1 ->
     sim_term (Lam t1) (Lam u1)
-  | sim_term_4: forall v1 w1,
-    sim_value v1 w1 ->
-    sim_term (Value v1) (Value w1)
-with sim_value: value -> value -> Prop :=
-  | sim_value_1: forall t1 t2 sigma1 sigma2,
-    sim_term t1.[up (subst_of_env sigma1)] t2.[up (subst_of_env sigma2)] ->
-    sim_value (Closure t1 sigma1) (Closure t2 sigma2)
 .
 
 (* This equivalence relation is indeed reflexive, symmetric and transitive. Moreother, it is invariant with respect to renaming and substitution. We show those facts bellow, after defining a more general induction principle. *)
