@@ -61,6 +61,10 @@ Definition subst_value' (xi: var -> value) (s: value) := subst_value (xi >>> Val
 #[export] Instance Subst_value : Subst value := subst_value'.
 
 
+
+(*** Strong induction principle for terms ***)
+
+
 Fixpoint size_term t := 
   match t with
   | Var _ => 0
@@ -244,68 +248,7 @@ Lemma ids_inj:
 intros; inj; eauto.
 Qed.
 
-
-(*** Strong induction principle for terms ***)
-
-Fixpoint size_term t := 
-  match t with
-  | Var _ => 0
-  | App t1 t2 => S (size_term t1 + size_term t2)
-  | Lam t => S (size_term t)
-  end.
-Fixpoint size_value v :=
-  match v with
-  | Closure t env => S (size_term t + (List.list_sum (List.map size_value env)))
-  end.
-
-Definition size (x : term + expressible_value) :=
-  match x with
-  | inl t => size_term t
-  | inr v => size_value v
-  end.
-
-
-Theorem term_value_induction
-: forall {P : term -> Prop} {P0 : expressible_value -> Prop}
-    {HVar: forall x : var, P (Var x)}
-    {HApp: forall t1 : term, P t1 -> forall t2 : term, P t2 -> P (App t1 t2)}
-    {HLam: forall t : {bind term}, P t -> P (Lam t)}
-    {HClosure: forall t,
-      P t -> forall sigma, (List.Forall P0 sigma) -> P0 (Closure t sigma)},
-    (forall x : term + expressible_value, match x with | inl t => P t | inr v => P0 v end).
-Proof.
-  induction x as [x IHx] using (
-    well_founded_induction
-      (wf_inverse_image _ nat _ size 
-      PeanoNat.Nat.lt_wf_0)).
-  { destruct x.
-    { destruct t; try first [
-        eapply HVar|
-        eapply HApp|
-        eapply HLam|
-        eapply HValue
-      ].
-      1: eapply (IHx (inl t1)).
-      2: eapply (IHx (inl t2)).
-      3: eapply (IHx (inl t)).
-      all: simpl; lia.
-    }
-    { destruct e; try first [
-        eapply HClosure
-      ].
-      { eapply (IHx (inl t)); simpl; lia. }
-      {
-        induction sigma; econstructor; eauto.
-        { eapply (IHx (inr a)); simpl; lia. }
-
-        eapply IHsigma; intros.
-        { eapply IHx. simpl in *; lia. }
-      }
-      
-    }
-  }
-Qed.
-
+(* TODO: update this lemma.
 Theorem term_ind'
   : forall (P : term -> Prop) (P0 : expressible_value -> Prop),
       (forall x : var, P (Var x)) ->
@@ -318,7 +261,7 @@ Proof.
   split; intros.
   unshelve eapply (term_value_induction (inl t)); eauto.
   unshelve eapply (term_value_induction (inr v)); eauto.
-Qed.
+Qed. *)
 
 
 
@@ -333,14 +276,9 @@ Inductive cont :=
      there is no variable x. *)
 .
 
-Inductive result :=
-  | RValue (v: expressible_value)
-.
-
-
 Inductive state :=
   | mode_eval (e: term) (kappa: list cont) (env: list expressible_value)
-  | mode_cont (kappa: list cont) (result: result)
+  | mode_cont (kappa: list cont) (result: expressible_value)
 .
 
 
@@ -353,7 +291,7 @@ Inductive cred: state -> state -> Prop :=
     List.nth_error sigma x = Some v ->
     cred
       (mode_eval (Var x) kappa sigma)
-      (mode_cont kappa (RValue v))
+      (mode_cont kappa v)
 
   | cred_app:
     forall t1 t2 kappa sigma,
@@ -364,19 +302,19 @@ Inductive cred: state -> state -> Prop :=
   | cred_clo:
     forall t kappa sigma,
     cred
-      (mode_eval (Lam t) kappa sigma)
-      (mode_cont kappa (RValue (Closure t sigma)))
+      (mode_eval (Value (Lam t)) kappa sigma)
+      (mode_cont kappa (Closure t sigma))
 
   | cred_arg:
     forall t2 kappa sigma tcl sigmacl,
     cred
-      (mode_cont ((CAppR t2 sigma)::kappa) (RValue (Closure tcl sigmacl)))
+      (mode_cont ((CAppR t2 sigma)::kappa) (Closure tcl sigmacl))
       (mode_eval t2 ((CClosure tcl sigmacl)::kappa) sigma)
 
   | cred_beta:
     forall t_cl sigma_cl kappa v,
     cred
-      (mode_cont ((CClosure t_cl sigma_cl)::kappa) (RValue v))
+      (mode_cont ((CClosure t_cl sigma_cl)::kappa) (v))
       (mode_eval t_cl kappa (v :: sigma_cl))
 .
 
@@ -393,7 +331,7 @@ Notation "'k_app2' ( t , sigma )" := (CClosure t sigma) (at level 50).
 Notation "s1 ~> s2" := (cred s1 s2) (at level 20).
 Definition id_var (n: nat): var := n.
 Coercion id_var: nat >-> var.
-Coercion RValue: expressible_value >-> result.
+(* Coercion RValue: expressible_value >-> result. *)
 Coercion Var: var >-> term.
 
 
@@ -417,16 +355,15 @@ Definition subst_of_env sigma :=
 Inductive sred: term -> term -> Prop :=
   | sred_beta:
     forall t v,
-      match v with | Lam _ => True | _ => False end ->
       sred
-        (App (Lam t) v)
-        (t.[v/])
+        (App (Value (Lam t)) (Value v))
+        (t.[Value v/])
   | sred_app_right:
     forall t u1 u2,
       sred (u1) (u2) ->
       sred
-        (App (Lam t) u1)
-        (App (Lam t) u2)
+        (App (Value (Lam t)) u1)
+        (App (Value (Lam t)) u2)
   | sred_app_left:
     forall t1 t2 u,
       sred (t1) (t2) ->
@@ -456,48 +393,47 @@ Inductive jt_term:
       jt_term Gamma t1 (TFun T1 T2) ->
       jt_term Gamma t2 T1 ->
       jt_term Gamma (App t1 t2) T2
-  | JTLam:
-    forall Gamma t T1 T2,
-      jt_term (T1::Gamma) t T2 ->
-      jt_term Gamma (Lam t) (TFun T1 T2)
-  (* | JTValue:
+  | JTValue:
     forall Gamma v T,
-      jt_value v T ->
-      jt_term Gamma (Value v) T *)
+      jt_value Gamma v T ->
+      jt_term Gamma (Value v) T
+with jt_value: list type -> value -> type -> Prop :=
+  | JTLam:
+  forall Gamma t T1 T2,
+    jt_term (T1::Gamma) t T2 ->
+    jt_value Gamma (Lam t) (TFun T1 T2)
+
   (* | JTEIf:
     forall Gamma u ta tb T,
       jt_term Gamma u TBool ->
       jt_term Gamma ta T ->
       jt_term Gamma tb T ->
       jt_term Gamma (If u ta tb) T *)
-with jt_value:
+.
+
+Inductive jt_expressible_value:
    expressible_value -> type -> Prop :=
   | JTValueClosure:
     forall  tcl sigma_cl Gamma_cl T1 T2,
-      List.Forall2 jt_value sigma_cl Gamma_cl ->
-      jt_term Gamma_cl (Lam tcl) (TFun T1 T2) ->
-      jt_value (Closure tcl sigma_cl) (TFun T1 T2)
+      List.Forall2 jt_expressible_value sigma_cl Gamma_cl ->
+      jt_value Gamma_cl (Lam tcl) (TFun T1 T2) ->
+      jt_expressible_value (Closure tcl sigma_cl) (TFun T1 T2)
 .
 
 (** Expanding the rules of typing to continuation-bases semantics requires to define the typing jugment for continuations. This typing judgement have two additional informations: the "hole" type, and the "environement" in the hole. Both are required with our presentation since the hole is filed when the jt_state judgement is defined. *)
 
-Inductive jt_result: result -> type -> Prop := 
-  | JTRValue:
-    forall v T,
-    jt_value v T ->
-    jt_result (RValue v) T.
 
 Inductive jt_cont:
   type -> cont -> type -> Prop :=
   | JTCAppR:
     forall {Gamma t2 T1 T2 sigma},
       jt_term Gamma t2 T1 ->
-      List.Forall2 jt_value sigma Gamma ->
+      List.Forall2 jt_expressible_value sigma Gamma ->
       jt_cont (TFun T1 T2) (CAppR t2 sigma) T2
   | JTCClosure:
     forall {Gamma_cl sigma_cl T1 T2 tcl},
-      jt_term Gamma_cl (Lam tcl) (TFun T1 T2) ->
-      List.Forall2 (jt_value) sigma_cl Gamma_cl ->
+      jt_value Gamma_cl (Lam tcl) (TFun T1 T2) ->
+      List.Forall2 (jt_expressible_value) sigma_cl Gamma_cl ->
       jt_cont T1 (CClosure tcl sigma_cl)  T2
   (* | JTCIf:
     forall Gamma T ta tb,
@@ -521,13 +457,13 @@ Inductive jt_conts: type -> list cont -> type -> Prop :=
 Inductive jt_state: state -> type -> Prop :=
 | JTmode_eval:
   forall Gamma t T1 T2 kappa sigma,
-    List.Forall2 (jt_value) sigma Gamma ->
+    List.Forall2 (jt_expressible_value) sigma Gamma ->
     jt_term Gamma t T1 ->
     jt_conts T1 kappa T2 ->
     jt_state (mode_eval t kappa sigma) T2
 | JTmode_cont:
   forall r T1 T2 kappa,
-    jt_result r T1 ->
+    jt_expressible_value r T1 ->
     jt_conts T1 kappa T2 ->
     jt_state (mode_cont kappa r) T2
 . 
@@ -541,12 +477,12 @@ Set Default Proof Mode "Classic".
 Ltac2 inv_jt () :=
   match! goal with
   | [ h: jt_term _ ?c _ |- _ ] => smart_inversion c h
-  | [ h: jt_value ?c _ |- _ ] => smart_inversion c h
-  | [ h: jt_value _ ?c |- _ ] => smart_inversion c h
+  | [ h: jt_value _ ?c _ |- _ ] => smart_inversion c h
+  | [ h: jt_value _ _ ?c |- _ ] => smart_inversion c h
+  | [ h: jt_expressible_value _ ?c |- _ ] => smart_inversion c h
   | [ h: jt_cont _ ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_conts _ ?c _ |- _ ] => smart_inversion c h
   | [ h: jt_state ?c _ |- _ ] => smart_inversion c h
-  | [ h: jt_result ?c _ |- _ ] => smart_inversion c h
   | [ h: List.Forall _ ?c |- _ ] => smart_inversion c h
   | [ h: List.Forall2 _ ?c _ |- _ ] => smart_inversion c h
   | [ h: List.Forall2 _ _ ?c |- _ ] => smart_inversion c h
@@ -559,11 +495,11 @@ Ltac inv_jt := ltac2:(inv_jt ()).
 Ltac2 econs_jt () :=
   match! goal with
   | [ |- jt_term _ _ _] => econstructor
-  | [ |- jt_value _ _] => econstructor
+  | [ |- jt_value _ _ _] => econstructor
+  | [ |- jt_expressible_value _ _] => econstructor
   | [ |- jt_cont _ _ _] => econstructor
   | [ |- jt_conts _ _ _] => econstructor
   | [ |- jt_state _ _] => econstructor
-  | [ |- jt_result _ _] => econstructor
   | [ |- List.Forall _ _] => econstructor
   | [ |- List.Forall2 _ _ _] => econstructor
   end.
@@ -599,7 +535,7 @@ Proof.
   }
    *)
   (* Most of the cases are easilly handle by the automation. *)
-  all: intros; repeat inv_jt; repeat econs_jt; eauto.
+  all: intros; repeat inv_jt; repeat (econs_jt; eauto).
 
   (** One case is left. It requires an external lemma. *)
   { pose proof (Forall2_nth_error_Some H4); eauto. }
@@ -633,7 +569,8 @@ Theorem progress_cont s1:
     (exists s2, cred s1 s2) \/ (is_mode_cont s1 = true /\ stack s1 = nil).
 Proof.
   (* Precise case analysis. *)
-  induction s1 as [t kappa env|kappa r]; [induction t|(induction kappa as [|k kappa]; [|induction k]); induction r].
+  induction s1 as [t kappa env|kappa r]; [induction t; try induction v|(induction kappa as [|k kappa]; [|induction k]); induction r].
+
 
   (** Using inversion on each of the cases *)
   all: intros; repeat inv_jt.
@@ -648,18 +585,21 @@ Proof.
   }
 Qed.
 
+(*** Typing for tss ***)
 
 Definition fv k t :=
   t.[upn k (ren (+1))] = t.
 
-Lemma fv_Lam_eq:
+(* Lemma fv_Lam_eq:
   forall k t,
   fv k (Lam t) <-> fv (S k) t.
 Proof.
   unfold fv. intros. asimpl. split; intros.
   { injections. eauto. }
   { unpack. congruence. }
-Qed.
+Qed. *)
+
+
 
 Lemma fv_App_eq:
   forall k t1 t2,
@@ -670,7 +610,9 @@ Proof.
   { unpack. congruence. }
 Qed.
 
+
 Notation lift i t := (t.[ren(+i)]).
+
 
 
 Lemma lift_inj_Var:
@@ -680,7 +622,7 @@ Proof.
   split; intros.
   { apply lift_inj; eauto. }
   { subst. eauto. }
-Qed.
+Qed. 
 
 Lemma fv_Var_eq:
   forall k x,
@@ -699,7 +641,7 @@ Proof.
 Qed.
 
 
-Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq : fv.
+(* Hint Rewrite fv_Var_eq fv_Lam_eq fv_App_eq : fv. *)
 
 
 (** Main progress lemma for continuation-based semantics. *)
@@ -707,7 +649,7 @@ Theorem progress_trad t1:
   forall Gamma T,
     jt_term Gamma t1 T ->
     fv 0 t1 ->
-    (exists t2, sred t1 t2) \/ (match t1 with |Lam _ | Var _ => True | _ => False end).
+    (exists t2, sred t1 t2) \/ (match t1 with |Value _ => True | _ => False end).
 Proof.
   induction 1.
 
@@ -718,6 +660,8 @@ Proof.
   (** Less cases than in the normal cases. *)
   all: try solve [left; eexists; econstructor; eauto].
   all: try solve [right; simpl; eauto].
+  
+  { rewrite fv_Var_eq in *. lia. }
 
   { (** Manual handling of the proof here. *)
     rewrite fv_App_eq in *; unpack.
@@ -731,27 +675,15 @@ Proof.
       induction t1.
       { rewrite fv_Var_eq in H1. lia. }
       { tryfalse. }
-      { left; eexists. eapply sred_app_right. eauto. }
+      { left; eexists. induction v. eapply sred_app_right. eauto. }
     }
-    { (* The automation does not work either in this case. This is because of the is_value predicate. *)
-      induction t1; induction t2; try rewrite fv_Var_eq in *; try lia; tryfalse.
-      { left; eexists. eapply sred_beta. eauto. }
+    { induction t1; induction t2; try rewrite fv_Var_eq in *; try lia; tryfalse.
+      { induction v. left; eexists. eapply sred_beta. }
     }
   }
 Qed.
 
-Lemma jt_term_fv:
-  forall {Gamma t T},
-    jt_term Gamma t T ->
-    fv (List.length Gamma) t.
-Proof.
-  induction 1.
-  { eapply fv_Var_eq. eapply List.nth_error_Some; repeat intro; tryfalse. }
-  { rewrite fv_App_eq; eauto. }
-  { rewrite fv_Lam_eq; eauto. }
-Qed.
-
-Lemma jt_term_firstn_fv:
+(* Lemma jt_term_firstn_fv:
   forall Gamma t T,
     jt_term Gamma t T ->
     forall k,
@@ -778,7 +710,7 @@ Proof.
     pose proof (IHjt_term _ H0).
     repeat econs_jt; eauto.
   }
-Qed.
+Qed. *)
 
 (* Compute (Var 0).[upn 0 (subst_of_env [Closure (Var 0) []])]. *)
 
@@ -928,7 +860,8 @@ Proof.
     (* apply jt_term_more_env. *)
     eauto.
   } *)
-  { admit "requires an substitution theorem". }
+  { 
+    admit "requires an substitution theorem". }
   { rewrite fv_App_eq in *; unpack. eapply IHsred; eauto. }
   { rewrite fv_App_eq in *; unpack; eapply IHsred; eauto. }
 Admitted.
