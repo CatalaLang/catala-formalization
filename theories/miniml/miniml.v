@@ -904,34 +904,53 @@ Proof.
   }
 Qed.
 
-Lemma jt_term_subst:
-  forall Gamma t T, jt_term Gamma t T
+Lemma jt_term_subst_technical:
+  forall Gamma t T,
+  jt_term Gamma t T
+  -> forall Gamma1 Gamma2,
+  Gamma1 ++ Gamma2 = Gamma
   -> forall sigma Delta,
-  (List.Forall2 (jt_value Delta) sigma Gamma)
+  (List.Forall2 (jt_value Delta) sigma Gamma2)
   ->
-    jt_term Delta t.[fun n => soe sigma n] T.
+    jt_term (Gamma1 ++ Delta) t.[upn (List.length Gamma1) (fun n => soe sigma n)] T.
 Proof.
   intros Gamma t.
   revert t Gamma.
   eapply (term_value_induction_term
-    (fun t => forall Gamma T, jt_term Gamma t T -> 
-      forall sigma Delta,
-      (List.Forall2 (jt_value Delta) sigma Gamma)
-      -> jt_term Delta t.[fun n => soe sigma n] T)
-
-    (fun v => forall Gamma T, jt_value Gamma v T -> 
-      forall sigma Delta,
-      (List.Forall2 (jt_value Delta) sigma Gamma)
-      -> jt_value Delta (subst_value (fun n => soe sigma n) v) T)
+    (fun t =>
+      forall Gamma T,
+        jt_term Gamma t T ->
+        forall Gamma1 Gamma2,
+          Gamma1 ++ Gamma2 = Gamma ->
+          forall sigma Delta,
+            (List.Forall2 (jt_value Delta) sigma Gamma2) ->
+            jt_term (Gamma1 ++ Delta) (subst_term (upn (List.length Gamma1) (fun n => soe sigma n)) t) T)
+    
+    (fun v =>
+    forall Gamma T,
+      jt_value Gamma v T ->
+      forall Gamma1 Gamma2,
+        Gamma1 ++ Gamma2 = Gamma ->
+        forall sigma Delta,
+          (List.Forall2 (jt_value Delta) sigma Gamma2) ->
+          jt_value (Gamma1 ++ Delta) (subst_value (upn (List.length Gamma1) (fun n => soe sigma n)) v) T)
   )
   .
   all: asimpl; intros; repeat inv_jt.
-  { learn (Forall2_nth_error_Some_right H0 (eq_sym H3)); unpack.
-    rewrite H.
-    learn (Forall2_nth_error_Some H0 _ _ _ H (eq_sym H3)).
-    econstructor.
-    eauto.
-  }
+  { rewrite List.nth_error_app in H4.
+    unzip_match.
+    { exploit upn_k_sigma_x; intros.
+      { eapply (Bool.reflect_iff _ _ (Nat.ltb_spec0 _ _)); eauto. }
+      rewrite H.
+      econstructor.
+      rewrite List.nth_error_app1; eauto.
+      { eapply (Bool.reflect_iff _ _ (Nat.ltb_spec0 _ _)); eauto. }
+    }
+    { rewrite <- List.nth_error_app2 in *.
+      2: { }
+
+    }
+    admit. }
   { econstructor.
     { eapply H; eauto. }
     { eapply H0; eauto. }
@@ -940,9 +959,24 @@ Proof.
     eapply H; eauto.
   }
   { econstructor.
-
-    admit. }
+    exploit H; eauto.
+    { rewrite List.app_comm_cons.
+      reflexivity.
+    }
+    { intros.
+      simpl in *.
+      rewrite fold_up_upn.
+      eauto.
+    }
+  }
 Admitted.
+
+Lemma jt_term_subst:
+  forall Gamma t T, jt_term Gamma t T
+  -> forall sigma Delta,
+  (List.Forall2 (jt_value Delta) sigma Gamma)
+  ->
+    jt_term Delta t.[fun n => soe sigma n] T.
 
 
 Theorem preservation_trad t1:
