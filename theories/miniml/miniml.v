@@ -590,16 +590,28 @@ Qed.
 Definition fv k t :=
   t.[upn k (ren (+1))] = t.
 
-(* Lemma fv_Lam_eq:
+Definition fvv k v :=
+  subst_value (upn k (ren (+1))) v = v.
+
+
+Lemma fv_Lam_eq:
   forall k t,
-  fv k (Lam t) <-> fv (S k) t.
+  fvv k (Lam t) <-> fv (S k) t.
 Proof.
-  unfold fv. intros. asimpl. split; intros.
+  unfold fv, fvv. intros. asimpl. split; intros.
   { injections. eauto. }
-  { unpack. congruence. }
-Qed. *)
+  { f_equal. unpack. eauto. }
+Qed.
 
 
+Lemma fv_Value_eq:
+  forall k v,
+  fv k (Value v) <-> fvv k v.
+Proof.
+  unfold fv, fvv. intros; asimpl; split; intros.
+  { injections; eauto. }
+  { f_equal; eauto. }
+Qed.
 
 Lemma fv_App_eq:
   forall k t1 t2,
@@ -728,27 +740,36 @@ Proof.
   }
 Qed.
 
-(* Lemma upn_k_sigma_x':
+Notation "'soe' sigma n" := (
+match List.nth_error sigma n with
+| None => ids (n - List.length sigma)
+| Some t => Value t
+end)
+(at level 69, sigma at level 1, n at level 1, only parsing).
+
+
+
+Lemma upn_k_sigma_x':
   forall k sigma x,
   x >= k ->
   x < List.length sigma + k ->
-  upn k (subst_of_env sigma) x = (subst_of_env sigma) (x - k).
+  upn k (fun n => soe sigma n) x = lift k ((fun n => soe sigma n) (x - k)).
 Proof.
   induction k; intros; asimpl.
-  { repeat f_equal; lia. }
+  { repeat rewrite Nat.sub_0_r. reflexivity. }
   { destruct x; asimpl.
     { lia. }
     { rewrite IHk by lia.
       assert (Hx: x - k < List.length sigma) by lia.
       unfold subst_of_env.
       remember (List.nth_error sigma (x - k)) as o; induction o.
-      { autosubst. }
+      { rewrite SubstLemmas_term4. autosubst. }
       { exfalso.
         eapply List.nth_error_Some; eauto.
       }
     }
   }
-Qed. *)
+Qed.
 
 
 (* Theorem jt_term_subst_aux: forall {Gamma t T},
@@ -834,6 +855,95 @@ Proof.
   }
 Qed. *)
 
+(* Lemma jt_renaming:
+  forall Gamma t T, jt_term Gamma t T
+  -> forall Delta xi, 
+  Gamma = xi >>> Delta
+  -> jt_term Delta t.[ren xi] T.
+Admitted. *)
+
+(* Weakening lemma *)
+Lemma jt_firstn_fv:
+  forall t n,
+    fv n t ->
+    forall Gamma T,
+      jt_term Gamma t T ->
+      jt_term (List.firstn n Gamma) t T.
+Proof.
+  intros t.
+  eapply (term_value_induction_term
+    (fun t => forall n : nat,
+    fv n t ->
+    forall (Gamma : list type) (T : type),
+    jt_term Gamma t T -> jt_term (List.firstn n Gamma) t T)
+
+    (fun v => forall n : nat,
+      fvv n v ->
+      forall (Gamma : list type) (T : type),
+      jt_value Gamma v T -> jt_value (List.firstn n Gamma) v T)
+  ); intros.
+  { rewrite fv_Var_eq in H; inv_jt.
+    econstructor.
+    rewrite List.nth_error_firstn.
+    rewrite (Bool.reflect_iff _ _ (Nat.ltb_spec0 _ _)) in H.
+    rewrite H; eauto.
+  }
+  { rewrite fv_App_eq in *; unpack.
+    inv_jt; econstructor.
+    { eapply H; eauto. }
+    { eapply H0; eauto. }
+  }
+  { inv_jt; econstructor.
+    rewrite fv_Value_eq in H0.
+    eapply H; eauto.
+  }
+  { inv_jt; econstructor.
+    rewrite fv_Lam_eq in H0.
+    rewrite <- List.firstn_cons.
+    eapply H; eauto.
+  }
+Qed.
+
+Lemma jt_term_subst:
+  forall Gamma t T, jt_term Gamma t T
+  -> forall sigma Delta,
+  (List.Forall2 (jt_value Delta) sigma Gamma)
+  ->
+    jt_term Delta t.[fun n => soe sigma n] T.
+Proof.
+  intros Gamma t.
+  revert t Gamma.
+  eapply (term_value_induction_term
+    (fun t => forall Gamma T, jt_term Gamma t T -> 
+      forall sigma Delta,
+      (List.Forall2 (jt_value Delta) sigma Gamma)
+      -> jt_term Delta t.[fun n => soe sigma n] T)
+
+    (fun v => forall Gamma T, jt_value Gamma v T -> 
+      forall sigma Delta,
+      (List.Forall2 (jt_value Delta) sigma Gamma)
+      -> jt_value Delta (subst_value (fun n => soe sigma n) v) T)
+  )
+  .
+  all: asimpl; intros; repeat inv_jt.
+  { learn (Forall2_nth_error_Some_right H0 (eq_sym H3)); unpack.
+    rewrite H.
+    learn (Forall2_nth_error_Some H0 _ _ _ H (eq_sym H3)).
+    econstructor.
+    eauto.
+  }
+  { econstructor.
+    { eapply H; eauto. }
+    { eapply H0; eauto. }
+  }
+  { econstructor.
+    eapply H; eauto.
+  }
+  { econstructor.
+
+    admit. }
+Admitted.
+
 
 Theorem preservation_trad t1:
   fv 0 t1 ->
@@ -860,11 +970,29 @@ Proof.
     (* apply jt_term_more_env. *)
     eauto.
   } *)
-  { 
-    admit "requires an substitution theorem". }
+  { unfold subst.
+    replace (Value v .: ids) with (fun n => soe [v] n).
+    2: {
+      eapply FunctionalExtensionality.functional_extensionality.
+      induction x; simpl; eauto.
+      { rewrite List.nth_error_nil; repeat f_equal; lia. }
+    }
+    eapply jt_term_subst.
+    { exploit jt_firstn_fv; [|eapply H4|intros].
+      { rewrite fv_App_eq in Hfv; unpack.
+        rewrite fv_Value_eq in H.
+        rewrite fv_Lam_eq in H.
+        eauto.
+      }
+      { simpl in *.
+        eapply H.
+      }
+    }
+    { repeat (econstructor; eauto). } 
+  }
   { rewrite fv_App_eq in *; unpack. eapply IHsred; eauto. }
   { rewrite fv_App_eq in *; unpack; eapply IHsred; eauto. }
-Admitted.
+Qed.
 
 
 
