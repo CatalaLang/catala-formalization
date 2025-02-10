@@ -1120,21 +1120,6 @@ Theorem preservation_trad t1:
 Proof.
   intros Hfv.
   induction 1; intros; repeat inv_jt; repeat econs_jt; eauto.
-  (* { ugly thing is here. Untold invarant : the terms are free of variables inside lambda.
-    rewrite fv_App_eq in Hfv.
-    rewrite fv_Lam_eq in Hfv.
-    admit.
-    (* progress replace [T1] with (List.firstn 1 (T1::Gamma)) by (simpl; eauto).
-    eapply jt_term_firstn_fv; eauto. *)
-  } *)
-  (* { 
-    (* should be provable with substitution lemma *)
-    (* assert (H: List.Forall2 jt_value (v :: sigma') (T1 :: Gamma_cl)) by (econstructor; eauto). *)
-    (* pose proof (jt_term_subst H3 _ H). *)
-    replace Gamma with ([] ++ Gamma) by (simpl; eauto).
-    (* apply jt_term_more_env. *)
-    eauto.
-  } *)
   { unfold subst.
     replace (Value v .: ids) with (fun n => soe [v] n).
     2: {
@@ -1174,8 +1159,8 @@ Theorem sred_deterministic:
   forall t1 t2, sred t1 t2 -> forall t2', sred t1 t2' -> t2 = t2'.
 Proof.
   induction 1; inversion 1; subst; simpl in *; eauto.
-  { inversion H4; subst; tryfalse. }
-  { inversion H4; subst; tryfalse. }
+  { inversion H3; subst; tryfalse. }
+  { inversion H3; subst; tryfalse. }
   { inversion H; subst; tryfalse. }
   { repeat f_equal. eapply IHsred. eauto. }
   { inversion H4; subst; tryfalse. }
