@@ -862,6 +862,118 @@ Qed. *)
   -> jt_term Delta t.[ren xi] T.
 Admitted. *)
 
+(* renaming lemma for adding new variables *)
+Lemma jt_strongening:
+  forall Gamma1 Gamma3 t T,
+    jt_term (Gamma1 ++ Gamma3) t T ->
+    forall Gamma2,
+      jt_term (Gamma1 ++ Gamma2 ++ Gamma3) (
+        rename_term (
+          fun x =>
+            if x <? List.length Gamma1 then x
+            else x + List.length Gamma2
+      )%nat t) T.
+Proof.
+  intros Gamma1 Gamma3 t T.
+  revert t Gamma1 Gamma3 T.
+  eapply (term_value_induction_term
+    (fun t => forall Gamma1 Gamma3  T,
+    jt_term (Gamma1 ++ Gamma3) t T ->
+    forall Gamma2,
+      jt_term (Gamma1 ++ Gamma2 ++ Gamma3) (rename_term (
+          fun x =>
+            if x <? List.length Gamma1 then x
+            else x + List.length Gamma2
+      )%nat t) T)
+    (fun v => forall Gamma1 Gamma3  T,
+      jt_value (Gamma1 ++ Gamma3) v T ->
+      forall Gamma2,
+        jt_value (Gamma1 ++ Gamma2 ++ Gamma3) (rename_value (
+            fun x =>
+              if x <? List.length Gamma1 then x
+              else x + List.length Gamma2
+        )%nat v) T)).
+  all: intros; repeat inv_jt.
+  { econstructor.
+    rewrite List.nth_error_app in H2.
+    destruct (Nat.ltb_spec x (Datatypes.length Gamma1)).
+    { rewrite List.nth_error_app1; try lia; eauto. }
+    { do 2 (rewrite List.nth_error_app2; try lia); eauto.
+      rewrite H2; f_equal; lia.
+    }
+  }
+  { asimpl; econstructor; eauto. }
+  { econstructor; eauto. }
+  { econstructor. fold rename_term.
+    replace (upren
+    (fun x : var =>
+     if (x <? Datatypes.length Gamma1)%nat then x else x + Datatypes.length Gamma2)) with  (fun x : var =>
+     if (x <? Datatypes.length (T1::Gamma1))%nat then x else x + Datatypes.length Gamma2)
+    .
+    {
+      rewrite List.app_comm_cons.
+      eapply H; eauto.
+    }
+
+    { eapply FunctionalExtensionality.functional_extensionality; intros.
+      destruct (Nat.ltb_spec x (Datatypes.length (T1::Gamma1))).
+      { induction x; simpl in *; eauto.
+        destruct (Nat.ltb_spec x (Datatypes.length (Gamma1))); lia.
+      }
+      { induction x; simpl in *; eauto; try lia.
+        destruct (Nat.ltb_spec x (Datatypes.length (Gamma1))); lia.
+      }
+    }
+  }
+Qed.
+
+Lemma jt_term_strongening_0:
+  forall Gamma3 t T,
+    jt_term Gamma3 t T ->
+    forall Gamma2,
+      jt_term (Gamma2 ++ Gamma3) (
+        rename_term (
+          fun x => x + List.length Gamma2
+      )%nat t) T.
+Proof.
+  intros.
+
+  replace (Gamma2 ++ Gamma3) with ([] ++ Gamma2 ++ Gamma3) by eauto.
+  replace (fun x : var => x + Datatypes.length Gamma2) with (
+      fun x =>
+        if x <? @List.length type [] then x
+        else x + List.length Gamma2
+  )%nat.
+
+  { apply jt_strongening; simpl; eauto. }
+  { simpl. eauto. }
+Qed.
+
+Lemma jt_value_strongening_0:
+  forall Gamma3 t T,
+    jt_value Gamma3 t T ->
+    forall Gamma2,
+      jt_value (Gamma2 ++ Gamma3) (
+        rename_value (
+          fun x => x + List.length Gamma2
+      )%nat t) T.
+Proof.
+  induction t; intros; repeat inv_jt; econstructor.
+  fold rename_term.
+  replace (T1 :: Gamma2 ++ Gamma3) with ([T1] ++ Gamma2 ++ Gamma3) by eauto.
+  replace (upren (fun x : var => x + Datatypes.length Gamma2)) with (
+      fun x =>
+        if x <? @List.length type [T1] then x
+        else x + List.length Gamma2
+  )%nat.
+  { eapply jt_strongening; eauto. }
+
+  { apply FunctionalExtensionality.functional_extensionality; intros; simpl.
+    induction x; simpl; eauto.
+  }
+Qed.
+
+
 (* Weakening lemma *)
 Lemma jt_firstn_fv:
   forall t n,
@@ -938,19 +1050,33 @@ Proof.
   .
   all: asimpl; intros; repeat inv_jt.
   { rewrite List.nth_error_app in H4.
-    unzip_match.
+    destruct (Nat.ltb_spec x (Datatypes.length Gamma1)).
     { exploit upn_k_sigma_x; intros.
-      { eapply (Bool.reflect_iff _ _ (Nat.ltb_spec0 _ _)); eauto. }
-      rewrite H.
+      { eauto. }
+      rewrite H0.
       econstructor.
       rewrite List.nth_error_app1; eauto.
-      { eapply (Bool.reflect_iff _ _ (Nat.ltb_spec0 _ _)); eauto. }
     }
-    { rewrite <- List.nth_error_app2 in *.
-      2: { }
+    { learn (Forall2_nth_error_Some_right H1 (eq_sym H4)); unpack.
+      learn (Forall2_nth_error_Some H1 _ _ _ H0 (eq_sym H4)).
+      
+      rewrite <- List.nth_error_app2 in H4; eauto.
+      learn (nth_error_Some' (eq_sym H4)).
+      learn (List.Forall2_length H1).
+      rewrite List.length_app in *.
+      rewrite upn_k_sigma_x'; try lia.
+      rewrite H0.
+      rewrite <- SubstLemmas_term1.
+      econstructor.
+      fold rename_value.
 
+      replace ((+Datatypes.length Gamma1)) with (fun x : var => x + Datatypes.length Gamma1).
+
+      { eapply jt_value_strongening_0; eauto. }
+
+      { clear; eapply FunctionalExtensionality.functional_extensionality; induction x; simpl; eauto; lia. }
     }
-    admit. }
+  }
   { econstructor.
     { eapply H; eauto. }
     { eapply H0; eauto. }
@@ -969,7 +1095,7 @@ Proof.
       eauto.
     }
   }
-Admitted.
+Qed.
 
 Lemma jt_term_subst:
   forall Gamma t T, jt_term Gamma t T
@@ -977,6 +1103,11 @@ Lemma jt_term_subst:
   (List.Forall2 (jt_value Delta) sigma Gamma)
   ->
     jt_term Delta t.[fun n => soe sigma n] T.
+Proof.
+  intros.
+  learn (jt_term_subst_technical Gamma t T H [] Gamma).
+  exploit H1; simpl; eauto.
+Qed.
 
 
 Theorem preservation_trad t1:
@@ -1071,7 +1202,7 @@ Inductive sim_term: term -> term -> Prop :=
     sim_term (Lam t1) (Lam u1)
 .
 
-(* This equivalence relation is indeed reflexive, symmetric and transitive. Moreother, it is invariant with respect to renaming and substitution. We show those facts bellow, after defining a more general induction principle. *)
+(* This equivalence relation is indeed reflexive, symmetric and transitive. Moreother, it is invariant with respect to rena ming and substitution. We show those facts bellow, after defining a more general induction principle. *)
 
 Instance Reflexive_sim_term : Reflexive sim_term. Abort.
 Instance Symmetric_sim_term : Symmetric sim_term. Abort.
