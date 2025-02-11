@@ -1171,7 +1171,7 @@ Qed.
 
 
 (*** Equivalence relation definition ***)
-
+(* 
 (* This equivalence relation is used in the simulation theorem. The goal of this simulation is to say that closures should be the same up to substitution of their environement. The other rules are only here to indicate this relation should be congrugent.*)
 
 (* This part is not presented in the paper. *)
@@ -1333,7 +1333,16 @@ Instance Reflexive_sim_term : Reflexive sim_term. eapply sim_term_reflexive. Qed
 Instance Symmetric_sim_term : Symmetric sim_term. destruct sim_symmetric; eauto. Qed.
 Instance Transtive_sim_term : Transitive sim_term. destruct sim_transitive; eauto. Qed.
 
-(*** Translating state into terms by unfolding the continuations stack len ***)
+** Translating state into terms by unfolding the continuations stack len ** *)
+
+Print cont.
+
+Fixpoint value_of_expressible_value v :=
+  match v with
+  | Closure t sigma =>
+    Lam t.[up (fun n => soe (List.map value_of_expressible_value sigma) n)]
+  end.
+
 
 Definition apply_cont
   (t: term)
@@ -1341,9 +1350,9 @@ Definition apply_cont
   : term :=
   match k with
   | CAppR t2 sigma =>
-    App t t2.[subst_of_env sigma]
+    App t t2.[(fun n => soe (List.map value_of_expressible_value sigma) n)]
   | CClosure t_cl sigma_cl =>
-    App (Value (Closure t_cl sigma_cl)) t
+    App (Value (Lam t_cl.[up (fun n => soe (List.map value_of_expressible_value sigma_cl) n)])) t
   end.
 
 Definition apply_conts
@@ -1351,17 +1360,15 @@ Definition apply_conts
   : term -> term :=
   List.fold_left apply_cont kappa.
 
-Definition apply_return (r: result) :=
-  match r with
-  | RValue v => Value v
-  end.
+Definition apply_return (r: expressible_value) :=
+  value_of_expressible_value r.
 
 Definition apply_state (s: state): term :=
   match s with
   | mode_eval t stack env =>
-    apply_conts stack t.[subst_of_env env]
+    apply_conts stack t.[(fun n => soe (List.map value_of_expressible_value env) n)]
   | mode_cont stack r =>
-    apply_conts stack (apply_return r) 
+    apply_conts stack (Value (apply_return r))
   end.
 
 
@@ -1370,16 +1377,11 @@ Definition apply_state (s: state): term :=
 Inductive sim_state: state -> term -> Prop :=
   | InvBase: forall s,
     sim_state s (apply_state s)
-  | InvStep: forall s t1,
-    sim_state s t1 ->
-    forall t2,
-    sim_term t1 t2 ->
-    sim_state s t2
 .
 
 (* Smart constructors and inversion for the sim_state inductive *)
 
-Lemma sim_state_inversion:
+(* Lemma sim_state_inversion:
   forall s t1,
   sim_state s t1 ->
   exists t,
@@ -1403,7 +1405,7 @@ Lemma sim_state_from_equiv {t2 s}:
   sim_state s t2.
 Proof.
   repeat econstructor; eauto.
-Qed.
+Qed. *)
 
 
 Lemma apply_conts_app:
@@ -1453,8 +1455,6 @@ Proof.
     | [h: context [let '(_, _) := ?p in _] |- _] =>
       rewrite (surjective_pairing p) in h
     end; simpl.
-
-    all: repeat rewrite snd_apply_conts_last.
     
     all: try econstructor; eauto.
   }
@@ -1470,7 +1470,7 @@ Theorem star_sred_apply_conts: forall kappa t t',
 Proof.
   induction 1; econstructor; eauto using sred_apply_conts.
 Qed.
-
+(* 
 Lemma sim_state_apply_conts {kappa t1 t2}:
   sim_term t1 t2 ->
   sim_term
@@ -1488,7 +1488,7 @@ Proof.
     { reflexivity. }
     { eapply IHkappa; eauto. }
   }
-Qed.
+Qed. *)
 
 (* Base theorem *)
 Theorem simulation_cred_sred_base:
@@ -1504,6 +1504,7 @@ Proof.
   all: simpl.
   all: try solve [eexists; split; [eapply InvBase|]; eapply star_refl].
   { eexists; split; [eapply InvBase|].
+    rewrite List.nth_error_map.
     simpl; unfold subst_of_env; rewrite H; eauto with sequences.
   }
   {
