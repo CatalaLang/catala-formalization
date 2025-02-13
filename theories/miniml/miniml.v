@@ -41,8 +41,6 @@ with rename_value (xi: var -> var) (s: value) {struct s} : value :=
 #[export] Instance Rename_term : Rename term := rename_term.
 #[export] Instance Rename_value : Rename value := rename_value.
 
-Locate "..[".
-
 Fixpoint subst_term (xi : var -> term) (s : term) {struct s} : term :=
   match s as t return (annot term t) with
   | Var x => (fun x0 : var => (xi x0)) x
@@ -59,6 +57,9 @@ Definition subst_value' (xi: var -> value) (s: value) := subst_value (xi >>> Val
 
 #[export] Instance Subst_term : Subst term := subst_term.
 #[export] Instance Subst_value : Subst value := subst_value'.
+
+
+Check subst.
 
 
 
@@ -323,7 +324,7 @@ Coercion App : term >-> Funclass.
 Notation "'λ.' t" := (Lam t) (at level 50).
 Notation "'S(' t , kappa , sigma )" := (mode_eval t kappa sigma).
 Notation "'C(' v , kappa )" := (mode_cont kappa v).
-Notation "'λ' sigma '.' t " := (Closure t sigma) (at level 10).
+Notation "'[[[' sigma '.' t ']]]' " := (Closure t sigma) (at level 10).
 (* Notation "'λ' sigma '.' t " := (RValue (Closure t sigma)) (at level 10). *)
 Notation "'k_app1' ( t )" := (CAppR t) (at level 50).
 Notation "'k_app2' ( t , sigma )" := (CClosure t sigma) (at level 50).
@@ -1361,15 +1362,12 @@ Definition apply_conts
   : term -> term :=
   List.fold_left apply_cont kappa.
 
-Definition apply_return (r: expressible_value) :=
-  value_of_expressible_value r.
-
 Definition apply_state (s: state): term :=
   match s with
   | mode_eval t stack env =>
     apply_conts stack t.[(fun n => soe (List.map value_of_expressible_value env) n)]
   | mode_cont stack r =>
-    apply_conts stack (Value (apply_return r))
+    apply_conts stack (Value (value_of_expressible_value r))
   end.
 
 
@@ -1755,6 +1753,24 @@ Proof.
 Qed.
 
 
+
+Lemma inv_tail_eq {A: Type} {t1: A} {l t2} :
+  [t1] = l ++ [t2] ->
+  l = [] /\ t1 = t2
+.
+Proof.
+  replace ([t1]) with ([] ++ [t1]) by eauto.
+  intros.
+  learn (List.app_inj_tail _ _ _ _ H); injections; unpack; subst; split; eauto.
+Qed.
+
+(* remember List.app_inj_tail *)
+
+
+
+
+
+
 (* Lemma Forall_CReturn_star_cred {kappa1 env0 result kappa2}:
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa1 ->
   star cred
@@ -1797,6 +1813,7 @@ Proof.
     }
   }
 Qed.
+
 
 (* Lemma subst_apply_state {t env}:
   t.[soe env] = apply_state (mode_eval t [] env).
@@ -1859,6 +1876,9 @@ Proof.
   induction s1; simpl; eauto.
 Qed. *)
 
+Inductive ok: string -> forall (A: Type), A -> Prop :=
+  OK: forall s: string, forall A: Type, forall a: A, ok s A a.
+
 Theorem simulation_sred_cred:
   forall t1 t2,
     sred t1 t2 ->
@@ -1868,7 +1888,7 @@ Theorem simulation_sred_cred:
       apply_state s2 = t2 /\ star cred s1 s2.
 Proof.
 Ltac inversions := 
-  repeat (match goal with
+  (match goal with
     | [h: apply_state ?s = _ |- _] =>
       induction s; simpl apply_state in h
     | [h: apply_conts _ _ = App _ _ |- _] =>
@@ -1877,6 +1897,12 @@ Ltac inversions :=
       learn (inv_apply_cont_eq_value h); unzip; subst; simpl apply_conts in h
     | [h: apply_conts _ _ = Var _ |- _] =>
       learn (inv_apply_cont_eq_var h); unzip; subst; simpl apply_conts in h
+    | [h: apply_conts (_ ++ _) _ = _ |- _] =>
+      rewrite apply_conts_app in h
+    | [h: apply_conts [_] _ = _ |- _] =>
+      simpl in h
+    | [h: [_] = ?kappa ++ [_] |- _ ] => 
+      learn (inv_tail_eq h); unzip; subst
     | [h: _.[_] = _ |- _] =>
       unfold subst in h; unfold Subst_term in h
     | [h: subst_term _ _ = App _ _ |- _] =>
@@ -1901,262 +1927,92 @@ Ltac inversions :=
       learn (inv_value_of_expressible_value_Lam h); unzip; subst; simpl in h
     end; injections; subst; tryfalse).
   induction 1.
-  { intros.
-    inversions.
+  { (* base case where the computation is happening right here, right now *)
+    intros; repeat inversions.
+    all:
+      repeat (try match goal with
+      |  _ => eapply star_step_prop; [solve[repeat econstructor; eauto]|]
+
+      (* If it is not possible to advance, try a few things *)
+      | [|- exists _, _ /\ star cred S( Value ?v, _, _) _] =>
+        learn (OK "induction on value" _ v);
+        induction v
+      | [|- exists _, _ /\ star cred C( ?v, _) _] =>
+        learn (OK "induction on value" _ v);
+        induction v
+      end)
+      .
     
+    all: cleanup.
+    all: eapply star_refl_prop.
+    all: fold Subst_term; fold (@subst term _).
+
+    all: rewrite subst_comp; simpl.
+    all: clear; f_equal; apply FunctionalExtensionality.functional_extensionality; induction x; asimpl; eauto.
+  }
+  { intros; repeat inversions; cleanup.
     
     all: repeat (eapply star_step_prop; [solve[repeat econstructor; eauto]|]).
-    { eapply star_refl_prop.
-      asimpl.
-      f_equal; clear; eapply FunctionalExtensionality.functional_extensionality; induction x; asimpl; eauto.
-    }
 
-    all: try solve [].
-    6:{ asimpl.  }
-    { eapply star_step_prop. econstructor.  }
+    all: match goal with
+    | [ |- exists _, _ /\ star cred S(?t, [?k0], ?env) _] =>
+      pose (s :=S(t, [], env));
+      pose (k := k0)
+    | [ |- exists _, _ /\ star cred S(?t, ?kappa ++ [?k0], ?env) _] =>
+      pose (s :=S(t, kappa, env));
+      pose (k := k0)
+    | [ |- exists _, _ /\ star cred C(?w, [?k0]) _] =>
+      pose (s :=C(w, []));
+      pose (k := k0)
+    | [ |- exists _, _ /\ star cred C(?w, ?kappa ++ [?k0]) _] =>
+      pose (s :=C(w, kappa));
+      pose (k := k0)
+    end.
 
-    injections.
-
-    simpl in H; injections.
-
-    learn (subst_App H); unzip; subst; asimpl in H; clear H.
-
-    learn (subst_App H3).
-    unfold apply_state in *.
-    induction s1; simpl in *
-  }
-
-
-Theorem simulation_sred_cred_base:
-  forall s1 t2,
-    sred (apply_state s1) t2 ->
-    exists s2,
-      sim_state s2 t2 /\ star cred s1 s2.
-Proof.
-  intros s1.
-  remember (stack s1) as kappa.
-  revert s1 Heqkappa.
-  induction kappa as [|k kappa] using rev_ind_wf.
-  { induction s1; simpl; intro Hkappa; subst; simpl.
-    { remember e.[subst_of_env env] as t1.
-      intros t2 Ht1t2.
-      generalize dependent env.
-      generalize dependent e.
-      
-      induction Ht1t2; intros; repeat subst_of_env.
-      all: try repeat (eapply star_step_prop; [econstructor; eauto|]).
-
-      (* Reflexivity cases. *)
-      all: try solve [
-          eapply star_refl_prop; eapply sim_state_from_equiv; simpl; try reflexivity
-      ].
-
-      { eapply star_refl_prop; eapply sim_state_from_equiv.
-        asimpl. repeat econstructor.
-        rewrite subst_of_env_nil_ids; asimpl; reflexivity. 
-      }
-      { learn (IHHt1t2 _ _ eq_refl); unpack.
-        eapply star_trans_prop.
-        rewrite append_stack_all; eapply star_cred_append_stack; simpl; eauto.
-
-        eapply star_refl_prop; eapply sim_state_from_equiv; simpl.
-        rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
-        econstructor; eauto; try reflexivity.
-        
-        learn (sim_state_inversion _ _ H); unpack; subst; symmetry; eauto.
-      }
-      { learn (IHHt1t2 _ _ eq_refl); unpack.
-        eapply star_trans_prop.
-        rewrite append_stack_all; eapply star_cred_append_stack; simpl; eauto.
-
-        eapply star_refl_prop; eapply sim_state_from_equiv; simpl.
-        rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
-        econstructor; eauto; try reflexivity.
-
-        learn (sim_state_inversion _ _ H); unpack; subst; symmetry; eauto.
-      }
-      { learn (IHHt1t2 _ _ eq_refl); unpack.
-        eapply star_trans_prop.
-        rewrite append_stack_all; eapply star_cred_append_stack; simpl; eauto.
-
-        eapply star_refl_prop; eapply sim_state_from_equiv; simpl.
-        rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
-        econstructor; eauto; try reflexivity.
-        { learn (sim_state_inversion _ _ H); unpack; subst; symmetry; eauto. }
-      }
-    }
-    {
-      induction result0; simpl; inversion 1.
-    }
-  }
-  { induction s1; induction k; try match goal with [r: result |- _]=> induction r end; simpl; intro Hkappa; subst; simpl.
-    all: rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl.
-
-    (* { intros t3 Ht2t3.
-      match typeof Ht2t3 with sred ?u1 ?u2 => remember u1 as u end.
-      induction Ht2t3; intros.
-      { inj. }
-      { inj.
-        repeat match goal with
-        [h: Value _ = (apply_conts _ _) |- _] =>
-          learn (value_apply_conts h); clear h; unpack; subst
-        end.
-        repeat subst_of_env.
-        { repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
-          eapply star_refl_prop.
-          eapply 
-          reflexivity.
-        }
-        Close scope 
-
-      }
-
-    } *)
-
-    all: intros t3 Ht2t3.
-
-    all: match typeof Ht2t3 with sred ?u1 ?u2 => remember u1 as u end.
-    all: induction Ht2t3; intros; inj.
+    all: exploit (IHsred s); [solve[simpl; fold Subst_term; fold (@subst term _); eauto]|intros; unpack].
     all: repeat match goal with
-      [h: Value _ = (apply_conts _ _) |- _] =>
-        learn (value_apply_conts h); clear h; unpack; repeat subst_of_env
-      end.
-    all: injections; subst.
-    all: repeat (
-      repeat (eapply star_step_prop; [solve[econstructor; eauto]|])
-    ).
-    all: try solve [
-      eapply star_refl_prop; eapply sim_state_from_equiv; simpl; unfold apply_cont; sp; simpl; reflexivity
-    ].
-    { rewrite subst_apply_state in Ht2t3.
-      epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
+      [h: star cred _ _ |- _] =>
+      learn (@star_cred_append_stack s _ h [k])
+    end.
+    all: unfold s in *; unfold k in *; simpl append_stack in *.
+    all: eapply star_trans_prop; [solve[eauto]|].
 
-      match goal with
-      | [h:sim_state _ _ |- _] => learn (sim_state_inversion _ _ h); clear h; unpack; subst
-      end.
-
-      eapply star_trans_prop; [rewrite append_stack_all; eapply star_cred_append_stack; eauto|simpl].
-
-      eapply star_refl_prop.
-      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
-      econstructor; first[reflexivity| symmetry; eauto].
-    }
-    {
-      rewrite subst_apply_state in Ht2t3.
-      epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
-
-      match goal with
-      | [h:sim_state _ _ |- _] => learn (sim_state_inversion _ _ h); clear h; unpack; subst
-      end.
-
-      eapply star_trans_prop; [rewrite append_stack_all; eapply star_cred_append_stack; eauto|simpl].
-
-      eapply star_refl_prop.
-      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
-      econstructor; first[reflexivity| symmetry; eauto].
-    }
-    {
-      rewrite apply_conts_apply_state in Ht2t3.
-      epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
-
-      match goal with
-      | [h:sim_state _ _ |- _] => learn (sim_state_inversion _ _ h); clear h; unpack; subst
-      end.
-
-
-      eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl;eauto]]; eapply star_cred_append_stack; eauto|simpl].
-
-      eapply star_refl_prop.
-      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
-      econstructor; first[reflexivity| symmetry; eauto].
-
-    }
-    {
-      rewrite apply_conts_apply_state in Ht2t3.
-      epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
-
-      match goal with
-      | [h:sim_state _ _ |- _] => learn (sim_state_inversion _ _ h); clear h; unpack; subst
-      end.
-
-
-      eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl;eauto]]; eapply star_cred_append_stack; eauto|simpl].
-
-      eapply star_refl_prop.
-      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
-      econstructor; first[reflexivity| symmetry; eauto].
-    }
-    {
-      inversion Ht2t3.
-    }
-    { rewrite subst_apply_state in Ht2t3.
-      epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
-
-      match goal with
-      | [h:sim_state _ _ |- _] => learn (sim_state_inversion _ _ h); clear h; unpack; subst
-      end.
-
-      eapply star_trans_prop; [rewrite append_stack_all; eapply star_cred_append_stack; eauto|simpl].
-
-      eapply star_refl_prop.
-      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
-      econstructor; first[reflexivity| symmetry; eauto].
-    }
-    { rewrite apply_conts_Value_apply_state in Ht2t3.
-      epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
-
-      match goal with
-      | [h:sim_state _ _ |- _] => learn (sim_state_inversion _ _ h); clear h; unpack; subst
-      end.
-
-      eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|simpl with_stack].
-      
-      eapply star_refl_prop.
-      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
-      econstructor; [symmetry; eauto|].
-      reflexivity.
-    }
-    { rewrite apply_conts_Value_apply_state in Ht2t3.
-      epose proof (IHlen _ _ _ _ _ Ht2t3); unpack.
-
-      match goal with
-      | [h:sim_state _ _ |- _] => learn (sim_state_inversion _ _ h); clear h; unpack; subst
-      end.
-
-      eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl; eauto]]; eapply star_cred_append_stack; eauto|simpl with_stack].
-
-      eapply star_refl_prop.
-      eapply sim_state_from_equiv; rewrite apply_state_append_stack; simpl; unfold apply_cont; sp; simpl.
-      econstructor; first [reflexivity|symmetry; eauto].
-    }
-    {
-      inversion Ht2t3.
-    }
+    all: eapply star_refl_prop.
+    all: rewrite apply_state_append_stack; simpl apply_conts.
+    all: repeat f_equal; eauto.
   }
 
-  Unshelve.
-  all: simpl; try reflexivity.
-  all: try rewrite List.length_app; simpl; lia.
-Qed.
+  { intros.
+    repeat inversions; cleanup.
+   
+    all: repeat (eapply star_step_prop; [solve[repeat econstructor; eauto]|]).
 
-
-(* Lifting the result *)
-
-Theorem simulation_sred_cred:
-  forall t1 t2,
-    sred t1 t2 ->
-    forall s1,
-      sim_state s1 t1 ->
-      exists s2,
-        sim_state s2 t2 /\ star cred s1 s2.
-Proof.
-  intros ? ? Ht1t2 ? Hs1t1.
-  learn (sim_state_inversion _ _ Hs1t1); unpack; subst; clear Hs1t1.
-  learn (proper_sim_state_sred _ _ Ht1t2 _ H); unpack.
-  learn (simulation_sred_cred_base _ _ H3); unpack; subst.
-  eexists; split; eauto.
-  learn (sim_state_inversion _ _ H4); unpack; subst; clear H2.
-  eapply sim_state_from_equiv.
-  symmetry.
-  etransitivity; eauto.
-Qed.
+    all: match goal with
+    | [ |- exists _, _ /\ star cred S(?t, [?k0], ?env) _] =>
+      pose (s :=S(t, [], env));
+      pose (k := k0)
+    | [ |- exists _, _ /\ star cred S(?t, ?kappa ++ [?k0], ?env) _] =>
+      pose (s :=S(t, kappa, env));
+      pose (k := k0)
+    | [ |- exists _, _ /\ star cred C(?w, [?k0]) _] =>
+      pose (s :=C(w, []));
+      pose (k := k0)
+    | [ |- exists _, _ /\ star cred C(?w, ?kappa ++ [?k0]) _] =>
+      pose (s :=C(w, kappa));
+      pose (k := k0)
+    end.
+    all: try solve [exploit (IHsred s); [solve[simpl; fold Subst_term; fold (@subst term _); eauto]|intros; unpack];
+    repeat match goal with
+      [h: star cred _ _ |- _] =>
+      learn (@star_cred_append_stack s _ h [k])
+    end;
+    unfold s in *; unfold k in *; simpl append_stack in *;
+    eapply star_trans_prop; [solve[eauto]|];
+    eapply star_refl_prop;
+    rewrite apply_state_append_stack; simpl apply_conts;
+    repeat f_equal; eauto].
+    
+    
+    all: admit.
+  }
+Admitted.
