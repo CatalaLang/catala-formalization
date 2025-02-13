@@ -331,6 +331,7 @@ Notation "'k_app2' ( t , sigma )" := (CClosure t sigma) (at level 50).
 Notation "s1 ~> s2" := (cred s1 s2) (at level 20).
 Definition id_var (n: nat): var := n.
 Coercion id_var: nat >-> var.
+Coercion Value: value >-> term.
 (* Coercion RValue: expressible_value >-> result. *)
 Coercion Var: var >-> term.
 
@@ -1449,12 +1450,7 @@ Proof.
 
     all: pose proof (IHkappa _ _ Htt').
     all: repeat rewrite apply_conts_app;
-    simpl; unfold apply_cont; repeat match goal with
-    | [ |- context [let '(_, _) := ?p in _]] =>
-      rewrite (surjective_pairing p)
-    | [h: context [let '(_, _) := ?p in _] |- _] =>
-      rewrite (surjective_pairing p) in h
-    end; simpl.
+    simpl; unfold apply_cont;  simpl.
     
     all: try econstructor; eauto.
   }
@@ -1470,64 +1466,35 @@ Theorem star_sred_apply_conts: forall kappa t t',
 Proof.
   induction 1; econstructor; eauto using sred_apply_conts.
 Qed.
-(* 
-Lemma sim_state_apply_conts {kappa t1 t2}:
-  sim_term t1 t2 ->
-  sim_term
-    (apply_conts kappa t1)
-    (apply_conts kappa t2)
-.
-Proof.
-  revert t1 t2.
-  induction kappa as [|k kappa] using List.rev_ind; simpl; eauto.
-  induction k; intros; repeat rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl.
-  { econstructor. eapply IHkappa; eauto.
-    reflexivity.
-  }
-  { econstructor.
-    { reflexivity. }
-    { eapply IHkappa; eauto. }
-  }
-Qed. *)
 
 (* Base theorem *)
-Theorem simulation_cred_sred_base:
+Theorem simulation_cred_sred:
   forall s1 s2,
     cred s1 s2 ->
-    exists t,
-      sim_state s2 t /\
-      star sred (apply_state s1) t.
+    star sred (apply_state s1) (apply_state s2).
 Proof.
   intros s1 s2 Hs1s2'.
   pose proof (Hs1s2') as Hs1s2.
   induction Hs1s2'; try induction o.
   all: simpl.
-  all: try solve [eexists; split; [eapply InvBase|]; eapply star_refl].
-  { eexists; split; [eapply InvBase|].
-    rewrite List.nth_error_map.
-    simpl; unfold subst_of_env; rewrite H; eauto with sequences.
-  }
-  {
-    eexists; split.
-    2:{ eapply star_sred_apply_conts. eapply star_one. econstructor. }
-    eapply sim_state_from_equiv.
-    eapply sim_state_apply_conts.
+  all: apply star_sred_apply_conts.
+  { rewrite List.nth_error_map.
+    rewrite H.
     simpl.
-    econstructor.
-    econstructor.
-    replace (t.[up (subst_of_env sigma)].[up (subst_of_env [])]) with (t.[up (subst_of_env sigma)]).
-    reflexivity.
-    rewrite subst_of_env_nil_ids.
-    asimpl.
-    eauto.
+    apply star_refl.
   }
-  { eexists; split; [eapply InvBase|]; simpl.
-    eapply star_sred_apply_conts.
-    repeat econstructor.
+  { eapply star_refl. }
+  { eapply star_refl. }
+  { eapply star_refl. }
+  { eapply star_step; [econstructor|].
+    eapply star_refl_eq.
+    rewrite subst_comp.
+    f_equal.
+    eapply FunctionalExtensionality.functional_extensionality; clear; induction x; asimpl; eauto.
   }
 Qed.
 
-Lemma nth_error_subst_of_env {x sigma v}:
+(* Lemma nth_error_subst_of_env {x sigma v}:
   List.nth_error sigma x = Some v ->
   Value v = subst_of_env sigma x.
 Proof.
@@ -1535,7 +1502,7 @@ Proof.
   unfold subst_of_env.
   rewrite H.
   eauto.
-Qed.
+Qed. *)
 
 Lemma star_sred_Value { v t}:
   star sred (Value v) t -> t = Value v.
@@ -1544,107 +1511,6 @@ Proof.
   inversion H.
 Qed.
 
-
-Notation "'sim_term' t1 t2" :=
-  (sim_term t1 t2) (
-  at level 50,
-  t1 at level 3,
-  t2 at level 3,
-  only printing,
-  format "'sim_term'  '[hv' t1  '/' t2 ']'"
-).
-
-Notation "'sim_value' t1 t2" :=
-  (sim_value t1 t2) (
-  at level 50,
-  t1 at level 3,
-  t2 at level 3,
-  only printing,
-  format "'sim_value'  '[hv' t1  '/' t2 ']'"
-).
-
-
-
-Lemma subst_of_env_cons v sigma:
-  subst_of_env (v :: sigma) = (Value v) .: subst_of_env sigma.
-Proof.
-  eapply FunctionalExtensionality.functional_extensionality.
-  induction x; asimpl; eauto.
-Qed.
-
-
-Lemma proper_sim_state_sred:
-  forall t1 t2,
-    sred t1 t2 ->
-    forall u1,
-      sim_term t1 u1 ->
-      exists u2,
-        sim_term t2 u2 /\ sred u1 u2.
-Proof.
-  induction 1; inversion 1; subst.
-  { repeat econstructor.
-    rewrite subst_of_env_nil_ids.
-    rewrite up_id; asimpl.
-    eauto.
-  }
-  { inversion H2; inversion H4; inversion H1; subst.
-    repeat econstructor.
-    clear -H6 H11.
-    replace (t.[subst_of_env (v :: sigma')]) with t.[up (subst_of_env sigma')].[Value v/] by (rewrite subst_of_env_cons; asimpl; eauto).
-    replace (t2.[subst_of_env (w0 :: sigma2)]) with t2.[up (subst_of_env sigma2)].[Value w0/] by (rewrite subst_of_env_cons; asimpl; eauto).
-    eapply sim_term_subst; eauto.
-    { induction x; simpl; econstructor; eauto. }
-    
-  }
-  { learn (IHsred _ H5); unpack.
-    inversion H3; subst.
-    inversion H7; subst.
-    repeat econstructor; eauto.
-  }
-  {
-    learn (IHsred _ H3); unpack.
-    repeat econstructor; eauto.
-  }
-Qed.
-
-
-Lemma proper_sim_state_star_sred:
-  forall t1 t2,
-    star sred t1 t2 ->
-    forall u1,
-      sim_term t1 u1 ->
-      exists u2,
-        sim_term t2 u2 /\ star sred u1 u2.
-Proof.
-  induction 1 using star_ind_n1.
-  { repeat econstructor; eauto. }
-  { intros ? Ht1.
-    learn (IHstar _ Ht1); unpack.
-    learn (proper_sim_state_sred _ _ H _ H1); unpack.
-    eexists; split; eauto.
-    eapply star_step_n1; eauto.
-  }
-Qed.
-
-Theorem simulation_cred_sred:
-  forall s1 s2,
-    cred s1 s2 ->
-    forall t1,
-      sim_state s1 t1 ->
-      exists t2,
-        sim_state s2 t2 /\ star sred t1 t2.
-Proof.
-  intros ? ? Hs1s2 ? Hs1t1.
-  learn (simulation_cred_sred_base _ _ Hs1s2); unpack; subst.
-  repeat match goal with
-  | [h: sim_state  _ _ |- _] =>
-    learn (sim_state_inversion _ _ h); unpack; subst
-  end.
-  learn (proper_sim_state_star_sred _ _ H1 _ (symmetry H4)); unpack.
-  eexists; split; [|eauto].
-  eapply sim_state_from_equiv.
-  etransitivity; [symmetry|]; eauto.
-Qed.
 
 
 (*** From sred to cred ***)
@@ -1701,6 +1567,7 @@ Proof.
   induction s; simpl; unfold apply_conts; eapply List.fold_left_app.
 Qed.
 
+(* 
 Lemma subst_of_env_App {t1 t2 t' env}:
   App t1 t2 = t'.[subst_of_env env] ->
   exists (t1' t2': term),
@@ -1744,6 +1611,7 @@ Proof.
   induction o; subst; tryfalse; inj; eauto.
 Qed.
 
+
 Ltac subst_of_env :=
   match goal with
   | [h: App _ _ = _.[subst_of_env _] |- _] =>
@@ -1753,6 +1621,7 @@ Ltac subst_of_env :=
   | [h: Value _ = _.[subst_of_env _] |- _] =>
     learn (subst_of_env_Value h); clear h; unzip; subst
   end.
+*)
 
 (* Lemma cred_snd_apply_sate {s1 s2}:
   cred s1 s2 ->
@@ -1779,6 +1648,112 @@ Proof.
   { simpl; eauto. }
   { induction k; rewrite apply_conts_app; simpl; intros; inj. }
 Qed.
+
+Lemma inv_apply_cont_eq_app {kappa' t t1 t2}:
+  apply_conts kappa' t = App t1 t2 ->
+  (kappa' = [] /\ t = App t1 t2) \/
+  (exists t' sigma kappa,
+    kappa' = kappa ++ [CAppR t' sigma] /\
+    t'.[(fun n => soe (List.map value_of_expressible_value sigma) n)] = t2 /\
+    apply_conts kappa t = t1
+  ) \/
+  (exists t' sigma kappa,
+    kappa' = kappa ++ [CClosure t' sigma] /\
+    ((Value (Lam t')).[(fun n => soe (List.map value_of_expressible_value sigma) n)]) = t1 /\
+    apply_conts kappa t = t2
+  ).
+Proof.
+  induction kappa' as [|k kappa IHkappa] using List.rev_ind; simpl; intros.
+  { left; eauto. }
+  { right.
+    rewrite apply_conts_app in *.
+    induction k; simpl in *; repeat injections; tryfalse.
+    { left; repeat eexists; eauto. }
+    { right; repeat eexists; eauto. }
+  }
+Qed.
+
+Lemma inv_apply_cont_eq_var {kappa' t x}:
+  apply_conts kappa' t = Var x ->
+  (kappa' = [] /\ t = Var x).
+Proof.
+  induction kappa' as [|k kappa IHkappa] using List.rev_ind; simpl; intros.
+  { eauto. }
+  { rewrite apply_conts_app in *.
+    induction k; simpl in *; repeat injections; tryfalse.
+  }
+Qed.
+
+Lemma inv_apply_cont_eq_value {kappa' t v}:
+  apply_conts kappa' t = Value v ->
+  (kappa' = [] /\ t = Value v).
+Proof.
+  induction kappa' as [|k kappa IHkappa] using List.rev_ind; simpl; intros.
+  { eauto. }
+  { rewrite apply_conts_app in *.
+    induction k; simpl in *; repeat injections; tryfalse.
+  }
+Qed.
+
+Lemma inv_subst_term_eq_App { t sigma t1' t2'}:
+  subst_term sigma t = App t1' t2' ->
+  exists t1 t2,
+    t = App t1 t2.
+Proof.
+  induction t; simpl; intros; injections; tryfalse.
+  { admit. }
+  { repeat eexists; eauto. }
+Admitted.
+
+Lemma inv_subst_term_eq_Value { t sigma v'}:
+  subst_term sigma t = Value v' ->
+  (exists x, t = Var x /\ sigma x = Value v') \/
+  (exists v, t = Value v).
+Admitted.
+
+Lemma inv_subst_value_eq_Lam { v sigma t'}:
+  subst_value sigma v = Lam t' ->
+  exists t, v = Lam t.
+Proof.
+Admitted.
+
+Lemma inv_soe_value {sigma v x}:
+  soe sigma x = Value v ->
+  exists t, List.nth_error sigma x = Some t.
+Proof.
+  intros.
+  induction (List.nth_error sigma x).
+  { eauto. }
+  { unfold ids, Ids_term in H. tryfalse. }
+Qed.
+
+Lemma inv_option_map_Some {A B} {f: A -> B}{o v'}:
+  option_map f o = Some v' ->
+  exists v, o = Some v.
+Proof.
+  intro.
+  induction o.
+  { eauto. }
+  { simpl in H; tryfalse. }
+Qed.
+
+Lemma inv_option_map_None {A B} {f: A -> B} {o}:
+  option_map f o = None ->
+  o = None.
+Proof.
+  intro.
+  induction o.
+  { simpl in H; tryfalse. }
+  { eauto. }
+Qed.
+
+Lemma inv_value_of_expressible_value_Lam {v t'}:
+  value_of_expressible_value v = Lam t' ->
+  exists t sigma, v = Closure t sigma.
+Proof.
+  induction v; simpl; eauto.
+Qed.
+
 
 (* Lemma Forall_CReturn_star_cred {kappa1 env0 result kappa2}:
   List.Forall (fun k => exists sigma, k = CReturn sigma) kappa1 ->
@@ -1823,23 +1798,23 @@ Proof.
   }
 Qed.
 
-Lemma subst_apply_state {t env}:
-  t.[subst_of_env env] = apply_state (mode_eval t [] env).
+(* Lemma subst_apply_state {t env}:
+  t.[soe env] = apply_state (mode_eval t [] env).
 Proof.
   simpl; eauto.
-Qed.
+Qed. *)
 
-Lemma apply_conts_apply_state {t kappa env}:
+(* Lemma apply_conts_apply_state {t kappa env}:
 (apply_conts kappa t.[subst_of_env env]) = apply_state (mode_eval t kappa env).
 Proof.
   simpl; eauto.
-Qed.
+Qed. *)
 
-Lemma apply_conts_Value_apply_state {v kappa }:
+(* Lemma apply_conts_Value_apply_state {v kappa }:
 (apply_conts kappa (Value v)) = apply_state (mode_cont kappa (RValue v)).
 Proof.
   simpl; eauto.
-Qed.
+Qed. *)
 
 
 (* Lemma fst_apply_conts_CReturn {kappa sigma t}:
@@ -1883,6 +1858,73 @@ Proof.
   Unshelve.
   induction s1; simpl; eauto.
 Qed. *)
+
+Theorem simulation_sred_cred:
+  forall t1 t2,
+    sred t1 t2 ->
+    forall s1,
+      apply_state s1 = t1 ->
+      exists s2,
+      apply_state s2 = t2 /\ star cred s1 s2.
+Proof.
+Ltac inversions := 
+  repeat (match goal with
+    | [h: apply_state ?s = _ |- _] =>
+      induction s; simpl apply_state in h
+    | [h: apply_conts _ _ = App _ _ |- _] =>
+      learn (inv_apply_cont_eq_app h); unzip; subst; simpl apply_conts in h
+    | [h: apply_conts _ _ = Value _ |- _] =>
+      learn (inv_apply_cont_eq_value h); unzip; subst; simpl apply_conts in h
+    | [h: apply_conts _ _ = Var _ |- _] =>
+      learn (inv_apply_cont_eq_var h); unzip; subst; simpl apply_conts in h
+    | [h: _.[_] = _ |- _] =>
+      unfold subst in h; unfold Subst_term in h
+    | [h: subst_term _ _ = App _ _ |- _] =>
+      learn (inv_subst_term_eq_App h); unzip; subst; simpl in h
+    | [h: subst_term _ _ = Value _ |- _] =>
+      learn (inv_subst_term_eq_Value h); unzip; subst; simpl in h
+    | [h: subst_value _ _ = Lam _ |- _] =>
+      learn (inv_subst_value_eq_Lam h); unzip; subst; simpl in h
+    | [h: soe _ _ = Value _ |- _] =>
+      learn (inv_soe_value h); unzip; subst; simpl in h
+    | [h: List.nth_error _ _ = Some _ |- _] =>
+      rewrite h in *
+    | [h: List.nth_error _ _ = None |- _] =>
+      rewrite h in *
+    | [h: List.nth_error (List.map _ _) _ = Some _ |- _] =>
+      rewrite List.nth_error_map in h;
+      learn (inv_option_map_Some h); unzip; subst; simpl in h
+    | [h: List.nth_error (List.map _ _) _ = None |- _] =>
+      rewrite List.nth_error_map in h;
+      learn (inv_option_map_None h); unzip; subst; simpl in h
+    | [h: value_of_expressible_value _ = Lam _ |- _] =>
+      learn (inv_value_of_expressible_value_Lam h); unzip; subst; simpl in h
+    end; injections; subst; tryfalse).
+  induction 1.
+  { intros.
+    inversions.
+    
+    
+    all: repeat (eapply star_step_prop; [solve[repeat econstructor; eauto]|]).
+    { eapply star_refl_prop.
+      asimpl.
+      f_equal; clear; eapply FunctionalExtensionality.functional_extensionality; induction x; asimpl; eauto.
+    }
+
+    all: try solve [].
+    6:{ asimpl.  }
+    { eapply star_step_prop. econstructor.  }
+
+    injections.
+
+    simpl in H; injections.
+
+    learn (subst_App H); unzip; subst; asimpl in H; clear H.
+
+    learn (subst_App H3).
+    unfold apply_state in *.
+    induction s1; simpl in *
+  }
 
 
 Theorem simulation_sred_cred_base:
