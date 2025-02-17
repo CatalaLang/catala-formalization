@@ -1,6 +1,6 @@
-{ dockerTools, coqPackages, coq, dune_3, github-runner, name}:
+{ dockerTools, coqPackages, coq, dune_3, name, busybox}:
 dockerTools.buildLayeredImage {
   name = name;
   tag = "latest";
-  contents = [ coq coqPackages.autosubst dune_3 github-runner ];
+  contents = [ coq coqPackages.autosubst dune_3 busybox ];
 }
