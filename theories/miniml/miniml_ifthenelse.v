@@ -1214,6 +1214,30 @@ Ltac2 sinv_cong () :=
 
 Ltac sinv_cong := ltac2: (sinv_cong ()).
 
+
+Theorem cong_term_correctness:
+  forall t1 t2,
+    sred t1 t2 ->
+    forall t1',
+      cong_term t1 t1' ->
+      exists t2',
+        cong_term t2 t2'
+        /\ star sred t1' t2'.
+Proof.
+  induction 1; inversion 1; subst.
+  { eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
+    eapply star_refl_prop.
+    repeat (econstructor; eauto). 
+  }
+  { repeat sinv_cong.
+    eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
+    eapply star_refl_prop.
+    repeat (econstructor; eauto).
+    admit "subst lemma".  
+  }
+  all: admit.
+Abort.
+
 (* -------------------------------------------------------------------------- *)
 (** Some properties about cong_term and cong_value. *)
 

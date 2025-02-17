@@ -140,3 +140,20 @@ Proof.
   rewrite <- nth_error_Some in *.
   repeat intro; tryfalse.
 Qed.
+
+Lemma nth_error_alt_def {A: Type} {l: list A} {n}:
+    if (n <? Datatypes.length l)%nat
+    then exists v, nth_error l n = Some v
+    else nth_error l n = None.
+Proof.
+  induction (Nat.ltb_spec n (Datatypes.length l)).
+  { learn (proj2 (List.nth_error_Some l n) H).
+    induction (nth_error l n).
+    { exists a; eauto. }
+    { tryfalse. }
+  }
+  { learn (proj2 (List.nth_error_None l n) H).
+    eauto.
+  }
+Qed.
+
