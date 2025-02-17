@@ -1693,27 +1693,56 @@ Proof.
   }
 Qed.
 
+Lemma info_our_subst_value_or_ids sigma:
+  (forall x, (exists v, (fun n : var =>
+  match List.nth_error (List.map value_of_expressible_value sigma) n with
+  | Some t => Value t
+  | None =>
+    ids (n - Datatypes.length (List.map value_of_expressible_value sigma))
+  end) x = Value v) \/ exists n, (fun n : var =>
+  match List.nth_error (List.map value_of_expressible_value sigma) n with
+  | Some t => Value t
+  | None =>
+    ids (n - Datatypes.length (List.map value_of_expressible_value sigma))
+  end) x = ids n).
+Proof.
+  intros.
+  learn (@nth_error_alt_def _ (List.map value_of_expressible_value sigma) x).
+  induction (Nat.ltb_spec x (Datatypes.length (List.map value_of_expressible_value sigma))); unpack.
+  { rewrite H; eauto. }
+  { rewrite H; eauto. }
+Qed.
+
 Lemma inv_subst_term_eq_App { t sigma t1' t2'}:
+  (forall x, (exists v, sigma x = Value v) \/ exists n, sigma x = ids n) ->
   subst_term sigma t = App t1' t2' ->
   exists t1 t2,
     t = App t1 t2.
 Proof.
   induction t; simpl; intros; injections; tryfalse.
-  { admit. }
+  { exfalso.
+    destruct (H x); unpack; unfold ids in *; unfold Ids_term in *; tryfalse.
+  }
   { repeat eexists; eauto. }
-Admitted.
+Qed.
 
 Lemma inv_subst_term_eq_Value { t sigma v'}:
   subst_term sigma t = Value v' ->
   (exists x, t = Var x /\ sigma x = Value v') \/
   (exists v, t = Value v).
-Admitted.
+Proof.
+  induction t; simpl; intros; injections; tryfalse.
+  { intros; left; eexists; repeat split; eauto. }
+  { right; repeat eexists; eauto. }
+Qed.
 
 Lemma inv_subst_value_eq_Lam { v sigma t'}:
   subst_value sigma v = Lam t' ->
   exists t, v = Lam t.
 Proof.
-Admitted.
+  induction v; simpl; intros; injections; tryfalse.
+  { repeat eexists; eauto. }
+Qed.
 
 Lemma inv_soe_value {sigma v x}:
   soe sigma x = Value v ->
@@ -1906,7 +1935,7 @@ Ltac inversions :=
     | [h: _.[_] = _ |- _] =>
       unfold subst in h; unfold Subst_term in h
     | [h: subst_term _ _ = App _ _ |- _] =>
-      learn (inv_subst_term_eq_App h); unzip; subst; simpl in h
+      learn (inv_subst_term_eq_App (info_our_subst_value_or_ids _) h); unzip; subst; simpl in h
     | [h: subst_term _ _ = Value _ |- _] =>
       learn (inv_subst_term_eq_Value h); unzip; subst; simpl in h
     | [h: subst_value _ _ = Lam _ |- _] =>
