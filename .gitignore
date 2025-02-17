@@ -6,3 +6,5 @@ _opam
 catala.dpd
 .ipynb_checkpoints
 .venv
+
+result
