@@ -1983,6 +1983,7 @@ Ltac inversions :=
   }
 
   { intros.
+    lock H.
     repeat inversions; cleanup.
    
     all: repeat (eapply star_step_prop; [solve[repeat econstructor; eauto]|]).
@@ -2011,8 +2012,14 @@ Ltac inversions :=
     eapply star_refl_prop;
     rewrite apply_state_append_stack; simpl apply_conts;
     repeat f_equal; eauto].
-    
-    
-    all: admit.
+    { unlock H.
+      simpl in H.
+      inversion H.
+    }
+    { unlock H.
+      simpl in H.
+      inversion H.
+    }
   }
-Admitted.
+Qed.
+
