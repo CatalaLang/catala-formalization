@@ -1365,21 +1365,99 @@ Abort.
 
 Theorem cong_term_correctness:
   forall t1 t1',
-  cong_term t1 t1' ->
+    cong_term t1 t1' ->
     forall t2,
       sred t1 t2 ->
-      exists t2',
-        cong_term t2 t2'
-        /\ star sred t1' t2'.
+      exists t3 t3',
+        star sred t2 t3 /\
+        star sred t1' t3' /\
+        cong_term t3 t3'.
 Proof.
   induction 1; inversion 1; subst.
-  {
+  { (* This strategy is ok for the if-then-else *)
     inversion H7; subst.
     { repeat sinv_cong.
-
-      
+      eapply confluent_prop_star_step_left; [solve[repeat (econstructor; eauto)]|].
+      eapply confluent_prop_star_step_right; [solve[repeat (econstructor; eauto)]|].
+      eapply confluent_prop_star_refl; eauto.
+    }
+    { repeat sinv_cong.
+      eapply confluent_prop_star_step_left; [solve[repeat (econstructor; eauto)]|].
+      eapply confluent_prop_star_step_right; [solve[repeat (econstructor; eauto)]|].
+      eapply confluent_prop_star_refl; eauto.
+    }
+    { repeat sinv_cong.
+      eapply IHcong_term1 in H8; unpack.
+      eapply confluent_prop_star_trans_left.
+        { eapply star_sred_if_cond.
+          eapply star_sred_if_cond.
+          eauto.
+        }
+      eapply confluent_prop_star_trans_right.
+        { eapply star_sred_if_cond.
+          eauto.
+        }
+      eapply confluent_prop_star_refl.
+      repeat (econstructor; eauto).
     }
   }
+  { repeat sinv_cong.
+    eapply confluent_prop_star_step_right. { econstructor. }
+    eapply confluent_prop_star_refl.
+    eapply cong_term_subst; eauto.
+  }
+  { repeat sinv_cong.
+    eapply IHcong_term2 in H5; unpack.
+    eapply confluent_prop_star_trans_right. {
+      eapply star_sred_app_right; eauto.
+    }
+    eapply confluent_prop_star_trans_left. {
+      eapply star_sred_app_right; eauto.
+    }
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+  }
+  { repeat sinv_cong.
+    eapply IHcong_term1 in H5; unpack.
+    eapply confluent_prop_star_trans_right. {
+      eapply star_sred_app_left; eauto.
+    }
+    eapply confluent_prop_star_trans_left. {
+      eapply star_sred_app_left; eauto.
+    }
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+  }
+  { repeat sinv_cong.
+    eapply confluent_prop_star_step_right. { econstructor. }
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+  }
+  { repeat sinv_cong.
+    eapply confluent_prop_star_step_right. { econstructor. }
+    eapply confluent_prop_star_refl.
+    eauto.
+  }
+  { repeat sinv_cong.
+    eapply confluent_prop_star_step_right. { econstructor. }
+    eapply confluent_prop_star_refl.
+    eauto.
+  }
+  { eapply IHcong_term1 in H7; unpack.
+    eapply confluent_prop_star_trans_right. {
+      eapply star_sred_if_cond.
+      eauto.
+    }
+    eapply confluent_prop_star_trans_left. {
+      eapply star_sred_if_cond.
+      eauto.
+    }
+    eapply confluent_prop_star_refl.
+    eauto.
+    repeat (econstructor; eauto).
+  }
+Qed.
+
 
 (* -------------------------------------------------------------------------- *)
 (** Some properties about cong_term and cong_value. *)
