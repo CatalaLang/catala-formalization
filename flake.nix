@@ -6,6 +6,6 @@
   };
 
   outputs = { self, nixpkgs }: {
-    packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.callPackage ./docker.nix {name = "ghcr.io/CatalaLang/catala-coq-ci";};
+    packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.callPackage ./docker.nix {name = "ghcr.io/catalalang/catala-coq-ci";};
   };
 }
