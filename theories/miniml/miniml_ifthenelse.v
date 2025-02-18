@@ -1214,6 +1214,44 @@ Ltac2 sinv_cong () :=
 
 Ltac sinv_cong := ltac2: (sinv_cong ()).
 
+Lemma cong_term_ren:
+  forall t1 t2,
+    cong_term t1 t2 ->
+    forall sigma,
+    cong_term t1.[ren sigma] t2.[ren sigma].
+Proof.
+  induction 1; asimpl; intros; repeat econstructor; eauto.
+  { asimpl; eauto. }
+Qed.
+
+Lemma cong_term_subst_tech:
+  forall t1 t2,
+    cong_term t1 t2 ->
+    forall sigma1 sigma2,
+      List.Forall2 cong_value sigma1 sigma2 ->
+      forall k,
+        cong_term t1.[upn k (subst_of_env sigma1)] t2.[upn k (subst_of_env sigma2)].
+Proof.
+  induction 1; asimpl; intros; repeat econstructor; eauto.
+  { admit. }
+  { repeat rewrite fold_up_upn.
+    eapply IHcong_term; eauto.
+  }
+Admitted.
+
+Lemma cong_term_subst:
+  forall t1 t2,
+    cong_term t1 t2 ->
+    forall sigma1 sigma2,
+      List.Forall2 cong_value sigma1 sigma2 ->
+      cong_term t1.[subst_of_env sigma1] t2.[subst_of_env sigma2].
+Proof.
+  intros ? ? H ? ? H'.
+  learn (cong_term_subst_tech _ _ H _ _ H' 0).
+  unfold upn in *.
+  eauto.
+Qed.
+
 
 Theorem cong_term_correctness:
   forall t1 t2,
@@ -1233,10 +1271,115 @@ Proof.
     eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
     eapply star_refl_prop.
     repeat (econstructor; eauto).
-    admit "subst lemma".  
+    eapply cong_term_subst; eauto.
   }
-  all: admit.
+  { repeat sinv_cong.
+    eapply IHsred in H5; unpack.
+    eapply star_trans_prop. { eapply star_sred_app_right; eauto. }
+    eapply star_refl_prop.
+    repeat (econstructor; eauto).
+  }
+  { repeat sinv_cong.
+    eapply IHsred in H3; unpack.
+    eapply star_trans_prop. { eapply star_sred_app_left; eauto. }
+    eapply star_refl_prop.
+    repeat (econstructor; eauto).
+  }
+  { repeat sinv_cong.
+    eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
+    eapply star_refl_prop.
+    eauto.
+  }
+  { repeat sinv_cong.
+    eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
+    eapply star_refl_prop.
+    eauto.
+  }
+  {
+    exploit IHsred.
+    { repeat (econstructor; eauto). }
+    intros; unpack.
+    inversion H; subst.
+    { inversion H4; subst; inversion H5; subst.
+      inversion H1; inversion H8; subst.
+      eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
+      eapply star_refl_prop. admit "diagram is wrong". (* diagram *)
+    }
+    { inversion H4; subst; inversion H5; subst.
+      inversion H1; inversion H8; subst.
+      eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
+      eapply star_refl_prop. admit "diagram is wrong". (* diagram *)
+    }
+    { admit.
+    }
+  }
+  { eapply IHsred in H4; unpack.
+    eapply star_trans_prop. { eapply star_sred_if_cond; eauto. }
+    eapply star_refl_prop.
+    repeat (econstructor; eauto).
+  }
 Abort.
+
+
+Theorem cong_term_correctness:
+  forall t1 t2,
+    sred t1 t2 ->
+    forall t1',
+      cong_term t1 t1' ->
+      exists t3 t3',
+        star sred t2 t3 /\
+        star sred t1' t3' /\
+        cong_term t3 t3'.
+Proof.
+  induction 1; inversion 1; subst.
+  7: {
+    exploit IHsred.
+    { repeat (econstructor; eauto). }
+    intros; unpack.
+
+    inversion H; subst.
+    { inversion H4; subst.
+      inversion H8; subst.
+      inversion H1; subst. 2:{ inversion H5. }
+      inversion H3; inversion H9; subst.
+      eapply confluent_prop_star_step_right. { solve[repeat (econstructor; eauto)]. }
+      eapply confluent_prop_star_step_left. { solve[repeat (econstructor; eauto)]. }
+
+      eapply confluent_prop_star_refl; eauto.
+    }
+
+    { inversion H4; subst.
+      inversion H8; subst.
+      inversion H1; subst. 2:{ inversion H5. }
+      inversion H3; inversion H9; subst.
+      eapply confluent_prop_star_step_right. { solve[repeat (econstructor; eauto)]. }
+      eapply confluent_prop_star_step_left. { solve[repeat (econstructor; eauto)]. }
+
+      eapply confluent_prop_star_refl; eauto.
+    }
+    { admit "Induction problem here !". }
+   }
+  all: admit "other cases are still ok".
+Abort.
+
+
+Theorem cong_term_correctness:
+  forall t1 t1',
+  cong_term t1 t1' ->
+    forall t2,
+      sred t1 t2 ->
+      exists t2',
+        cong_term t2 t2'
+        /\ star sred t1' t2'.
+Proof.
+  induction 1; inversion 1; subst.
+  {
+    inversion H7; subst.
+    { repeat sinv_cong.
+
+      
+    }
+  }
 
 (* -------------------------------------------------------------------------- *)
 (** Some properties about cong_term and cong_value. *)
