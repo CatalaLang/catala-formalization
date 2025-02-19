@@ -1321,6 +1321,27 @@ Proof.
 Abort.
 
 
+Lemma external_lemma:
+  forall b t,
+    star sred (If b false true) t ->
+    (exists b', star sred b b' /\ t = (If b' false true))
+      \/ (t = false /\ star sred b true)
+      \/ (t = true /\ star sred b false).
+Proof.
+  induction 1 using star_ind_n1.
+  { left; repeat econstructor. }
+  { unzip; subst.
+    { inversion H; subst; eauto.
+      { left.
+        eexists; split; [|eauto].
+        eapply star_step_n1; eauto.
+      }
+    }
+    { inversion H. }
+    { inversion H. }
+  }
+Qed.
+
 Theorem cong_term_correctness:
   forall t1 t2,
     sred t1 t2 ->
@@ -1332,7 +1353,42 @@ Theorem cong_term_correctness:
         cong_term t3 t3'.
 Proof.
   induction 1; inversion 1; subst.
-  7: {
+
+  { eapply confluent_prop_star_step_right. { solve[repeat (econstructor; eauto)]. }
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto). 
+  }
+  { repeat sinv_cong.
+    eapply confluent_prop_star_step_right. { solve[repeat (econstructor; eauto)]. }
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+    eapply cong_term_subst; eauto.
+  }
+  { repeat sinv_cong.
+    eapply IHsred in H5; unpack.
+    eapply confluent_prop_star_trans_left. { eapply star_sred_app_right; eauto. }
+    eapply confluent_prop_star_trans_right. { eapply star_sred_app_right; eauto. }
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+  }
+  { repeat sinv_cong.
+    eapply IHsred in H3; unpack.
+    eapply confluent_prop_star_trans_left. { eapply star_sred_app_left; eauto. }
+    eapply confluent_prop_star_trans_right. { eapply star_sred_app_left; eauto. }
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+  }
+  { repeat sinv_cong.
+    eapply confluent_prop_star_step_right. { solve[repeat (econstructor; eauto)]. }
+    eapply confluent_prop_star_refl.
+    eauto.
+  }
+  { repeat sinv_cong.
+    eapply confluent_prop_star_step_right. { solve[repeat (econstructor; eauto)]. }
+    eapply confluent_prop_star_refl.
+    eauto.
+  }
+  {
     exploit IHsred.
     { repeat (econstructor; eauto). }
     intros; unpack.
@@ -1357,12 +1413,74 @@ Proof.
 
       eapply confluent_prop_star_refl; eauto.
     }
-    { admit "Induction problem here !". }
-   }
-  all: admit "other cases are still ok".
-Abort.
+    { clear H0.
+      repeat sinv_cong.
+      learn (external_lemma _ _ H1).
+      learn (external_lemma _ _ H2).
+      unzip; subst; repeat sinv_cong.
+      {
+        eapply confluent_prop_star_trans_left.
+        { do 2 eapply star_sred_if_cond. eauto. }
 
+        eapply confluent_prop_star_trans_right.
+        { eapply star_sred_if_cond. eauto. }
+        
+        eapply confluent_prop_star_refl.
+        econstructor; eauto.
+      }
+      {
+        eapply confluent_prop_star_trans_left.
+        { do 2 eapply star_sred_if_cond. eauto. }
 
+        eapply confluent_prop_star_trans_right.
+        { eapply star_sred_if_cond. eauto. }
+
+        eapply confluent_prop_star_step_left.
+        { eapply sred_if_cond.
+          econstructor.
+        }
+        eapply confluent_prop_star_step_left.
+        { econstructor. }
+
+        eapply confluent_prop_star_step_right.
+        { econstructor. }
+
+        eapply confluent_prop_star_refl.
+        eauto.
+      }
+      {
+        eapply confluent_prop_star_trans_left.
+        { do 2 eapply star_sred_if_cond. eauto. }
+
+        eapply confluent_prop_star_trans_right.
+        { eapply star_sred_if_cond. eauto. }
+
+        eapply confluent_prop_star_step_left.
+        { eapply sred_if_cond.
+          econstructor.
+        }
+        eapply confluent_prop_star_step_left.
+        { econstructor. }
+
+        eapply confluent_prop_star_step_right.
+        { econstructor. }
+
+        eapply confluent_prop_star_refl.
+        eauto.
+      }
+    }
+  }
+  { eapply IHsred in H4; unpack.
+    eapply confluent_prop_star_trans_left. { eapply star_sred_if_cond; eauto. }
+    eapply confluent_prop_star_trans_right. { eapply star_sred_if_cond; eauto. }
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+  }
+Qed.
+
+Print Assumptions cong_term_correctness.
+
+(* This strategy works *)
 Theorem cong_term_correctness:
   forall t1 t1',
     cong_term t1 t1' ->
