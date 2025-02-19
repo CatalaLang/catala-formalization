@@ -1394,7 +1394,7 @@ Proof.
   }
 Qed.
 
-Theorem cong_term_correctness:
+Theorem cong_term_correctness_tss:
   forall t1 t2,
     sred t1 t2 ->
     forall t1',
@@ -1530,10 +1530,8 @@ Proof.
   }
 Qed.
 
-Print Assumptions cong_term_correctness.
-
 (* This strategy works *)
-Theorem cong_term_correctness:
+Theorem cong_term_correctness_cbss:
   forall t1 t1',
     cong_term t1 t1' ->
     forall t2,
