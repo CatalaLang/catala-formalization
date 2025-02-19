@@ -15,17 +15,16 @@ jobs:
       image: ghcr.io/catalalang/catala-coq-ci  
 
     steps:
-
       - name: dirty hack
-        run:
+        run: |
           mkdir -p /lib/coq/user-contrib/
           mkdir -p /lib/coq/8.20/user-contrib/Autosubst
           ln -s /lib/coq/8.20/user-contrib/Autosubst /lib/coq/user-contrib/
         
       - name: Check Coq installation
-        run: coqc --version
-             coqc --where
-      
+        run: |
+          coqc --version
+          coqc --where
 
       - name: Checkout tree
         uses: actions/checkout@v1
