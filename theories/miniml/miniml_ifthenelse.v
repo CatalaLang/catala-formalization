@@ -1394,7 +1394,7 @@ Proof.
   }
 Qed.
 
-Theorem cong_term_correctness_tss:
+Theorem cong_term_correctness_tss_strat1:
   forall t1 t2,
     sred t1 t2 ->
     forall t1',
@@ -1531,7 +1531,7 @@ Proof.
 Qed.
 
 (* This strategy works *)
-Theorem cong_term_correctness_cbss:
+Theorem cong_term_correctness_tss_strat2:
   forall t1 t1',
     cong_term t1 t1' ->
     forall t2,
