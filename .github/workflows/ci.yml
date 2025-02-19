@@ -24,7 +24,7 @@ jobs:
       - name: Check Coq installation
         run: |
           coqc --version
-          coqc --where
+          coqc --config
 
       - name: Checkout tree
         uses: actions/checkout@v1
