@@ -1224,6 +1224,34 @@ Proof.
   { asimpl; eauto. }
 Qed.
 
+Lemma upn_k_sigma_x:
+  forall k sigma x,
+  x < k ->
+  upn k sigma x = ids x.
+Proof.
+  induction k; intros; asimpl.
+  { lia. }
+  { destruct x; asimpl.
+    { eauto. }
+    { rewrite IHk by lia. autosubst. }
+  }
+Qed.
+
+Lemma upn_k_sigma_x':
+  forall k sigma x,
+  x >= k ->
+  upn k sigma x = (sigma (x - k)).[ren(+k)].
+Proof.
+  induction k; intros; asimpl.
+  { rewrite Nat.sub_0_r. eauto. }
+  { destruct x; asimpl.
+    { lia. }
+    { rewrite IHk by lia.
+      autosubst.
+    }
+  }
+Qed.
+
 Lemma cong_term_subst_tech:
   forall t1 t2,
     cong_term t1 t2 ->
@@ -1233,11 +1261,35 @@ Lemma cong_term_subst_tech:
         cong_term t1.[upn k (subst_of_env sigma1)] t2.[upn k (subst_of_env sigma2)].
 Proof.
   induction 1; asimpl; intros; repeat econstructor; eauto.
-  { admit. }
+  { unfold subst_of_env.
+    learn (@common.nth_error_alt_def _ (sigma1) (x-k)).
+    learn (@common.nth_error_alt_def _ (sigma2) (x-k)).
+    rewrite <- (List.Forall2_length H) in *.
+    destruct (Nat.ltb_spec x k).
+    { repeat rewrite (upn_k_sigma_x _ _ _ H4).
+      econstructor.
+    }
+    {
+      repeat rewrite upn_k_sigma_x'; try lia.
+      eapply cong_term_ren.
+
+      destruct (Nat.ltb_spec (x-k) ((List.length sigma1))); unzip.
+      { unfold subst_of_env.
+        rewrite H0.
+        rewrite H2.
+        econstructor.
+        eapply Forall2_nth_error_Some; eauto.
+      }
+      { rewrite H0.
+        rewrite H2.
+        econstructor.
+      }
+    }
+  }
   { repeat rewrite fold_up_upn.
     eapply IHcong_term; eauto.
   }
-Admitted.
+Qed.
 
 Lemma cong_term_subst:
   forall t1 t2,
