@@ -1280,43 +1280,6 @@ Definition apply_state (s: state): term :=
     apply_conts stack (Value (value_of_expressible_value r))
   end.
 
-
-(*** Main sim_state definition ***)
-
-Inductive sim_state: state -> term -> Prop :=
-  | InvBase: forall s,
-    sim_state s (apply_state s)
-.
-
-(* Smart constructors and inversion for the sim_state inductive *)
-
-(* Lemma sim_state_inversion:
-  forall s t1,
-  sim_state s t1 ->
-  exists t,
-    sim_term t1 t /\ apply_state s = t.
-Proof.
-  induction 1.
-  { eexists; split; eauto. reflexivity. }
-  { intros; inj; subst.
-    edestruct IHsim_state; eauto; unpack.
-    eexists; split; eauto.
-    symmetry.
-    etransitivity.
-    symmetry.
-    eauto.
-    eauto.
-  }
-Qed.
-
-Lemma sim_state_from_equiv {t2 s}:
-  sim_term (apply_state s) t2 ->
-  sim_state s t2.
-Proof.
-  repeat econstructor; eauto.
-Qed. *)
-
-
 Lemma apply_conts_app:
   forall kappa1 kappa2 p,
     apply_conts (kappa1 ++ kappa2) p
@@ -1752,68 +1715,6 @@ Proof.
     }
   }
 Qed.
-
-
-(* Lemma subst_apply_state {t env}:
-  t.[soe env] = apply_state (mode_eval t [] env).
-Proof.
-  simpl; eauto.
-Qed. *)
-
-(* Lemma apply_conts_apply_state {t kappa env}:
-(apply_conts kappa t.[subst_of_env env]) = apply_state (mode_eval t kappa env).
-Proof.
-  simpl; eauto.
-Qed. *)
-
-(* Lemma apply_conts_Value_apply_state {v kappa }:
-(apply_conts kappa (Value v)) = apply_state (mode_cont kappa (RValue v)).
-Proof.
-  simpl; eauto.
-Qed. *)
-
-
-(* Lemma fst_apply_conts_CReturn {kappa sigma t}:
-  fst (apply_conts (kappa ++ [CReturn sigma]) t) = fst (apply_conts kappa t).
-Proof.
-  rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl; eauto.
-Qed. *)
-
-(* The handling of CReturn is orthogonal to the other continuations, hence we proove it in a different way. *)
-(* Lemma induction_case_CReturn
-  (sigma: list value)
-  (kappa: list cont)
-  (IHkappa: forall s1 : state,
-            kappa = stack s1 ->
-            forall t2 : term,
-            sred (fst (apply_state_aux s1)) t2 ->
-            exists s2 : state, sim_state s2 t2 /\ star cred s1 s2):
-
-  forall s1 : state,
-  kappa ++ [CReturn sigma] = stack s1 ->
-  forall t2 : term,
-  sred (fst (apply_state_aux s1)) t2 ->
-  exists s2 : state, sim_state s2 t2 /\ star cred s1 s2
-.
-Proof.
-  intros.
-  assert (Heq: fst (apply_state_aux s1) = fst (apply_state_aux (with_stack s1 kappa))).
-  { induction s1; simpl in *; subst; rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl; eauto. }
-
-  rewrite Heq in *.
-
-  epose proof (IHkappa _ _ _ H0); unpack.
-  learn (sim_state_inversion _ _ H1); unpack.
-  induction s1; simpl in *; subst.
-
-  all: eapply star_trans_prop; [erewrite append_stack_app; [|solve[simpl; reflexivity]]; eapply star_cred_append_stack; simpl; eauto|].
-  all: eapply star_refl_prop; eapply sim_state_from_equiv; simpl.
-  all: induction s2; simpl in *; subst; rewrite apply_conts_app; simpl; unfold apply_cont; sp; simpl; eauto.
-  all: symmetry; eauto.
-
-  Unshelve.
-  induction s1; simpl; eauto.
-Qed. *)
 
 Inductive ok: string -> forall (A: Type), A -> Prop :=
   OK: forall s: string, forall A: Type, forall a: A, ok s A a.

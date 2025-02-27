@@ -954,7 +954,41 @@ Definition trans_state (s: state) : state :=
   end
 .
 
+Lemma trans_term_subst:
+  forall t sigma,
+    (trans_term t).[subst_of_env (List.map trans_value sigma)]
+    = trans_term t.[subst_of_env sigma].
+Proof.
+  induction t; asimpl; eauto.
+  { admit. }
+  { intros; rewrite IHt1, IHt2; eauto. }
+  { admit. }
+  { intros; rewrite IHt1, IHt2, IHt3; eauto. }
+Admitted.
+
+
+Theorem correction_traditional:
+  forall s1 s2,
+  sred s1 s2 ->
+  star sred
+    (trans_term s1) (trans_term s2).
+Proof.
+Local Ltac step_sred := (
+  try (eapply star_step; [solve
+    [ repeat (econstructor; simpl; eauto using List.map_nth_error)
+  ]|]))
+.
+  induction 1; simpl; repeat step_sred; try eapply star_refl.
+  { eapply star_refl_eq. 
+    rewrite <- trans_term_subst; repeat f_equal. }
+  { eapply star_sred_app_right; eauto. }
+  { eapply star_sred_app_left; eauto. }
+  { do 2 eapply star_sred_if_cond; eauto. }
+Qed.
+
+
 (* After defining the extension of the translation to states, the proof of the following diagram is immediate. *)
+
 
 Theorem correction_continuations:
   forall s1 s2,
@@ -1772,6 +1806,29 @@ Lemma modify_WF_IH {P n}:
       cred s1 s2 ->
       forall s1' : state,
         cong_state s1 s1' ->
+        P s1 s2 s1')
+  ->
+  forall s1 s1',
+    cong_state s1 s1' ->
+    forall s2,
+      cred s1 s2 ->
+      List.length (stack s1) < n ->
+      P s1 s2 s1'
+  .
+Proof.
+  intros X ? ? ? ? ? ?; eapply X; eauto.
+Qed.
+
+Lemma modify_WF_IH' {P n}:
+  (forall y : list cont,
+  Datatypes.length y < n ->
+  forall s1 : state,
+    stack s1 = y ->
+    forall s1' : state,
+        cong_state s1 s1' ->
+      forall s2 : state,
+        cred s1 s2 ->
+        
         P s1 s2 s1')
   ->
   forall s1 s1',
@@ -2621,6 +2678,144 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     ].
   }
 Qed.
+
+
+Lemma jt_state_append_stack {s kappa T2}:
+  jt_state (append_stack s kappa) T2 ->
+  exists T1,
+    jt_state s T1 /\ jt_conts T1 kappa T2.
+Proof.
+  induction s; simpl; intros; repeat inv_jt; repeat (econstructor; eauto).
+Qed.
+
+Lemma key {s1 s2 s3 k}:
+  cred (append_stack s1 [k]) s3 ->
+  cred s1 s2 ->
+  s3 = append_stack s2 [k]
+.
+intros.
+eapply cred_deterministic.
+{ eapply H. }
+{ eapply cred_append_stack.
+  eapply H0.
+}
+Qed.
+
+
+Module tactic_tests.
+
+Create HintDb my_db.
+
+
+
+#[local] Ltac f := simpl; autorewrite with my_db ; intuition eauto with *.
+
+Ltac ssimpl_list := autorewrite with list using simpl.
+
+Set Default Proof Mode "Ltac2".
+
+
+Example test1 s t0 sigma0 tcl sigmacl (_: append_stack s [CAppR t0 sigma0] = mode_cont [] (Closure tcl sigmacl)): False.
+  repeat (match! goal with
+  | [heq: @eq state _ _ |- _] =>
+    let h := learn2 (f_equal stack ltac2:(Control.refine (fun () => Control.hyp heq))) in
+    simpl stack in $h;
+    rewrite stack_append_stack in $h
+  end).
+  let _ := learn2 (List.app_eq_nil _ _ H0) in (); ltac1:(unpack); ltac1:(congruence).
+Qed.
+
+Example test2 s t0 sigma0 tcl sigmacl t' sigma' (_: append_stack s [CAppR t0 sigma0] = mode_cont [CClosure t' sigma'] (Closure tcl sigmacl)): False.
+  repeat (match! goal with
+  | [heq: @eq state _ _ |- _] =>
+    let h := learn2 (f_equal stack ltac2:(Control.refine (fun () => Control.hyp heq))) in
+    simpl stack in $h;
+    rewrite stack_append_stack in $h
+  end).
+  admit.
+Admitted.
+
+Set Default Proof Mode "Classic".
+
+End tactic_tests.
+
+
+Theorem correction_diagram_other:
+  forall s1,
+    forall s1',
+        cong_state s1 s1' ->
+        forall T,
+        jt_state s1 T ->
+      forall s2,
+        cred s1 s2 ->
+      
+      exists s3 s3',
+        star cred s2 s3 /\
+        star cred s1' s3' /\
+        cong_state s3 s3'
+.
+induction 1; subst; repeat sinv_cong; intros T Hjt.
+{ admit. }
+{ inversion 1. }
+{ eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
+  learn (progress_cont _ _ H2); unzip.
+  { exploit IHcong_state; eauto; intros; unzip.
+    learn (key H6 H3); subst.
+    repeat first[
+      eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
+      eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
+      repeat (simpl; sinv_cong; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
+      repeat (simpl; sinv_cong; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
+    ].
+
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+  }
+  { induction s; induction kappa; simpl in *; tryfalse.
+    inversion 1; subst.
+    inversion H0; repeat sinv_cong.
+    { simpl.
+      repeat first[
+        eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
+        eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
+        repeat (simpl; repeat sinv_cong; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
+        repeat (simpl; repeat sinv_cong; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
+      ].
+      eapply confluent_prop_star_refl.
+
+      match goal with [|- cong_state ?s1 ?s2] =>
+        rewrite (@append_stack_all s1);
+        rewrite (@append_stack_all s2);
+        simpl with_stack; simpl stack
+      end;
+      repeat (econstructor; eauto).
+    }
+    { simpl.
+      (* fake case *)
+      admit "H7".
+    }
+    {
+      simpl.
+      (* fake case *)
+      admit "H7".
+    }
+    { simpl.
+      (* fake case *)
+      admit "H7".
+    }
+    { simpl.
+    (* fake case *)
+    admit "H7".
+    }
+  }
+}
+{ eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
+  learn (progress_cont _ _ H2); unzip.
+
+
+}
+
+  Search jt_state append_stack. inv_jt. progress_cont. }
 
 Theorem correction_diagram:
   forall s1 s1' s2,
