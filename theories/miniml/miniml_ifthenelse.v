@@ -2688,10 +2688,10 @@ Proof.
   induction s; simpl; intros; repeat inv_jt; repeat (econstructor; eauto).
 Qed.
 
-Lemma key {s1 s2 s3 k}:
-  cred (append_stack s1 [k]) s3 ->
+Lemma key {s1 s2 s3 kappa}:
+  cred (append_stack s1 kappa) s3 ->
   cred s1 s2 ->
-  s3 = append_stack s2 [k]
+  s3 = append_stack s2 kappa
 .
 intros.
 eapply cred_deterministic.
@@ -2701,18 +2701,24 @@ eapply cred_deterministic.
 }
 Qed.
 
-
 Module tactic_tests.
-
-Create HintDb my_db.
-
-
 
 #[local] Ltac f := simpl; autorewrite with my_db ; intuition eauto with *.
 
-Ltac ssimpl_list := autorewrite with list using simpl.
-
 Set Default Proof Mode "Ltac2".
+
+Ltac2 handle () :=
+  repeat (match! goal with
+  | [heq: @eq state _ _ |- _] =>
+    let h := learn2 (f_equal stack ltac2:(Control.refine (fun () => Control.hyp heq))) in
+    simpl stack in $h;
+    rewrite stack_append_stack in $h
+  end);
+  ltac1:(list_simpl).
+
+#[global]
+Ltac handle := ltac2:(handle ()).
+
 
 
 Example test1 s t0 sigma0 tcl sigmacl (_: append_stack s [CAppR t0 sigma0] = mode_cont [] (Closure tcl sigmacl)): False.
@@ -2722,7 +2728,7 @@ Example test1 s t0 sigma0 tcl sigmacl (_: append_stack s [CAppR t0 sigma0] = mod
     simpl stack in $h;
     rewrite stack_append_stack in $h
   end).
-  let _ := learn2 (List.app_eq_nil _ _ H0) in (); ltac1:(unpack); ltac1:(congruence).
+  ltac1:(list_simpl).
 Qed.
 
 Example test2 s t0 sigma0 tcl sigmacl t' sigma' (_: append_stack s [CAppR t0 sigma0] = mode_cont [CClosure t' sigma'] (Closure tcl sigmacl)): False.
@@ -2732,13 +2738,31 @@ Example test2 s t0 sigma0 tcl sigmacl t' sigma' (_: append_stack s [CAppR t0 sig
     simpl stack in $h;
     rewrite stack_append_stack in $h
   end).
-  admit.
-Admitted.
+  ltac1:(list_simpl).
+Qed.
 
 Set Default Proof Mode "Classic".
 
+
+Example test3 s t0 sigma0 tcl sigmacl t' sigma' (_: append_stack s [CAppR t0 sigma0] = mode_cont [CClosure t' sigma'] (Closure tcl sigmacl)): stack s ++ [CAppR t0 sigma0] = [CClosure t' sigma'].
+Proof.
+  handle.
+Qed.
+
 End tactic_tests.
 
+Lemma append_stack_decompose {s} {l1} {l2 l}:
+  l1 ++ l2 = l -> append_stack s l = append_stack (append_stack s l1) l2.
+Proof.
+  induction s; simpl; intros; f_equal; subst.
+  all: eapply List.app_assoc.
+Qed.
+
+Lemma append_stack_decompose_rcons {s} {l1 l a}:
+  l1 ++ [a] = l -> append_stack s l = append_stack (append_stack s l1) [a].
+Proof.
+  eapply append_stack_decompose.
+Qed.
 
 Theorem correction_diagram_other:
   forall s1,
@@ -2754,33 +2778,41 @@ Theorem correction_diagram_other:
         star cred s1' s3' /\
         cong_state s3 s3'
 .
+Ltac step_cred := first[
+  eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
+  eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
+  (simpl; do 5 try sinv_cong; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
+  (simpl; do 5 try sinv_cong; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
+].
 induction 1; subst; repeat sinv_cong; intros T Hjt.
-{ admit. }
+{ inversion 1; subst; repeat sinv_cong.
+  1:
+    destruct (Forall2_nth_error_Some_left H0 H7);
+    learn (Forall2_nth_error_Some H0 H7 H).
+  all: repeat step_cred.
+  all: eapply confluent_prop_star_refl.
+  all: match goal with [|- cong_state ?s1 ?s2] =>
+    rewrite (@append_stack_all s1);
+    rewrite (@append_stack_all s2);
+    simpl with_stack; simpl stack
+  end;
+  repeat (econstructor; eauto).
+}
 { inversion 1. }
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H2); unzip.
   { exploit IHcong_state; eauto; intros; unzip.
     learn (key H6 H3); subst.
-    repeat first[
-      eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
-      eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
-      repeat (simpl; sinv_cong; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
-      repeat (simpl; sinv_cong; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
-    ].
-
+    repeat step_cred.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
   }
   { induction s; induction kappa; simpl in *; tryfalse.
     inversion 1; subst.
     inversion H0; repeat sinv_cong.
+    all: try tactic_tests.handle.
     { simpl.
-      repeat first[
-        eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
-        eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
-        repeat (simpl; repeat sinv_cong; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
-        repeat (simpl; repeat sinv_cong; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
-      ].
+      repeat step_cred.
       eapply confluent_prop_star_refl.
 
       match goal with [|- cong_state ?s1 ?s2] =>
@@ -2790,32 +2822,99 @@ induction 1; subst; repeat sinv_cong; intros T Hjt.
       end;
       repeat (econstructor; eauto).
     }
-    { simpl.
-      (* fake case *)
-      admit "H7".
-    }
-    {
-      simpl.
-      (* fake case *)
-      admit "H7".
-    }
-    { simpl.
-      (* fake case *)
-      admit "H7".
-    }
-    { simpl.
-    (* fake case *)
-    admit "H7".
-    }
   }
 }
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H2); unzip.
+  { exploit IHcong_state; eauto; intros; unzip.
+    learn (key H6 H3); subst.
+    repeat step_cred.
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+  }
 
-
+  { induction s; induction kappa; simpl in *; tryfalse.
+    inversion 1; subst.
+    inversion H0; repeat sinv_cong.
+    all: try tactic_tests.handle.
+    { simpl.
+      repeat step_cred.
+      
+      eapply confluent_prop_star_refl.
+      repeat (econstructor; eauto).
+    }
+  }
 }
+{ eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
+  learn (progress_cont _ _ H3); unzip.
+  { exploit IHcong_state; eauto; intros; unzip.
+    learn (key H7 H4); subst.
+    repeat step_cred.
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+  }
 
-  Search jt_state append_stack. inv_jt. progress_cont. }
+  { induction s; induction kappa; simpl in *; tryfalse.
+    inversion 1; subst.
+    all: inversion H1; repeat sinv_cong.
+    all: try tactic_tests.handle.
+    { simpl.
+      repeat step_cred.
+      
+      eapply confluent_prop_star_refl.
+      repeat (econstructor; eauto).
+    }
+    { simpl.
+      repeat step_cred.
+      
+      eapply confluent_prop_star_refl.
+      repeat (econstructor; eauto).
+    }
+  }
+}
+{ eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
+  learn (progress_cont _ _ H3); unzip.
+  { exploit IHcong_state; eauto; intros; unzip.
+    
+    learn (key H7 H4); subst.
+    repeat step_cred.
+    eapply confluent_prop_star_refl.
+    repeat (econstructor; eauto).
+  }
+  { induction s; induction kappa; simpl in *; tryfalse.
+    inversion 1; subst.
+    all: inversion H1; repeat sinv_cong.
+    all: try tactic_tests.handle.
+    { simpl.
+      repeat step_cred.
+      
+      eapply confluent_prop_star_refl.
+      repeat (econstructor; eauto).
+    }
+    { simpl.
+      repeat step_cred.
+      
+      eapply confluent_prop_star_refl.
+      repeat (econstructor; eauto).
+    }
+  }
+}
+{ inversion 1; subst.
+  exploit preservation_cont; [|eapply Hjt|]; [econstructor; eauto|]; intros.
+  rewrite append_stack_all in H5.
+  eapply jt_state_append_stack in H5; unpack; repeat inv_jt.
+  simpl in H5.
+  learn (progress_cont _ _ H5); unzip; tryfalse.
+  { eapply confluent_prop_star_refl.
+    match goal with [|- cong_state ?s1 ?s2] =>
+      rewrite (@append_stack_all s1);
+      rewrite (@append_stack_all s2);
+      simpl with_stack; simpl stack
+    end;
+    repeat (econstructor; eauto).
+  }
+}
+Qed.
 
 Theorem correction_diagram:
   forall s1 s1' s2,
@@ -2832,3 +2931,4 @@ Proof.
 Qed.
 
 End trans2.
+
