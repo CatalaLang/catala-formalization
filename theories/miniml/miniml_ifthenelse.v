@@ -22,6 +22,9 @@ Set Default Goal Selector "!".
 (* This file demonstrates an proof for compiler correctness using continuation-based semantics. The base language is lambda-calculus + if-then-else.
 
 We define both type of semantics, with adapted lemmas. We then prove type safety for both semantics. Finally, we show why continuation-based semantics is better regarding to the proof some exemples of compilation passes using smulation diagrams. Namely, we show two simulation diagrams two simple compiler optimisations.
+
+Because of show the equivalence using multiple strategies, some of the proof are incorrect, and are kept between different iterations. Those failing proof contains admits, The diff between the different versions are available in a separate file.
+
 *)
 
 
@@ -58,7 +61,7 @@ Proof.
 Qed.
 
 
-(* This is a tactic that tries to infer equalities between terms in a list where :: and ++ are used. It uses [List.rev] and the [List.rev_app_distr] lemmas. *)
+(* This is a tactic that tries to infer equalities between terms in a list where :: and ++ are used. It uses [List.rev] to reverse the list and the [List.rev_app_distr] lemma. *)
 
 Ltac list_simpl_base h := 
   learn (f_equal (@List.rev _) h);
@@ -119,6 +122,8 @@ Ltac decompose h :=
 (* -------------------------------------------------------------------------- *)
 (*** Definition of the syntax of our language ***)
 
+
+(* Contrary to the miniml file, where we have a distinction between Result Values and Values, we don't here. this is a technical debt that we will deal in future versions. It does not change the claims of the paper. *)
 
 Inductive term :=
   (* Lambda calculus part of the language*)
