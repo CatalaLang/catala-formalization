@@ -18,6 +18,9 @@ Proof.
   decide equality.
 Qed.
 
+(* Contrary to miniml, the machine describe in the catala part of our mechanization is not the CEK machine, but a non-tail recursive variant of the CEK machine. This mean that the [Closure t sigma] is a value in the syntax of terms, and not a Result Value. This difference is a technical debt of our mechanization that we will fix in the future, but has no consequences on the claims of the paper. *)
+
+(* Because of this technical debt, we have a additional simulation between terms sim_term that indicate that two terms are equivalent if and only if they are equal (congruence) or their substitution are equal (for closures). This is needed to show the equivalence between traditional small-step semantics and continuation-based small-step semanitcs, because of the additional rule sred_lam that transform a lambda into a empty closure. *)
 
 Inductive term :=
   (* Lambda calculus part of the language*)
