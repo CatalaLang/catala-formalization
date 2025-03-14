@@ -1062,46 +1062,46 @@ Hence, we need to define an invariant between terms that is more general than th
 
 *)
 
-Inductive cong_term: term -> term -> Prop :=
-  | cong_if_base {u t1 t2 u' t1' t2'}:
-    cong_term u u' ->
-    cong_term t1 t1' ->
-    cong_term t2 t2' ->
-    cong_term
+Inductive inv_term: term -> term -> Prop :=
+  | inv_if_base {u t1 t2 u' t1' t2'}:
+    inv_term u u' ->
+    inv_term t1 t1' ->
+    inv_term t2 t2' ->
+    inv_term
       (If (If u (Value (Bool false)) (Value (Bool true))) t1 t2)
       (If u' t2' t1')
-  | cong_Var {x}:
-    cong_term (Var x) (Var x)
-  | cong_App { t1 t2 t1' t2' }:
-    cong_term t1 t1' ->
-    cong_term t2 t2' ->
-    cong_term (App t1 t2) (t1' t2')
-  | cong_Lam { t t' }:
-    cong_term t t' ->
-    cong_term (Lam t) (Lam t')
-  | cong_Value {v v'}:
-    cong_value v v' ->
-    cong_term (Value v) (Value v')
-  | cong_If {u t1 t2 u' t1' t2'}:
-    cong_term u u' ->
-    cong_term t1 t1' ->
-    cong_term t2 t2' ->
-    cong_term (If u t1 t2) (If u' t1' t2')
-with cong_value: value -> value -> Prop :=
-  | cong_Bool {b}:
-    cong_value (Bool b) (Bool b)
-  | cong_Closure {t sigma t' sigma'}:
-    cong_term t t' ->
-    List.Forall2 (cong_value) sigma sigma' ->
-    cong_value (Closure t sigma) (Closure t' sigma')
+  | inv_Var {x}:
+    inv_term (Var x) (Var x)
+  | inv_App { t1 t2 t1' t2' }:
+    inv_term t1 t1' ->
+    inv_term t2 t2' ->
+    inv_term (App t1 t2) (t1' t2')
+  | inv_Lam { t t' }:
+    inv_term t t' ->
+    inv_term (Lam t) (Lam t')
+  | inv_Value {v v'}:
+    inv_value v v' ->
+    inv_term (Value v) (Value v')
+  | inv_If {u t1 t2 u' t1' t2'}:
+    inv_term u u' ->
+    inv_term t1 t1' ->
+    inv_term t2 t2' ->
+    inv_term (If u t1 t2) (If u' t1' t2')
+with inv_value: value -> value -> Prop :=
+  | inv_Bool {b}:
+    inv_value (Bool b) (Bool b)
+  | inv_Closure {t sigma t' sigma'}:
+    inv_term t t' ->
+    List.Forall2 (inv_value) sigma sigma' ->
+    inv_value (Closure t sigma) (Closure t' sigma')
 .
 
 (* -------------------------------------------------------------------------- *)
-(** The goal of this paragraph is to show that the [trans_term] function is a subcase of the [cong_term] relation : *)
+(** The goal of this paragraph is to show that the [trans_term] function is a subcase of the [inv_term] relation : *)
 
-Theorem trans_cong_term :
+Theorem trans_inv_term :
   forall t, 
-    cong_term t (trans_term t)
+    inv_term t (trans_term t)
 .
 Abort.
 
@@ -1120,11 +1120,11 @@ with trans_value_ind2 := Induction for trans_value Sort Prop.
 (* Check trans_term_ind2. *)
 
 
-Lemma trans_cong_technical:
+Lemma trans_inv_technical:
   forall x,
   match x with
-  | inl t => cong_term t (trans_term t)
-  | inr v => cong_value v (trans_value v)
+  | inl t => inv_term t (trans_term t)
+  | inr v => inv_value v (trans_value v)
   end
 .
 Proof.
@@ -1137,8 +1137,8 @@ Proof.
   all: repeat unzip_match.
   all: repeat econstructor; fold trans_term; fold trans_value.
   all: try match goal with
-    | [ |- cong_term ?e _ ] => solve [eapply (IHx (inl e)); simpl; lia]
-    | [ |- cong_value ?e _ ] => solve [eapply (IHx (inr e)); simpl; lia]
+    | [ |- inv_term ?e _ ] => solve [eapply (IHx (inl e)); simpl; lia]
+    | [ |- inv_value ?e _ ] => solve [eapply (IHx (inr e)); simpl; lia]
   end.
 
   (* One case is left, corresponding to where we have a List.Forall2. We do the induction on the first list to derive the result. *)
@@ -1155,17 +1155,17 @@ Proof.
 Qed.
 
 (** The wanted theorem can be derived by a simple application. of the above result. *)
-Theorem trans_cong_term :
+Theorem trans_inv_term :
   forall t, 
-    cong_term t (trans_term t)
+    inv_term t (trans_term t)
 .
 Proof.
   intros.
-  eapply (trans_cong_technical (inl t)).
+  eapply (trans_inv_technical (inl t)).
 Qed.
 
 (* -------------------------------------------------------------------------- *)
-(*** Extending [cong_term] into [cong_states] ***)
+(*** Extending [inv_term] into [inv_states] ***)
 
 (* To be able to state the theorem on continuation based small-step semantics reductions, we first need to extend our invariant to states.
 *)
@@ -1173,86 +1173,86 @@ Qed.
 
 (* In this definition, we choose to not separate the mode_eval and mode_cont when it was possible. we hence used the "append_stack" function. This might pose issues when applying the "econstructor" tactic. In those case, we use the rewriting lemmas present in the section about continuation-based small-step semantics. *)
 
-Inductive cong_state: state -> state -> Prop :=
+Inductive inv_state: state -> state -> Prop :=
   (* Base cases *)
-  | cong_mode_eval {t sigma t' sigma'}:
-    cong_term t t' ->
-    List.Forall2 cong_value sigma sigma' ->
-    cong_state
+  | inv_mode_eval {t sigma t' sigma'}:
+    inv_term t t' ->
+    List.Forall2 inv_value sigma sigma' ->
+    inv_state
       (mode_eval t [] sigma)
       (mode_eval t' [] sigma')
   
-  | cong_mode_cont {v v' }:
-    cong_value v v' ->
-    cong_state
+  | inv_mode_cont {v v' }:
+    inv_value v v' ->
+    inv_state
       (mode_cont [] (RValue v))
       (mode_cont [] (RValue v'))
 
   (* Normal congruence cases *)
-  | cong_CAppR {s s' t t' sigma sigma'}:
-    cong_term t t' ->
-    cong_state s s' ->
-    List.Forall2 cong_value sigma sigma' ->
-    cong_state
+  | inv_CAppR {s s' t t' sigma sigma'}:
+    inv_term t t' ->
+    inv_state s s' ->
+    List.Forall2 inv_value sigma sigma' ->
+    inv_state
       (append_stack s [CAppR t sigma])
       (append_stack s' [CAppR t' sigma'])
-  | cong_CClosure {s s' t t' sigma sigma'}:
-    cong_term t t' ->
-    cong_state s s' ->
-    List.Forall2 cong_value sigma sigma' ->
-    cong_state
+  | inv_CClosure {s s' t t' sigma sigma'}:
+    inv_term t t' ->
+    inv_state s s' ->
+    List.Forall2 inv_value sigma sigma' ->
+    inv_state
       (append_stack s [CClosure t sigma])
       (append_stack s' [CClosure t' sigma'])
-  | cong_CIf {s s' t1 t1' t2 t2' sigma sigma'}:
-    cong_term t1 t1' ->
-    cong_term t2 t2' ->
-    cong_state s s' ->
-    List.Forall2 cong_value sigma sigma' ->
-    cong_state
+  | inv_CIf {s s' t1 t1' t2 t2' sigma sigma'}:
+    inv_term t1 t1' ->
+    inv_term t2 t2' ->
+    inv_state s s' ->
+    List.Forall2 inv_value sigma sigma' ->
+    inv_state
       (append_stack s [CIf t1 t2 sigma])
       (append_stack s' [CIf t1' t2' sigma'])
 
   (* Additional cases *)
-  | cong_if_stack {s s' t1 t1' t2 t2' sigma0 sigma sigma'} :
+  | inv_if_stack {s s' t1 t1' t2 t2' sigma0 sigma sigma'} :
     (* Nothing tells us that the environement is the same for both continuations. Hence, we separate them. *)
-    cong_term t1 t1' ->
-    cong_term t2 t2' ->
-    cong_state s s' ->
-    List.Forall2 cong_value sigma sigma' ->
-    cong_state
+    inv_term t1 t1' ->
+    inv_term t2 t2' ->
+    inv_state s s' ->
+    List.Forall2 inv_value sigma sigma' ->
+    inv_state
       (append_stack s [CIf false true sigma0; CIf t1 t2 sigma])
       (append_stack s' [CIf t2' t1' sigma'])
 
-  | cong_if_overlap {u u' t1 t1' t2 t2' sigma0 sigma0' sigma sigma'}:
+  | inv_if_overlap {u u' t1 t1' t2 t2' sigma0 sigma0' sigma sigma'}:
     (* Same comment as above *)
-    cong_term u u' ->
-    cong_term t1 t1' ->
-    cong_term t2 t2' ->
-    List.Forall2 cong_value sigma sigma' ->
-    List.Forall2 cong_value sigma0 sigma0' ->
-    cong_state
+    inv_term u u' ->
+    inv_term t1 t1' ->
+    inv_term t2 t2' ->
+    List.Forall2 inv_value sigma sigma' ->
+    List.Forall2 inv_value sigma0 sigma0' ->
+    inv_state
       (mode_eval (If u false true) [CIf t1 t2 sigma] sigma0)
       (mode_eval u' [CIf t2' t1' sigma'] sigma0')
 .
 
-(* We define a smart-inversion tactic for this invariant. This comes handy when deconstructing hypothesis of type cong_term. Sadly, we cannot have such an tactic with [cong_state] because we are using [append_stack] and not a coq constructor. *)
-Ltac2 sinv_cong () :=
+(* We define a smart-inversion tactic for this invariant. This comes handy when deconstructing hypothesis of type inv_term. Sadly, we cannot have such an tactic with [inv_state] because we are using [append_stack] and not a coq constructor. *)
+Ltac2 invert_invariant () :=
   match! goal with
-  | [ h: cong_term ?c _ |- _ ] => smart_inversion c h
-  | [ h: cong_value ?c _ |- _ ] => smart_inversion c h
-  | [ h: List.Forall2 cong_value ?c _ |- _ ] => smart_inversion c h
-  | [ h: List.Forall2 cong_value _ ?c |- _ ] => smart_inversion c h
-  | [ h: List.Forall2 cong_term ?c _ |- _ ] => smart_inversion c h
-  | [ h: List.Forall2 cong_term _ ?c |- _ ] => smart_inversion c h
+  | [ h: inv_term ?c _ |- _ ] => smart_inversion c h
+  | [ h: inv_value ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 inv_value ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 inv_value _ ?c |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 inv_term ?c _ |- _ ] => smart_inversion c h
+  | [ h: List.Forall2 inv_term _ ?c |- _ ] => smart_inversion c h
   end.
 
-Ltac sinv_cong := ltac2: (sinv_cong ()).
+Ltac invert_invariant := ltac2: (invert_invariant ()).
 
-Lemma cong_term_ren:
+Lemma inv_term_ren:
   forall t1 t2,
-    cong_term t1 t2 ->
+    inv_term t1 t2 ->
     forall sigma,
-    cong_term t1.[ren sigma] t2.[ren sigma].
+    inv_term t1.[ren sigma] t2.[ren sigma].
 Proof.
   induction 1; asimpl; intros; repeat econstructor; eauto.
   { asimpl; eauto. }
@@ -1286,13 +1286,13 @@ Proof.
   }
 Qed.
 
-Lemma cong_term_subst_tech:
+Lemma inv_term_subst_tech:
   forall t1 t2,
-    cong_term t1 t2 ->
+    inv_term t1 t2 ->
     forall sigma1 sigma2,
-      List.Forall2 cong_value sigma1 sigma2 ->
+      List.Forall2 inv_value sigma1 sigma2 ->
       forall k,
-        cong_term t1.[upn k (subst_of_env sigma1)] t2.[upn k (subst_of_env sigma2)].
+        inv_term t1.[upn k (subst_of_env sigma1)] t2.[upn k (subst_of_env sigma2)].
 Proof.
   induction 1; asimpl; intros; repeat econstructor; eauto.
   { unfold subst_of_env.
@@ -1305,7 +1305,7 @@ Proof.
     }
     {
       repeat rewrite upn_k_sigma_x'; try lia.
-      eapply cong_term_ren.
+      eapply inv_term_ren.
 
       destruct (Nat.ltb_spec (x-k) ((List.length sigma1))); unzip.
       { unfold subst_of_env.
@@ -1321,31 +1321,31 @@ Proof.
     }
   }
   { repeat rewrite fold_up_upn.
-    eapply IHcong_term; eauto.
+    eapply IHinv_term; eauto.
   }
 Qed.
 
-Lemma cong_term_subst:
+Lemma inv_term_subst:
   forall t1 t2,
-    cong_term t1 t2 ->
+    inv_term t1 t2 ->
     forall sigma1 sigma2,
-      List.Forall2 cong_value sigma1 sigma2 ->
-      cong_term t1.[subst_of_env sigma1] t2.[subst_of_env sigma2].
+      List.Forall2 inv_value sigma1 sigma2 ->
+      inv_term t1.[subst_of_env sigma1] t2.[subst_of_env sigma2].
 Proof.
   intros ? ? H ? ? H'.
-  learn (cong_term_subst_tech _ _ H _ _ H' 0).
+  learn (inv_term_subst_tech _ _ H _ _ H' 0).
   unfold upn in *.
   eauto.
 Qed.
 
 
-Theorem cong_term_correctness:
+Theorem inv_term_correctness:
   forall t1 t2,
     sred t1 t2 ->
     forall t1',
-      cong_term t1 t1' ->
+      inv_term t1 t1' ->
       exists t2',
-        cong_term t2 t2'
+        inv_term t2 t2'
         /\ star sred t1' t2'.
 Proof.
   induction 1; inversion 1; subst.
@@ -1353,30 +1353,30 @@ Proof.
     eapply star_refl_prop.
     repeat (econstructor; eauto). 
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
     eapply star_refl_prop.
     repeat (econstructor; eauto).
-    eapply cong_term_subst; eauto.
+    eapply inv_term_subst; eauto.
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply IHsred in H5; unpack.
     eapply star_trans_prop. { eapply star_sred_app_right; eauto. }
     eapply star_refl_prop.
     repeat (econstructor; eauto).
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply IHsred in H3; unpack.
     eapply star_trans_prop. { eapply star_sred_app_left; eauto. }
     eapply star_refl_prop.
     repeat (econstructor; eauto).
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
     eapply star_refl_prop.
     eauto.
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
     eapply star_refl_prop.
     eauto.
@@ -1428,15 +1428,15 @@ Proof.
   }
 Qed.
 
-Theorem cong_term_correctness_tss_strat1:
+Theorem inv_term_correctness_tss_strat1:
   forall t1 t2,
     sred t1 t2 ->
     forall t1',
-      cong_term t1 t1' ->
+      inv_term t1 t1' ->
       exists t3 t3',
         star sred t2 t3 /\
         star sred t1' t3' /\
-        cong_term t3 t3'.
+        inv_term t3 t3'.
 Proof.
   induction 1; inversion 1; subst.
 
@@ -1444,32 +1444,32 @@ Proof.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto). 
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply confluent_prop_star_step_right. { solve[repeat (econstructor; eauto)]. }
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
-    eapply cong_term_subst; eauto.
+    eapply inv_term_subst; eauto.
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply IHsred in H5; unpack.
     eapply confluent_prop_star_trans_left. { eapply star_sred_app_right; eauto. }
     eapply confluent_prop_star_trans_right. { eapply star_sred_app_right; eauto. }
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply IHsred in H3; unpack.
     eapply confluent_prop_star_trans_left. { eapply star_sred_app_left; eauto. }
     eapply confluent_prop_star_trans_right. { eapply star_sred_app_left; eauto. }
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply confluent_prop_star_step_right. { solve[repeat (econstructor; eauto)]. }
     eapply confluent_prop_star_refl.
     eauto.
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply confluent_prop_star_step_right. { solve[repeat (econstructor; eauto)]. }
     eapply confluent_prop_star_refl.
     eauto.
@@ -1500,10 +1500,10 @@ Proof.
       eapply confluent_prop_star_refl; eauto.
     }
     { clear H0.
-      repeat sinv_cong.
+      repeat invert_invariant.
       learn (external_lemma _ _ H1).
       learn (external_lemma _ _ H2).
-      unzip; subst; repeat sinv_cong.
+      unzip; subst; repeat invert_invariant.
       {
         eapply confluent_prop_star_trans_left.
         { do 2 eapply star_sred_if_cond. eauto. }
@@ -1565,31 +1565,31 @@ Proof.
 Qed.
 
 (* This strategy works *)
-Theorem cong_term_correctness_tss_strat2:
+Theorem inv_term_correctness_tss_strat2:
   forall t1 t1',
-    cong_term t1 t1' ->
+    inv_term t1 t1' ->
     forall t2,
       sred t1 t2 ->
       exists t3 t3',
         star sred t2 t3 /\
         star sred t1' t3' /\
-        cong_term t3 t3'.
+        inv_term t3 t3'.
 Proof.
   induction 1; inversion 1; subst.
   { (* This strategy is ok for the if-then-else *)
     inversion H7; subst.
-    { repeat sinv_cong.
+    { repeat invert_invariant.
       eapply confluent_prop_star_step_left; [solve[repeat (econstructor; eauto)]|].
       eapply confluent_prop_star_step_right; [solve[repeat (econstructor; eauto)]|].
       eapply confluent_prop_star_refl; eauto.
     }
-    { repeat sinv_cong.
+    { repeat invert_invariant.
       eapply confluent_prop_star_step_left; [solve[repeat (econstructor; eauto)]|].
       eapply confluent_prop_star_step_right; [solve[repeat (econstructor; eauto)]|].
       eapply confluent_prop_star_refl; eauto.
     }
-    { repeat sinv_cong.
-      eapply IHcong_term1 in H8; unpack.
+    { repeat invert_invariant.
+      eapply IHinv_term1 in H8; unpack.
       eapply confluent_prop_star_trans_left.
         { eapply star_sred_if_cond.
           eapply star_sred_if_cond.
@@ -1603,13 +1603,13 @@ Proof.
       repeat (econstructor; eauto).
     }
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply confluent_prop_star_step_right. { econstructor. }
     eapply confluent_prop_star_refl.
-    eapply cong_term_subst; eauto.
+    eapply inv_term_subst; eauto.
   }
-  { repeat sinv_cong.
-    eapply IHcong_term2 in H5; unpack.
+  { repeat invert_invariant.
+    eapply IHinv_term2 in H5; unpack.
     eapply confluent_prop_star_trans_right. {
       eapply star_sred_app_right; eauto.
     }
@@ -1619,8 +1619,8 @@ Proof.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
   }
-  { repeat sinv_cong.
-    eapply IHcong_term1 in H5; unpack.
+  { repeat invert_invariant.
+    eapply IHinv_term1 in H5; unpack.
     eapply confluent_prop_star_trans_right. {
       eapply star_sred_app_left; eauto.
     }
@@ -1630,22 +1630,22 @@ Proof.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply confluent_prop_star_step_right. { econstructor. }
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply confluent_prop_star_step_right. { econstructor. }
     eapply confluent_prop_star_refl.
     eauto.
   }
-  { repeat sinv_cong.
+  { repeat invert_invariant.
     eapply confluent_prop_star_step_right. { econstructor. }
     eapply confluent_prop_star_refl.
     eauto.
   }
-  { eapply IHcong_term1 in H7; unpack.
+  { eapply IHinv_term1 in H7; unpack.
     eapply confluent_prop_star_trans_right. {
       eapply star_sred_if_cond.
       eauto.
@@ -1662,15 +1662,15 @@ Qed.
 
 
 (* -------------------------------------------------------------------------- *)
-(** Some properties about cong_term and cong_value. *)
+(** Some properties about inv_term and inv_value. *)
 
 
-(* [cong_term] is not deterministic. *)
-Lemma cong_term_deterministic:
+(* [inv_term] is not deterministic. *)
+Lemma inv_term_deterministic:
   forall t t1,
-    cong_term t t1 ->
+    inv_term t t1 ->
     forall t2,
-    cong_term t t2 ->
+    inv_term t t2 ->
     t1 = t2.
 Proof.
   induction 1; inversion 1; subst.
@@ -1678,34 +1678,34 @@ Proof.
   (* All of the remaning cases are linked to the non-determinism of the translation of the if, and are unsolvable *)
 Abort.
 
-Lemma cong_term_non_deterministic:
+Lemma inv_term_non_deterministic:
   exists t t1,
-    cong_term t t1 /\
+    inv_term t t1 /\
     exists t2,
-    cong_term t t2 /\
+    inv_term t t2 /\
     t1 <> t2.
 Proof.
   exists (If (If true false true) true false).
   repeat eexists.
-  { eapply cong_if_base; repeat econstructor. }
-  { eapply cong_If; repeat econstructor. }
+  { eapply inv_if_base; repeat econstructor. }
+  { eapply inv_If; repeat econstructor. }
   { intros; congruence. }
 Qed.
 
 (* -------------------------------------------------------------------------- *)
 (*** Naive simulation diagram. ***)
 
-(* We first try to show a simulation diagram. by induction on cong_state. *)
+(* We first try to show a simulation diagram. by induction on inv_state. *)
 
 Theorem correction_traditional:
   forall s1 s1',
-    cong_state s1 s1' ->
+    inv_state s1 s1' ->
     forall s2,
       cred s1 s2 ->  
       exists s2',
-        cong_state s2 s2' /\ star cred s1' s2'.
+        inv_state s2 s2' /\ star cred s1' s2'.
 Proof.
-  induction 1; inversion 1; subst; try sinv_cong.
+  induction 1; inversion 1; subst; try invert_invariant.
   all: repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
   { learn (Forall2_nth_error_Some_left H0 H7); unpack.
     eapply star_step_prop; [econstructor; eauto|].
@@ -1713,7 +1713,7 @@ Proof.
     eapply Forall2_nth_error_Some; eauto.
   }
   { eapply star_refl_prop.
-    match goal with [|- cong_state ?s1 ?s2] =>
+    match goal with [|- inv_state ?s1 ?s2] =>
       rewrite (@append_stack_all s1);
       rewrite (@append_stack_all s2);
       simpl with_stack; simpl stack
@@ -1721,7 +1721,7 @@ Proof.
     repeat (econstructor; eauto).
   }
   { eapply star_refl_prop.
-    match goal with [|- cong_state ?s1 ?s2] =>
+    match goal with [|- inv_state ?s1 ?s2] =>
       rewrite (@append_stack_all s1);
       rewrite (@append_stack_all s2);
       simpl with_stack; simpl stack
@@ -1729,7 +1729,7 @@ Proof.
     repeat (econstructor; eauto).
   }
   { eapply star_refl_prop.
-    match goal with [|- cong_state ?s1 ?s2] =>
+    match goal with [|- inv_state ?s1 ?s2] =>
       rewrite (@append_stack_all s1);
       rewrite (@append_stack_all s2);
       simpl with_stack; simpl stack
@@ -1740,7 +1740,7 @@ Proof.
     repeat (econstructor; eauto).
   }
   { eapply star_refl_prop.
-    match goal with [|- cong_state ?s1 ?s2] =>
+    match goal with [|- inv_state ?s1 ?s2] =>
       rewrite (@append_stack_all s1);
       rewrite (@append_stack_all s2);
       simpl with_stack; simpl stack
@@ -1749,7 +1749,7 @@ Proof.
   }
   { learn (append_stack_mode_eval (eq_sym H3)); unpack; subst.
     eapply star_refl_prop.
-    match goal with [|- cong_state ?s1 ?s2] =>
+    match goal with [|- inv_state ?s1 ?s2] =>
       try (erewrite (@append_stack_app s1); [|solve[simpl; eauto]]);
       try (erewrite (@append_stack_app s2); [|solve[simpl; eauto]]);
       simpl with_stack; simpl stack
@@ -1758,7 +1758,7 @@ Proof.
     admit "use H0 to derive information about s'. For exmeple, the term is the same. and since H1.".
   }
   { eapply star_refl_prop.
-    match goal with [|- cong_state ?s1 ?s2] =>
+    match goal with [|- inv_state ?s1 ?s2] =>
       rewrite (@append_stack_all s1);
       rewrite (@append_stack_all s2);
       simpl with_stack; simpl stack
@@ -1776,9 +1776,9 @@ Theorem correction_traditional:
   forall s1 s2,
     cred s1 s2 ->  
     forall s1',
-      cong_state s1 s1' ->
+      inv_state s1 s1' ->
       exists s2',
-        cong_state s2 s2' /\ star cred s1' s2'.
+        inv_state s2 s2' /\ star cred s1' s2'.
 Abort.
 
 (* -------------------------------------------------------------------------- *)
@@ -1788,7 +1788,7 @@ Abort.
   We prove the lemma using a well-formed induction on the length of the stack.  However, this statement is not directly usable in Coq because we lack certain hypotheses when applying (such as the stack length and its proof of being less than n). To address this, we reorganize the induction hypothesis so that these requirements are introduced properly.
 
   Usage:
-    Once you have an instance [H] of [cong_state s1 s1'], use the following tactic to apply the induction hypothesis.
+    Once you have an instance [H] of [inv_state s1 s1'], use the following tactic to apply the induction hypothesis.
 
       exploit (IHkappa _ _ H);
         [ solve [econstructor; eauto]   (* solves [cred s1 s2] *)
@@ -1805,11 +1805,11 @@ Lemma modify_WF_IH {P n}:
     forall s2 : state,
       cred s1 s2 ->
       forall s1' : state,
-        cong_state s1 s1' ->
+        inv_state s1 s1' ->
         P s1 s2 s1')
   ->
   forall s1 s1',
-    cong_state s1 s1' ->
+    inv_state s1 s1' ->
     forall s2,
       cred s1 s2 ->
       List.length (stack s1) < n ->
@@ -1825,14 +1825,14 @@ Lemma modify_WF_IH' {P n}:
   forall s1 : state,
     stack s1 = y ->
     forall s1' : state,
-        cong_state s1 s1' ->
+        inv_state s1 s1' ->
       forall s2 : state,
         cred s1 s2 ->
         
         P s1 s2 s1')
   ->
   forall s1 s1',
-    cong_state s1 s1' ->
+    inv_state s1 s1' ->
     forall s2,
       cred s1 s2 ->
       List.length (stack s1) < n ->
@@ -1852,9 +1852,9 @@ Theorem correction_traditional:
     forall s2,
       cred s1 s2 ->  
       forall s1',
-        cong_state s1 s1' ->
+        inv_state s1 s1' ->
         exists s2',
-          cong_state s2 s2' /\ star cred s1' s2'.
+          inv_state s2 s2' /\ star cred s1' s2'.
 Proof.
   induction kappa as [kappa IHkappa] using (
     well_founded_induction
@@ -1867,10 +1867,10 @@ Proof.
 
   The cases are those related to if-then-else when the argument is true (resp. false).
 
-  Namely, we cannot show [cred s1 s2 -> cong_state s1 s1' -> exists s2', cong_state s2 s2' /\ star cred s1' s2'] when [s2] is [mode_eval false [CIf t1 t1' sigma1] sigma1'] and [s1'] is [mode_cont [CIf t2 t1' sigma'] true].
+  Namely, we cannot show [cred s1 s2 -> inv_state s1 s1' -> exists s2', inv_state s2 s2' /\ star cred s1' s2'] when [s2] is [mode_eval false [CIf t1 t1' sigma1] sigma1'] and [s1'] is [mode_cont [CIf t2 t1' sigma'] true].
 
   *)
-  { inversion 1; subst; repeat sinv_cong.
+  { inversion 1; subst; repeat invert_invariant.
     { inversion H2; subst.
       { learn (Forall2_nth_error_Some_left H7  H1); unpack.
         learn (Forall2_nth_error_Some H7 H1 H).
@@ -1929,13 +1929,13 @@ Proof.
       econstructor; eauto.
     }
   }
-  { inversion 1; subst; repeat sinv_cong.
+  { inversion 1; subst; repeat invert_invariant.
     { inversion H1; subst.
       {
         eapply star_step_prop. { econstructor; eauto. }
         eapply star_refl_prop.
         (* This requires prices rewriting *)
-        match goal with [|- cong_state ?s1 ?s2] =>
+        match goal with [|- inv_state ?s1 ?s2] =>
           rewrite (@append_stack_all s1);
           rewrite (@append_stack_all s2);
           simpl with_stack; simpl stack
@@ -1996,7 +1996,7 @@ Proof.
       econstructor; eauto.
     }
   }
-  { inversion 1; subst; repeat sinv_cong.
+  { inversion 1; subst; repeat invert_invariant.
     { inversion H1; subst.
       {
         eapply star_step_prop. { econstructor; eauto. }
@@ -2057,7 +2057,7 @@ Proof.
       econstructor; eauto.
     }
   }
-  { inversion 1; subst; repeat sinv_cong.
+  { inversion 1; subst; repeat invert_invariant.
     {
       induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
@@ -2066,7 +2066,7 @@ Proof.
           inversion H2; subst.
           repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
           eapply star_refl_prop.
-          match goal with [|- cong_state ?s1 ?s2] =>
+          match goal with [|- inv_state ?s1 ?s2] =>
             rewrite (@append_stack_all s1);
             rewrite (@append_stack_all s2);
             simpl with_stack; simpl stack
@@ -2139,7 +2139,7 @@ Proof.
       econstructor; eauto.
     }
   }
-  { inversion 1; subst; repeat sinv_cong.
+  { inversion 1; subst; repeat invert_invariant.
     { eapply star_step_prop. { econstructor; eauto. }
       eapply star_refl_prop.
       econstructor; eauto.
@@ -2177,7 +2177,7 @@ Proof.
       econstructor; eauto.
     }
   }
-  { inversion 1; subst; repeat sinv_cong.
+  { inversion 1; subst; repeat invert_invariant.
     {
       induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
@@ -2244,7 +2244,7 @@ Proof.
       econstructor; eauto.
     }
   }
-  { inversion 1; subst; repeat sinv_cong.
+  { inversion 1; subst; repeat invert_invariant.
     { (* "Interresting" case *)
       eapply star_step_prop; [solve[econstructor; eauto]|].
       eapply star_refl_prop.
@@ -2252,7 +2252,7 @@ Proof.
     }
     { eapply star_step_prop; [solve[econstructor; eauto]|].
       eapply star_refl_prop.
-      match goal with [|- cong_state ?s1 ?s2] =>
+      match goal with [|- inv_state ?s1 ?s2] =>
         rewrite (@append_stack_all s1);
         rewrite (@append_stack_all s2);
         simpl with_stack; simpl stack
@@ -2288,7 +2288,7 @@ Proof.
       econstructor; eauto.
     }
     { eapply star_refl_prop.
-      match goal with [|- cong_state ?s1 ?s2] =>
+      match goal with [|- inv_state ?s1 ?s2] =>
         rewrite (@append_stack_all s1);
         rewrite (@append_stack_all s2);
         simpl with_stack; simpl stack
@@ -2296,7 +2296,7 @@ Proof.
       repeat (econstructor; eauto).
     }
   }
-  { inversion 1; subst; repeat sinv_cong.
+  { inversion 1; subst; repeat invert_invariant.
     { induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
@@ -2315,7 +2315,7 @@ Proof.
     }
     { induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
-      { inversion H5; subst; repeat sinv_cong.
+      { inversion H5; subst; repeat invert_invariant.
         { (eapply star_step_prop; [solve[econstructor; eauto]|]).
           eapply star_refl_prop.
           repeat (econstructor; eauto).
@@ -2348,7 +2348,7 @@ Proof.
       list_simpl.
       decompose H.
       decompose H10.
-      { inversion H5; subst; repeat sinv_cong.
+      { inversion H5; subst; repeat invert_invariant.
         { simpl.
 
           admit "The diagram is not working because of this reason". }
@@ -2383,7 +2383,7 @@ Proof.
       }
     }
   }
-  { inversion 1; subst; repeat sinv_cong.
+  { inversion 1; subst; repeat invert_invariant.
     { induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
@@ -2402,7 +2402,7 @@ Proof.
     }
     { induction s; simpl in *; injections; tryfalse; subst.
       decompose H2.
-      { inversion H5; subst; repeat sinv_cong.
+      { inversion H5; subst; repeat invert_invariant.
         { (eapply star_step_prop; [solve[econstructor; eauto]|]).
           eapply star_refl_prop.
           repeat (econstructor; eauto).
@@ -2436,7 +2436,7 @@ Proof.
       list_simpl; decompose H.
       decompose H10.
       { (* intersting case *)
-        inversion H5; subst; repeat sinv_cong.
+        inversion H5; subst; repeat invert_invariant.
         { simpl.
           (* The diagram is not working for this case. *)
           (eapply star_step_prop; [solve[econstructor; eauto]|]).
@@ -2486,12 +2486,12 @@ More precisely, we show the following:
 
 Theorem correction_diagram:
   forall s1 s1' s2,
-    cong_state s1 s1' ->
+    inv_state s1 s1' ->
     cred s1 s2 ->
     exists s3 s3',
       star cred s2 s3 /\
       star cred s1' s3' /\
-      cong_state s3 s3'
+      inv_state s3 s3'
 .
 Abort.
 
@@ -2509,11 +2509,11 @@ Theorem correction_diagram_aux:
     forall s2,
       cred s1 s2 ->
       forall s1',
-        cong_state s1 s1' ->
+        inv_state s1 s1' ->
       exists s3 s3',
         star cred s2 s3 /\
         star cred s1' s3' /\
-        cong_state s3 s3'
+        inv_state s3 s3'
 .
 
 Ltac mytryfalse :=
@@ -2530,7 +2530,7 @@ induction kappa as [kappa IHkappa] using (
     (wf_inverse_image _ nat _ (@List.length cont) 
     PeanoNat.Nat.lt_wf_0)).
 rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
-intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
+intros until s2; induction 1; inversion 1; subst; repeat invert_invariant.
 
   (* Handling induction hypothesis and base cases.*)
   all: try (induction s; simpl in *; injections; tryfalse; subst).
@@ -2543,9 +2543,9 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   | [h: _ :: _ = _ ++ [_; _] |- _] => decompose h
   end.
   all: try match goal with
-  | [h: cong_state (mode_eval _ [] _) _ |- _] => inversion h; subst; mytryfalse
-  | [h: cong_state (mode_cont [] _) _ |- _ ] => inversion h; subst; mytryfalse
-  | [h: cong_state _ _ |- _] =>
+  | [h: inv_state (mode_eval _ [] _) _ |- _] => inversion h; subst; mytryfalse
+  | [h: inv_state (mode_cont [] _) _ |- _ ] => inversion h; subst; mytryfalse
+  | [h: inv_state _ _ |- _] =>
     exploit (IHkappa _ _ h); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ]
   end.
 
@@ -2559,8 +2559,8 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   all: repeat first[
     progress (eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|])|
     progress (eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|])|
-    progress (repeat (simpl; try sinv_cong; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|]))|
-    progress (repeat (simpl; try sinv_cong; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|]))|
+    progress (repeat (simpl; try invert_invariant; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|]))|
+    progress (repeat (simpl; try invert_invariant; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|]))|
     progress (repeat (simpl; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|]))|
     progress (repeat (simpl; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|]))
   ].
@@ -2569,7 +2569,7 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
   all: try solve
     [ eapply confluent_prop_star_refl; repeat (econstructor; eauto)
     | eapply confluent_prop_star_refl;
-      match goal with [|- cong_state ?s1 ?s2] =>
+      match goal with [|- inv_state ?s1 ?s2] =>
         rewrite (@append_stack_all s1);
         rewrite (@append_stack_all s2);
         simpl with_stack; simpl stack
@@ -2591,14 +2591,14 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     repeat first[
       eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
       eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
-      repeat (simpl; sinv_cong; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
-      repeat (simpl; sinv_cong; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
+      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
+      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
     ].
 
     all: try solve
     [ eapply confluent_prop_star_refl; repeat (econstructor; eauto)
     | eapply confluent_prop_star_refl;
-      match goal with [|- cong_state ?s1 ?s2] =>
+      match goal with [|- inv_state ?s1 ?s2] =>
         rewrite (@append_stack_all s1);
         rewrite (@append_stack_all s2);
         simpl with_stack; simpl stack
@@ -2614,14 +2614,14 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     repeat first[
       eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
       eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
-      repeat (simpl; sinv_cong; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
-      repeat (simpl; sinv_cong; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
+      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
+      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
     ].
 
     all: try solve
     [ eapply confluent_prop_star_refl; repeat (econstructor; eauto)
     | eapply confluent_prop_star_refl;
-      match goal with [|- cong_state ?s1 ?s2] =>
+      match goal with [|- inv_state ?s1 ?s2] =>
         rewrite (@append_stack_all s1);
         rewrite (@append_stack_all s2);
         simpl with_stack; simpl stack
@@ -2638,14 +2638,14 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     repeat first[
       eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
       eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
-      repeat (simpl; try sinv_cong; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
-      repeat (simpl; try sinv_cong; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
+      repeat (simpl; try invert_invariant; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
+      repeat (simpl; try invert_invariant; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
     ].
 
     all: try solve
     [ eapply confluent_prop_star_refl; repeat (econstructor; eauto)
     | eapply confluent_prop_star_refl;
-      match goal with [|- cong_state ?s1 ?s2] =>
+      match goal with [|- inv_state ?s1 ?s2] =>
         rewrite (@append_stack_all s1);
         rewrite (@append_stack_all s2);
         simpl with_stack; simpl stack
@@ -2662,14 +2662,14 @@ intros until s2; induction 1; inversion 1; subst; repeat sinv_cong.
     repeat first[
       eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
       eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
-      repeat (simpl; sinv_cong; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
-      repeat (simpl; sinv_cong; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
+      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
+      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
     ].
 
     all: try solve
     [ eapply confluent_prop_star_refl; repeat (econstructor; eauto)
     | eapply confluent_prop_star_refl;
-      match goal with [|- cong_state ?s1 ?s2] =>
+      match goal with [|- inv_state ?s1 ?s2] =>
         rewrite (@append_stack_all s1);
         rewrite (@append_stack_all s2);
         simpl with_stack; simpl stack
@@ -2767,7 +2767,7 @@ Qed.
 Theorem correction_diagram_other:
   forall s1,
     forall s1',
-        cong_state s1 s1' ->
+        inv_state s1 s1' ->
         forall T,
         jt_state s1 T ->
       forall s2,
@@ -2776,22 +2776,22 @@ Theorem correction_diagram_other:
       exists s3 s3',
         star cred s2 s3 /\
         star cred s1' s3' /\
-        cong_state s3 s3'
+        inv_state s3 s3'
 .
 Ltac step_cred := first[
   eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
   eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
-  (simpl; do 5 try sinv_cong; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
-  (simpl; do 5 try sinv_cong; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
+  (simpl; do 5 try invert_invariant; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
+  (simpl; do 5 try invert_invariant; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
 ].
-induction 1; subst; repeat sinv_cong; intros T Hjt.
-{ inversion 1; subst; repeat sinv_cong.
+induction 1; subst; repeat invert_invariant; intros T Hjt.
+{ inversion 1; subst; repeat invert_invariant.
   1:
     destruct (Forall2_nth_error_Some_left H0 H7);
     learn (Forall2_nth_error_Some H0 H7 H).
   all: repeat step_cred.
   all: eapply confluent_prop_star_refl.
-  all: match goal with [|- cong_state ?s1 ?s2] =>
+  all: match goal with [|- inv_state ?s1 ?s2] =>
     rewrite (@append_stack_all s1);
     rewrite (@append_stack_all s2);
     simpl with_stack; simpl stack
@@ -2801,7 +2801,7 @@ induction 1; subst; repeat sinv_cong; intros T Hjt.
 { inversion 1. }
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H2); unzip.
-  { exploit IHcong_state; eauto; intros; unzip.
+  { exploit IHinv_state; eauto; intros; unzip.
     learn (key H6 H3); subst.
     repeat step_cred.
     eapply confluent_prop_star_refl.
@@ -2809,13 +2809,13 @@ induction 1; subst; repeat sinv_cong; intros T Hjt.
   }
   { induction s; induction kappa; simpl in *; tryfalse.
     inversion 1; subst.
-    inversion H0; repeat sinv_cong.
+    inversion H0; repeat invert_invariant.
     all: try tactic_tests.handle.
     { simpl.
       repeat step_cred.
       eapply confluent_prop_star_refl.
 
-      match goal with [|- cong_state ?s1 ?s2] =>
+      match goal with [|- inv_state ?s1 ?s2] =>
         rewrite (@append_stack_all s1);
         rewrite (@append_stack_all s2);
         simpl with_stack; simpl stack
@@ -2826,7 +2826,7 @@ induction 1; subst; repeat sinv_cong; intros T Hjt.
 }
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H2); unzip.
-  { exploit IHcong_state; eauto; intros; unzip.
+  { exploit IHinv_state; eauto; intros; unzip.
     learn (key H6 H3); subst.
     repeat step_cred.
     eapply confluent_prop_star_refl.
@@ -2835,7 +2835,7 @@ induction 1; subst; repeat sinv_cong; intros T Hjt.
 
   { induction s; induction kappa; simpl in *; tryfalse.
     inversion 1; subst.
-    inversion H0; repeat sinv_cong.
+    inversion H0; repeat invert_invariant.
     all: try tactic_tests.handle.
     { simpl.
       repeat step_cred.
@@ -2847,7 +2847,7 @@ induction 1; subst; repeat sinv_cong; intros T Hjt.
 }
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H3); unzip.
-  { exploit IHcong_state; eauto; intros; unzip.
+  { exploit IHinv_state; eauto; intros; unzip.
     learn (key H7 H4); subst.
     repeat step_cred.
     eapply confluent_prop_star_refl.
@@ -2856,7 +2856,7 @@ induction 1; subst; repeat sinv_cong; intros T Hjt.
 
   { induction s; induction kappa; simpl in *; tryfalse.
     inversion 1; subst.
-    all: inversion H1; repeat sinv_cong.
+    all: inversion H1; repeat invert_invariant.
     all: try tactic_tests.handle.
     { simpl.
       repeat step_cred.
@@ -2874,7 +2874,7 @@ induction 1; subst; repeat sinv_cong; intros T Hjt.
 }
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H3); unzip.
-  { exploit IHcong_state; eauto; intros; unzip.
+  { exploit IHinv_state; eauto; intros; unzip.
     
     learn (key H7 H4); subst.
     repeat step_cred.
@@ -2883,7 +2883,7 @@ induction 1; subst; repeat sinv_cong; intros T Hjt.
   }
   { induction s; induction kappa; simpl in *; tryfalse.
     inversion 1; subst.
-    all: inversion H1; repeat sinv_cong.
+    all: inversion H1; repeat invert_invariant.
     all: try tactic_tests.handle.
     { simpl.
       repeat step_cred.
@@ -2906,7 +2906,7 @@ induction 1; subst; repeat sinv_cong; intros T Hjt.
   simpl in H5.
   learn (progress_cont _ _ H5); unzip; tryfalse.
   { eapply confluent_prop_star_refl.
-    match goal with [|- cong_state ?s1 ?s2] =>
+    match goal with [|- inv_state ?s1 ?s2] =>
       rewrite (@append_stack_all s1);
       rewrite (@append_stack_all s2);
       simpl with_stack; simpl stack
@@ -2918,12 +2918,12 @@ Qed.
 
 Theorem correction_diagram:
   forall s1 s1' s2,
-    cong_state s1 s1' ->
+    inv_state s1 s1' ->
     cred s1 s2 ->
     exists s3 s3',
       star cred s2 s3 /\
       star cred s1' s3' /\
-      cong_state s3 s3'
+      inv_state s3 s3'
 .
 Proof.
   intros.
