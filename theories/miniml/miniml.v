@@ -268,15 +268,14 @@ Inductive state :=
 .
 
 
-(* We define a function that take a environement and transform it to an autosubst substitution, represented as functions from nat to result values. We could have defined our environements directly into the states, but as a result, the syntax of term would have contained functions. Using an encoding of lists, we ensure the syntax of states is purely defined using constructors. *)
-Definition subst_of_env sigma :=
-  fun n =>
-  match List.nth_error sigma n with
-  | None => ids (n - List.length sigma)
-  | Some t => t
-  end
-.
+(* We define a notation that take a environement and transform it to an autosubst substitution, represented as functions from nat to result values. We could have defined our environements directly into the states, but as a result, the syntax of term would have contained functions. Using an encoding of lists, we ensure the syntax of states is purely defined using constructors. *)
 
+Notation "'soe' sigma n" := (
+match List.nth_error sigma n with
+| None => ids (n - List.length sigma)
+| Some t => Value t
+end)
+(at level 69, sigma at level 1, n at level 1, only parsing).
 
 (*** Continuation step semantics ***)
 
@@ -690,14 +689,6 @@ Proof.
   }
 Qed.
 
-Notation "'soe' sigma n" := (
-match List.nth_error sigma n with
-| None => ids (n - List.length sigma)
-| Some t => Value t
-end)
-(at level 69, sigma at level 1, n at level 1, only parsing).
-
-
 
 Lemma upn_k_sigma_x':
   forall k sigma x,
@@ -711,7 +702,6 @@ Proof.
     { lia. }
     { rewrite IHk by lia.
       assert (Hx: x - k < List.length sigma) by lia.
-      unfold subst_of_env.
       remember (List.nth_error sigma (x - k)) as o; induction o.
       { rewrite SubstLemmas_term4. autosubst. }
       { exfalso.
