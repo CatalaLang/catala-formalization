@@ -48,8 +48,8 @@ To start developing, you first need to install `opam` using your package manager
 Then, you can execute the following commands to install the artifact dependencies (including Rocq):
 
     opam switch create rocq-catala 4.14.0
-    opam repo add coq-released https://coq.inria.fr/opam/released
     eval $(opam env --switch=rocq-catala --set-switch)
+    opam repo add coq-released https://coq.inria.fr/opam/released
     opam repository add rocq-released --all-switches
     opam install . --deps-only
 
