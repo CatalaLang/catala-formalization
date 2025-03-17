@@ -1103,9 +1103,7 @@ Theorem correction_continuations:
     (trans_state s1) (trans_state s2).
 Proof.
 Local Ltac step := (
-  try (eapply star_step; [solve
-    [ econstructor; simpl; eauto using List.map_nth_error
-  ]|]))
+  try (eapply star_step; [solve [ econstructor; eauto using List.map_nth_error ]|]))
 .
   induction 1; simpl; repeat step; try eapply star_refl.
 Qed.
