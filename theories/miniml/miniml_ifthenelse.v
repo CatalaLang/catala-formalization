@@ -348,17 +348,19 @@ Inductive cred: state -> state -> Prop :=
 (* Some notations to get closer to the paper. Those are disabled except for the coercions that provide a lot more clarity. Uncomment and [Check cred] to get a pretty-printed version of the cred reduction predicate. *)
 
 
-(* Notation "'λ.' t" := (Lam t) (at level 50).
+Coercion App : term >-> Funclass.
+Notation "'λ.' t" := (Lam t) (at level 50).
+Notation "'if' u 'then' t1 'else' t2 'end'" := (If u t1 t2) (at level 10).
+Notation "'[[[' sigma '.' t ']]]' " := (Closure t sigma) (at level 10).
+Notation "'app' ( t , sigma )" := (CAppR t sigma) (at level 50).
+Notation "'fun' ( t , sigma )" := (CClosure t sigma) (at level 50).
+Notation "'if' u 'then' t1 'else' t2 'end'" := (If u t1 t2) (at level 10).
+
 Notation "'S(' t , kappa , sigma )" := (mode_eval t kappa sigma).
 Notation "'C(' v , kappa )" := (mode_cont kappa v).
-Notation "'λ' sigma '.' t " := ((Closure t sigma)) (at level 10).
-Notation "'if' u 'then' t1 'else' t2 'end'" := (If u t1 t2) (at level 10).
-Notation "'k_app1' ( t, sigma )" := (CAppR t sigma) (at level 50).
-Notation "'k_app2' ( t , sigma )" := (CClosure t sigma) (at level 50).
-Notation "'k_if' ( t1 , t2 , sigma )" := (CIf t1 t2 sigma) (at level 50).
-Notation "s1 ~> s2" := (cred s1 s2) (at level 20).
-Notation "s1 ~>* s2" := (star cred s1 s2) (at level 20). *)
-Coercion App : term >-> Funclass.
+
+(* Notation "s1 ~> s2" := (cred s1 s2) (at level 20). *)
+(* Notation "s1 ~>* s2" := (star cred s1 s2) (at level 20). *)
 Definition id_var (n: nat): var := n.
 Coercion id_var: nat >-> var.
 Coercion Value: value >-> term.
