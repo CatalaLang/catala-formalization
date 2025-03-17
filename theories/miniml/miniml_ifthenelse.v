@@ -1041,10 +1041,18 @@ Lemma inv_result_value_ind_strong
       (forall b : bool, P (RBool b) (RBool b)) ->
       forall rv1 rv2 : result_value, 
         inv_result_value rv1 rv2 -> P rv1 rv2
-    .
+.
 Proof.
-  admit.
-Admitted.
+  fix IH 6; lock IH.
+  intros until rv2; destruct 1.
+  all: match goal with
+    | [h: _ |- _] => eapply h
+    end; eauto.
+  all: unlock IH.
+  { induction H2; econstructor; eauto.
+    eapply IH; eauto.
+  }
+Qed.
 
 Inductive inv_state: state -> state -> Prop :=
   (* Base cases *)
