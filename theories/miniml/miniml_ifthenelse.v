@@ -63,7 +63,7 @@ Qed.
 
 (* This is a tactic that tries to infer equalities between terms in a list where :: and ++ are used. It uses [List.rev] to reverse the list and the [List.rev_app_distr] lemma. *)
 
-Ltac list_simpl_base h := 
+Ltac normalize_list_equation h := 
   learn (f_equal (@List.rev _) h);
     repeat multimatch goal with
     | [h: _ |- _] =>
@@ -82,38 +82,38 @@ Ltac list_simpl_base h :=
     try congruence
 .
 
-Ltac list_simpl := 
+Ltac normalize_list_equations := 
   (try multimatch goal with
   | [h: @eq (list _) _ _ |- _] =>
-    list_simpl_base h
+    normalize_list_equation h
   end)
   .
 
-(* This lemmas precisely decompose an equality in the form: [k1 :: kappa1 = kappa2 ++ [k2]]. *)
+(* This lemmas precisely decompose_list_equation an equality in the form: [k1 :: kappa1 = kappa2 ++ [k2]]. *)
 Lemma list_append_decompose: forall {A} {kappa1 kappa2} {k1 k2: A} ,
   k1 :: kappa1 = kappa2 ++ [k2] ->
   (k1 = k2 /\ kappa1 = nil /\ kappa2 = nil)
   \/ (exists kappa, kappa1 = kappa ++ [k2] /\ kappa2 = k1 :: kappa).
 Proof.
   induction kappa1 as [|a1 kappa1]; intros.
-  { repeat list_simpl.
+  { repeat normalize_list_equations.
     left; unzip; eauto.
   }
   {
-    induction kappa2 as [|a2 kappa2]; repeat list_simpl.
+    induction kappa2 as [|a2 kappa2]; repeat normalize_list_equations.
     destruct IHkappa1 with kappa2 a1 k2; eauto.
   }
 Qed.
 
-(* We use it with the decompose tactic *)
-Ltac decompose h :=
+(* We use it with the decompose_list_equation tactic *)
+Ltac decompose_list_equation h :=
   let kappa := fresh "kappa" in
   first
     [ destruct (list_append_decompose h) as [?|[kappa ?]]
     | destruct (list_append_decompose (eq_sym h)) as [?|[kappa ?]]
     ];
     unpack;
-    repeat list_simpl;
+    repeat normalize_list_equations;
     repeat cleanup
 .
 
@@ -793,7 +793,7 @@ Proof.
   (* Case analysis over all possible rules *)
   induction 1.
   
-  (* Most of the cases are easilly handle by the automation. *)
+  (* Most of the cases are easilly extract_stack_equations by the automation. *)
   all: intros; repeat inv_jt; repeat econstructor; eauto.
 
   (** One case is left. It requires an external lemma. *)
@@ -909,115 +909,11 @@ Proof.
   { repeat f_equal. eapply IHsred. eauto. }
 Qed.
 
-(* -------------------------------------------------------------------------- *)
-(** Translation of [if t then ta else tb] into [if (if t then false else true) then tb else ta] *)
-
-Module trans1.
-
-(* Let use define the translation on terms. *)
-Fixpoint trans_term t :=
-  match t with
-  | Var x => Var x
-  | App t1 t2 => App (trans_term t1) (trans_term t2)
-  | Lam t => Lam (trans_term t)
-  | Value v => Value (trans_value v)
-  | If u t1 t2 =>
-    If (If (trans_term u) (Value (Bool false)) (Value (Bool true)))
-       (trans_term t2) (trans_term t1)
-  end
-with trans_value v :=
-  match v with
-  | Closure t sigma =>
-    Closure (trans_term t) (List.map trans_value sigma)
-  | Bool b => Bool b
-  end
-.
-
-(* To define it to states, we need to extend the definition. *)
-Fixpoint trans_conts (kappa: list cont): list cont :=
-  match kappa with
-  | nil => nil
-  | CAppR t2 sigma :: kappa => CAppR (trans_term t2) (List.map trans_value sigma) :: trans_conts kappa
-  | CClosure t sigma :: kappa =>
-    CClosure (trans_term t) (List.map trans_value sigma) :: trans_conts kappa
-  | CIf t1 t2 sigma :: kappa =>
-    CIf (Value (Bool false)) (Value (Bool true)) (List.map trans_value sigma)::
-    CIf (trans_term t2) (trans_term t1) (List.map trans_value sigma)::
-    trans_conts kappa
-  end
-.
-
-Definition trans_return (r: result): result:=
-  match r with
-  | RValue v => RValue (trans_value v)
-  end.
-
-Definition trans_state (s: state) : state :=
-  match s with
-  | mode_eval e kappa env =>
-    mode_eval (trans_term e) (trans_conts kappa) (List.map trans_value env)
-  | mode_cont kappa r =>
-    mode_cont (trans_conts kappa) (trans_return r)
-  end
-.
-
-Lemma trans_term_subst:
-  forall t sigma,
-    (trans_term t).[subst_of_env (List.map trans_value sigma)]
-    = trans_term t.[subst_of_env sigma].
-Proof.
-  induction t; asimpl; eauto.
-  { admit. }
-  { intros; rewrite IHt1, IHt2; eauto. }
-  { admit. }
-  { intros; rewrite IHt1, IHt2, IHt3; eauto. }
-Admitted.
-
-
-Theorem correction_traditional:
-  forall s1 s2,
-  sred s1 s2 ->
-  star sred
-    (trans_term s1) (trans_term s2).
-Proof.
-Local Ltac step_sred := (
-  try (eapply star_step; [solve
-    [ repeat (econstructor; simpl; eauto using List.map_nth_error)
-  ]|]))
-.
-  induction 1; simpl; repeat step_sred; try eapply star_refl.
-  { eapply star_refl_eq. 
-    rewrite <- trans_term_subst; repeat f_equal. }
-  { eapply star_sred_app_right; eauto. }
-  { eapply star_sred_app_left; eauto. }
-  { do 2 eapply star_sred_if_cond; eauto. }
-Qed.
-
-
-(* After defining the extension of the translation to states, the proof of the following diagram is immediate. *)
-
-
-Theorem correction_continuations:
-  forall s1 s2,
-  cred s1 s2 ->
-  star cred
-    (trans_state s1) (trans_state s2).
-Proof.
-Local Ltac step := (
-  try (eapply star_step; [solve [ econstructor; eauto using List.map_nth_error ]|]))
-.
-  induction 1; simpl; repeat step; try eapply star_refl.
-Qed.
-
-End trans1.
-
 
 (* -------------------------------------------------------------------------- *)
 (*** Translating [if (if t then false else true) then tb else ta] into [if t then ta else tb] ***)
 
-(* Inverse of the previous translation. This is significantly harder to show because of de-synchronization issues, as explained below. *)
-
-Module trans2.
+Module correctness_of_a_peephole_optimization.
 
 (* Definition of the translation on terms. *)
 Function trans_term t :=
@@ -1039,7 +935,27 @@ with trans_value v :=
   end
 .
 
-(** Inside the diagrams, we use an invariant and not this translation function. This is due to a desynchronization between the translation of terms after a reduction:
+(** We use simulation diagrams to show this transformation. The table shows our
+  systematic exploration of different proof approaches across two semantics
+  (small-step reduction and continuation-based) and two diagram styles (1-step
+  simulation and n-step simulation).
+
+| **Semantic** | **Proof Strategy**    | **First Diagram: 1-step simulation** | **Second Diagram: n-steps simulation** |
+|--------------|-----------------------|--------------------------------------|----------------------------------------|
+| **sred**     | Induction on sred     | correctness_sred_ind_red_1step       | correctness_sred_ind_red_nstep         |
+|              | Induction on inv      | -                                    | correctness_sred_ind_inv_nstep         |
+| **cred**     | Induction on cred     | correctness_cred_ind_red_1step       | correctness_cred_ind_red_nstep         |
+|              | Induction on inv      | correctness_cred_ind_inv_1step       | correctness_cred_ind_inv_nstep         |
+|              | WF induction on stack | correctness_cred_ind_wf_1step        | correctness_cred_ind_wf_nstep          |
+
+
+The key insight is that the proof the 1-step diagram does not work, while the
+n-step diagram works. We don't use the naive invariant $t ~ trans_term t$,
+because it fails to satisfy any of the diagrams:
+
+Inside the diagrams, we use an invariant and not this translation function. This
+is due to a desynchronization between the translation of terms after a
+reduction:
 
 Indeed, the term `t1`
 
@@ -1047,11 +963,13 @@ Indeed, the term `t1`
 
 is translated into `t1'`
 
-[t1' = if (if true then (trans_term (if t then false else true)) else (trans_term u)) then (trans_term a) else (trans_term b)]
+[t1' = if (if true then (trans_term (if t then false else true)) else
+(trans_term u)) then (trans_term a) else (trans_term b)]
 
 Which reduces to 
 
-[t2' = if (trans_term (if t then false else true)) then (trans_term a) else (trans_term b)]
+[t2' = if (trans_term (if t then false else true)) then (trans_term a) else
+(trans_term b)]
 
 while after one step of reduction, the term ` becomes the term `t2`
 
@@ -1061,9 +979,13 @@ which translates to `t2'`
 
 [t2'' = if (trans_term t) then (trans_term b) else (trans_term a)]
 
-You can observe that the terms `t2'` and `t2''` are not the same as the translation applies either to the outer if or to the condition. 
+You can observe that the terms `t2'` and `t2''` are not the same as the
+translation applies either to the outer if or to the condition. 
 
-Hence, we need to define an invariant between terms that is more general than the above function, in the sense that we can decide to apply the translation or not, non-deterministicly. This fixes the desynchronization issue but requires more work to find an show the correct diagram.
+Hence, we need to define an invariant between terms that is more general than
+the above function, in the sense that we can decide to apply the translation or
+not, non-deterministicly. This fixes the desynchronization issue but requires
+more work to find an show the correct diagram.
 
 *)
 
@@ -1102,7 +1024,8 @@ with inv_value: value -> value -> Prop :=
 .
 
 (* -------------------------------------------------------------------------- *)
-(** The goal of this paragraph is to show that the [trans_term] function is a subcase of the [inv_term] relation : *)
+(** The goal of this paragraph is to show that the [trans_term] function is a
+  subcase of the [inv_term] relation : *)
 
 Theorem trans_inv_term :
   forall t, 
@@ -1111,10 +1034,18 @@ Theorem trans_inv_term :
 Abort.
 
 
-(** For that, we need to show the result for both values and terms. Because we have deep-sub-terms, we need to use well-founded induction (or reprove a induction principle for our needs). We reuse the trick to show our theorem that we already presented in the section about inductions principles on terms: we show our property on objects [x] of type [term + values]. This permit to, after the use of the `econstructor` tactic apply the induction principle on both terms and values of smaller size. 
+(** For that, we need to show the result for both values and terms. Because we
+  have deep-sub-terms, we need to use well-founded induction (or reprove a
+  induction principle for our needs). We reuse the trick to show our theorem
+  that we already presented in the section about inductions principles on terms:
+  we show our property on objects [x] of type [term + values]. This permit to,
+  after the use of the `econstructor` tactic apply the induction principle on
+  both terms and values of smaller size. 
 
 
-This is an obligation beacause the induction principle generated by Functional Scheme [trans_term_ind2] is lacking an hypothesis in the case of the [List.Forall2].
+This is an obligation beacause the induction principle generated by Functional
+Scheme [trans_term_ind2] is lacking an hypothesis in the case of the
+[List.Forall2].
 
 *)
 
@@ -1172,11 +1103,15 @@ Qed.
 (* -------------------------------------------------------------------------- *)
 (*** Extending [inv_term] into [inv_states] ***)
 
-(* To be able to state the theorem on continuation based small-step semantics reductions, we first need to extend our invariant to states.
-*)
+(* To be able to state the theorem on continuation based small-step semantics
+reductions, we first need to extend our invariant to states. *)
 
 
-(* In this definition, we choose to not separate the mode_eval and mode_cont when it was possible. we hence used the "append_stack" function. This might pose issues when applying the "econstructor" tactic. In those case, we use the rewriting lemmas present in the section about continuation-based small-step semantics. *)
+(* In this definition, we choose to not separate the mode_eval and mode_cont
+when it was possible. we hence used the "append_stack" function. This might pose
+issues when applying the "econstructor" tactic. In those case, we use the
+rewriting lemmas present in the section about continuation-based small-step
+semantics. *)
 
 Inductive inv_state: state -> state -> Prop :=
   (* Base cases *)
@@ -1252,6 +1187,47 @@ Ltac2 invert_invariant () :=
   end.
 
 Ltac invert_invariant := ltac2: (invert_invariant ()).
+
+(* -------------------------------------------------------------------------- *)
+(** Some properties about inv_term and inv_value. *)
+
+
+(* [inv_term] is not deterministic. *)
+Lemma inv_term_deterministic:
+  forall t t1,
+    inv_term t t1 ->
+    forall t2,
+    inv_term t t2 ->
+    t1 = t2.
+Proof.
+  induction 1; inversion 1; subst.
+  all: repeat f_equal; eauto.
+  (* All of the remaning cases are linked to the non-determinism of the translation of the if, and are unsolvable *)
+Abort.
+
+Lemma inv_term_non_deterministic:
+  exists t t1,
+    inv_term t t1 /\
+    exists t2,
+    inv_term t t2 /\
+    t1 <> t2.
+Proof.
+  exists (If (If true false true) true false).
+  repeat eexists.
+  { eapply inv_if_base; repeat econstructor. }
+  { eapply inv_If; repeat econstructor. }
+  { intros; congruence. }
+Qed.
+
+
+(** We now have most defintion and base tactics we need to show both simulation
+  diagram using both strategies. We start with sred. *)
+
+(******************************************************************************)
+(*** correctness_sred_ind_red_1step ***)
+
+(* We first need to state and show lemmas about the translation, namely it
+behaves correctly with respect to substitution. *)
 
 Lemma inv_term_ren:
   forall t1 t2,
@@ -1343,8 +1319,13 @@ Proof.
   eauto.
 Qed.
 
+(* We can now atempt to show the first lemma: We use the proof strategy of
+performing induction on the reduction. This does not work because of the issue
+mentionned above. Other cases can be handled easily. The solve[repeat
+(econstructor; eauto)] works only because the beta reduction has shape sred
+(Value _) (Value _). *)
 
-Theorem inv_term_correctness:
+Theorem correctness_sred_ind_red_1step:
   forall t1 t2,
     sred t1 t2 ->
     forall t1',
@@ -1412,6 +1393,11 @@ Proof.
 Abort.
 
 
+(* As stated in the paper, it is possible to extend this proof to a stronger
+diagram. The induction principle is not strong enought as it is to conclude the
+proof. But we can show the following external_lemma to lift the induction
+principle. *)
+
 Lemma external_lemma:
   forall b t,
     star sred (If b false true) t ->
@@ -1433,7 +1419,7 @@ Proof.
   }
 Qed.
 
-Theorem inv_term_correctness_tss_strat1:
+Theorem correctness_sred_ind_red_nstep:
   forall t1 t2,
     sred t1 t2 ->
     forall t1',
@@ -1506,6 +1492,13 @@ Proof.
     }
     { clear H0.
       repeat invert_invariant.
+      (* This is the problematic case. Here, we have H1: star sred (if u0 then
+        false else true end) t3 H2: star sred (if u' then false else true end)
+        t3'
+
+        but we need similar lemmas for u0 and u'. Using the external lemma, we
+        can conclude the proof.
+      *)
       learn (external_lemma _ _ H1).
       learn (external_lemma _ _ H2).
       unzip; subst; repeat invert_invariant.
@@ -1569,8 +1562,12 @@ Proof.
   }
 Qed.
 
-(* This strategy works *)
-Theorem inv_term_correctness_tss_strat2:
+(* Second strategy using sred: we perform the induction on the invariant itself.
+This strategies works on our example, but is not used in large-scale compilers.
+We only show the nstep version of this theorem. Explicit application of star
+version of contextual lemma is needed in the proof, making harder potential
+automation. *)
+Theorem correctness_sred_ind_inv_nstep:
   forall t1 t1',
     inv_term t1 t1' ->
     forall t2,
@@ -1581,7 +1578,7 @@ Theorem inv_term_correctness_tss_strat2:
         inv_term t3 t3'.
 Proof.
   induction 1; inversion 1; subst.
-  { (* This strategy is ok for the if-then-else *)
+  {
     inversion H7; subst.
     { repeat invert_invariant.
       eapply confluent_prop_star_step_left; [solve[repeat (econstructor; eauto)]|].
@@ -1667,42 +1664,12 @@ Qed.
 
 
 (* -------------------------------------------------------------------------- *)
-(** Some properties about inv_term and inv_value. *)
+(*** Contination semantic ***)
 
+(* We attempt at showing the first simulation diagram using cred and with the
+strategy of performing the induction on the invariant. *)
 
-(* [inv_term] is not deterministic. *)
-Lemma inv_term_deterministic:
-  forall t t1,
-    inv_term t t1 ->
-    forall t2,
-    inv_term t t2 ->
-    t1 = t2.
-Proof.
-  induction 1; inversion 1; subst.
-  all: repeat f_equal; eauto.
-  (* All of the remaning cases are linked to the non-determinism of the translation of the if, and are unsolvable *)
-Abort.
-
-Lemma inv_term_non_deterministic:
-  exists t t1,
-    inv_term t t1 /\
-    exists t2,
-    inv_term t t2 /\
-    t1 <> t2.
-Proof.
-  exists (If (If true false true) true false).
-  repeat eexists.
-  { eapply inv_if_base; repeat econstructor. }
-  { eapply inv_If; repeat econstructor. }
-  { intros; congruence. }
-Qed.
-
-(* -------------------------------------------------------------------------- *)
-(*** Naive simulation diagram. ***)
-
-(* We first try to show a simulation diagram. by induction on inv_state. *)
-
-Theorem correction_traditional:
+Theorem correctness_cred_ind_inv_1step:
   forall s1 s1',
     inv_state s1 s1' ->
     forall s2,
@@ -1760,6 +1727,7 @@ Proof.
       simpl with_stack; simpl stack
     end.
     repeat (econstructor; eauto).
+
     admit "use H0 to derive information about s'. For exmeple, the term is the same. and since H1.".
   }
   { eapply star_refl_prop.
@@ -1777,13 +1745,15 @@ Abort.
 (* Same theorem, but we first do the induction on cred. *)
 
 (** Second tentative: doing an induction on cred *)
-Theorem correction_traditional:
+Theorem correctness_cred_ind_red_1step:
   forall s1 s2,
     cred s1 s2 ->  
     forall s1',
       inv_state s1 s1' ->
       exists s2',
         inv_state s2 s2' /\ star cred s1' s2'.
+Proof.
+  induction 1; inversion 1; subst.
 Abort.
 
 (* -------------------------------------------------------------------------- *)
@@ -1850,7 +1820,7 @@ Qed.
 (* This time, we do the well-founded induction based on kappa. *)
 
 (* The diagram does not work, but we can find why: the diagram is incorrect. I first try to automatize the proof.*)
-Theorem correction_traditional:
+Theorem correctness_cred_ind_wf_1step:
   forall kappa,
   forall s1,
     stack s1 = kappa ->
@@ -1885,19 +1855,19 @@ Proof.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H7).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H7).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H9).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H9).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
     }
     {
@@ -1949,19 +1919,19 @@ Proof.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H9).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H9).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H10).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H10).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
     }
     {
@@ -2010,19 +1980,19 @@ Proof.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H8).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H8).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H9).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
       { learn (f_equal stack H).
         learn (f_equal (@List.length _) H9).
-        induction s; simpl in *; list_simpl.
+        induction s; simpl in *; normalize_list_equations.
       }
     }
     {
@@ -2065,7 +2035,7 @@ Proof.
   { inversion 1; subst; repeat invert_invariant.
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       { inversion H4; subst.
         { cleanup. simpl.
           inversion H2; subst.
@@ -2080,19 +2050,19 @@ Proof.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H11).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H11).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H12).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H12).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
       }
       {
@@ -2106,7 +2076,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -2116,7 +2086,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -2126,9 +2096,9 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      list_simpl.
-      decompose H.
-      decompose H13.
+      normalize_list_equations.
+      decompose_list_equation H.
+      decompose_list_equation H13.
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -2185,7 +2155,7 @@ Proof.
   { inversion 1; subst; repeat invert_invariant.
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -2194,7 +2164,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       { inversion H4; subst; simpl.
         { repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
           eapply star_refl_prop.
@@ -2202,19 +2172,19 @@ Proof.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H11).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H11).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H12).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H12).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
       }
       {
@@ -2227,7 +2197,7 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -2236,9 +2206,9 @@ Proof.
     }
     {
       induction s; simpl in *; injections; tryfalse; subst.
-      list_simpl.
-      decompose H.
-      decompose H8.
+      normalize_list_equations.
+      decompose_list_equation H.
+      decompose_list_equation H8.
       exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -2303,7 +2273,7 @@ Proof.
   }
   { inversion 1; subst; repeat invert_invariant.
     { induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -2311,7 +2281,7 @@ Proof.
       econstructor; eauto.
     }
     { induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -2319,7 +2289,7 @@ Proof.
       econstructor; eauto.
     }
     { induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       { inversion H5; subst; repeat invert_invariant.
         { (eapply star_step_prop; [solve[econstructor; eauto]|]).
           eapply star_refl_prop.
@@ -2327,19 +2297,19 @@ Proof.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H12).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H12).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H13).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H13).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
       }
       { exploit (IHkappa _ _ H5); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
@@ -2350,28 +2320,28 @@ Proof.
       }
     }
     { induction s; simpl in *; injections; tryfalse; subst.
-      list_simpl.
-      decompose H.
-      decompose H10.
+      normalize_list_equations.
+      decompose_list_equation H.
+      decompose_list_equation H10.
       { inversion H5; subst; repeat invert_invariant.
         { simpl.
 
           admit "The diagram is not working because of this reason". }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H10).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H10).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H13).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H13).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
       }
       {
@@ -2390,7 +2360,7 @@ Proof.
   }
   { inversion 1; subst; repeat invert_invariant.
     { induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -2398,7 +2368,7 @@ Proof.
       econstructor; eauto.
     }
     { induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       exploit (IHkappa _ _ H4); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ].
       eapply star_trans_prop; [apply star_cred_append_stack; eauto|].
       eapply star_refl_prop.
@@ -2406,7 +2376,7 @@ Proof.
       econstructor; eauto.
     }
     { induction s; simpl in *; injections; tryfalse; subst.
-      decompose H2.
+      decompose_list_equation H2.
       { inversion H5; subst; repeat invert_invariant.
         { (eapply star_step_prop; [solve[econstructor; eauto]|]).
           eapply star_refl_prop.
@@ -2414,19 +2384,19 @@ Proof.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H12).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H12).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H13).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H13).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
       }
       {
@@ -2438,8 +2408,8 @@ Proof.
       }
     }
     { induction s; simpl in *; injections; tryfalse; subst.
-      list_simpl; decompose H.
-      decompose H10.
+      normalize_list_equations; decompose_list_equation H.
+      decompose_list_equation H10.
       { (* intersting case *)
         inversion H5; subst; repeat invert_invariant.
         { simpl.
@@ -2449,19 +2419,19 @@ Proof.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H10).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H10).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H13).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
         { learn (f_equal stack H).
           learn (f_equal (@List.length _) H13).
-          induction s; simpl in *; list_simpl.
+          induction s; simpl in *; normalize_list_equations.
         }
       }
       {
@@ -2489,7 +2459,7 @@ More precisely, we show the following:
 *)
 
 
-Theorem correction_diagram:
+Theorem correctness_cred_ind_wf_nstep:
   forall s1 s1' s2,
     inv_state s1 s1' ->
     cred s1 s2 ->
@@ -2507,7 +2477,7 @@ Indeed, the structure is globally the same. We need to change each [star_step_pr
 This means we can focus on the remaning.
 *)
 
-Theorem correction_diagram_aux:
+Theorem correctness_cred_ind_wf_nstep_aux:
   forall kappa,
   forall s1,
     stack s1 = kappa ->
@@ -2527,7 +2497,7 @@ Ltac mytryfalse :=
   | [h: @eq state _ _ |- _ ] => learn (f_equal stack h)
   | [h: @eq (list _) _ _ |- _ ] => learn (f_equal (@List.length _) h)
   | [h: context[append_stack ?s _] |- _] => learn (eq_refl s); destruct s
-  end; simpl in *; repeat list_simpl]
+  end; simpl in *; repeat normalize_list_equations]
   .
 
 induction kappa as [kappa IHkappa] using (
@@ -2539,13 +2509,13 @@ intros until s2; induction 1; inversion 1; subst; repeat invert_invariant.
 
   (* Handling induction hypothesis and base cases.*)
   all: try (induction s; simpl in *; injections; tryfalse; subst).
-  (* decompose equalities *)
-  all: list_simpl;
+  (* decompose_list_equation equalities *)
+  all: normalize_list_equations;
   repeat match goal with
-  | [h: _ ++ [_] = _ :: _ |- _] => decompose h
-  | [h: _ ++ [_; _] = _ :: _ |- _] => decompose h
-  | [h: _ :: _ = _ ++ [_] |- _] => decompose h
-  | [h: _ :: _ = _ ++ [_; _] |- _] => decompose h
+  | [h: _ ++ [_] = _ :: _ |- _] => decompose_list_equation h
+  | [h: _ ++ [_; _] = _ :: _ |- _] => decompose_list_equation h
+  | [h: _ :: _ = _ ++ [_] |- _] => decompose_list_equation h
+  | [h: _ :: _ = _ ++ [_; _] |- _] => decompose_list_equation h
   end.
   all: try match goal with
   | [h: inv_state (mode_eval _ [] _) _ |- _] => inversion h; subst; mytryfalse
@@ -2706,55 +2676,32 @@ eapply cred_deterministic.
 }
 Qed.
 
-Module tactic_tests.
 
-#[local] Ltac f := simpl; autorewrite with my_db ; intuition eauto with *.
-
-Set Default Proof Mode "Ltac2".
-
-Ltac2 handle () :=
+Ltac2 extract_stack_equations () :=
   repeat (match! goal with
   | [heq: @eq state _ _ |- _] =>
     let h := learn2 (f_equal stack ltac2:(Control.refine (fun () => Control.hyp heq))) in
     simpl stack in $h;
     rewrite stack_append_stack in $h
   end);
-  ltac1:(list_simpl).
+  ltac1:(normalize_list_equations).
 
 #[global]
-Ltac handle := ltac2:(handle ()).
-
+Ltac extract_stack_equations := ltac2:(extract_stack_equations ()).
 
 
 Example test1 s t0 sigma0 tcl sigmacl (_: append_stack s [CAppR t0 sigma0] = mode_cont [] (Closure tcl sigmacl)): False.
-  repeat (match! goal with
-  | [heq: @eq state _ _ |- _] =>
-    let h := learn2 (f_equal stack ltac2:(Control.refine (fun () => Control.hyp heq))) in
-    simpl stack in $h;
-    rewrite stack_append_stack in $h
-  end).
-  ltac1:(list_simpl).
+  extract_stack_equations.
 Qed.
 
 Example test2 s t0 sigma0 tcl sigmacl t' sigma' (_: append_stack s [CAppR t0 sigma0] = mode_cont [CClosure t' sigma'] (Closure tcl sigmacl)): False.
-  repeat (match! goal with
-  | [heq: @eq state _ _ |- _] =>
-    let h := learn2 (f_equal stack ltac2:(Control.refine (fun () => Control.hyp heq))) in
-    simpl stack in $h;
-    rewrite stack_append_stack in $h
-  end).
-  ltac1:(list_simpl).
+  extract_stack_equations.
 Qed.
-
-Set Default Proof Mode "Classic".
-
 
 Example test3 s t0 sigma0 tcl sigmacl t' sigma' (_: append_stack s [CAppR t0 sigma0] = mode_cont [CClosure t' sigma'] (Closure tcl sigmacl)): stack s ++ [CAppR t0 sigma0] = [CClosure t' sigma'].
 Proof.
-  handle.
+  extract_stack_equations.
 Qed.
-
-End tactic_tests.
 
 Lemma append_stack_decompose {s} {l1} {l2 l}:
   l1 ++ l2 = l -> append_stack s l = append_stack (append_stack s l1) l2.
@@ -2769,7 +2716,14 @@ Proof.
   eapply append_stack_decompose.
 Qed.
 
-Theorem correction_diagram_other:
+
+(** Final correctness lemma: this one uses they key lemma to provide
+  simplification. The rest of the lemma is equivalent to
+  correctness_cred_ind_wf_nstep. We also make use of tactic to handle
+  equalities.
+*)
+
+Theorem correctness_cred_ind_inv_nstep:
   forall s1,
     forall s1',
         inv_state s1 s1' ->
@@ -2815,7 +2769,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
   { induction s; induction kappa; simpl in *; tryfalse.
     inversion 1; subst.
     inversion H0; repeat invert_invariant.
-    all: try tactic_tests.handle.
+    all: try extract_stack_equations.
     { simpl.
       repeat step_cred.
       eapply confluent_prop_star_refl.
@@ -2841,7 +2795,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
   { induction s; induction kappa; simpl in *; tryfalse.
     inversion 1; subst.
     inversion H0; repeat invert_invariant.
-    all: try tactic_tests.handle.
+    all: try extract_stack_equations.
     { simpl.
       repeat step_cred.
       
@@ -2862,7 +2816,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
   { induction s; induction kappa; simpl in *; tryfalse.
     inversion 1; subst.
     all: inversion H1; repeat invert_invariant.
-    all: try tactic_tests.handle.
+    all: try extract_stack_equations.
     { simpl.
       repeat step_cred.
       
@@ -2889,7 +2843,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
   { induction s; induction kappa; simpl in *; tryfalse.
     inversion 1; subst.
     all: inversion H1; repeat invert_invariant.
-    all: try tactic_tests.handle.
+    all: try extract_stack_equations.
     { simpl.
       repeat step_cred.
       
@@ -2921,19 +2875,5 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
 }
 Qed.
 
-Theorem correction_diagram:
-  forall s1 s1' s2,
-    inv_state s1 s1' ->
-    cred s1 s2 ->
-    exists s3 s3',
-      star cred s2 s3 /\
-      star cred s1' s3' /\
-      inv_state s3 s3'
-.
-Proof.
-  intros.
-  eapply (correction_diagram_aux (stack s1) _ eq_refl _ H0 _ H).
-Qed.
-
-End trans2.
+End correctness_of_a_peephole_optimization.
 
