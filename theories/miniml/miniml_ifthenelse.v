@@ -368,18 +368,10 @@ Coercion RValue: value >-> result.
 Coercion Bool : bool >-> value.
 Coercion Var: var >-> term.
 
-(* Here is an exemple of reduction with continuation-based small-step semantics. As you can see, we can simply implement an interpreter in ltac for continuation based semantics directly in ltac. *)
 
-Example example_of_reduction t1 t2:
-  star cred
-    (mode_eval (If (Value (Bool true)) t1 t2) [] [])
-    (mode_eval t1 [] []).
-Proof.
-  eapply star_step; [solve[econstructor; eauto]|].
-  eapply star_step; [solve[econstructor; eauto]|].
-  eapply star_step; [solve[econstructor; eauto]|].
-  eapply star_refl.
-Qed.
+(*** cred_ind is not recursive *)
+(* Check cred_ind. *)
+
 
 (* -------------------------------------------------------------------------- *)
 (*** Some definitions and property of CBSS ***)
@@ -598,6 +590,87 @@ Proof.
     { econstructor; eauto. }
     { eauto. }
   }
+Qed.
+
+
+(* -------------------------------------------------------------------------- *)
+(*** Example of inversion tactic ***)
+
+Example inversion_with_cred: forall ta tb sigma kappa s',
+  cred (mode_cont (CIf ta tb sigma::kappa) false) s' ->
+  s' = mode_eval tb kappa sigma.
+Proof.
+  inversion 1; subst.
+  eauto.
+Qed.
+
+
+Example inversion_with_sred t1 t2 t':
+  sred (If true t1 t2) t' ->
+  t' = t1 \/ exists u2, sred true u2.
+Proof.
+  inversion 1; subst.
+  { eauto. }
+  { eauto. }
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+(*** Example of the constructor tactic ***)
+
+Example constructor_sred_ok t1 t2: exists t, sred (If true t1 t2) t.
+Proof.
+  eexists.
+  (* select correctly because the order of constructors is correct *)
+  constructor.
+Qed.
+
+Example constructor_sred_fail (u t1 t2: term): u = true -> exists t, sred (If u t1 t2) t.
+Proof.
+  intros; eexists.
+  (* select the wrong case *)
+  constructor.
+Restart.
+  intros; eexists.
+  (* We can select the correct case by manually applying the lemma. *)
+  subst; eapply sred_if_true.
+Qed.
+
+
+(* Here is an exemple of reduction with continuation-based small-step semantics.
+As you can see, we can simply implement an interpreter in ltac for continuation
+based semantics directly in ltac. *)
+
+Example constructor_cred_explicit t1 t2:
+  exists t',
+  star cred
+    (mode_eval (If (Value (Bool true)) t1 t2) [] [])
+    t'.
+Proof.
+  eexists.
+  eapply star_step; [solve[econstructor; eauto]|].
+  eapply star_step; [solve[econstructor; eauto]|].
+  eapply star_step; [solve[econstructor; eauto]|].
+  eapply star_refl.
+Qed.
+
+(* The interpreter can be refined in order to avoid the introduction of
+   existential variables using the `star_step_prop` lemma from sequences.
+*)
+Example constructor_cred_explicit_no_evar t1 t2:
+  exists t',
+  S( t1, [], []) = t' /\
+  star cred
+    (mode_eval (If (Value (Bool true)) t1 t2) [] [])
+    t'.
+Proof.
+  eapply star_step_prop; [solve[econstructor; eauto]|].
+  eapply star_step_prop; [solve[econstructor; eauto]|].
+  eapply star_step_prop; [solve[econstructor; eauto]|].
+  eapply star_refl_prop; eauto.
+Restart.
+  (* We can implement a multi-step interpreter using repeat. *)
+  repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
+  eapply star_refl_prop; eauto.
 Qed.
 
 
@@ -2663,7 +2736,7 @@ Proof.
   induction s; simpl; intros; repeat inv_jt; repeat (econstructor; eauto).
 Qed.
 
-Lemma key {s1 s2 s3 kappa}:
+Lemma refined_progress {s1 s2 s3 kappa}:
   cred (append_stack s1 kappa) s3 ->
   cred s1 s2 ->
   s3 = append_stack s2 kappa
@@ -2717,7 +2790,7 @@ Proof.
 Qed.
 
 
-(** Final correctness lemma: this one uses they key lemma to provide
+(** Final correctness lemma: this one uses the key lemma to provide
   simplification. The rest of the lemma is equivalent to
   correctness_cred_ind_wf_nstep. We also make use of tactic to handle
   equalities.
@@ -2761,7 +2834,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H2); unzip.
   { exploit IHinv_state; eauto; intros; unzip.
-    learn (key H6 H3); subst.
+    learn (refined_progress H6 H3); subst.
     repeat step_cred.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
@@ -2786,7 +2859,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H2); unzip.
   { exploit IHinv_state; eauto; intros; unzip.
-    learn (key H6 H3); subst.
+    learn (refined_progress H6 H3); subst.
     repeat step_cred.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
@@ -2807,7 +2880,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H3); unzip.
   { exploit IHinv_state; eauto; intros; unzip.
-    learn (key H7 H4); subst.
+    learn (refined_progress H7 H4); subst.
     repeat step_cred.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
@@ -2835,7 +2908,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
   learn (progress_cont _ _ H3); unzip.
   { exploit IHinv_state; eauto; intros; unzip.
     
-    learn (key H7 H4); subst.
+    learn (refined_progress H7 H4); subst.
     repeat step_cred.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
