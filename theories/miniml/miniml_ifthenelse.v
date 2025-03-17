@@ -507,97 +507,17 @@ Open Scope list.
 
 (* Because autosubst uses functions [nat -> term] and we use lists in the syntax, we need a way to get from one version to the other. *)
 
-Definition subst_of_env k sigma :=
+Definition subst_of_env sigma :=
   fun n =>
-  match (n <? k)%nat with
-  | true => ids n
-  | false =>
-    match List.nth_error sigma (n - k) with
-    | None => ids (n - List.length sigma)
-    | Some t => Value t
-    end
+  match List.nth_error sigma n with
+  | None => ids (n - List.length sigma)
+  | Some t => Value t
   end
 .
 
-Lemma destruct_subst_of_env:
-  forall n k sigma,
-  (n < k /\ subst_of_env k sigma n = ids n)
-  \/ (k <= n /\ n < k + List.length sigma /\ exists v, subst_of_env k sigma n = Value v /\ List.nth_error sigma (n - k) = Some v)
-  \/ (k + List.length sigma <= n /\ subst_of_env k sigma n = ids (n - List.length sigma))
-.
-Proof.
-  intros; unfold subst_of_env.
-  destruct (Nat.ltb_spec n k).
-  { left; split; simpl; eauto. }
-  destruct (Nat.ltb_spec (n - k) (List.length sigma)).
-  { right; left; repeat split; try lia.
-    remember (List.nth_error sigma (n - k)) as o.
-    induction o.
-    { eexists; eauto. }
-    { exfalso. eapply List.nth_error_Some; eauto. }
-  }
-  { right; right; repeat split; try lia.
-    rewrite (proj2 (List.nth_error_None _ _ )); eauto.
-  }
-Qed.
-
-Lemma subst_of_env_below_cutoff:
-  forall n k sigma,
-  n < k -> subst_of_env k sigma n = ids n.
-Proof.
-  intros n k sigma.
-  learn (destruct_subst_of_env n k sigma).
-  unzip; intros; eauto.
-  all: exfalso; lia.
-Qed.
-
-Lemma subst_of_env_in_substitution_range:
-  forall n k sigma,
-  k <= n -> n < k + List.length sigma -> 
-  exists v, subst_of_env k sigma n = Value v /\ List.nth_error sigma (n - k) = Some v.
-Proof.
-  intros n k sigma.
-  learn (destruct_subst_of_env n k sigma).
-  unzip; intros; eauto.
-  all: exfalso; lia.
-Qed.
-
-Lemma subst_of_env_above_substitution_range:
-  forall n k sigma,
-  k + List.length sigma <= n -> 
-  subst_of_env k sigma n = ids (n - List.length sigma).
-Proof.
-  intros n k sigma.
-  learn (destruct_subst_of_env n k sigma).
-  unzip; intros; eauto.
-  all: exfalso; lia.
-Qed.
-
-
-Lemma subst_of_env_up:
-  forall k sigma,
-    up (subst_of_env k sigma) = subst_of_env (S k) sigma.
-Proof.
-  intros.
-  eapply FunctionalExtensionality.functional_extensionality.
-  intros.
-  learn (destruct_subst_of_env x (S k) sigma); unzip.
-  { rewrite H1.
-
-    induction x; asimpl; eauto.
-    rewrite <- Nat.succ_lt_mono in H.
-    rewrite subst_of_env_below_cutoff; eauto.
-  }
-  { induction x; asimpl; eauto.
-    rewrite <- Nat.succ_lt_mono in H.
-  }
-
 (* To stay coherent with our over language, we have both closures and lambda in this language. When a lambda is created, we define a closure with an empty environement.
 
-We don't show in this file the equivalence between both style of semantics. But we show it for the lambda calculus fragment in `miniml.v` file, and for the full catala language in the `simulation_cred_to_sred.v` and `simulation_sred_to_cred.v` files. In both cases, a diagram is shown and the equivalence relation states that two closures are equivalent if the terms are the same after substitution. 
-
-The standard lambda calculus langage is implemented in the miniml.v file. It does not have the closure as a additional value.
-*)
+We don't show in this file the equivalence between both style of semantics. But we show it for the lambda calculus fragment in `miniml.v` file, and for the full catala language in the `simulation_cred_to_sred.v` and `simulation_sred_to_cred.v` files. In both cases, a diagram is shown and the equivalence relation states that two closures are equivalent if the terms are the same after substitution. *)
 
 Inductive sred: term -> term -> Prop :=
   | sred_lam:
@@ -609,7 +529,7 @@ Inductive sred: term -> term -> Prop :=
     forall t v sigma',
       sred
         (App (Value (Closure t sigma')) (Value v))
-        (t.[subst_of_env 0 (v :: sigma')])
+        (t.[subst_of_env (v :: sigma')])
   | sred_app_right:
     forall t sigma u1 u2,
       sred (u1) (u2) ->
@@ -1042,33 +962,14 @@ Definition trans_state (s: state) : state :=
 .
 
 Lemma trans_term_subst:
-  forall t sigma k,
-    (trans_term t).[subst_of_env k (List.map trans_value sigma)]
-    = trans_term t.[subst_of_env k sigma].
+  forall t sigma,
+    (trans_term t).[subst_of_env (List.map trans_value sigma)]
+    = trans_term t.[subst_of_env sigma].
 Proof.
   induction t; asimpl; eauto.
-  {
-    intros sigma k.
-    learn (destruct_subst_of_env x k sigma).
-    unzip.
-    { repeat rewrite subst_of_env_below_cutoff; eauto. }
-    { destruct (subst_of_env_in_substitution_range x k (List.map trans_value sigma)); eauto.
-      { rewrite List.length_map; eauto. }
-      { unzip.
-        rewrite H4.
-        rewrite H2.
-        rewrite List.nth_error_map in H5.
-        rewrite H3 in H5.
-        simpl in H5.
-        simpl.
-        injections; symmetry; f_equal; eauto.
-      }
-    }
-    { repeat rewrite subst_of_env_above_substitution_range; repeat rewrite List.length_map; eauto.
-    } 
-  }
+  { admit. }
   { intros; rewrite IHt1, IHt2; eauto. }
-  {  }
+  { admit. }
   { intros; rewrite IHt1, IHt2, IHt3; eauto. }
 Admitted.
 
