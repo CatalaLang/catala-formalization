@@ -2077,28 +2077,6 @@ This means we can focus on the remaning cases (that are very few)
 *)
 
 
-Lemma modify_WF_IH {P n}:
-  (forall y : list cont,
-  Datatypes.length y < n ->
-  forall s1 : state,
-    stack s1 = y ->
-    forall s2 : state,
-      cred s1 s2 ->
-      forall s1' : state,
-        inv_state s1 s1' ->
-        P s1 s2 s1')
-  ->
-  forall s1 s1',
-    inv_state s1 s1' ->
-    forall s2,
-      cred s1 s2 ->
-      List.length (stack s1) < n ->
-      P s1 s2 s1'
-  .
-Proof.
-  intros X ? ? ? ? ? ?; eapply X; eauto.
-Qed.
-
 Theorem correctness_cred_ind_wf_nstep_aux:
   forall kappa,
   forall s1,
