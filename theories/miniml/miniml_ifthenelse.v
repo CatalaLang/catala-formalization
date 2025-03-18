@@ -1194,13 +1194,17 @@ Ltac2 invert_invariant () :=
   match! goal with
   | [ h: inv_term ?c _ |- _ ] => smart_inversion c h
   | [ h: inv_value ?c _ |- _ ] => smart_inversion c h
+  | [ h: inv_state (mode_eval _ [] _) _ |- _] => smart_inversion constr:(true) h
+  | [ h: inv_state (mode_cont [] _ ) _ |- _] => smart_inversion constr:(true) h
+  | [ h: inv_state (append_stack _ [?k]) _ |- _] => smart_inversion k h
+  | [ h: inv_state (append_stack _ [CIf _ _ _; CIf _ _ _]) _ |- _] => smart_inversion constr:(true) h
   | [ h: List.Forall2 inv_value ?c _ |- _ ] => smart_inversion c h
   | [ h: List.Forall2 inv_value _ ?c |- _ ] => smart_inversion c h
   | [ h: List.Forall2 inv_term ?c _ |- _ ] => smart_inversion c h
   | [ h: List.Forall2 inv_term _ ?c |- _ ] => smart_inversion c h
   end.
 
-Ltac invert_invariant := ltac2: (invert_invariant ()).
+Ltac invert_invariant := ltac2: (invert_invariant ()); subst; tryfalse.
 
 (* -------------------------------------------------------------------------- *)
 (** Some properties about inv_term and inv_value. *)
@@ -1811,7 +1815,7 @@ Proof.
   induction s; simpl; intros; repeat inv_jt; repeat (econstructor; eauto).
 Qed.
 
-Lemma refined_progress {s1 s2 s3 kappa}:
+Lemma deterministic_append_stack {s1 s2 s3 kappa}:
   cred (append_stack s1 kappa) s3 ->
   cred s1 s2 ->
   s3 = append_stack s2 kappa
@@ -1825,11 +1829,22 @@ Proof.
   }
 Qed.
 
-
-
+Lemma refined_progress {s1 T1 kappa s2}:
+  jt_state s1 T1 ->
+  cred (append_stack s1 kappa) s2 ->
+  (exists v, s1 = mode_cont [] v) \/ (exists s, cred s1 s /\ s2 = append_stack s kappa).
+Proof.
+  intros Hjt.
+  learn (progress_cont _ _ Hjt); unzip.
+  { right.
+    intros; eexists; split.
+    2: eapply deterministic_append_stack.
+    all: eauto.
+  }
+  { left; induction s1; simpl in *; subst; tryfalse; eauto. }
+Qed.
 
 (* -------------------------------------------------------------------------- *)
-
 
 (* We attempt at showing the first simulation diagram using cred and with the
 strategy of performing the induction on the invariant. *)
@@ -1837,16 +1852,59 @@ strategy of performing the induction on the invariant. *)
 Theorem correctness_cred_ind_inv_1step:
   forall s1 s1',
     inv_state s1 s1' ->
-    forall s2,
-      cred s1 s2 ->  
-      exists s2',
-        inv_state s2 s2' /\ star cred s1' s2'.
+    forall T,
+      jt_state s1 T ->
+      forall s2,
+        cred s1 s2 ->  
+        exists s2',
+          inv_state s2 s2' /\ star cred s1' s2'.
 Proof.
-  induction 1; inversion 1; subst; try invert_invariant.
-  (* The proof is very monotonous, making it easier to automate it. *)
+  induction 1; intros until s2; inversion 1; subst; try invert_invariant.
+  (* The proof is very monotonous, making it easier to automate it. There is 43 cases. *)
   
   (* Here, we apply the reduction to all cases at once, without specifying the correct order. *)
   all: repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
+
+  34:{
+    match goal with
+    (* apply the refined progress theorem *)
+    | [
+      hjt: jt_state (append_stack ?s _) _,
+      hcred: cred (append_stack ?s _) _
+      |- _] =>
+      let T := fresh "T" in
+      let Hjt1 := fresh "Hjt" in
+      let Hjt2 := fresh "Hjt" in
+      destruct (jt_state_append_stack hjt) as [T [Hjt1 Hjt2]];
+      let v := fresh "v" in
+      let s := fresh "s" in
+      destruct (refined_progress Hjt hcred) as [[v ?] | [s ?]];
+      subst; simpl in *
+    end.
+
+    all: repeat invert_invariant; unzip.
+
+    exploit IHinv_state; [solve[eauto]|solve[eauto]|intros; unzip].
+    eapply star_trans_prop; [solve[apply star_cred_append_stack; eauto]|].
+    eapply star_refl_prop.
+
+    match goal with
+    | [h: ?s = _ |- inv_state ?s _] => rewrite h
+    end.
+
+    repeat (econstructor; eauto).
+
+    }
+
+    { inversion H1; subst; tryfalse. }
+    all: repeat invert_invariant.
+
+    match goal with
+    | [h: jt_state _ _ |- _] =>
+
+    learn (progress_cont _ _ H2); unzip.
+
+  }
 
   
   { (* One case need external lemmas to finish the proof: because of the
@@ -1907,7 +1965,7 @@ Proof.
     end.
     repeat (econstructor; eauto).
 
-    admit "use H0 to derive information about s'. For exmeple, the term is the same. and since H1.".
+    admit.
   }
   { eapply star_refl_prop.
     match goal with [|- inv_state ?s1 ?s2] =>
@@ -2855,7 +2913,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H2); unzip.
   { exploit IHinv_state; eauto; intros; unzip.
-    learn (refined_progress H6 H3); subst.
+    learn (deterministic_append_stack H6 H3); subst.
     repeat step_cred.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
@@ -2880,7 +2938,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H2); unzip.
   { exploit IHinv_state; eauto; intros; unzip.
-    learn (refined_progress H6 H3); subst.
+    learn (deterministic_append_stack H6 H3); subst.
     repeat step_cred.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
@@ -2901,7 +2959,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
 { eapply jt_state_append_stack in Hjt; unpack; repeat inv_jt.
   learn (progress_cont _ _ H3); unzip.
   { exploit IHinv_state; eauto; intros; unzip.
-    learn (refined_progress H7 H4); subst.
+    learn (deterministic_append_stack H7 H4); subst.
     repeat step_cred.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
@@ -2929,7 +2987,7 @@ induction 1; subst; repeat invert_invariant; intros T Hjt.
   learn (progress_cont _ _ H3); unzip.
   { exploit IHinv_state; eauto; intros; unzip.
     
-    learn (refined_progress H7 H4); subst.
+    learn (deterministic_append_stack H7 H4); subst.
     repeat step_cred.
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
