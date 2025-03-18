@@ -61,64 +61,6 @@ Proof.
 Qed.
 
 
-(* This is a tactic that tries to infer equalities between terms in a list where :: and ++ are used. It uses [List.rev] to reverse the list and the [List.rev_app_distr] lemma. *)
-
-Ltac normalize_list_equation h := 
-  learn (f_equal (@List.rev _) h);
-    repeat multimatch goal with
-    | [h: _ |- _] =>
-      let P := typeof h in
-      match P with
-      | @Learnt _ =>
-        idtac
-      | _ =>
-        repeat rewrite List.rev_involutive in h;
-        repeat rewrite List.rev_app_distr in h;
-        simpl in h
-      end
-    end;
-    injections;
-    subst;
-    try congruence
-.
-
-Ltac normalize_list_equations := 
-  (try multimatch goal with
-  | [h: @eq (list _) _ _ |- _] =>
-    normalize_list_equation h
-  end)
-  .
-
-(* This lemmas precisely decompose_list_equation an equality in the form: [k1 :: kappa1 = kappa2 ++ [k2]]. *)
-Lemma list_append_decompose: forall {A} {kappa1 kappa2} {k1 k2: A} ,
-  k1 :: kappa1 = kappa2 ++ [k2] ->
-  (k1 = k2 /\ kappa1 = nil /\ kappa2 = nil)
-  \/ (exists kappa, kappa1 = kappa ++ [k2] /\ kappa2 = k1 :: kappa).
-Proof.
-  induction kappa1 as [|a1 kappa1]; intros.
-  { repeat normalize_list_equations.
-    left; unzip; eauto.
-  }
-  {
-    induction kappa2 as [|a2 kappa2]; repeat normalize_list_equations.
-    destruct IHkappa1 with kappa2 a1 k2; eauto.
-  }
-Qed.
-
-(* We use it with the decompose_list_equation tactic *)
-Ltac decompose_list_equation h :=
-  let kappa := fresh "kappa" in
-  first
-    [ destruct (list_append_decompose h) as [?|[kappa ?]]
-    | destruct (list_append_decompose (eq_sym h)) as [?|[kappa ?]]
-    ];
-    unpack;
-    repeat normalize_list_equations;
-    repeat cleanup
-.
-
-
-
 (* -------------------------------------------------------------------------- *)
 (*** Definition of the syntax of our language ***)
 
@@ -346,7 +288,6 @@ Inductive cred: state -> state -> Prop :=
 .
 
 (* Some notations to get closer to the paper. Those are disabled except for the coercions that provide a lot more clarity. Uncomment and [Check cred] to get a pretty-printed version of the cred reduction predicate. *)
-
 
 Coercion App : term >-> Funclass.
 Notation "'λ.' t" := (Lam t) (at level 50).
@@ -1448,12 +1389,16 @@ Proof.
     { inversion H4; subst; inversion H5; subst.
       inversion H1; inversion H8; subst.
       eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
-      eapply star_refl_prop. admit "diagram is wrong". (* diagram *)
+      eapply star_refl_prop.
+      (* The diagram is incorrect, hence the proof is not possible for this theorem. the lemma is admitted. *)
+      admit "diagram is wrong". (* diagram *)
     }
     { inversion H4; subst; inversion H5; subst.
       inversion H1; inversion H8; subst.
       eapply star_step_prop. { solve[repeat (econstructor; eauto)]. }
-      eapply star_refl_prop. admit "diagram is wrong". (* diagram *)
+      eapply star_refl_prop.
+      (* The diagram is incorrect, hence the proof is not possible for this theorem. the lemma is admitted. *)
+      admit "diagram is wrong". (* diagram *)
     }
     { admit.
     }
@@ -1737,7 +1682,154 @@ Qed.
 
 
 (* -------------------------------------------------------------------------- *)
-(*** Contination semantic ***)
+(*** Continuation Semantics ***)
+
+
+(* We first define some additional tactics to simplify the proof script. *)
+
+
+(* This tactic solves goals containing list equations where the list operators
+   `::` (cons) and `++` (append) are used. It works by applying the following
+   strategy:
+
+   1. It first applies the `List.rev` function to both sides of each list
+      equation using `f_equal`, which preserves equality while potentially
+      simplifying the equation structure.
+
+   2. It then systematically applies list simplification lemmas:
+      - `List.rev_involutive`: `rev (rev l) = l`
+      - `List.rev_app_distr`: `rev (l1 ++ l2) = rev l2 ++ rev l1`
+
+   3. After simplification, it uses `injections` to extract equalities between
+      list elements and `subst` to substitute these equalities throughout the
+      goal and congrugence to get rid of incoherent goals.
+
+  It tracks processed hypotheses using a custom `Learnt` marker introduced by
+  the learn tactic to avoid redundant work.
+*)
+
+Ltac normalize_list_equation h := 
+  learn (f_equal (@List.rev _) h);
+    repeat multimatch goal with
+    | [h: _ |- _] =>
+      let P := typeof h in
+      match P with
+      | @Learnt _ =>
+        idtac
+      | _ =>
+        repeat rewrite List.rev_involutive in h;
+        repeat rewrite List.rev_app_distr in h;
+        simpl in h
+      end
+    end;
+    injections;
+    subst;
+    try congruence
+.
+
+Ltac normalize_list_equations := 
+  (try multimatch goal with
+  | [h: @eq (list _) _ _ |- _] =>
+    normalize_list_equation h
+  end)
+  .
+
+(* This tactic decomposes list equations of the form [k1 :: kappa1 = kappa2 ++
+   [k2]]. It works in either direction, handling both the original equation or
+   its symmetric form. It might create two cases, one where [k=1 = k2] and [kappa1 = kappa2 = nil], or introduce an new [kappa].
+
+   This is particularly useful when proving properties about lists where
+   elements appear at opposite ends (head vs. tail). This happends for states, where the invariant is defined from the tail of the list, and the reduction happends at the head of the list.
+*)
+
+
+Lemma list_append_decompose: forall {A} {kappa1 kappa2} {k1 k2: A} ,
+  k1 :: kappa1 = kappa2 ++ [k2] ->
+  (k1 = k2 /\ kappa1 = nil /\ kappa2 = nil)
+  \/ (exists kappa, kappa1 = kappa ++ [k2] /\ kappa2 = k1 :: kappa).
+Proof.
+  induction kappa1 as [|a1 kappa1]; intros.
+  { repeat normalize_list_equations.
+    left; unzip; eauto.
+  }
+  {
+    induction kappa2 as [|a2 kappa2]; repeat normalize_list_equations.
+    destruct IHkappa1 with kappa2 a1 k2; eauto.
+  }
+Qed.
+
+Ltac decompose_list_equation h :=
+  let kappa := fresh "kappa" in
+  first
+    [ destruct (list_append_decompose h) as [?|[kappa ?]]
+    | destruct (list_append_decompose (eq_sym h)) as [?|[kappa ?]]
+    ];
+    unpack;
+    repeat normalize_list_equations;
+    repeat cleanup
+.
+
+
+(* This tactic extracts and normalizes stack equality from state equality.
+   This tactic is usefull to reason about lists instead of reasoning about states.
+*)
+
+Ltac2 extract_stack_equations () :=
+  repeat (match! goal with
+  | [heq: @eq state _ _ |- _] =>
+    let h := learn2 (f_equal stack ltac2:(Control.refine (fun () => Control.hyp heq))) in
+    simpl stack in $h;
+    rewrite stack_append_stack in $h
+  end);
+  ltac1:(normalize_list_equations).
+
+#[global]
+Ltac extract_stack_equations := ltac2:(extract_stack_equations ()).
+
+(* Here is some examples of application, taken from goals in the following theorems *)
+Example test1 s t0 sigma0 tcl sigmacl (_: append_stack s [CAppR t0 sigma0] = mode_cont [] (Closure tcl sigmacl)): False.
+  extract_stack_equations.
+Qed.
+
+Example test2 s t0 sigma0 tcl sigmacl t' sigma' (_: append_stack s [CAppR t0 sigma0] = mode_cont [CClosure t' sigma'] (Closure tcl sigmacl)): False.
+  extract_stack_equations.
+Qed.
+
+Example test3 s t0 sigma0 tcl sigmacl t' sigma' (_: append_stack s [CAppR t0 sigma0] = mode_cont [CClosure t' sigma'] (Closure tcl sigmacl)): stack s ++ [CAppR t0 sigma0] = [CClosure t' sigma'].
+Proof.
+  extract_stack_equations.
+Qed.
+
+(* -------------------------------------------------------------------------- *)
+
+(* Refined progress lemma. This permit to cut down the number of cases to handle. *)
+Lemma jt_state_append_stack {s kappa T2}:
+  jt_state (append_stack s kappa) T2 ->
+  exists T1,
+    jt_state s T1 /\ jt_conts T1 kappa T2.
+Proof.
+  induction s; simpl; intros; repeat inv_jt; repeat (econstructor; eauto).
+Qed.
+
+Lemma refined_progress {s1 s2 s3 kappa}:
+  cred (append_stack s1 kappa) s3 ->
+  cred s1 s2 ->
+  s3 = append_stack s2 kappa
+.
+Proof.
+  intros.
+  eapply cred_deterministic.
+  { eassumption. }
+  { eapply cred_append_stack.
+    eassumption.
+  }
+Qed.
+
+
+
+
+(* -------------------------------------------------------------------------- *)
+
 
 (* We attempt at showing the first simulation diagram using cred and with the
 strategy of performing the induction on the invariant. *)
@@ -1751,13 +1843,25 @@ Theorem correctness_cred_ind_inv_1step:
         inv_state s2 s2' /\ star cred s1' s2'.
 Proof.
   induction 1; inversion 1; subst; try invert_invariant.
+  (* The proof is very monotonous, making it easier to automate it. *)
+  
+  (* Here, we apply the reduction to all cases at once, without specifying the correct order. *)
   all: repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
-  { learn (Forall2_nth_error_Some_left H0 H7); unpack.
-    eapply star_step_prop; [econstructor; eauto|].
-    eapply star_refl_prop; econstructor.
-    eapply Forall2_nth_error_Some; eauto.
+
+  
+  { (* One case need external lemmas to finish the proof: because of the
+    List.Forall2 linking sigma and sigma', we can deduce that x is a valid key
+    for sigma' as well. And we can deduce the that the invariant holds for the obtained value. *)
+    learn (Forall2_nth_error_Some_left H0 H7); unpack.
+    learn (Forall2_nth_error_Some H0 H7 H); unpack.
+
+    (* We can now handle this case just like the others using the same basic automation. *)
+    eapply star_step_prop; [solve[econstructor; eauto]|].
+    eapply star_refl_prop.
+    repeat (econstructor; eauto).
   }
   { eapply star_refl_prop.
+    (* Because we defined the invariant on state using append_stack, we need to rewrite it everywhere it's needed. This solves most of the cases. *)
     match goal with [|- inv_state ?s1 ?s2] =>
       rewrite (@append_stack_all s1);
       rewrite (@append_stack_all s2);
@@ -1792,7 +1896,9 @@ Proof.
     end.
     repeat (econstructor; eauto).
   }
-  { learn (append_stack_mode_eval (eq_sym H3)); unpack; subst.
+  { (* Sometime, we need more informations about *)
+    extract_stack_equations.
+    learn (append_stack_mode_eval (eq_sym H3)); unpack; subst.
     eapply star_refl_prop.
     match goal with [|- inv_state ?s1 ?s2] =>
       try (erewrite (@append_stack_app s1); [|solve[simpl; eauto]]);
@@ -1810,7 +1916,7 @@ Proof.
       simpl with_stack; simpl stack
     end.
     repeat (econstructor; eauto).
-    admit.
+    admit "same thing".
   }
 Abort.
 
@@ -1827,6 +1933,7 @@ Theorem correctness_cred_ind_red_1step:
         inv_state s2 s2' /\ star cred s1' s2'.
 Proof.
   induction 1; inversion 1; subst.
+
 Abort.
 
 (* -------------------------------------------------------------------------- *)
@@ -1854,29 +1961,6 @@ Lemma modify_WF_IH {P n}:
       cred s1 s2 ->
       forall s1' : state,
         inv_state s1 s1' ->
-        P s1 s2 s1')
-  ->
-  forall s1 s1',
-    inv_state s1 s1' ->
-    forall s2,
-      cred s1 s2 ->
-      List.length (stack s1) < n ->
-      P s1 s2 s1'
-  .
-Proof.
-  intros X ? ? ? ? ? ?; eapply X; eauto.
-Qed.
-
-Lemma modify_WF_IH' {P n}:
-  (forall y : list cont,
-  Datatypes.length y < n ->
-  forall s1 : state,
-    stack s1 = y ->
-    forall s1' : state,
-        inv_state s1 s1' ->
-      forall s2 : state,
-        cred s1 s2 ->
-        
         P s1 s2 s1')
   ->
   forall s1 s1',
@@ -2728,68 +2812,6 @@ intros until s2; induction 1; inversion 1; subst; repeat invert_invariant.
 Qed.
 
 
-Lemma jt_state_append_stack {s kappa T2}:
-  jt_state (append_stack s kappa) T2 ->
-  exists T1,
-    jt_state s T1 /\ jt_conts T1 kappa T2.
-Proof.
-  induction s; simpl; intros; repeat inv_jt; repeat (econstructor; eauto).
-Qed.
-
-Lemma refined_progress {s1 s2 s3 kappa}:
-  cred (append_stack s1 kappa) s3 ->
-  cred s1 s2 ->
-  s3 = append_stack s2 kappa
-.
-intros.
-eapply cred_deterministic.
-{ eapply H. }
-{ eapply cred_append_stack.
-  eapply H0.
-}
-Qed.
-
-
-Ltac2 extract_stack_equations () :=
-  repeat (match! goal with
-  | [heq: @eq state _ _ |- _] =>
-    let h := learn2 (f_equal stack ltac2:(Control.refine (fun () => Control.hyp heq))) in
-    simpl stack in $h;
-    rewrite stack_append_stack in $h
-  end);
-  ltac1:(normalize_list_equations).
-
-#[global]
-Ltac extract_stack_equations := ltac2:(extract_stack_equations ()).
-
-
-Example test1 s t0 sigma0 tcl sigmacl (_: append_stack s [CAppR t0 sigma0] = mode_cont [] (Closure tcl sigmacl)): False.
-  extract_stack_equations.
-Qed.
-
-Example test2 s t0 sigma0 tcl sigmacl t' sigma' (_: append_stack s [CAppR t0 sigma0] = mode_cont [CClosure t' sigma'] (Closure tcl sigmacl)): False.
-  extract_stack_equations.
-Qed.
-
-Example test3 s t0 sigma0 tcl sigmacl t' sigma' (_: append_stack s [CAppR t0 sigma0] = mode_cont [CClosure t' sigma'] (Closure tcl sigmacl)): stack s ++ [CAppR t0 sigma0] = [CClosure t' sigma'].
-Proof.
-  extract_stack_equations.
-Qed.
-
-Lemma append_stack_decompose {s} {l1} {l2 l}:
-  l1 ++ l2 = l -> append_stack s l = append_stack (append_stack s l1) l2.
-Proof.
-  induction s; simpl; intros; f_equal; subst.
-  all: eapply List.app_assoc.
-Qed.
-
-Lemma append_stack_decompose_rcons {s} {l1 l a}:
-  l1 ++ [a] = l -> append_stack s l = append_stack (append_stack s l1) [a].
-Proof.
-  eapply append_stack_decompose.
-Qed.
-
-
 (** Final correctness lemma: this one uses the key lemma to provide
   simplification. The rest of the lemma is equivalent to
   correctness_cred_ind_wf_nstep. We also make use of tactic to handle
@@ -2801,14 +2823,13 @@ Theorem correctness_cred_ind_inv_nstep:
     forall s1',
         inv_state s1 s1' ->
         forall T,
-        jt_state s1 T ->
-      forall s2,
-        cred s1 s2 ->
-      
-      exists s3 s3',
-        star cred s2 s3 /\
-        star cred s1' s3' /\
-        inv_state s3 s3'
+          jt_state s1 T ->
+          forall s2,
+            cred s1 s2 ->
+            exists s3 s3',
+              star cred s2 s3 /\
+              star cred s1' s3' /\
+              inv_state s3 s3'
 .
 Ltac step_cred := first[
   eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
