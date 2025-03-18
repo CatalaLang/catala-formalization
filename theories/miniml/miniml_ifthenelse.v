@@ -2103,178 +2103,85 @@ Theorem correctness_cred_ind_wf_nstep_aux:
   forall kappa,
   forall s1,
     stack s1 = kappa ->
-    forall s2,
-      cred s1 s2 ->
-      forall s1',
+    forall T,
+      jt_state s1 T ->
+      forall s1' s2,
         inv_state s1 s1' ->
+        cred s1 s2 ->
       exists s3 s3',
         star cred s2 s3 /\
         star cred s1' s3' /\
         inv_state s3 s3'
 .
+Proof.
+  induction kappa as [kappa IHkappa] using (
+    well_founded_induction
+      (wf_inverse_image _ nat _ (@List.length cont) 
+      PeanoNat.Nat.lt_wf_0)).
 
-Ltac mytryfalse :=
-  tryfalse;
-  try solve [repeat match goal with 
-  | [h: @eq state _ _ |- _ ] => learn (f_equal stack h)
-  | [h: @eq (list _) _ _ |- _ ] => learn (f_equal (@List.length _) h)
-  | [h: context[append_stack ?s _] |- _] => learn (eq_refl s); destruct s
-  end; simpl in *; repeat normalize_list_equations]
-  .
+  (* We perform an induction on inv_state not to get an induction hypothesis, but to keep work-in-progress proofs. *)
+  intros until s2; induction 1; subst; inversion 1; subst.
 
-induction kappa as [kappa IHkappa] using (
-  well_founded_induction
-    (wf_inverse_image _ nat _ (@List.length cont) 
-    PeanoNat.Nat.lt_wf_0)).
-rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
-intros until s2; induction 1; inversion 1; subst; repeat invert_invariant.
+  (* At this point there is 63 cases (this is a quadratic amount of cases) *)
 
-  (* Handling induction hypothesis and base cases.*)
-  all: try (induction s; simpl in *; injections; tryfalse; subst).
-  (* decompose_list_equation equalities *)
-  all: normalize_list_equations;
-  repeat match goal with
-  | [h: _ ++ [_] = _ :: _ |- _] => decompose_list_equation h
-  | [h: _ ++ [_; _] = _ :: _ |- _] => decompose_list_equation h
-  | [h: _ :: _ = _ ++ [_] |- _] => decompose_list_equation h
-  | [h: _ :: _ = _ ++ [_; _] |- _] => decompose_list_equation h
-  end.
   all: try match goal with
-  | [h: inv_state (mode_eval _ [] _) _ |- _] => inversion h; subst; mytryfalse
-  | [h: inv_state (mode_cont [] _) _ |- _ ] => inversion h; subst; mytryfalse
-  | [h: inv_state _ _ |- _] =>
-    exploit (IHkappa _ _ h); [solve[econstructor; eauto]|solve[simpl; repeat (rewrite List.length_app; simpl); lia] | intros; unpack ]
+  | [
+    hjt: jt_state (append_stack ?s _) _,
+    hcred: cred (append_stack ?s _) _
+    |- _] =>
+    let T := fresh "T" in
+    let Hjt1 := fresh "Hjt" in
+    let Hjt2 := fresh "Hjt" in
+    destruct (jt_state_append_stack hjt) as [T [Hjt1 Hjt2]];
+    let v := fresh "v" in
+    let s := fresh "s" in
+    destruct (refined_progress Hjt hcred) as [[v ?] | [s ?]];
+    subst; simpl in *
   end.
 
-  (* efficient stepping. *)
-  all: try (repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]]).
-  all: try (rewrite List.rev_involutive; simpl;
-    rewrite <- List.app_assoc; simpl List.app;
-    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]];
-    simpl stack; simpl with_stack)
-  .
-  all: repeat first[
-    progress (eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|])|
-    progress (eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|])|
-    progress (repeat (simpl; try invert_invariant; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|]))|
-    progress (repeat (simpl; try invert_invariant; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|]))|
-    progress (repeat (simpl; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|]))|
-    progress (repeat (simpl; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|]))
+  all: repeat injections; tryfalse; subst.
+  all: repeat invert_invariant; unzip.
+
+  all: try (exploit IHkappa;
+      [|reflexivity|solve[eassumption]|solve[eassumption]|solve[eassumption]|];
+      [rewrite !stack_append_stack, !List.length_app; simpl; lia|intros; unzip]).
+
+
+  (* The only difference with the previous proof is the modification on the diagram. 
+  *)
+  all: repeat first
+    [ eapply confluent_prop_star_trans_right; [solve[try match goal with | [h: ?s = _ |- star cred ?s _] => rewrite h end; apply star_cred_append_stack; eauto]|]
+    | eapply confluent_prop_star_trans_left; [solve[try match goal with | [h: ?s = _ |- star cred ?s _] => rewrite h end; apply star_cred_append_stack; eauto]|]
+    | eapply confluent_prop_star_step_left; [solve[econstructor; eauto]|]
+    | eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|]].
+
+  (* try to solve most of the case by: *)
+  all: try solve
+    (* Either applying the rewriting already present to make it clear there is an append_stack in the inv_state in the goal. *)
+    [ eapply confluent_prop_star_refl;
+      try match goal with | [h: ?s = _ |- inv_state ?s _] => rewrite h end;
+      repeat (econstructor; eauto)
+    (* Either, for base cases where apply_state have been simplified, and the state is of the form C(..., ... ++ [CIf ...]) for instance, with stack of size 1 or 2, put it in an other form to apply the inv_state constructor *)
+    | eapply confluent_prop_star_refl;
+      try match goal with | [|- inv_state ?s1 ?s2] => rewrite (@append_stack_all s1), (@append_stack_all s2)  end;
+      repeat (econstructor; eauto)
+    (* Or there is a contradiction within the equations *)
+    | timeout 1 extract_stack_equations
   ].
 
-  (* Finishing up the proof*)
-  all: try solve
-    [ eapply confluent_prop_star_refl; repeat (econstructor; eauto)
-    | eapply confluent_prop_star_refl;
-      match goal with [|- inv_state ?s1 ?s2] =>
-        rewrite (@append_stack_all s1);
-        rewrite (@append_stack_all s2);
-        simpl with_stack; simpl stack
-      end;
-      repeat (econstructor; eauto)
-    ].
-  { inversion H2; subst; mytryfalse.
-    learn (Forall2_nth_error_Some_left H7 H1); unpack.
-    learn (Forall2_nth_error_Some H7 H1 H).
+  { (* This case is left becase we don't have in our automation of stepping the
+    specific lemma that connects List.Forall2 and List.nth_error. *)
+
+    learn (Forall2_nth_error_Some_left H2 H8); unpack.
+    learn (Forall2_nth_error_Some H2 H8 H1); unpack.
+
+    (* We repeat the automation for completness *)
     eapply confluent_prop_star_step_right; [solve[econstructor; eauto]|].
     eapply confluent_prop_star_refl.
     repeat (econstructor; eauto).
   }
-  { simpl.
-    rewrite <- List.app_assoc; simpl List.app;
-    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]];
-    simpl stack; simpl with_stack;
-    rewrite List.rev_involutive.
-    repeat first[
-      eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
-      eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
-      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
-      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
-    ].
-
-    all: try solve
-    [ eapply confluent_prop_star_refl; repeat (econstructor; eauto)
-    | eapply confluent_prop_star_refl;
-      match goal with [|- inv_state ?s1 ?s2] =>
-        rewrite (@append_stack_all s1);
-        rewrite (@append_stack_all s2);
-        simpl with_stack; simpl stack
-      end;
-      repeat (econstructor; eauto)
-    ].
-  }
-  { simpl.
-    rewrite <- List.app_assoc; simpl List.app;
-    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]];
-    simpl stack; simpl with_stack;
-    rewrite List.rev_involutive.
-    repeat first[
-      eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
-      eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
-      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
-      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
-    ].
-
-    all: try solve
-    [ eapply confluent_prop_star_refl; repeat (econstructor; eauto)
-    | eapply confluent_prop_star_refl;
-      match goal with [|- inv_state ?s1 ?s2] =>
-        rewrite (@append_stack_all s1);
-        rewrite (@append_stack_all s2);
-        simpl with_stack; simpl stack
-      end;
-      repeat (econstructor; eauto)
-    ].
-  }
-  {
-    simpl.
-    rewrite <- List.app_assoc; simpl List.app;
-    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]];
-    simpl stack; simpl with_stack;
-    rewrite List.rev_involutive.
-    repeat first[
-      eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
-      eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
-      repeat (simpl; try invert_invariant; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
-      repeat (simpl; try invert_invariant; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
-    ].
-
-    all: try solve
-    [ eapply confluent_prop_star_refl; repeat (econstructor; eauto)
-    | eapply confluent_prop_star_refl;
-      match goal with [|- inv_state ?s1 ?s2] =>
-        rewrite (@append_stack_all s1);
-        rewrite (@append_stack_all s2);
-        simpl with_stack; simpl stack
-      end;
-      repeat (econstructor; eauto)
-    ].
-  }
-  {
-    simpl.
-    rewrite <- List.app_assoc; simpl List.app;
-    repeat rewrite List.app_comm_cons; erewrite append_stack_app; [|solve[reflexivity]];
-    simpl stack; simpl with_stack;
-    rewrite List.rev_involutive.
-    repeat first[
-      eapply confluent_prop_star_trans_right; [solve[apply star_cred_append_stack; eauto]|]|
-      eapply confluent_prop_star_trans_left; [solve[apply star_cred_append_stack; eauto]|]|
-      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_right; [solve[ econstructor; eauto]|])|
-      repeat (simpl; invert_invariant; eapply confluent_prop_star_step_left; [solve[ econstructor; eauto]|])
-    ].
-
-    all: try solve
-    [ eapply confluent_prop_star_refl; repeat (econstructor; eauto)
-    | eapply confluent_prop_star_refl;
-      match goal with [|- inv_state ?s1 ?s2] =>
-        rewrite (@append_stack_all s1);
-        rewrite (@append_stack_all s2);
-        simpl with_stack; simpl stack
-      end;
-      repeat (econstructor; eauto)
-    ].
-  }
 Qed.
+
 
 
 (** Final correctness lemma: this one uses the key lemma to provide
