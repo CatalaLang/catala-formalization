@@ -1860,123 +1860,80 @@ Theorem correctness_cred_ind_inv_1step:
           inv_state s2 s2' /\ star cred s1' s2'.
 Proof.
   induction 1; intros until s2; inversion 1; subst; try invert_invariant.
-  (* The proof is very monotonous, making it easier to automate it. There is 43 cases. *)
+
+  (* At this point there is 43 cases (this is a quadratic amount of cases) *)
+
+  (* Using the refined progress, we add more cases (we double them) but most of
+  them become trivial. Either because the simulation to find can be automated,
+  or because there is some equality that is being added into the proof context
+  that is incoherent. We handle the second case using the
+  extract_stack_equations tactic at the end for performance reasons. *)
+  all: try match goal with
+  | [
+    hjt: jt_state (append_stack ?s _) _,
+    hcred: cred (append_stack ?s _) _
+    |- _] =>
+    let T := fresh "T" in
+    let Hjt1 := fresh "Hjt" in
+    let Hjt2 := fresh "Hjt" in
+    destruct (jt_state_append_stack hjt) as [T [Hjt1 Hjt2]];
+    let v := fresh "v" in
+    let s := fresh "s" in
+    destruct (refined_progress Hjt hcred) as [[v ?] | [s ?]];
+    subst; simpl in *
+  end.
+
+  all: repeat injections; subst.
+  all: repeat invert_invariant; unzip.
+  all: try (exploit IHinv_state; [solve[eauto]|solve[eauto]|intros; unzip]).
+
+
+  (* This is the meta-interpretor for this lemma. It handle two cases. The
+  application of the star_cred_append_stack lemma for
+  induction-hypothesis-induced reductions, and basic reductions for base cases.
+  *)
+  all: repeat first
+    [ eapply star_trans_prop; [solve[apply star_cred_append_stack; eauto]|]
+    | eapply star_step_prop; [solve[econstructor; eauto]|]].
   
-  (* Here, we apply the reduction to all cases at once, without specifying the correct order. *)
-  all: repeat (eapply star_step_prop; [solve[econstructor; eauto]|]).
+  (* try to solve most of the case by: *)
+  all: try solve
+    (* Either applying the rewriting already present to make it clear there is an append_stack in the inv_state in the goal. *)
+    [ eapply star_refl_prop;
+      try match goal with | [h: ?s = _ |- inv_state ?s _] => rewrite h end;
+      repeat (econstructor; eauto)
+    (* Either, for base cases where apply_state have been simplified, and the state is of the form C(..., ... ++ [CIf ...]) for instance, with stack of size 1 or 2, put it in an other form to apply the inv_state constructor *)
+    | eapply star_refl_prop;
+      try match goal with | [|- inv_state ?s1 ?s2] => rewrite (@append_stack_all s1), (@append_stack_all s2)  end;
+      repeat (econstructor; eauto)
+    (* Or there is a contradiction within the equations *)
+    | extract_stack_equations
+  ].
 
-  34:{
-    match goal with
-    (* apply the refined progress theorem *)
-    | [
-      hjt: jt_state (append_stack ?s _) _,
-      hcred: cred (append_stack ?s _) _
-      |- _] =>
-      let T := fresh "T" in
-      let Hjt1 := fresh "Hjt" in
-      let Hjt2 := fresh "Hjt" in
-      destruct (jt_state_append_stack hjt) as [T [Hjt1 Hjt2]];
-      let v := fresh "v" in
-      let s := fresh "s" in
-      destruct (refined_progress Hjt hcred) as [[v ?] | [s ?]];
-      subst; simpl in *
-    end.
+  { (* This case is left becase we don't have in our automation of stepping the
+    specific lemma that connects List.Forall2 and List.nth_error. *)
 
-    all: repeat invert_invariant; unzip.
+    learn (Forall2_nth_error_Some_left H0 H8); unpack.
+    learn (Forall2_nth_error_Some H0 H8 H); unpack.
 
-    exploit IHinv_state; [solve[eauto]|solve[eauto]|intros; unzip].
-    eapply star_trans_prop; [solve[apply star_cred_append_stack; eauto]|].
-    eapply star_refl_prop.
-
-    match goal with
-    | [h: ?s = _ |- inv_state ?s _] => rewrite h
-    end.
-
-    repeat (econstructor; eauto).
-
-    }
-
-    { inversion H1; subst; tryfalse. }
-    all: repeat invert_invariant.
-
-    match goal with
-    | [h: jt_state _ _ |- _] =>
-
-    learn (progress_cont _ _ H2); unzip.
-
-  }
-
-  
-  { (* One case need external lemmas to finish the proof: because of the
-    List.Forall2 linking sigma and sigma', we can deduce that x is a valid key
-    for sigma' as well. And we can deduce the that the invariant holds for the obtained value. *)
-    learn (Forall2_nth_error_Some_left H0 H7); unpack.
-    learn (Forall2_nth_error_Some H0 H7 H); unpack.
-
-    (* We can now handle this case just like the others using the same basic automation. *)
+    (* We repeat the automation for completness *)
     eapply star_step_prop; [solve[econstructor; eauto]|].
     eapply star_refl_prop.
     repeat (econstructor; eauto).
   }
-  { eapply star_refl_prop.
-    (* Because we defined the invariant on state using append_stack, we need to rewrite it everywhere it's needed. This solves most of the cases. *)
-    match goal with [|- inv_state ?s1 ?s2] =>
-      rewrite (@append_stack_all s1);
-      rewrite (@append_stack_all s2);
-      simpl with_stack; simpl stack
-    end.
-    repeat (econstructor; eauto).
-  }
-  { eapply star_refl_prop.
-    match goal with [|- inv_state ?s1 ?s2] =>
-      rewrite (@append_stack_all s1);
-      rewrite (@append_stack_all s2);
-      simpl with_stack; simpl stack
-    end.
-    repeat (econstructor; eauto).
-  }
-  { eapply star_refl_prop.
-    match goal with [|- inv_state ?s1 ?s2] =>
-      rewrite (@append_stack_all s1);
-      rewrite (@append_stack_all s2);
-      simpl with_stack; simpl stack
-    end.
-    repeat (econstructor; eauto).
-  }
-  { eapply star_refl_prop.
-    repeat (econstructor; eauto).
-  }
-  { eapply star_refl_prop.
-    match goal with [|- inv_state ?s1 ?s2] =>
-      rewrite (@append_stack_all s1);
-      rewrite (@append_stack_all s2);
-      simpl with_stack; simpl stack
-    end.
-    repeat (econstructor; eauto).
-  }
-  { (* Sometime, we need more informations about *)
-    extract_stack_equations.
-    learn (append_stack_mode_eval (eq_sym H3)); unpack; subst.
-    eapply star_refl_prop.
-    match goal with [|- inv_state ?s1 ?s2] =>
-      try (erewrite (@append_stack_app s1); [|solve[simpl; eauto]]);
-      try (erewrite (@append_stack_app s2); [|solve[simpl; eauto]]);
-      simpl with_stack; simpl stack
-    end.
-    repeat (econstructor; eauto).
 
-    admit.
+  { (* The two other cases does not work because the diagram is not strong enought : we need to reduce the base state as well. *)
+    admit "We abort the lemma".
   }
-  { eapply star_refl_prop.
-    match goal with [|- inv_state ?s1 ?s2] =>
-      rewrite (@append_stack_all s1);
-      rewrite (@append_stack_all s2);
-      simpl with_stack; simpl stack
-    end.
-    repeat (econstructor; eauto).
-    admit "same thing".
+
+  { (* Same. *)
+    admit "We abort the lemma".
   }
+
+  (* No more cases *)
+  Fail Next Goal.
 Abort.
+
 
 (* -------------------------------------------------------------------------- *)
 (* Same theorem, but we first do the induction on cred. *)
@@ -1991,7 +1948,8 @@ Theorem correctness_cred_ind_red_1step:
         inv_state s2 s2' /\ star cred s1' s2'.
 Proof.
   induction 1; inversion 1; subst.
-
+  4:{
+    (* We don't know how to advance with this proof strategy as soon as there is an other state involved. Here, we cannot reduce s'. *)
 Abort.
 
 (* -------------------------------------------------------------------------- *)
@@ -2052,6 +2010,8 @@ Proof.
       PeanoNat.Nat.lt_wf_0)).
   rename IHkappa into IH; assert (IHkappa:= modify_WF_IH IH); clear IH.
   intros until s2; induction 1.
+
+  
 
   (* 43 cases. But two cases are not working because the diagram is incorrect with this precise invariant.
 
