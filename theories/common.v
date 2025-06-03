@@ -12,6 +12,7 @@ Theorem lastn_def_firstn {A} n (l: list A):
 Proof.
   rewrite firstn_rev.
   rewrite rev_involutive.
+  unfold lastn.
   eauto.
 Qed.
 
