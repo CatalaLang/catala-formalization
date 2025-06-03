@@ -1,7 +1,6 @@
-# Artifact for "Scaling Up Mechanized Proof Automation for Small-step Semantics"
+# Artifact for "Abstract Machines and Small-step Semantics: a Winning Ticket for Proof Automation?"
 
-This is the companion artifact to the paper "Scaling Up Mechanized Proof
-Automation for Small-step Semantics".
+This is the companion artifact to the paper "Abstract Machines and Small-step Semantics: a Winning Ticket for Proof Automation?".
 
 This artifact contains the Rocq code described in the paper.
 
